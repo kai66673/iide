@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<schemalist gettext-domain="iide">
+	<schema id="org.github.kai66673.iide" path="/org/github/kai66673/iide/">
+	</schema>
+</schemalist>

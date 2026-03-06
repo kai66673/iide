@@ -1,0 +1,3 @@
+[D-BUS Service]
+Name=org.github.kai66673.iide
+Exec=@bindir@/iide --gapplication-service
