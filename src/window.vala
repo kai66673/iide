@@ -21,7 +21,7 @@
 [GtkTemplate (ui = "/org/github/kai66673/iide/window.ui")]
 public class Iide.Window : Panel.DocumentWorkspace {
     [GtkChild]
-    private Panel.Paned start_area;
+    private unowned Panel.Paned start_area;
 
     public Window (Gtk.Application app) {
         Object (application: app);
@@ -29,6 +29,7 @@ public class Iide.Window : Panel.DocumentWorkspace {
 
     construct {
         title = "IIde-Application";
+
 /*
         // Header
         var view = new Adw.ToolbarView();
