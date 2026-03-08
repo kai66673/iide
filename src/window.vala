@@ -20,15 +20,43 @@
 
 [GtkTemplate (ui = "/org/github/kai66673/iide/window.ui")]
 public class Iide.Window : Panel.DocumentWorkspace {
-    [GtkChild]
-    private unowned Panel.Paned start_area;
+    [GtkChild] private unowned Panel.Paned start_area;
+    [GtkChild] private unowned Panel.Paned end_area;
+    [GtkChild] private unowned Adw.WindowTitle window_title;
 
     public Window (Gtk.Application app) {
         Object (application: app);
     }
 
     construct {
-        title = "IIde-Application";
+        window_title.title = "APP";
+
+        end_area.orientation = Gtk.Orientation.HORIZONTAL;
+        var end_frame = new Panel.Frame ();
+        end_frame.orientation = Gtk.Orientation.HORIZONTAL;
+        end_area.append (end_frame);
+
+        var end_widget = new Panel.Widget();
+        end_widget.title = "Dynamic";
+        end_widget.icon_name = "folder-symbolic";
+        end_widget.vexpand = true;
+        end_frame.add (end_widget);
+
+        var end_widget1 = new Panel.Widget();
+        end_widget1.title = "<<Dynamic>>";
+        end_widget1.icon_name = "folder-symbolic";
+        end_widget1.vexpand = true;
+        end_widget1.can_maximize = true;
+        end_frame.add (end_widget1);
+
+        var top_position = new Panel.Position();
+        top_position.area = Panel.Area.TOP;
+        var top_frame = dock.create_frame.emit (top_position);
+        var end_widget2 = new Panel.Widget();
+        end_widget2.title = "<<TOP>>";
+        end_widget2.icon_name = "folder-symbolic";
+        end_widget2.vexpand = true;
+        top_frame.add (end_widget2);
 
 /*
         // Header

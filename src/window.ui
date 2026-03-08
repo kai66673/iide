@@ -1,10 +1,10 @@
-<?xml version="1.0" encoding="UTF-8"?>
+<?xml version="1.0" encoding="UTF-8" ?>
 <interface>
   <template class="IideWindow" parent="PanelDocumentWorkspace">
     <child type="titlebar">
       <object class="AdwHeaderBar">
         <child type="title">
-          <object class="AdwWindowTitle">
+          <object class="AdwWindowTitle" id="window_title">
             <property name="title">IIDe Application</property>
           </object>
         </child>
@@ -47,7 +47,7 @@
             <child>
               <object class="PanelWidget">
                 <property name="title">XXX</property>
-                <property name="icon-name">folder-symbolic</property>
+                <property name="icon-name">folder-documents-symbolic</property>
                 <property name="vexpand">true</property>
                 <child>
                   <object class="GtkScrolledWindow">
@@ -132,11 +132,23 @@
         </child>
       </object>
     </child>
+    <child internal-child="end_area">
+      <object class="PanelPaned" id="end_area">
+      </object>
+    </child>
     <child internal-child="statusbar">
       <object class="PanelStatusbar">
         <child type="suffix">
           <object class="PanelToggleButton">
             <property name="area">bottom</property>
+            <property name="dock">dock</property>
+          </object>
+        </child>
+      </object>
+      <object class="PanelStatusbar">
+        <child type="suffix">
+          <object class="PanelToggleButton">
+            <property name="area">top</property>
             <property name="dock">dock</property>
           </object>
         </child>
@@ -152,4 +164,3 @@
     </section>
   </menu>
 </interface>
-
