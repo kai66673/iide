@@ -40,7 +40,10 @@ public class Iide.Window : Panel.DocumentWorkspace {
         end_widget.title = "Dynamic";
         end_widget.icon_name = "folder-symbolic";
         end_widget.vexpand = true;
+        end_widget.can_maximize = true;
         end_frame.add (end_widget);
+        var xxx_lalab = new Gtk.Label("A and B");
+        end_widget.child = xxx_lalab;
 
         var end_widget1 = new Panel.Widget();
         end_widget1.title = "<<Dynamic>>";
@@ -48,10 +51,14 @@ public class Iide.Window : Panel.DocumentWorkspace {
         end_widget1.vexpand = true;
         end_widget1.can_maximize = true;
         end_frame.add (end_widget1);
+        var dyn_lalab = new Gtk.Label("Test Content");
+        end_widget1.child = dyn_lalab;
 
         var top_position = new Panel.Position();
         top_position.area = Panel.Area.TOP;
-        var top_frame = dock.create_frame.emit (top_position);
+        top_position.column = 0;
+        top_position.row = 0;
+        var top_frame = dock.create_frame (top_position);
         var end_widget2 = new Panel.Widget();
         end_widget2.title = "<<TOP>>";
         end_widget2.icon_name = "folder-symbolic";
