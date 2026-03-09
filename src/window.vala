@@ -18,86 +18,73 @@
  * SPDX-License-Identifier: GPL-3.0-or-later
  */
 
-[GtkTemplate (ui = "/org/github/kai66673/iide/window.ui")]
 public class Iide.Window : Panel.DocumentWorkspace {
-    [GtkChild] private unowned Panel.Paned start_area;
-    [GtkChild] private unowned Panel.Paned end_area;
-    [GtkChild] private unowned Adw.WindowTitle window_title;
 
     public Window (Gtk.Application app) {
         Object (application: app);
     }
 
     construct {
-        window_title.title = "APP";
-
-        end_area.orientation = Gtk.Orientation.HORIZONTAL;
-        var end_frame = new Panel.Frame ();
-        end_frame.orientation = Gtk.Orientation.HORIZONTAL;
-        end_area.append (end_frame);
-
-        var end_widget = new Panel.Widget();
-        end_widget.title = "Dynamic";
-        end_widget.icon_name = "folder-symbolic";
-        end_widget.vexpand = true;
-        end_widget.can_maximize = true;
-        end_frame.add (end_widget);
-        var xxx_lalab = new Gtk.Label("A and B");
-        end_widget.child = xxx_lalab;
-
-        var end_widget1 = new Panel.Widget();
-        end_widget1.title = "<<Dynamic>>";
-        end_widget1.icon_name = "folder-symbolic";
-        end_widget1.vexpand = true;
-        end_widget1.can_maximize = true;
-        end_frame.add (end_widget1);
-        var dyn_lalab = new Gtk.Label("Test Content");
-        end_widget1.child = dyn_lalab;
-
-        var top_position = new Panel.Position();
-        top_position.area = Panel.Area.TOP;
-        top_position.column = 0;
-        top_position.row = 0;
-        var top_frame = dock.create_frame (top_position);
-        var end_widget2 = new Panel.Widget();
-        end_widget2.title = "<<TOP>>";
-        end_widget2.icon_name = "folder-symbolic";
-        end_widget2.vexpand = true;
-        top_frame.add (end_widget2);
-
-/*
         // Header
-        var view = new Adw.ToolbarView();
-        content = view;
-
         var header = new Adw.HeaderBar();
         var menu_button = new Gtk.MenuButton();
         menu_button.icon_name = "open-menu-symbolic";
         header.pack_end(menu_button);
 
-        // Header-menu
-        var menu = new GLib.Menu();
-        menu.append_item(new GLib.MenuItem(_("_Preferences"), "app.preferences"));
-        menu.append_item(new GLib.MenuItem(_("_About"), "app.about"));
-
-        menu_button.menu_model = menu;
-
-        view.add_top_bar(header);
-
         dock.reveal_start = true;
-        dock.reveal_end = true;
-        dock.reveal_bottom = true;
-        dock.reveal_top = false;
+        dock.start_width = 200;
+        var start_toggle_btn = new Panel.ToggleButton(dock, Panel.Area.START);
+        header.pack_start(start_toggle_btn);
+
+        dock.reveal_end = false;
+        dock.end_width = 200;
+        var end_toggle_btn = new Panel.ToggleButton(dock, Panel.Area.END);
+        header.pack_end(end_toggle_btn);
+
+        set_titlebar(header);
+
+        // statusbar
+        dock.reveal_bottom = false;
+        dock.bottom_height = 200;
+        var bottom_toggle_btn = new Panel.ToggleButton(dock, Panel.Area.BOTTOM);
+        statusbar.add_suffix (1, bottom_toggle_btn);
 
         var panel_area_left = new Panel.Position();
         panel_area_left.area = Panel.Area.START;
 
-        var panel_widget = new Panel.Widget();
-        panel_widget.child = new Gtk.Label("LEFT");
+        var panel_widget_left1 = new Panel.Widget();
+        panel_widget_left1.title = "LEFT 1";
+        panel_widget_left1.icon_name = "folder-symbolic";
+        panel_widget_left1.child = new Gtk.Label("LEFT 1");
+        panel_widget_left1.can_maximize = true;
 
-        add_widget(panel_widget, panel_area_left);
-        */
+        var panel_widget_left2 = new Panel.Widget();
+        panel_widget_left2.title = "LEFT 2";
+        panel_widget_left2.icon_name = "folder-symbolic";
+        panel_widget_left2.child = new Gtk.Label("LEFT 2");
+        panel_widget_left2.can_maximize = true;
 
-       start_area.hexpand = true;
+        var panel_area_bottom = new Panel.Position();
+        panel_area_bottom.area = Panel.Area.BOTTOM;
+
+        var panel_widget_bottom = new Panel.Widget();
+        panel_widget_bottom.title = "BOTTOM";
+        panel_widget_bottom.icon_name = "folder-symbolic";
+        panel_widget_bottom.child = new Gtk.Label("BOTTOM");
+        panel_widget_bottom.can_maximize = true;
+
+        var panel_area_right = new Panel.Position();
+        panel_area_right.area = Panel.Area.END;
+
+        var panel_widget_right = new Panel.Widget();
+        panel_widget_right.title = "RIGHT";
+        panel_widget_right.icon_name = "folder-symbolic";
+        panel_widget_right.child = new Gtk.Label("RIGHT");
+        panel_widget_right.can_maximize = true;
+
+        add_widget(panel_widget_left1, panel_area_left);
+        add_widget(panel_widget_left2, panel_area_left);
+        add_widget(panel_widget_right, panel_area_right);
+        add_widget(panel_widget_bottom, panel_area_bottom);
     }
 }
