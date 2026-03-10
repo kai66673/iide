@@ -2,6 +2,8 @@ iide_sources = [
     'main.vala',
     'application.vala',
     'window.vala',
+    'interfaces/PaneSwitcher.vala',
+    'Widgets/SourceList/SourceList.vala',
 ]
 
 iide_deps = [

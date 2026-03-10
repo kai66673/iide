@@ -53,7 +53,8 @@ public class Iide.Window : Panel.DocumentWorkspace {
         var panel_widget_left1 = new Panel.Widget ();
         panel_widget_left1.title = "LEFT 1";
         panel_widget_left1.icon_name = "folder-symbolic";
-        panel_widget_left1.child = new Gtk.Label ("LEFT 1");
+        // panel_widget_left1.child = new Gtk.Label ("LEFT 1");
+        panel_widget_left1.child = new Iide.FileTreeView (File.new_for_path ("/home/kai/Projects/iide"));
         panel_widget_left1.can_maximize = true;
 
         var panel_widget_left2 = new Panel.Widget ();
