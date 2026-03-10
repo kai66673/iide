@@ -20,6 +20,7 @@
 
 using Gtk;
 using Adw;
+using Panel;
 
 public class Iide.Window : Panel.DocumentWorkspace {
 
@@ -100,5 +101,20 @@ public class Iide.Window : Panel.DocumentWorkspace {
         add_widget (panel_widget_left2, panel_area_left);
         add_widget (panel_widget_right, panel_area_right);
         add_widget (panel_widget_bottom, panel_area_bottom);
+
+        // Center area for documents
+        // var panel_area_center = new Panel.Position ();
+        // panel_area_center.area = Panel.Area.CENTER;
+
+        // Handle file selection to open documents
+        // var file_tree = (Iide.FileTreeView) panel_widget_left1.child;
+        // file_tree.notify["selected-file"].connect (() => {
+        //     message ("Selected file...");
+        //     var item = file_tree.selected_file;
+        //     if (item != null && !item.is_directory) {
+        //         var text_doc = new Iide.TextDocument (item.file);
+        //         add_widget (text_doc, panel_area_center);
+        //     }
+        // });
     }
 }

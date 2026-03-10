@@ -4,6 +4,7 @@ iide_sources = [
     'window.vala',
     'interfaces/PaneSwitcher.vala',
     'Widgets/SourceList/SourceList.vala',
+    'Widgets/TextDocument.vala',
 ]
 
 iide_deps = [
@@ -12,6 +13,7 @@ iide_deps = [
     dependency('gio-2.0', version: '>= 2.50'),
     dependency('libadwaita-1', version: '>= 1.4'),
     dependency('libpanel-1', version: '>= 1.7'),
+    dependency('gtksourceview-5'),
 ]
 
 iide_sources += gnome.compile_resources('iide-resources', 'iide.gresource.xml', c_name: 'iide')

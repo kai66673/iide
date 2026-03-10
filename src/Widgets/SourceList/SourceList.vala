@@ -7,6 +7,7 @@ public class Iide.FileTreeView : Box {
     private SingleSelection selection;
     private GLib.File? _root_directory = null;
     private CustomSorter sorter;
+    public FileItem? selected_file { get; private set; }
 
     // Свойство с поддержкой null
     public GLib.File? root_directory {
@@ -37,6 +38,13 @@ public class Iide.FileTreeView : Box {
 
             selection = new SingleSelection (tree_model);
             column_view.model = selection;
+            // Connect to selection changes
+            selection.selection_changed.connect (() => {
+                selected_file = selection.selected_item as FileItem;
+                message ("selection_changed: " + selected_file.name);
+            });
+            // Trigger initial selection update
+            this.selected_file = selection.selected_item as FileItem;
         }
     }
 
