@@ -18,6 +18,9 @@
  * SPDX-License-Identifier: GPL-3.0-or-later
  */
 
+using Gtk;
+using Adw;
+
 public class Iide.Window : Panel.DocumentWorkspace {
 
     public Window (Gtk.Application app) { Object (application: app); }
@@ -40,6 +43,19 @@ public class Iide.Window : Panel.DocumentWorkspace {
         header.pack_end (end_toggle_btn);
 
         set_titlebar (header);
+
+        // Theme switcher
+        var style_manager = Adw.StyleManager.get_default ();
+        var theme_toggle = new Gtk.ToggleButton ();
+        theme_toggle.active = style_manager.color_scheme == Adw.ColorScheme.FORCE_DARK;
+        theme_toggle.icon_name = theme_toggle.active ? "weather-clear-night-symbolic" : "weather-clear-symbolic";
+        theme_toggle.tooltip_text = theme_toggle.active ? "Switch to Light Theme" : "Switch to Dark Theme";
+        theme_toggle.toggled.connect (() => {
+            style_manager.color_scheme = theme_toggle.active ? Adw.ColorScheme.FORCE_DARK : Adw.ColorScheme.FORCE_LIGHT;
+            theme_toggle.icon_name = theme_toggle.active ? "weather-clear-night-symbolic" : "weather-clear-symbolic";
+            theme_toggle.tooltip_text = theme_toggle.active ? "Switch to Light Theme" : "Switch to Dark Theme";
+        });
+        header.pack_end (theme_toggle);
 
         // statusbar
         dock.reveal_bottom = false;
