@@ -20,71 +20,69 @@
 
 public class Iide.Window : Panel.DocumentWorkspace {
 
-    public Window (Gtk.Application app) {
-        Object (application: app);
-    }
+    public Window (Gtk.Application app) { Object (application: app); }
 
     construct {
         // Header
-        var header = new Adw.HeaderBar();
-        var menu_button = new Gtk.MenuButton();
+        var header = new Adw.HeaderBar ();
+        var menu_button = new Gtk.MenuButton ();
         menu_button.icon_name = "open-menu-symbolic";
-        header.pack_end(menu_button);
+        header.pack_end (menu_button);
 
         dock.reveal_start = true;
         dock.start_width = 200;
-        var start_toggle_btn = new Panel.ToggleButton(dock, Panel.Area.START);
-        header.pack_start(start_toggle_btn);
+        var start_toggle_btn = new Panel.ToggleButton (dock, Panel.Area.START);
+        header.pack_start (start_toggle_btn);
 
         dock.reveal_end = false;
         dock.end_width = 200;
-        var end_toggle_btn = new Panel.ToggleButton(dock, Panel.Area.END);
-        header.pack_end(end_toggle_btn);
+        var end_toggle_btn = new Panel.ToggleButton (dock, Panel.Area.END);
+        header.pack_end (end_toggle_btn);
 
-        set_titlebar(header);
+        set_titlebar (header);
 
         // statusbar
         dock.reveal_bottom = false;
         dock.bottom_height = 200;
-        var bottom_toggle_btn = new Panel.ToggleButton(dock, Panel.Area.BOTTOM);
+        var bottom_toggle_btn = new Panel.ToggleButton (dock, Panel.Area.BOTTOM);
         statusbar.add_suffix (1, bottom_toggle_btn);
 
-        var panel_area_left = new Panel.Position();
+        var panel_area_left = new Panel.Position ();
         panel_area_left.area = Panel.Area.START;
 
-        var panel_widget_left1 = new Panel.Widget();
+        var panel_widget_left1 = new Panel.Widget ();
         panel_widget_left1.title = "LEFT 1";
         panel_widget_left1.icon_name = "folder-symbolic";
-        panel_widget_left1.child = new Gtk.Label("LEFT 1");
+        panel_widget_left1.child = new Gtk.Label ("LEFT 1");
         panel_widget_left1.can_maximize = true;
 
-        var panel_widget_left2 = new Panel.Widget();
+        var panel_widget_left2 = new Panel.Widget ();
         panel_widget_left2.title = "LEFT 2";
         panel_widget_left2.icon_name = "folder-symbolic";
-        panel_widget_left2.child = new Gtk.Label("LEFT 2");
+        panel_widget_left2.child = new Gtk.Label ("LEFT 2");
         panel_widget_left2.can_maximize = true;
 
-        var panel_area_bottom = new Panel.Position();
+        var panel_area_bottom = new Panel.Position ();
         panel_area_bottom.area = Panel.Area.BOTTOM;
 
-        var panel_widget_bottom = new Panel.Widget();
+        var panel_widget_bottom = new Panel.Widget ();
         panel_widget_bottom.title = "BOTTOM";
         panel_widget_bottom.icon_name = "folder-symbolic";
-        panel_widget_bottom.child = new Gtk.Label("BOTTOM");
+        panel_widget_bottom.child = new Gtk.Label ("BOTTOM");
         panel_widget_bottom.can_maximize = true;
 
-        var panel_area_right = new Panel.Position();
+        var panel_area_right = new Panel.Position ();
         panel_area_right.area = Panel.Area.END;
 
-        var panel_widget_right = new Panel.Widget();
+        var panel_widget_right = new Panel.Widget ();
         panel_widget_right.title = "RIGHT";
         panel_widget_right.icon_name = "folder-symbolic";
-        panel_widget_right.child = new Gtk.Label("RIGHT");
+        panel_widget_right.child = new Gtk.Label ("RIGHT");
         panel_widget_right.can_maximize = true;
 
-        add_widget(panel_widget_left1, panel_area_left);
-        add_widget(panel_widget_left2, panel_area_left);
-        add_widget(panel_widget_right, panel_area_right);
-        add_widget(panel_widget_bottom, panel_area_bottom);
+        add_widget (panel_widget_left1, panel_area_left);
+        add_widget (panel_widget_left2, panel_area_left);
+        add_widget (panel_widget_right, panel_area_right);
+        add_widget (panel_widget_bottom, panel_area_bottom);
     }
 }
