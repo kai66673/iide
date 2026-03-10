@@ -5,12 +5,39 @@ using Gtk;
 public class Iide.FileTreeView : Box {
     private ColumnView column_view;
     private SingleSelection selection;
-    private GLib.File? _root = null;
+    private GLib.File? _root_directory = null;
+    private CustomSorter sorter;
 
     // Свойство с поддержкой null
-    public GLib.File? root {
-        get { return _root; }
-        set { set_root_dir (value); }
+    public GLib.File? root_directory {
+        get { return _root_directory; }
+        set {
+            _root_directory = value;
+
+            if (_root_directory == null) {
+                // Если передан null, просто очищаем модель во View
+                column_view.model = null;
+                selection = null;
+                return;
+            }
+
+            // Базовая модель с сортировкой
+            var root_store = create_file_model (_root_directory);
+            var sorted_root = new SortListModel (root_store, sorter);
+
+            // Если корень есть, строим дерево
+            var tree_model = new TreeListModel (sorted_root, false, false, (item) => {
+                var file_item = item as FileItem;
+                if (file_item != null && file_item.is_directory) {
+                    var child_store = create_file_model (file_item.file);
+                    return new SortListModel (child_store, sorter);
+                }
+                return null;
+            });
+
+            selection = new SingleSelection (tree_model);
+            column_view.model = selection;
+        }
     }
 
     public FileTreeView (GLib.File? root_dir = null) {
@@ -18,8 +45,24 @@ public class Iide.FileTreeView : Box {
 
         // Инициализируем View без модели
         column_view = new ColumnView (null);
-        var column = new ColumnViewColumn ("Имя", create_factory ());
+        // Скрываем заголовок
+        column_view.get_first_child ().set_visible (false);
+
+        var column = new ColumnViewColumn (null, create_factory ());
         column.expand = true;
+        sorter = new CustomSorter ((a, b) => {
+            var fi1 = a as FileItem;
+            var fi2 = b as FileItem;
+            if (fi1 == null || fi2 == null) return 0;
+
+            // Сначала сравниваем тип: директории перед файлами
+            if (fi1.is_directory != fi2.is_directory) {
+                return fi1.is_directory ? -1 : 1;
+            }
+            // Затем по имени
+            return strcmp (fi1.name.down (), fi2.name.down ());
+        });
+        column.sorter = sorter;
         column_view.append_column (column);
 
         var scroll = new ScrolledWindow ();
@@ -28,30 +71,7 @@ public class Iide.FileTreeView : Box {
         this.append (scroll);
 
         // Безопасно устанавливаем корень (даже если это null)
-        this.set_root_dir (root_dir);
-    }
-
-    public void set_root_dir (GLib.File? root_dir) {
-        _root = root_dir;
-
-        if (_root == null) {
-            // Если передан null, просто очищаем модель во View
-            column_view.model = null;
-            selection = null;
-            return;
-        }
-
-        // Если корень есть, строим дерево
-        var tree_model = new TreeListModel (create_file_model (_root), false, false, (item) => {
-            var file_item = item as FileItem;
-            if (file_item != null && file_item.is_directory) {
-                return create_file_model (file_item.file);
-            }
-            return null;
-        });
-
-        selection = new SingleSelection (tree_model);
-        column_view.model = selection;
+        this.root_directory = root_dir;
     }
 
     private GLib.ListStore create_file_model (GLib.File dir) {
