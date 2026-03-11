@@ -1,13 +1,18 @@
 using Gtk;
 
-using Gtk;
-
 public class Iide.FileTreeView : Box {
     private ColumnView column_view;
     private SingleSelection selection;
     private GLib.File? _root_directory = null;
     private CustomSorter sorter;
-    public FileItem? selected_file { get; private set; }
+    public FileItem? _selected_file = null;
+
+    public FileItem? selected_file {
+        get { return _selected_file; }
+        private set {
+            _selected_file = value;
+        }
+    }
 
     // Свойство с поддержкой null
     public GLib.File? root_directory {
@@ -40,11 +45,12 @@ public class Iide.FileTreeView : Box {
             column_view.model = selection;
             // Connect to selection changes
             selection.selection_changed.connect (() => {
-                selected_file = selection.selected_item as FileItem;
-                message ("selection_changed: " + selected_file.name);
+                var tree_row = selection.selected_item as TreeListRow;
+                selected_file = tree_row.get_item () as FileItem;
             });
+
             // Trigger initial selection update
-            this.selected_file = selection.selected_item as FileItem;
+            this.selected_file = null;
         }
     }
 
@@ -61,7 +67,7 @@ public class Iide.FileTreeView : Box {
         sorter = new CustomSorter ((a, b) => {
             var fi1 = a as FileItem;
             var fi2 = b as FileItem;
-            if (fi1 == null || fi2 == null) return 0;
+            if (fi1 == null || fi2 == null)return 0;
 
             // Сначала сравниваем тип: директории перед файлами
             if (fi1.is_directory != fi2.is_directory) {
@@ -146,7 +152,7 @@ public class Iide.FileItem : Object {
         Object (
                 file : file,
                 name : info.get_display_name (),
-                is_directory: info.get_file_type () == GLib.FileType.DIRECTORY
+                is_directory : info.get_file_type () == GLib.FileType.DIRECTORY
         );
     }
 }
