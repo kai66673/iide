@@ -57,6 +57,7 @@ public class Iide.Window : Panel.DocumentWorkspace {
             theme_toggle.tooltip_text = theme_toggle.active ? "Switch to Light Theme" : "Switch to Dark Theme";
         });
         header.pack_end (theme_toggle);
+        style_manager.color_scheme = Adw.ColorScheme.FORCE_LIGHT;
 
         // statusbar
         dock.reveal_bottom = false;
