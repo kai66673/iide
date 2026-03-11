@@ -70,7 +70,7 @@ public class Iide.Window : Panel.DocumentWorkspace {
         var panel_widget_left1 = new Panel.Widget ();
         panel_widget_left1.title = "Project Tree";
         panel_widget_left1.icon_name = "folder-symbolic";
-        panel_widget_left1.child = new Iide.FileTreeView (File.new_for_path ("/home/kai/kaigit/iide"));
+        panel_widget_left1.child = new Iide.FileTreeView (File.new_for_path ("/home/kai/Projects/iide"));
         panel_widget_left1.can_maximize = true;
 
         var panel_widget_left2 = new Panel.Widget ();
@@ -102,6 +102,12 @@ public class Iide.Window : Panel.DocumentWorkspace {
         add_widget (panel_widget_right, panel_area_right);
         add_widget (panel_widget_bottom, panel_area_bottom);
 
+        // 2. Create a Frame for the center area
+        var text_view = new TextView ();
+        var center_panel = new Panel.Widget ();
+        center_panel.child = text_view;
+        grid.add (center_panel);
+
         // Center area for documents
         // var panel_area_center = new Panel.Position ();
         // panel_area_center.area = Panel.Area.CENTER;
@@ -109,12 +115,12 @@ public class Iide.Window : Panel.DocumentWorkspace {
         // Handle file selection to open documents
         // var file_tree = (Iide.FileTreeView) panel_widget_left1.child;
         // file_tree.notify["selected-file"].connect (() => {
-        //     message ("Selected file...");
-        //     var item = file_tree.selected_file;
-        //     if (item != null && !item.is_directory) {
-        //         var text_doc = new Iide.TextDocument (item.file);
-        //         add_widget (text_doc, panel_area_center);
-        //     }
+        // message ("Selected file...");
+        // var item = file_tree.selected_file;
+        // if (item != null && !item.is_directory) {
+        // var text_doc = new Iide.TextDocument (item.file);
+        // add_widget (text_doc, panel_area_center);
+        // }
         // });
     }
 }
