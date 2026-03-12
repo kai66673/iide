@@ -24,9 +24,17 @@ using Panel;
 
 public class Iide.Window : Panel.DocumentWorkspace {
 
+    private Iide.DocumentManager document_manager;
+
     public Window (Gtk.Application app) { Object (application: app); }
 
     construct {
+        document_manager = new Iide.DocumentManager ();
+        document_manager.document_opened.connect ((widget) => {
+            grid.add (widget);
+            widget.raise ();
+        });
+
         // Header
         var header = new Adw.HeaderBar ();
         var menu_button = new Gtk.MenuButton ();
@@ -108,12 +116,7 @@ public class Iide.Window : Panel.DocumentWorkspace {
         folder_view.notify["selected-file"].connect (() => {
             var item = folder_view.selected_file;
             if (item != null && !item.is_directory) {
-                var text_view = new Iide.TextView (item.file);
-                var center_panel = new Panel.Widget ();
-                center_panel.title = item.name;
-                center_panel.child = text_view;
-                grid.add (center_panel);
-                center_panel.raise ();
+                document_manager.open_document (item.file);
             }
         });
     }
