@@ -112,10 +112,9 @@ public class Iide.Window : Panel.DocumentWorkspace {
         add_widget (panel_widget_right, panel_area_right);
         add_widget (panel_widget_bottom, panel_area_bottom);
 
-        // Handle file selection to open documents
-        folder_view.notify["selected-file"].connect (() => {
-            var item = folder_view.selected_file;
-            if (item != null && !item.is_directory) {
+        // Handle file activation to open documents
+        folder_view.file_activated.connect ((item) => {
+            if (!item.is_directory) {
                 document_manager.open_document (item.file);
             }
         });

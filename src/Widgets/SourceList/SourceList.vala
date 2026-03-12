@@ -5,14 +5,8 @@ public class Iide.FileTreeView : Box {
     private SingleSelection selection;
     private GLib.File? _root_directory = null;
     private CustomSorter sorter;
-    public FileItem? _selected_file = null;
 
-    public FileItem? selected_file {
-        get { return _selected_file; }
-        private set {
-            _selected_file = value;
-        }
-    }
+    public signal void file_activated (FileItem item);
 
     // Свойство с поддержкой null
     public GLib.File? root_directory {
@@ -43,14 +37,6 @@ public class Iide.FileTreeView : Box {
 
             selection = new SingleSelection (tree_model);
             column_view.model = selection;
-            // Connect to selection changes
-            selection.selection_changed.connect (() => {
-                var tree_row = selection.selected_item as TreeListRow;
-                selected_file = tree_row.get_item () as FileItem;
-            });
-
-            // Trigger initial selection update
-            this.selected_file = null;
         }
     }
 
@@ -83,6 +69,16 @@ public class Iide.FileTreeView : Box {
         scroll.vexpand = true;
         scroll.set_child (column_view);
         this.append (scroll);
+
+        column_view.activate.connect ((pos) => {
+            var item = selection.get_item (pos) as TreeListRow;
+            if (item != null) {
+                var file_item = item.get_item () as FileItem;
+                if (file_item != null) {
+                    file_activated (file_item);
+                }
+            }
+        });
 
         // Безопасно устанавливаем корень (даже если это null)
         this.root_directory = root_dir;
@@ -135,6 +131,14 @@ public class Iide.FileTreeView : Box {
             if (file_item != null) {
                 label.label = file_item.name;
                 icon.icon_name = file_item.is_directory ? "folder" : "text-x-generic";
+
+                if (!file_item.is_directory) {
+                    var click = new Gtk.GestureClick ();
+                    click.released.connect (() => {
+                        file_activated (file_item);
+                    });
+                    box.add_controller (click);
+                }
             }
         });
 

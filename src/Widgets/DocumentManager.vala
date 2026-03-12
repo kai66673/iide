@@ -48,7 +48,6 @@ public class Iide.DocumentManager : GLib.Object {
             panel_widget.icon_name = "text-x-generic";
             panel_widget.child = text_view;
             panel_widget.notify["parent"].connect (() => {
-                message ("Panel widget parent changed");
                 if (panel_widget.parent == null) {
                     close_document (file);
                 }
@@ -63,7 +62,6 @@ public class Iide.DocumentManager : GLib.Object {
     public bool close_document (GLib.File file) {
         string uri = file.get_uri ();
         if (documents.has_key (uri)) {
-            var widget = documents.get (uri);
             // Remove from grid is handled by caller or libpanel
             documents.unset (uri);
 
