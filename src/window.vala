@@ -113,6 +113,7 @@ public class Iide.Window : Panel.DocumentWorkspace {
                 center_panel.title = item.name;
                 center_panel.child = text_view;
                 grid.add (center_panel);
+                center_panel.raise ();
             }
         });
     }
