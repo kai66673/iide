@@ -87,7 +87,7 @@ public class Iide.Window : Panel.DocumentWorkspace {
         var panel_widget_bottom = new Panel.Widget ();
         panel_widget_bottom.title = "BOTTOM";
         panel_widget_bottom.icon_name = "folder-symbolic";
-        panel_widget_bottom.child = new Gtk.Label ("BOTTOM");
+        panel_widget_bottom.child = new Iide.Terminal ();
         panel_widget_bottom.can_maximize = true;
 
         var panel_area_right = new Panel.Position ();

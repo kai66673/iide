@@ -6,11 +6,24 @@ public class Iide.TextView : Gtk.Box {
         Object (orientation: Gtk.Orientation.VERTICAL);
 
         manager = GtkSource.LanguageManager.get_default ();
+        var adw_style_manager = Adw.StyleManager.get_default ();
 
         var buffer = new GtkSource.Buffer (null);
         var style_manager = GtkSource.StyleSchemeManager.get_default ();
-        var scheme = style_manager.get_scheme ("Adwaita-dark");
-        buffer.set_style_scheme (scheme);
+        if (adw_style_manager.color_scheme == Adw.ColorScheme.FORCE_LIGHT) {
+            buffer.set_style_scheme (style_manager.get_scheme ("Adwaita"));
+        } else {
+            buffer.set_style_scheme (style_manager.get_scheme ("Adwaita-dark"));
+        }
+
+        // Handle file selection to open documents
+        adw_style_manager.notify["color-scheme"].connect (() => {
+            if (adw_style_manager.color_scheme == Adw.ColorScheme.FORCE_LIGHT) {
+                buffer.set_style_scheme (style_manager.get_scheme ("Adwaita"));
+            } else {
+                buffer.set_style_scheme (style_manager.get_scheme ("Adwaita-dark"));
+            }
+        });
 
         view = new GtkSource.View.with_buffer (buffer);
 
