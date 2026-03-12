@@ -7,6 +7,7 @@ iide_sources = [
     'Widgets/TextDocument.vala',
     'Widgets/Terminal.vala',
     'Widgets/DocumentManager.vala',
+    'Widgets/Editor.vala',
 ]
 
 iide_deps = [

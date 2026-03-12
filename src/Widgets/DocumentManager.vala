@@ -31,6 +31,8 @@ public class Iide.DocumentManager : GLib.Object {
         documents = new Gee.HashMap<string, Panel.Widget> ();
     }
 
+
+
     public signal void document_opened (Panel.Widget document);
     public signal void document_closed (string uri);
 
@@ -59,9 +61,17 @@ public class Iide.DocumentManager : GLib.Object {
         }
     }
 
+
+
     public bool close_document (GLib.File file) {
         string uri = file.get_uri ();
         if (documents.has_key (uri)) {
+            var widget = documents.get (uri);
+            // Auto save if modified
+            var tv = (Iide.TextView) widget.child;
+            if (tv.is_modified) {
+                tv.save ();
+            }
             // Remove from grid is handled by caller or libpanel
             documents.unset (uri);
 

@@ -24,6 +24,8 @@ public class Iide.TextView : Gtk.Box {
     public GtkSource.LanguageManager manager;
     public string uri { get; private set; }
 
+    public bool is_modified { get { return ((GtkSource.Buffer) view.buffer).get_modified(); } }
+
     public TextView (GLib.File file) {
         Object (orientation: Gtk.Orientation.VERTICAL);
         this.uri = file.get_uri();
@@ -74,6 +76,17 @@ public class Iide.TextView : Gtk.Box {
         }
         get {
             return ((GtkSource.Buffer) view.buffer).language;
+        }
+    }
+
+    public void save () {
+        try {
+            var text = view.buffer.text;
+            var file = GLib.File.new_for_uri(uri);
+            file.replace_contents (text.data, null, false, GLib.FileCreateFlags.NONE, null);
+            ((GtkSource.Buffer) view.buffer).set_modified (false);
+        } catch (Error e) {
+            critical (e.message);
         }
     }
 
