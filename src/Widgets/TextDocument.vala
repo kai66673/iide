@@ -19,16 +19,43 @@
  * SPDX-License-Identifier: GPL-3.0-or-later
  */
 
-public class Iide.TextView : Gtk.Box {
+public class Iide.SaveDelegate : Panel.SaveDelegate {
+    private Iide.TextView view;
+    public SaveDelegate (Iide.TextView view) {
+        Object ();
+        this.view = view;
+
+        var file = GLib.File.new_for_uri (view.uri);
+        title = view.title;
+        subtitle = file.get_path ();
+    }
+
+    public override bool save (GLib.Task task) {
+        message ("Saving in delegate...");
+        var result = view.save ();
+        task.return_boolean (result);
+        return result;
+    }
+
+    public override void close () {
+        view.force_close ();
+    }
+
+    public override void discard () {
+        view.force_close ();
+    }
+}
+
+public class Iide.TextView : Panel.Widget {
     private GtkSource.View view;
     public GtkSource.LanguageManager manager;
     public string uri { get; private set; }
 
-    public bool is_modified { get { return ((GtkSource.Buffer) view.buffer).get_modified(); } }
+    public bool is_modified { get { return ((GtkSource.Buffer) view.buffer).get_modified (); } }
 
     public TextView (GLib.File file) {
-        Object (orientation: Gtk.Orientation.VERTICAL);
-        this.uri = file.get_uri();
+        Object ();
+        this.uri = file.get_uri ();
 
         manager = GtkSource.LanguageManager.get_default ();
         var adw_style_manager = Adw.StyleManager.get_default ();
@@ -55,6 +82,7 @@ public class Iide.TextView : Gtk.Box {
         uint8[] contents;
         file.load_contents (null, out contents, null);
         buffer.text = (string) contents;
+        buffer.set_modified (false);
 
         change_syntax_highlight_from_file (file);
 
@@ -66,7 +94,20 @@ public class Iide.TextView : Gtk.Box {
         var scroll = new Gtk.ScrolledWindow ();
         scroll.vexpand = true;
         scroll.set_child (view);
-        append (scroll);
+
+        var box = new Gtk.Box (Gtk.Orientation.VERTICAL, 0);
+        box.append (scroll);
+        child = box;
+
+        title = file.get_basename ();
+        icon_name = "text-x-generic";
+
+        save_delegate = new Iide.SaveDelegate (this);
+        modified = false;
+
+        buffer.modified_changed.connect_after (() => {
+            modified = view.buffer.get_modified ();
+        });
     }
 
     // lang can be null, in the case of *No highlight style* aka Normal text
@@ -79,15 +120,16 @@ public class Iide.TextView : Gtk.Box {
         }
     }
 
-    public void save () {
+    public bool save () {
         try {
             var text = view.buffer.text;
-            var file = GLib.File.new_for_uri(uri);
+            var file = GLib.File.new_for_uri (uri);
             file.replace_contents (text.data, null, false, GLib.FileCreateFlags.NONE, null);
             ((GtkSource.Buffer) view.buffer).set_modified (false);
         } catch (Error e) {
             critical (e.message);
         }
+        return true;;
     }
 
     public void change_syntax_highlight_from_file (GLib.File file) {

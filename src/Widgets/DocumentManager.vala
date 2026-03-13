@@ -31,8 +31,6 @@ public class Iide.DocumentManager : GLib.Object {
         documents = new Gee.HashMap<string, Panel.Widget> ();
     }
 
-
-
     public signal void document_opened (Panel.Widget document);
     public signal void document_closed (string uri);
 
@@ -43,12 +41,7 @@ public class Iide.DocumentManager : GLib.Object {
             widget.raise ();
             return widget;
         } else {
-            var text_view = new Iide.TextView (file);
-            var panel_widget = new Panel.Widget ();
-            panel_widget.can_maximize = true;
-            panel_widget.title = file.get_basename ();
-            panel_widget.icon_name = "text-x-generic";
-            panel_widget.child = text_view;
+            var panel_widget = new Iide.TextView (file);
             panel_widget.notify["parent"].connect (() => {
                 if (panel_widget.parent == null) {
                     close_document (file);
@@ -66,12 +59,12 @@ public class Iide.DocumentManager : GLib.Object {
     public bool close_document (GLib.File file) {
         string uri = file.get_uri ();
         if (documents.has_key (uri)) {
-            var widget = documents.get (uri);
+            // var widget = documents.get (uri);
             // Auto save if modified
-            var tv = (Iide.TextView) widget.child;
-            if (tv.is_modified) {
-                tv.save ();
-            }
+            // var tv = (Iide.TextView) widget;
+            // if (tv.is_modified) {
+            // tv.save ();
+            // }
             // Remove from grid is handled by caller or libpanel
             documents.unset (uri);
 
@@ -80,8 +73,6 @@ public class Iide.DocumentManager : GLib.Object {
         }
         return false;
     }
-
-
 
     public Panel.Widget? get_document_for_file (GLib.File file) {
         string uri = file.get_uri ();
