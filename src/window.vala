@@ -39,6 +39,13 @@ public class Iide.Window : Panel.DocumentWorkspace {
         var header = new Adw.HeaderBar ();
         var menu_button = new Gtk.MenuButton ();
         menu_button.icon_name = "open-menu-symbolic";
+
+        var menu = new GLib.Menu ();
+        menu.append (_("Preferences"), "app.preferences");
+        menu.append (_("About"), "app.about");
+        menu.append (_("Quit"), "app.quit");
+        menu_button.set_menu_model (menu);
+
         header.pack_end (menu_button);
 
         dock.reveal_start = true;
