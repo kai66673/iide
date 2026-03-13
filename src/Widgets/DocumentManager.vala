@@ -25,7 +25,7 @@ using Gtk;
 using Panel;
 
 public class Iide.DocumentManager : GLib.Object {
-    private Gee.HashMap<string, Panel.Widget> documents;
+    public Gee.HashMap<string, Panel.Widget> documents;
 
     public DocumentManager () {
         documents = new Gee.HashMap<string, Panel.Widget> ();

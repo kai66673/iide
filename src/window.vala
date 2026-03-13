@@ -118,5 +118,45 @@ public class Iide.Window : Panel.DocumentWorkspace {
                 document_manager.open_document (item.file);
             }
         });
+
+        // Handle window close
+        this.close_request.connect (() => {
+            bool has_unsaved = false;
+            foreach (var entry in document_manager.documents.entries) {
+                if (entry.value is Iide.TextView) {
+                    var tv = (Iide.TextView) entry.value;
+                    if (tv.is_modified) {
+                        has_unsaved = true;
+                        break;
+                    }
+                }
+            }
+            if (has_unsaved) {
+                var dialog = new Adw.AlertDialog (_("Unsaved Changes"), _("You have unsaved documents. Save before closing?"));
+                dialog.add_response ("cancel", _("Cancel"));
+                dialog.add_response ("discard", _("Discard"));
+                dialog.add_response ("save", _("Save"));
+                dialog.set_response_appearance ("save", Adw.ResponseAppearance.SUGGESTED);
+                dialog.response.connect ((response) => {
+                    if (response == "save") {
+                        foreach (var entry in document_manager.documents.entries) {
+                            if (entry.value is Iide.TextView) {
+                                var tv = (Iide.TextView) entry.value;
+                                if (tv.is_modified) {
+                                    tv.save ();
+                                }
+                            }
+                        }
+                        this.destroy ();
+                    } else if (response == "discard") {
+                        this.destroy ();
+                    }
+                    // cancel does nothing
+                });
+                dialog.present (this);
+                return true;
+            }
+            return false;
+        });
     }
 }
