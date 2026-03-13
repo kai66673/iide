@@ -115,6 +115,11 @@ public class Iide.Terminal : Gtk.Box {
         update_cursor ();
         update_colors ();
 
+        var adw_style_manager = Adw.StyleManager.get_default ();
+        adw_style_manager.notify["color-scheme"].connect (() => {
+            update_colors ();
+        });
+
         terminal.child_exited.connect (() => {
             // Hide the exited terminal
             // var win_group = get_action_group (Scratch.MainWindow.ACTION_GROUP);
@@ -290,7 +295,33 @@ public class Iide.Terminal : Gtk.Box {
             }
 
             terminal.set_colors (foreground_color, background_color, palette);
-        } // No suitable system keys
+        } else {
+            update_colors_for_theme (Adw.StyleManager.get_default ().color_scheme);
+        }
+    }
+
+    private void update_colors_for_theme (Adw.ColorScheme scheme) {
+        Gdk.RGBA foreground_color;
+        Gdk.RGBA background_color;
+        string[] hex_palette = { "#000000", "#cc0000", "#4e9a06", "#c4a000", "#3465a4", "#75507b", "#06989a", "#d3d7cf", "#555753", "#ef2929", "#8ae234", "#fce94f", "#729fcf", "#ad7fa8", "#34e2e2", "#eeeeec" };
+
+        Gdk.RGBA[] palette = new Gdk.RGBA[16];
+
+        for (int i = 0; i < hex_palette.length; i++) {
+            Gdk.RGBA new_color = Gdk.RGBA ();
+            new_color.parse (hex_palette[i]);
+            palette[i] = new_color;
+        }
+
+        if (scheme == Adw.ColorScheme.FORCE_LIGHT) {
+            foreground_color = { 0.0f, 0.0f, 0.0f, 1.0f };
+            background_color = { 1.0f, 1.0f, 1.0f, 1.0f };
+        } else {
+            foreground_color = { 1.0f, 1.0f, 1.0f, 1.0f };
+            background_color = { 0.0f, 0.0f, 0.0f, 1.0f };
+        }
+
+        terminal.set_colors (foreground_color, background_color, palette);
     }
 
     public void save_settings () {
