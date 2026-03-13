@@ -5,10 +5,13 @@
  */
 
 public class Iide.Terminal : Gtk.Box {
-    public const string ACTION_GROUP = "term";
-    public const string ACTION_PREFIX = ACTION_GROUP + ".";
-    public const string ACTION_COPY = "action-copy";
-    public const string ACTION_PASTE = "action-paste";
+    private const string ACTION_GROUP = "term";
+    private const string ACTION_PREFIX = ACTION_GROUP + ".";
+    private const string ACTION_COPY = "action-copy";
+    private const string ACTION_PASTE = "action-paste";
+    private const string ACTION_INCREASE_FONT = "increase-font";
+    private const string ACTION_DECREASE_FONT = "decrease-font";
+    private const string ACTION_RESET_FONT = "reset-font";
 
     private const double MAX_SCALE = 5.0;
     private const double MIN_SCALE = 0.2;
@@ -28,8 +31,11 @@ public class Iide.Terminal : Gtk.Box {
     public Vte.Terminal terminal { get; construct; }
     private Gtk.EventControllerKey key_controller;
     private Gtk.GestureClick gesture_click;
+    private Gtk.EventControllerScroll scroll_controller;
     private Gdk.Clipboard current_clipboard;
     private Gtk.ScrolledWindow scrolled_window;
+
+    private const double FONT_SCALE_STEP = 0.1;
 
     private Settings? terminal_settings = null;
     private Settings? gnome_interface_settings = null;
@@ -140,21 +146,40 @@ public class Iide.Terminal : Gtk.Box {
         var paste_action = new SimpleAction (ACTION_PASTE, null);
         paste_action.activate.connect (() => terminal.paste_clipboard ());
 
+        var increase_font_action = new SimpleAction (ACTION_INCREASE_FONT, null);
+        increase_font_action.activate.connect (() => increment_size ());
+
+        var decrease_font_action = new SimpleAction (ACTION_DECREASE_FONT, null);
+        decrease_font_action.activate.connect (() => decrement_size ());
+
+        var reset_font_action = new SimpleAction (ACTION_RESET_FONT, null);
+        reset_font_action.activate.connect (() => set_default_font_size ());
+
         actions = new SimpleActionGroup ();
         actions.add_action (copy_action);
         actions.add_action (paste_action);
+        actions.add_action (increase_font_action);
+        actions.add_action (decrease_font_action);
+        actions.add_action (reset_font_action);
 
         var menu_model = new GLib.Menu ();
-        menu_model.append (_("Copy"), ACTION_PREFIX + ACTION_COPY);
-        menu_model.append (_("Paste"), ACTION_PREFIX + ACTION_PASTE);
+        var clipboard_section = new GLib.Menu ();
+        clipboard_section.append (_("Copy"), ACTION_PREFIX + ACTION_COPY);
+        clipboard_section.append (_("Paste"), ACTION_PREFIX + ACTION_PASTE);
+        menu_model.append_section (null, clipboard_section);
+        var zoom_section = new GLib.Menu ();
+        zoom_section.append (_("Zoom In"), ACTION_PREFIX + ACTION_INCREASE_FONT);
+        zoom_section.append (_("Zoom Out"), ACTION_PREFIX + ACTION_DECREASE_FONT);
+        zoom_section.append (_("Reset Zoom"), ACTION_PREFIX + ACTION_RESET_FONT);
+        menu_model.append_section (null, zoom_section);
 
         scrolled_window = new Gtk.ScrolledWindow ();
         scrolled_window.hexpand = true;
         scrolled_window.set_child (terminal);
 
-        var menu = new Gtk.PopoverMenu.from_model (menu_model);
-        menu.insert_action_group (ACTION_GROUP, actions);
-        menu.set_parent (scrolled_window);
+        var popover_menu = new Gtk.PopoverMenu.from_model (menu_model);
+        popover_menu.insert_action_group (ACTION_GROUP, actions);
+        popover_menu.set_parent (scrolled_window);
         // menu.show_all ();
 
         key_controller = new Gtk.EventControllerKey ();
@@ -169,9 +194,25 @@ public class Iide.Terminal : Gtk.Box {
             if (n_press == 1) {
                 paste_action.set_enabled (current_clipboard.content != null);
                 var rect = Gdk.Rectangle () { x = (int)x, y = (int)y, width = 1, height = 1 };
-                menu.set_pointing_to (rect);
-                menu.popup ();
+                popover_menu.set_pointing_to (rect);
+                popover_menu.popup ();
             }
+        });
+
+        scroll_controller = new Gtk.EventControllerScroll (Gtk.EventControllerScrollFlags.VERTICAL);
+        scroll_controller.propagation_phase = CAPTURE;
+        scrolled_window.add_controller (scroll_controller);
+        scroll_controller.scroll.connect ((dx, dy) => {
+            var state = scroll_controller.get_current_event_state ();
+            if (Gdk.ModifierType.CONTROL_MASK in state) {
+                if (dy > 0) {
+                    decrement_size ();
+                } else {
+                    increment_size ();
+                }
+                return Gdk.EVENT_STOP;
+            }
+            return Gdk.EVENT_PROPAGATE;
         });
 
         // terminal.button_press_event.connect ((event) => {
@@ -349,12 +390,12 @@ public class Iide.Terminal : Gtk.Box {
         // Scratch.saved_state.set_string ("last-opened-path", get_shell_location ());
     }
 
-    public void increment_size () {
-        terminal.font_scale = (terminal.font_scale + 0.1).clamp (MIN_SCALE, MAX_SCALE);
+    private void increment_size () {
+        terminal.font_scale = (terminal.font_scale + FONT_SCALE_STEP).clamp (MIN_SCALE, MAX_SCALE);
     }
 
-    public void decrement_size () {
-        terminal.font_scale = (terminal.font_scale - 0.1).clamp (MIN_SCALE, MAX_SCALE);
+    private void decrement_size () {
+        terminal.font_scale = (terminal.font_scale - FONT_SCALE_STEP).clamp (MIN_SCALE, MAX_SCALE);
     }
 
     public void set_default_font_size () {
