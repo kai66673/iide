@@ -31,11 +31,13 @@ public class Iide.Application : Adw.Application {
         ActionEntry[] action_entries = {
             { "about", this.on_about_action },
             { "preferences", this.on_preferences_action },
+            { "save", this.on_save_action },
             { "quit", this.quit }
         };
         this.add_action_entries (action_entries, this);
         this.set_accels_for_action ("app.quit", { "<control>q" });
         this.set_accels_for_action ("app.preferences", { "<control>comma" });
+        this.set_accels_for_action ("app.save", { "<control>s" });
     }
 
     public override void activate () {
@@ -66,5 +68,10 @@ public class Iide.Application : Adw.Application {
 
     private void on_preferences_action () {
         message ("app.preferences action activated");
+    }
+
+    private void on_save_action () {
+        var win = active_window as Iide.Window;
+        win?.save_modified ();
     }
 }

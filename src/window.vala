@@ -41,6 +41,7 @@ public class Iide.Window : Panel.DocumentWorkspace {
         menu_button.icon_name = "open-menu-symbolic";
 
         var menu = new GLib.Menu ();
+        menu.append (_("Save All"), "app.save");
         menu.append (_("Preferences"), "app.preferences");
         menu.append (_("About"), "app.about");
         menu.append (_("Quit"), "app.quit");
@@ -165,5 +166,17 @@ public class Iide.Window : Panel.DocumentWorkspace {
             }
             return false;
         });
+    }
+
+    public void save_modified () {
+        foreach (var uri in document_manager.documents.keys) {
+            var widget = document_manager.documents[uri];
+            if (widget is Iide.TextView) {
+                var tv = widget as Iide.TextView;
+                if (tv.is_modified) {
+                    tv.save ();
+                }
+            }
+        }
     }
 }
