@@ -21,9 +21,9 @@
 public class Iide.Application : Adw.Application {
     public Application () {
         Object (
-            application_id: "org.github.kai66673.iide",
-            flags: ApplicationFlags.DEFAULT_FLAGS,
-            resource_base_path: "/org/github/kai66673/iide"
+                application_id: "org.github.kai66673.iide",
+                flags: ApplicationFlags.DEFAULT_FLAGS,
+                resource_base_path: "/org/github/kai66673/iide"
         );
     }
 
@@ -34,7 +34,7 @@ public class Iide.Application : Adw.Application {
             { "quit", this.quit }
         };
         this.add_action_entries (action_entries, this);
-        this.set_accels_for_action ("app.quit", {"<control>q"});
+        this.set_accels_for_action ("app.quit", { "<control>q" });
     }
 
     public override void activate () {
