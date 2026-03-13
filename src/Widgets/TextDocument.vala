@@ -19,6 +19,8 @@
  * SPDX-License-Identifier: GPL-3.0-or-later
  */
 
+
+
 public class Iide.SaveDelegate : Panel.SaveDelegate {
     private Iide.TextView view;
     public SaveDelegate (Iide.TextView view) {
@@ -135,14 +137,30 @@ public class Iide.TextView : Panel.Widget {
             var info = file.query_info ("standard::*", FileQueryInfoFlags.NONE, null);
             var mime_type = ContentType.get_mime_type (info.get_attribute_as_string (FileAttribute.STANDARD_CONTENT_TYPE));
             language = manager.guess_language (file.get_path (), mime_type);
+
+            var gicon = GLib.ContentType.get_icon (mime_type);
+            if (gicon is GLib.ThemedIcon) {
+                var themed = gicon as GLib.ThemedIcon;
+                var names = themed.get_names ();
+                if (names.length > 0) {
+                    icon_name = names[0];
+                } else {
+                    icon_name = "text-x-generic";
+                }
+            } else {
+                icon_name = "text-x-generic";
+            }
+            message("TRY icon_name: " + icon_name);
         } catch (Error e) {
             critical (e.message);
+            icon_name = "text-x-generic";
         }
 
         // Fake file type detection
         // "Not all files are equal"
         if (file.get_basename () == "CMakeLists.txt") {
             language = manager.get_language ("cmake");
+            icon_name = "text-x-cmake"; // Specific icon for CMake
         }
     }
 }

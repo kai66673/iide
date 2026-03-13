@@ -47,6 +47,10 @@ public class Iide.Application : Adw.Application {
         css_provider.load_from_resource ("/org/github/kai66673/iide/style.css");
         Gtk.StyleContext.add_provider_for_display (Gdk.Display.get_default (), css_provider, Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION);
 
+        // Add search path for Papirus icons
+        var icon_theme = Gtk.IconTheme.get_for_display (Gdk.Display.get_default ());
+        icon_theme.add_search_path ("/usr/share/icons/Papirus");
+
         var win = this.active_window ?? new Iide.Window (this);
         win.present ();
     }
