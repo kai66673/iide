@@ -27,6 +27,9 @@ public class Iide.Terminal : Gtk.Box {
 
     public Vte.Terminal terminal { get; construct; }
     private Gtk.EventControllerKey key_controller;
+    private Gtk.GestureClick gesture_click;
+    private Gdk.Clipboard current_clipboard;
+    private Gtk.ScrolledWindow scrolled_window;
 
     private Settings? terminal_settings = null;
     private Settings? gnome_interface_settings = null;
@@ -145,14 +148,31 @@ public class Iide.Terminal : Gtk.Box {
         menu_model.append (_("Copy"), ACTION_PREFIX + ACTION_COPY);
         menu_model.append (_("Paste"), ACTION_PREFIX + ACTION_PASTE);
 
+        scrolled_window = new Gtk.ScrolledWindow ();
+        scrolled_window.hexpand = true;
+        scrolled_window.set_child (terminal);
+
         var menu = new Gtk.PopoverMenu.from_model (menu_model);
         menu.insert_action_group (ACTION_GROUP, actions);
+        menu.set_parent (scrolled_window);
         // menu.show_all ();
 
-        // key_controller = new Gtk.EventControllerKey (terminal) {
-        // propagation_phase = BUBBLE
-        // };
-        // key_controller.key_pressed.connect (key_pressed);
+        key_controller = new Gtk.EventControllerKey ();
+        key_controller.propagation_phase = BUBBLE;
+        terminal.add_controller (key_controller);
+        key_controller.key_pressed.connect (key_pressed);
+
+        gesture_click = new Gtk.GestureClick ();
+        gesture_click.button = 3; // Right click
+        scrolled_window.add_controller (gesture_click);
+        gesture_click.pressed.connect ((n_press, x, y) => {
+            if (n_press == 1) {
+                paste_action.set_enabled (current_clipboard.content != null);
+                var rect = Gdk.Rectangle () { x = (int)x, y = (int)y, width = 1, height = 1 };
+                menu.set_pointing_to (rect);
+                menu.popup ();
+            }
+        });
 
         // terminal.button_press_event.connect ((event) => {
         // if (event.button == 3) {
@@ -168,15 +188,16 @@ public class Iide.Terminal : Gtk.Box {
         // copy_action.set_enabled (terminal.get_has_selection ());
         // });
 
+        spawn_shell ();
+
         terminal.selection_changed.connect (() => {
             copy_action.set_enabled (terminal.get_has_selection ());
         });
 
-        spawn_shell ();
-
-        var scrolled_window = new Gtk.ScrolledWindow ();
-        scrolled_window.hexpand = true;
-        scrolled_window.set_child (terminal);
+        realize.connect (() => {
+            current_clipboard = scrolled_window.get_clipboard ();
+            copy_action.set_enabled (terminal.get_has_selection ());
+        });
 
         append (scrolled_window);
     }
@@ -340,36 +361,25 @@ public class Iide.Terminal : Gtk.Box {
         terminal.font_scale = 1.0;
     }
 
-    // private bool key_pressed (uint keyval, uint keycode, Gdk.ModifierType modifiers) {
-    //// Use hardware keycodes so the key used is unaffected by internationalized layout
-    // bool match_keycode (uint keyval, uint code) {
-    // Gdk.KeymapKey[] keys;
+    private bool key_pressed (uint keyval, uint keycode, Gdk.ModifierType modifiers) {
+        if (Gdk.ModifierType.CONTROL_MASK in modifiers && keyval == Gdk.Key.d) {
+            terminal.reset (true, true);
+            return Gdk.EVENT_STOP;
+        }
 
-    // var keymap = Gdk.Keymap.get_for_display (get_display ());
-    // if (keymap.get_entries_for_keyval (keyval, out keys)) {
-    // foreach (var key in keys) {
-    // if (code == key.keycode) {
-    // return Gdk.EVENT_STOP;
-    // }
-    // }
-    // }
+        if (Gdk.ModifierType.CONTROL_MASK in modifiers &&
+            (Gdk.ModifierType.SHIFT_MASK in modifiers ||
+            terminal_settings != null && terminal_settings.get_boolean ("natural-copy-paste"))) {
 
-    // return Gdk.EVENT_PROPAGATE;
-    // }
+            if (keyval == Gdk.Key.c && terminal.get_has_selection ()) {
+                actions.activate_action (ACTION_COPY, null);
+                return Gdk.EVENT_STOP;
+            // } else if (keyval == Gdk.Key.v && current_clipboard.wait_is_text_available ()) {
+            // actions.activate_action (ACTION_PASTE, null);
+            // return Gdk.EVENT_STOP;
+            }
+        }
 
-    // if (CONTROL_MASK in modifiers && (SHIFT_MASK in modifiers ||
-    // terminal_settings != null && terminal_settings.get_boolean ("natural-copy-paste"))) {
-
-    // if (match_keycode (Gdk.Key.c, keycode) && terminal.get_has_selection ()) {
-    // actions.activate_action (ACTION_COPY, null);
-    // return Gdk.EVENT_STOP;
-    //// } else if (match_keycode (Gdk.Key.v, keycode) && current_clipboard.wait_is_text_available ()) {
-    //// actions.activate_action (ACTION_PASTE, null);
-    //// return Gdk.EVENT_STOP;
-    // }
-    // }
-
-
-    // return Gdk.EVENT_PROPAGATE;
-    // }
+        return Gdk.EVENT_PROPAGATE;
+    }
 }
