@@ -53,7 +53,7 @@ public class Iide.TextView : Panel.Widget {
 
     public bool is_modified { get { return ((GtkSource.Buffer) view.buffer).get_modified (); } }
 
-    public TextView (GLib.File file) {
+    public TextView (GLib.File file, uint8[] contents) {
         Object ();
         this.uri = file.get_uri ();
 
@@ -79,8 +79,6 @@ public class Iide.TextView : Panel.Widget {
 
         view = new GtkSource.View.with_buffer (buffer);
 
-        uint8[] contents;
-        file.load_contents (null, out contents, null);
         buffer.text = (string) contents;
         buffer.set_modified (false);
 

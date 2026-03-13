@@ -34,23 +34,32 @@ public class Iide.DocumentManager : GLib.Object {
     public signal void document_opened (Panel.Widget document);
     public signal void document_closed (string uri);
 
-    public Panel.Widget? open_document (GLib.File file) {
+    public Panel.Widget? open_document (GLib.File file, Gtk.Window window) {
         string uri = file.get_uri ();
         if (documents.has_key (uri)) {
             var widget = documents.get (uri);
             widget.raise ();
             return widget;
         } else {
-            var panel_widget = new Iide.TextView (file);
-            panel_widget.notify["parent"].connect (() => {
-                if (panel_widget.parent == null) {
-                    close_document (file);
-                }
-            });
+            try {
+                uint8[] contents;
+                file.load_contents (null, out contents, null);
+                var panel_widget = new Iide.TextView (file, contents);
+                panel_widget.notify["parent"].connect (() => {
+                    if (panel_widget.parent == null) {
+                        close_document (file);
+                    }
+                });
 
-            documents.set (uri, panel_widget);
-            document_opened (panel_widget);
-            return panel_widget;
+                documents.set (uri, panel_widget);
+                document_opened (panel_widget);
+                return panel_widget;
+            } catch (Error e) {
+                var dialog = new Adw.AlertDialog ("Error Opening File", "Failed to read file %s: %s".printf (file.get_path (), e.message));
+                dialog.add_response ("ok", "OK");
+                dialog.present (window);
+                return null;
+            }
         }
     }
 
