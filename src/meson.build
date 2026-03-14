@@ -2,10 +2,10 @@ iide_sources = [
     'main.vala',
     'application.vala',
     'window.vala',
-    'Widgets/SourceList/SourceList.vala',
-    'Widgets/TextDocument.vala',
-    'Widgets/Terminal.vala',
-    'Widgets/DocumentManager.vala',
+    'Widgets/TextView.vala',
+    'Widgets/ToolViews/ProjectView.vala',
+    'Widgets/ToolViews/TerminalView.vala',
+    'Services/DocumentManager.vala',
 ]
 
 iide_deps = [

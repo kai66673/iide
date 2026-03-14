@@ -267,15 +267,15 @@ public class Iide.Terminal : Gtk.Box {
     // Scratch.saved_state.set_string ("last-opened-path", dir);
     // }
 
-    private string get_shell_location () {
-        int pid = (!) (this.child_pid);
-        try {
-            return GLib.FileUtils.read_link ("/proc/%d/cwd".printf (pid));
-        } catch (GLib.FileError error) {
-            warning ("An error occurred while fetching the current dir of shell: %s", error.message);
-            return "";
-        }
-    }
+    // private string get_shell_location () {
+    //     int pid = (!) (this.child_pid);
+    //     try {
+    //         return GLib.FileUtils.read_link ("/proc/%d/cwd".printf (pid));
+    //     } catch (GLib.FileError error) {
+    //         warning ("An error occurred while fetching the current dir of shell: %s", error.message);
+    //         return "";
+    //     }
+    // }
 
     private void update_font () {
         var font_name = "";
