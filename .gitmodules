@@ -1,0 +1,48 @@
+[submodule "vendor/tree-sitter"]
+	path = vendor/tree-sitter
+	url = https://github.com/albfan/tree-sitter
+[submodule "parsers/c"]
+	path = parsers/c
+	url = https://github.com/tree-sitter/tree-sitter-c
+[submodule "parsers/bash"]
+	path = parsers/bash
+	url = https://github.com/tree-sitter/tree-sitter-bash
+[submodule "parsers/json"]
+	path = parsers/json
+	url = https://github.com/tree-sitter/tree-sitter-json
+[submodule "parsers/python"]
+	path = parsers/python
+	url = https://github.com/tree-sitter/tree-sitter-python
+[submodule "parsers/php"]
+	path = parsers/php
+	url = https://github.com/tree-sitter/tree-sitter-php
+[submodule "parsers/cpp"]
+	path = parsers/cpp
+	url = https://github.com/tree-sitter/tree-sitter-cpp
+[submodule "parsers/go"]
+	path = parsers/go
+	url = https://github.com/tree-sitter/tree-sitter-go
+[submodule "parsers/html"]
+	path = parsers/html
+	url = https://github.com/tree-sitter/tree-sitter-html
+[submodule "parsers/javascript"]
+	path = parsers/javascript
+	url = https://github.com/tree-sitter/tree-sitter-javascript
+[submodule "parsers/ruby"]
+	path = parsers/ruby
+	url = https://github.com/tree-sitter/tree-sitter-ruby
+[submodule "parsers/rust"]
+	path = parsers/rust
+	url = https://github.com/tree-sitter/tree-sitter-rust
+[submodule "parsers/typescript"]
+	path = parsers/typescript
+	url = https://github.com/tree-sitter/tree-sitter-typescript
+[submodule "parsers/yaml"]
+	path = parsers/yaml
+	url = https://github.com/tree-sitter-grammars/tree-sitter-yaml
+[submodule "parsers/xml"]
+	path = parsers/xml
+	url = https://github.com/tree-sitter-grammars/tree-sitter-xml
+[submodule "parsers/vala"]
+	path = parsers/vala
+	url = https://github.com/vala-lang/tree-sitter-vala
