@@ -193,7 +193,7 @@ public class Iide.Terminal : Gtk.Box {
         gesture_click.pressed.connect ((n_press, x, y) => {
             if (n_press == 1) {
                 paste_action.set_enabled (current_clipboard.content != null);
-                var rect = Gdk.Rectangle () { x = (int)x, y = (int)y, width = 1, height = 1 };
+                var rect = Gdk.Rectangle () { x = (int) x, y = (int) y, width = 1, height = 1 };
                 popover_menu.set_pointing_to (rect);
                 popover_menu.popup ();
             }
@@ -244,20 +244,23 @@ public class Iide.Terminal : Gtk.Box {
     }
 
     private void spawn_shell (string dir = GLib.Environment.get_current_dir ()) {
-        try {
-            terminal.spawn_sync (
-                                 Vte.PtyFlags.DEFAULT,
-                                 dir,
-                                 { Vte.get_user_shell () },
-                                 null,
-                                 SpawnFlags.SEARCH_PATH,
-                                 null,
-                                 out this.child_pid,
-                                 null
-            );
-        } catch (Error e) {
-            warning (e.message);
-        }
+        terminal.spawn_async (
+                              Vte.PtyFlags.DEFAULT,
+                              dir,
+                              { Vte.get_user_shell () },
+                              null,
+                              SpawnFlags.SEARCH_PATH,
+                              null,
+                              100,
+                              null,
+                              (source, pid, error) => {
+            if (error != null) {
+                stderr.printf ("Ошибка при запуске: %s\n", error.message);
+            } else {
+                this.child_pid = pid;
+                stdout.printf ("Терминал успешно запущен. PID: %d\n", pid);
+            }
+        });
     }
 
     // public void change_location (string dir) {
@@ -268,13 +271,13 @@ public class Iide.Terminal : Gtk.Box {
     // }
 
     // private string get_shell_location () {
-    //     int pid = (!) (this.child_pid);
-    //     try {
-    //         return GLib.FileUtils.read_link ("/proc/%d/cwd".printf (pid));
-    //     } catch (GLib.FileError error) {
-    //         warning ("An error occurred while fetching the current dir of shell: %s", error.message);
-    //         return "";
-    //     }
+    // int pid = (!) (this.child_pid);
+    // try {
+    // return GLib.FileUtils.read_link ("/proc/%d/cwd".printf (pid));
+    // } catch (GLib.FileError error) {
+    // warning ("An error occurred while fetching the current dir of shell: %s", error.message);
+    // return "";
+    // }
     // }
 
     private void update_font () {
@@ -410,14 +413,14 @@ public class Iide.Terminal : Gtk.Box {
 
         if (Gdk.ModifierType.CONTROL_MASK in modifiers &&
             (Gdk.ModifierType.SHIFT_MASK in modifiers ||
-            terminal_settings != null && terminal_settings.get_boolean ("natural-copy-paste"))) {
+             terminal_settings != null && terminal_settings.get_boolean ("natural-copy-paste"))) {
 
             if (keyval == Gdk.Key.c && terminal.get_has_selection ()) {
                 actions.activate_action (ACTION_COPY, null);
                 return Gdk.EVENT_STOP;
-            // } else if (keyval == Gdk.Key.v && current_clipboard.wait_is_text_available ()) {
-            // actions.activate_action (ACTION_PASTE, null);
-            // return Gdk.EVENT_STOP;
+                // } else if (keyval == Gdk.Key.v && current_clipboard.wait_is_text_available ()) {
+                // actions.activate_action (ACTION_PASTE, null);
+                // return Gdk.EVENT_STOP;
             }
         }
 
