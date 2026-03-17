@@ -50,6 +50,9 @@ public class Iide.SaveDelegate : Panel.SaveDelegate {
 
 public class Iide.TextView : Panel.Widget {
     private GtkSource.View view;
+    private Iide.TreeSitterManager ts_manager;
+    private unowned TreeSitter.Language? ts_language;
+
     public GtkSource.LanguageManager manager;
     public string uri { get; private set; }
 
@@ -58,6 +61,8 @@ public class Iide.TextView : Panel.Widget {
     public TextView (GLib.File file, GtkSource.Buffer buffer) {
         Object ();
         this.uri = file.get_uri ();
+        this.ts_manager = new TreeSitterManager ();
+        this.ts_language = null;
 
         manager = GtkSource.LanguageManager.get_default ();
         var adw_style_manager = Adw.StyleManager.get_default ();
@@ -82,7 +87,23 @@ public class Iide.TextView : Panel.Widget {
 
         buffer.set_modified (false);
 
+        icon_name = "text-x-generic";
+
         change_syntax_highlight_from_file (file);
+
+        this.ts_language = ts_manager.get_ts_language (buffer);
+
+        {
+            var parser = new TreeSitter.Parser ();
+            parser.set_language (this.ts_language);
+            var ts_tree = parser.parse_string (null, buffer.text.data);
+            if (ts_tree == null) {
+                message ("Errors parsing file %s", file.get_uri ());
+            } else {
+                var root_node = ts_tree.root_node ();
+                message (root_node.to_str ());
+            }
+        }
 
         view.show_line_numbers = true;
         view.highlight_current_line = true;
@@ -98,7 +119,6 @@ public class Iide.TextView : Panel.Widget {
         child = box;
 
         title = file.get_basename ();
-        icon_name = "text-x-generic";
 
         save_delegate = new Iide.SaveDelegate (this);
         modified = false;

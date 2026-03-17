@@ -6,7 +6,9 @@ iide_sources = [
     'Widgets/ToolViews/ProjectView.vala',
     'Widgets/ToolViews/TerminalView.vala',
     'Services/DocumentManager.vala',
-    'Services/TreeSitterManager.vala',
+    'Services/TreeSitter/TreeSitterManager.vala',
+    'Services/TreeSitter/model/AstItem.vala',
+    'Services/TreeSitter/model/AstModel.vala',
 ]
 
 iide_deps = [
@@ -25,7 +27,7 @@ iide_sources += gnome.compile_resources('iide-resources', 'iide.gresource.xml', 
 executable(
     'iide',
     iide_sources,
-    dependencies: iide_deps,
+    dependencies: [iide_deps, tree_sitter_dep],
     include_directories: config_inc,
     install: true,
 )
