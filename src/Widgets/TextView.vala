@@ -55,14 +55,13 @@ public class Iide.TextView : Panel.Widget {
 
     public bool is_modified { get { return ((GtkSource.Buffer) view.buffer).get_modified (); } }
 
-    public TextView (GLib.File file, uint8[] contents) {
+    public TextView (GLib.File file, GtkSource.Buffer buffer) {
         Object ();
         this.uri = file.get_uri ();
 
         manager = GtkSource.LanguageManager.get_default ();
         var adw_style_manager = Adw.StyleManager.get_default ();
 
-        var buffer = new GtkSource.Buffer (null);
         var style_manager = GtkSource.StyleSchemeManager.get_default ();
         if (adw_style_manager.color_scheme == Adw.ColorScheme.FORCE_LIGHT) {
             buffer.set_style_scheme (style_manager.get_scheme ("Adwaita"));
@@ -81,7 +80,6 @@ public class Iide.TextView : Panel.Widget {
 
         view = new GtkSource.View.with_buffer (buffer);
 
-        buffer.text = (string) contents;
         buffer.set_modified (false);
 
         change_syntax_highlight_from_file (file);
@@ -150,7 +148,7 @@ public class Iide.TextView : Panel.Widget {
             } else {
                 icon_name = "text-x-generic";
             }
-            message("TRY icon_name: " + icon_name);
+            message ("TRY icon_name: " + icon_name);
         } catch (Error e) {
             critical (e.message);
             icon_name = "text-x-generic";

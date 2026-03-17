@@ -6,6 +6,7 @@ iide_sources = [
     'Widgets/ToolViews/ProjectView.vala',
     'Widgets/ToolViews/TerminalView.vala',
     'Services/DocumentManager.vala',
+    'Services/TreeSitterManager.vala',
 ]
 
 iide_deps = [

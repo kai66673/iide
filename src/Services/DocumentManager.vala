@@ -41,25 +41,29 @@ public class Iide.DocumentManager : GLib.Object {
             widget.raise ();
             return widget;
         } else {
-            try {
-                uint8[] contents;
-                file.load_contents (null, out contents, null);
-                var panel_widget = new Iide.TextView (file, contents);
-                panel_widget.notify["parent"].connect (() => {
-                    if (panel_widget.parent == null) {
-                        close_document (file);
-                    }
-                });
-
-                documents.set (uri, panel_widget);
-                document_opened (panel_widget);
-                return panel_widget;
-            } catch (Error e) {
-                var dialog = new Adw.AlertDialog ("Error Opening File", "Failed to read file %s: %s".printf (file.get_path (), e.message));
-                dialog.add_response ("ok", "OK");
-                dialog.present (window);
-                return null;
-            }
+            var buffer = new GtkSource.Buffer (null);
+            var source_file = new GtkSource.File ();
+            source_file.location = file;
+            var file_loader = new GtkSource.FileLoader (buffer, source_file);
+            Iide.TextView? panel_widget = null;
+            file_loader.load_async.begin (Priority.DEFAULT, null, null, (obj, res) => {
+                try {
+                    file_loader.load_async.end (res);
+                    panel_widget = new Iide.TextView (file, buffer);
+                    panel_widget.notify["parent"].connect (() => {
+                        if (panel_widget.parent == null) {
+                            close_document (file);
+                        }
+                    });
+                    documents.set (uri, panel_widget);
+                    document_opened (panel_widget);
+                } catch (Error e) {
+                    var dialog = new Adw.AlertDialog ("Error Opening File", "Failed to read file %s: %s".printf (file.get_path (), e.message));
+                    dialog.add_response ("ok", "OK");
+                    dialog.present (window);
+                }
+            });
+            return panel_widget;
         }
     }
 
@@ -68,15 +72,7 @@ public class Iide.DocumentManager : GLib.Object {
     public bool close_document (GLib.File file) {
         string uri = file.get_uri ();
         if (documents.has_key (uri)) {
-            // var widget = documents.get (uri);
-            // Auto save if modified
-            // var tv = (Iide.TextView) widget;
-            // if (tv.is_modified) {
-            // tv.save ();
-            // }
-            // Remove from grid is handled by caller or libpanel
             documents.unset (uri);
-
             document_closed (uri);
             return true;
         }
