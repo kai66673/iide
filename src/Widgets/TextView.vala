@@ -157,6 +157,12 @@ public class Iide.TextView : Panel.Widget {
             language = manager.guess_language (file.get_path (), mime_type);
 
             var gicon = GLib.ContentType.get_icon (mime_type);
+            // var icon_name = IconProvider.get_mime_type_icon_name (mime_type);
+
+            // if (icon_name == null) {
+            // icon_name = "text-x-generic";
+            // }
+
             if (gicon is GLib.ThemedIcon) {
                 var themed = gicon as GLib.ThemedIcon;
                 var names = themed.get_names ();
