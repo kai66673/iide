@@ -130,7 +130,7 @@ public class Iide.FileTreeView : Box {
             expander.list_row = tree_row;
             if (file_item != null) {
                 label.label = file_item.name;
-                icon.icon_name = file_item.is_directory ? "folder" : "text-x-generic";
+                icon.icon_name = file_item.is_directory ? "folder" : IconProvider.get_mime_type_icon_name (mime_type_for_file (file_item.file));
 
                 if (!file_item.is_directory) {
                     var click = new Gtk.GestureClick ();
@@ -155,8 +155,8 @@ public class Iide.FileItem : Object {
     public FileItem (GLib.File file, GLib.FileInfo info) {
         Object (
                 file : file,
-                name : info.get_display_name (),
-                is_directory : info.get_file_type () == GLib.FileType.DIRECTORY
+                name: info.get_display_name (),
+                is_directory: info.get_file_type () == GLib.FileType.DIRECTORY
         );
     }
 }

@@ -93,7 +93,7 @@ public class Iide.TextView : Panel.Widget {
 
         this.ts_language = ts_manager.get_ts_language (buffer);
 
-        {
+        if (this.ts_language != null) {
             var parser = new TreeSitter.Parser ();
             parser.set_language (this.ts_language);
             var ts_tree = parser.parse_string (null, buffer.text.data);
@@ -147,42 +147,15 @@ public class Iide.TextView : Panel.Widget {
         } catch (Error e) {
             critical (e.message);
         }
-        return true;;
+        return true;
     }
 
     public void change_syntax_highlight_from_file (GLib.File file) {
-        string mime_type = "text-x";
-        try {
-            var info = file.query_info ("standard::*", FileQueryInfoFlags.NONE, null);
-            mime_type = ContentType.get_mime_type (info.get_attribute_as_string (FileAttribute.STANDARD_CONTENT_TYPE));
-        } catch (Error e) {
-        }
-        message ("MIME_TYPE: " + mime_type);
+        string mime_type = mime_type_for_file (file);
+        message ("MIME: _ " + mime_type);
 
         icon_name = IconProvider.get_mime_type_icon_name (mime_type);
         language = manager.guess_language (file.get_path (), mime_type);
-
-
-        //// if (icon_name == null) {
-        //// icon_name = "text-x-generic";
-        //// }
-
-        // if (gicon is GLib.ThemedIcon) {
-        // var themed = gicon as GLib.ThemedIcon;
-        // var names = themed.get_names ();
-        // if (names.length > 0) {
-        // icon_name = names[0];
-        // } else {
-        // icon_name = "iide-python-symbolic";
-        // }
-        // } else {
-        // icon_name = "iide-python-symbolic";
-        // }
-        // message ("TRY icon_name: " + icon_name);
-        // } catch (Error e) {
-        // critical (e.message);
-        // icon_name = "iide-python-symbolic";
-        // }
 
         // Fake file type detection
         // "Not all files are equal"

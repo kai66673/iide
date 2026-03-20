@@ -22,5 +22,13 @@
             compressed="true"
             alias="scalable/mimetypes/text-markdown-symbolic.svg"
         >icons/mimetypes/text-markdown-symbolic.svg</file>
+    <file
+            compressed="true"
+            alias="scalable/mimetypes/text-x-javascript-symbolic.svg"
+        >icons/mimetypes/text-x-javascript-symbolic.svg</file>
+    <file
+            compressed="true"
+            alias="scalable/mimetypes/text-xml-symbolic.svg"
+        >icons/mimetypes/text-xml-symbolic.svg</file>
   </gresource>
 </gresources>

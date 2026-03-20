@@ -17,6 +17,10 @@ public class Iide.IconProvider {
             return "text-x-meson";
         case "text/markdown":
             return "text-markdown";
+        case "application/json":
+            return "text-x-javascript";
+        case "application/x-gtk-builder":
+            return "text-xml";
         }
         return "text-x-generic";
     }

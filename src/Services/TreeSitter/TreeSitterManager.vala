@@ -31,7 +31,6 @@ extern unowned TreeSitter.Language ? get_language_yaml ();
 class Iide.TreeSitterManager : GLib.Object {
     public unowned TreeSitter.Language? get_ts_language (GtkSource.Buffer buffer) {
         var language_name = buffer.language.name.down ();
-        message ("Lang NAME: " + language_name);
         unowned TreeSitter.Language? language = null;
         switch (language_name) {
         case "bash" :
