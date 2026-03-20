@@ -151,34 +151,38 @@ public class Iide.TextView : Panel.Widget {
     }
 
     public void change_syntax_highlight_from_file (GLib.File file) {
+        string mime_type = "text-x";
         try {
             var info = file.query_info ("standard::*", FileQueryInfoFlags.NONE, null);
-            var mime_type = ContentType.get_mime_type (info.get_attribute_as_string (FileAttribute.STANDARD_CONTENT_TYPE));
-            language = manager.guess_language (file.get_path (), mime_type);
-
-            var gicon = GLib.ContentType.get_icon (mime_type);
-            // var icon_name = IconProvider.get_mime_type_icon_name (mime_type);
-
-            // if (icon_name == null) {
-            // icon_name = "text-x-generic";
-            // }
-
-            if (gicon is GLib.ThemedIcon) {
-                var themed = gicon as GLib.ThemedIcon;
-                var names = themed.get_names ();
-                if (names.length > 0) {
-                    icon_name = names[0];
-                } else {
-                    icon_name = "text-x-generic";
-                }
-            } else {
-                icon_name = "text-x-generic";
-            }
-            message ("TRY icon_name: " + icon_name);
+            mime_type = ContentType.get_mime_type (info.get_attribute_as_string (FileAttribute.STANDARD_CONTENT_TYPE));
         } catch (Error e) {
-            critical (e.message);
-            icon_name = "text-x-generic";
         }
+        message ("MIME_TYPE: " + mime_type);
+
+        icon_name = IconProvider.get_mime_type_icon_name (mime_type);
+        language = manager.guess_language (file.get_path (), mime_type);
+
+
+        //// if (icon_name == null) {
+        //// icon_name = "text-x-generic";
+        //// }
+
+        // if (gicon is GLib.ThemedIcon) {
+        // var themed = gicon as GLib.ThemedIcon;
+        // var names = themed.get_names ();
+        // if (names.length > 0) {
+        // icon_name = names[0];
+        // } else {
+        // icon_name = "iide-python-symbolic";
+        // }
+        // } else {
+        // icon_name = "iide-python-symbolic";
+        // }
+        // message ("TRY icon_name: " + icon_name);
+        // } catch (Error e) {
+        // critical (e.message);
+        // icon_name = "iide-python-symbolic";
+        // }
 
         // Fake file type detection
         // "Not all files are equal"

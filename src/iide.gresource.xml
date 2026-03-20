@@ -5,4 +5,22 @@
     <file preprocess="xml-stripblanks">shortcuts-dialog.ui</file>
     <file>style.css</file>
   </gresource>
+  <gresource prefix="/org/github/kai66673/iide/icons">
+     <file
+            compressed="true"
+            alias="scalable/mimetypes/text-x-python-symbolic.svg"
+        >icons/mimetypes/text-x-python-symbolic.svg</file>
+    <file
+            compressed="true"
+            alias="scalable/mimetypes/text-x-vala-symbolic.svg"
+        >icons/mimetypes/text-x-vala-symbolic.svg</file>
+    <file
+            compressed="true"
+            alias="scalable/mimetypes/text-x-meson-symbolic.svg"
+        >icons/mimetypes/text-x-meson-symbolic.svg</file>
+    <file
+            compressed="true"
+            alias="scalable/mimetypes/text-markdown-symbolic.svg"
+        >icons/mimetypes/text-markdown-symbolic.svg</file>
+  </gresource>
 </gresources>

@@ -52,6 +52,7 @@ public class Iide.Application : Adw.Application {
         icon_theme.add_search_path ("/usr/share/icons/Papirus");
         icon_theme.add_search_path ("/usr/share/icons/Papirus-Light");
         icon_theme.add_search_path ("/usr/share/icons/Papirus-Dark");
+        icon_theme.add_resource_path ("/org/github/kai66673/iide/icons");
 
         var win = this.active_window ?? new Iide.Window (this);
         win.present ();
