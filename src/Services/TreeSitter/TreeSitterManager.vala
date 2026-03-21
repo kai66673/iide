@@ -28,7 +28,17 @@ extern unowned TreeSitter.Language ? get_language_typescript ();
 extern unowned TreeSitter.Language ? get_language_yaml ();
 
 
+
 class Iide.TreeSitterManager : GLib.Object {
+    public string? get_ts_query(GtkSource.Buffer buffer) {
+        var language_name = buffer.language.name.down ();
+        switch (language_name) {
+        case "python":
+            return tsh_query_python();
+        }
+        return null;
+    }
+
     public unowned TreeSitter.Language? get_ts_language (GtkSource.Buffer buffer) {
         var language_name = buffer.language.name.down ();
         unowned TreeSitter.Language? language = null;

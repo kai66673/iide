@@ -189,6 +189,65 @@ namespace TreeSitter {
     [CCode (cname = "ts_tree_cursor_goto_parent")]
     public Node goto_parent ();
  }
+ [CCode (cname = "TSQuery", free_function = "ts_query_delete", has_type_id = false)]
+ [Compact]
+ public class Query {
+     [CCode (cname = "ts_query_new")]
+     public Query (Language language, [CCode (array_length_type = "uint32_t")] uint8[] source, out uint32 error_offset, out QueryError error_type);
+     public uint32 capture_count ();
+
+     [CCode (cname = "ts_query_capture_name_for_id")]
+     public string capture_name_for_id (uint32 id, out uint32 length);
+     public uint32 string_count ();
+ }
+
+ [CCode (cname = "TSQueryCursor", free_function = "ts_query_cursor_delete", has_type_id = false)]
+ [Compact]
+ public class QueryCursor {
+     [CCode (cname = "ts_query_cursor_new")]
+     public QueryCursor ();
+
+     [CCode (cname = "ts_query_cursor_exec")]
+     public void exec (Query query, Node node);
+
+    [CCode (cname = "ts_query_cursor_next_match")]
+     public bool next_match (out QueryMatch match);
+
+     [CCode (cname = "ts_query_cursor_next_capture")]
+     public bool next_capture (out QueryMatch match, out uint32 capture_index);
+ }
+
+
+
+// [SimpleType]
+[CCode (cname = "TSQueryMatch", has_destroy_function = false, has_type_id = false)]
+ public struct QueryMatch {
+     public uint32 id;
+     public uint16 pattern_index;
+
+     public uint16 capture_count;
+
+     [CCode (array_length_cname = "capture_count")]
+     public QueryCapture[] captures;
+ }
+
+ [CCode (cname = "TSQueryCapture", has_type_id = false)]
+ public struct QueryCapture {
+     public Node node;
+     public uint32 index;
+ }
+
+ [CCode (cname = "TSQueryError", cprefix = "TSQueryError")]
+ public enum QueryError {
+     None,
+     Syntax,
+     NodeType,
+     Field,
+     Capture,
+     Structure,
+     Language
+ }
+
 }
 
 /*

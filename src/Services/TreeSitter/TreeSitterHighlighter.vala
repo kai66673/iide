@@ -1,15 +1,21 @@
 using Gtk;
 using GtkSource;
 
-public class TreeSitterHighlighter : Object {
+public class Iide.TreeSitterHighlighter : Object {
     private View view;
     private Buffer buffer;
     private TreeSitter.Parser parser;
     private TreeSitter.Tree? tree = null;
+    private TreeSitterStyleMapper style_mapper;
+    private string ts_query;
+    private unowned TreeSitter.Language language;
 
-    public TreeSitterHighlighter(View view, TreeSitter.Language language) {
+    public TreeSitterHighlighter(View view, TreeSitter.Language language, string ts_query) {
         this.view = view;
         this.buffer = (Buffer)view.get_buffer();
+        this.style_mapper = new TreeSitterStyleMapper(this.buffer);
+        this.ts_query = ts_query;
+        this.language = language;
 
         // 1. Настройка парсера (например, для C)
         parser = new TreeSitter.Parser();
@@ -40,7 +46,57 @@ public class TreeSitterHighlighter : Object {
         buffer.remove_all_tags(start, end);
 
         // 5. Рекурсивный обход дерева или использование Queries
-        traverse_node(tree.root_node());
+        uint32 error_offset;
+        TreeSitter.QueryError error_type;
+        // this.ts_query = "(identifier) @variable";
+        message(ts_query);
+        TreeSitter.Query query = new TreeSitter.Query(this.language, this.ts_query.data, out error_offset, out error_type);
+        if (query == null) {
+            message("TS Query Error");
+            message("- %ld -".printf(error_offset));
+            return;
+        }
+        var cursor = new TreeSitter.QueryCursor();
+        cursor.exec(query, tree.root_node());
+
+        // 3. Итерируем совпадения
+        TreeSitter.QueryMatch match;
+        uint32 capture_index;
+        message("TS 01");
+        while (cursor.next_capture(out match, out capture_index)) {
+            message("TS 02");
+            var capture = match.captures[capture_index];
+            uint name_len;
+            string name = query.capture_name_for_id(capture.index, out name_len);
+            message("Capture name: " + name);
+            TextIter s_iter, e_iter;
+            message("TS 03");
+            get_iters_from_ts_node(buffer, capture.node, out s_iter, out e_iter);
+            message("TS 04");
+
+            this.style_mapper.apply_highlight(name, s_iter, e_iter);
+            message("TS 05");
+        }
+
+
+        // while (cursor.next_match(out match)) {
+        //     for (uint16 i = 0; i < match.capture_count; i++) {
+        //     var capture = match.captures[(int)i];
+        //     // Получаем имя из @name в query_str
+        //         uint name_len;
+        //         string name = query.capture_name_for_id(capture.index, out name_len);
+        //         TextIter s_iter, e_iter;
+        //         get_iters_from_ts_node(buffer, capture.node, out s_iter, out e_iter);
+
+        //         this.style_mapper.apply_highlight(name, s_iter, e_iter);
+
+        //         // Теперь у вас есть 'name' (например, "function") и 'capture.node'
+        //         // Можно вызывать ваш StyleMapper.apply_highlight(name, ...)
+        //     }
+        // }
+
+
+        // traverse_node(tree.root_node());
     }
 
     private void traverse_node(TreeSitter.Node node) {

@@ -94,18 +94,17 @@ public class Iide.TextView : Panel.Widget {
         change_syntax_highlight_from_file (file);
 
         this.ts_language = ts_manager.get_ts_language (buffer);
+        var ts_query = ts_manager.get_ts_query (buffer);
 
-        if (this.ts_language != null) {
+        if (this.ts_language != null && ts_query != null) {
             var parser = new TreeSitter.Parser ();
             parser.set_language (this.ts_language);
             var ts_tree = parser.parse_string (null, buffer.text.data);
             if (ts_tree == null) {
                 message ("Errors parsing file %s", file.get_uri ());
             } else {
-                var root_node = ts_tree.root_node ();
-                message (root_node.to_str ());
                 buffer.highlight_syntax = false;
-                this.ts_highlighter = new TreeSitterHighlighter (view, this.ts_language);
+                this.ts_highlighter = new TreeSitterHighlighter (view, this.ts_language, ts_query);
             }
         }
 
