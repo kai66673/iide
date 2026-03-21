@@ -52,6 +52,7 @@ public class Iide.TextView : Panel.Widget {
     private GtkSource.View view;
     private Iide.TreeSitterManager ts_manager;
     private unowned TreeSitter.Language? ts_language;
+    private TreeSitterHighlighter? ts_highlighter;
 
     public GtkSource.LanguageManager manager;
     public string uri { get; private set; }
@@ -63,6 +64,7 @@ public class Iide.TextView : Panel.Widget {
         this.uri = file.get_uri ();
         this.ts_manager = new TreeSitterManager ();
         this.ts_language = null;
+        this.ts_highlighter = null;
 
         manager = GtkSource.LanguageManager.get_default ();
         var adw_style_manager = Adw.StyleManager.get_default ();
@@ -102,6 +104,8 @@ public class Iide.TextView : Panel.Widget {
             } else {
                 var root_node = ts_tree.root_node ();
                 message (root_node.to_str ());
+                buffer.highlight_syntax = false;
+                this.ts_highlighter = new TreeSitterHighlighter (view, this.ts_language);
             }
         }
 

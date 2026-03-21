@@ -159,6 +159,12 @@ namespace TreeSitter {
     [CCode (cname = "ts_node_end_byte")]
     public uint32 end_byte ();
 
+    [CCode (cname = "ts_node_child_count")]
+    public uint32 child_count();
+
+    [CCode (cname = "ts_node_child")]
+    public unowned Node child(uint32 index);
+
   }
 
   [CCode (cname = "TSTreeCursor", free_function = "ts_tree_cursor_delete", has_type_id = false)]

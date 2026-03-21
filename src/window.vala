@@ -87,7 +87,7 @@ public class Iide.Window : Panel.DocumentWorkspace {
         var panel_widget_left1 = new Panel.Widget ();
         panel_widget_left1.title = "Project Tree";
         panel_widget_left1.icon_name = "folder-symbolic";
-        var folder_view = new Iide.FileTreeView (File.new_for_path ("/home/kai/Projects/iide"));
+        var folder_view = new Iide.FileTreeView (File.new_for_path ("/home/kai/BAS/bcad-ws/packages"));
         panel_widget_left1.child = folder_view;
         panel_widget_left1.can_maximize = true;
 
