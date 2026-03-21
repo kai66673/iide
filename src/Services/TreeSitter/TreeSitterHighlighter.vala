@@ -46,7 +46,7 @@ public class TreeSitterHighlighter : Object {
     private void traverse_node(TreeSitter.Node node) {
         // Пример: подсвечиваем типы узлов "identifier"
         if (node.type() == "identifier") {
-            highlight_range(node.start_byte(), node.end_byte(), "def:identifier");
+            highlight_range(node, "def:identifier");
         }
 
         for (uint i = 0; i < node.child_count(); i++) {
@@ -54,11 +54,9 @@ public class TreeSitterHighlighter : Object {
         }
     }
 
-    private void highlight_range(uint start_byte, uint end_byte, string style_name) {
+    private void highlight_range(TreeSitter.Node node, string style_name) {
         TextIter s_iter, e_iter;
-        buffer.get_iter_at_offset(out s_iter, (int)start_byte);
-        buffer.get_iter_at_offset(out e_iter, (int)end_byte);
-        message("Highlighting range from " + start_byte.to_string() + " to " + end_byte.to_string());
+        get_iters_from_ts_node(buffer, node, out s_iter, out e_iter);
 
         // Получаем тег из текущей схемы стиля GtkSourceView
         var scheme = buffer.style_scheme;
@@ -79,6 +77,25 @@ public class TreeSitterHighlighter : Object {
 
         // Здесь нужно создать или получить GtkTextTag на основе GtkSourceStyle
         // и применить его: buffer.apply_tag(tag, s_iter, e_iter);
+    }
+
+    public static void get_iters_from_ts_node(TextBuffer buffer, TreeSitter.Node node,
+                                              out TextIter start_iter, out TextIter end_iter) {
+        start_iter = get_iter_at_ts_point(buffer, (int)node.start_point().row, (int)node.start_point().column);
+        end_iter = get_iter_at_ts_point(buffer, (int)node.end_point().row, (int)node.end_point().column);
+    }
+
+    private static TextIter get_iter_at_ts_point(TextBuffer buffer, int row, int byte_col) {
+        TextIter iter;
+
+        // 1. Переходим к началу нужной строки (row)
+        buffer.get_iter_at_line(out iter, row);
+
+        // 2. Двигаемся вперед по байтам внутри этой строки.
+        // Метод set_line_index оперирует именно БАЙТОВЫМ смещением от начала строки.
+        iter.set_line_index(byte_col);
+
+        return iter;
     }
 
     private void apply_style_to_tag(GtkSource.Style style, Gtk.TextTag tag) {
