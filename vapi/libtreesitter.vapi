@@ -189,6 +189,7 @@ namespace TreeSitter {
     [CCode (cname = "ts_tree_cursor_goto_parent")]
     public Node goto_parent ();
  }
+
  [CCode (cname = "TSQuery", free_function = "ts_query_delete", has_type_id = false)]
  [Compact]
  public class Query {
