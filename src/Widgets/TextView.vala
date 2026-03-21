@@ -102,8 +102,8 @@ public class Iide.TextView : Panel.Widget {
             if (ts_tree == null) {
                 message ("Errors parsing file %s", file.get_uri ());
             } else {
-                var root_node = ts_tree.root_node ();
-                message (root_node.to_str ());
+                // var root_node = ts_tree.root_node ();
+                // message (root_node.to_str ());
                 buffer.highlight_syntax = false;
                 this.ts_highlighter = new TreeSitterHighlighter (view, this.ts_language);
             }

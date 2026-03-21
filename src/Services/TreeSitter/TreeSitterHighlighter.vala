@@ -40,17 +40,18 @@ public class TreeSitterHighlighter : Object {
         buffer.remove_all_tags(start, end);
 
         // 5. Рекурсивный обход дерева или использование Queries
-        traverse_node(tree.root_node());
+        traverse_node(tree.root_node(), 0, null);
     }
 
-    private void traverse_node(TreeSitter.Node node) {
+    private void traverse_node(TreeSitter.Node node, int depth, TreeSitter.Node? parent_node) {
         // Пример: подсвечиваем типы узлов "identifier"
+        message(depth.to_string() + " " + parent_node?.type() + " -> " + node.type());
         if (node.type() == "identifier") {
             highlight_range(node, "def:identifier");
         }
 
         for (uint i = 0; i < node.child_count(); i++) {
-            traverse_node(node.child(i));
+            traverse_node(node.child(i), depth + 1, node);
         }
     }
 
