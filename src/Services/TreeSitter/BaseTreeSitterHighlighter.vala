@@ -1,26 +1,57 @@
 using Gtk;
 using GtkSource;
 
-public class TreeSitterHighlighter : Object {
+public abstract class Iide.BaseTreeSitterHighlighter : Object {
     private View view;
     private Buffer buffer;
     private TreeSitter.Parser parser;
-    private TreeSitter.Tree? tree = null;
+    private TreeSitter.Tree? tree;
 
-    public TreeSitterHighlighter(View view, TreeSitter.Language language) {
+    protected abstract unowned TreeSitter.Language language();
+
+    protected BaseTreeSitterHighlighter(View view) {
         this.view = view;
         this.buffer = (Buffer)view.get_buffer();
+        this.tree = null;
 
         // 1. Настройка парсера (например, для C)
         parser = new TreeSitter.Parser();
-        parser.set_language(language);
+        parser.set_language(language());
 
         // 2. Слушаем изменения в буфере
-        buffer.changed.connect(on_buffer_changed);
+        buffer.changed.connect_after(on_buffer_changed);
         on_buffer_changed();
 
         // Отключаем встроенную подсветку GtkSourceView
         buffer.highlight_syntax = false;
+
+        // TODO: segfault...
+        // buffer.notify["style-scheme"].connect(on_style_scheme_changed);
+    }
+
+    private void on_style_scheme_changed() {
+        message("on_style_scheme_changed!!!");
+
+        {
+            // Clear buffer tags
+            TextIter start, end;
+            buffer.get_bounds(out start, out end);
+            buffer.remove_all_tags(start, end);
+        }
+
+        {
+            // Clear buffer tags table
+            var tags = new GLib.List<Gtk.TextTag>();
+            buffer.tag_table.foreach((tag) => {
+                tags.append(tag);
+            });
+            foreach (var tag in tags) {
+                buffer.tag_table.remove(tag);
+            }
+        }
+
+        this.tree = parser.parse_string(null, buffer.text.data);
+        traverse_node(tree.root_node(), 0, null);
     }
 
     private void on_buffer_changed() {
@@ -31,7 +62,7 @@ public class TreeSitterHighlighter : Object {
         apply_highlighting();
     }
 
-    private void apply_highlighting() {
+    protected virtual void apply_highlighting() {
         if (tree == null) return;
 
         // 4. Очистка старых тегов (в реальном коде лучше делать только для грязной зоны)
@@ -45,9 +76,36 @@ public class TreeSitterHighlighter : Object {
 
     private void traverse_node(TreeSitter.Node node, int depth, TreeSitter.Node? parent_node) {
         // Пример: подсвечиваем типы узлов "identifier"
-        message(depth.to_string() + " " + parent_node?.type() + " -> " + node.type());
-        if (node.type() == "identifier") {
+        // message(depth.to_string() + " " + parent_node?.type() + " -> " + node.type());
+        switch (node.type()) {
+        case "identifier":
             highlight_range(node, "def:identifier");
+            break;
+        case "string":
+            highlight_range(node, "def:string");
+            break;
+        case "integer":
+            highlight_range(node, "def:floating-point");
+            break;
+        case "float":
+            highlight_range(node, "def:floating-point");
+            break;
+        case "comment":
+            highlight_range(node, "def:comment");
+            break;
+        case "import":
+        case "from":
+            highlight_range(node, "def:preprocessor");
+            break;
+        case "def":
+        case "class":
+        case "return":
+        case "break":
+        case "continue":
+            highlight_range(node, "c:type-keyword");
+            break;
+        default:
+            break;
         }
 
         for (uint i = 0; i < node.child_count(); i++) {
@@ -120,5 +178,4 @@ public class TreeSitterHighlighter : Object {
             tag.style = style.italic ? Pango.Style.ITALIC : Pango.Style.NORMAL;
         }
     }
-
 }
