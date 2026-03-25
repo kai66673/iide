@@ -13,7 +13,7 @@ public class Iide.PythonTreeSitterHighlighter : BaseTreeSitterHighlighter {
         return get_language_python();
     }
 
-    protected virtual void highlight_node(TreeSitter.Node node) {
+    protected override void highlight_node(TreeSitter.Node node) {
         // message(depth.to_string() + " " + parent_node?.type() + " -> " + node.type());
         switch (node.type()) {
         case "identifier":
