@@ -52,6 +52,7 @@ public class Iide.TextView : Panel.Widget {
     private GtkSource.View view;
     private Iide.TreeSitterManager ts_manager;
     private BaseTreeSitterHighlighter? ts_highlighter;
+    private FontZoomer font_zoomer;
 
     public GtkSource.LanguageManager manager;
     public string uri { get; private set; }
@@ -75,9 +76,9 @@ public class Iide.TextView : Panel.Widget {
         }
 
         // {
-        //     message ("SS: " + buffer.style_scheme.filename);
-        //     copy_resource_to_file(style_manager.get_scheme ("Adwaita").filename, "/home/kai/Adwaita.xml");
-        //     copy_resource_to_file(style_manager.get_scheme ("Adwaita-dark").filename, "/home/kai/Adwaita-dark.xml");
+        // message ("SS: " + buffer.style_scheme.filename);
+        // copy_resource_to_file(style_manager.get_scheme ("Adwaita").filename, "/home/kai/Adwaita.xml");
+        // copy_resource_to_file(style_manager.get_scheme ("Adwaita-dark").filename, "/home/kai/Adwaita-dark.xml");
         // }
 
         // Handle file selection to open documents
@@ -90,6 +91,7 @@ public class Iide.TextView : Panel.Widget {
         });
 
         view = new GtkSource.View.with_buffer (buffer);
+        font_zoomer = new FontZoomer (view);
 
         buffer.set_modified (false);
 

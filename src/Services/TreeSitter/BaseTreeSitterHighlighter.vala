@@ -2,7 +2,7 @@ using Gtk;
 using GtkSource;
 
 public abstract class Iide.BaseTreeSitterHighlighter : Object {
-    private View view;
+    protected View view;
     protected Buffer buffer;
     private TreeSitter.Parser parser;
     private TreeSitter.Tree? tree;
