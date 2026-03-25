@@ -33,6 +33,7 @@ public class Iide.Window : Panel.DocumentWorkspace {
         document_manager.document_opened.connect ((widget) => {
             grid.add (widget);
             widget.raise ();
+            widget.view_grab_focus ();
         });
 
         // Header

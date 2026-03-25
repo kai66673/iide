@@ -75,13 +75,7 @@ public class Iide.TextView : Panel.Widget {
             buffer.set_style_scheme (style_manager.get_scheme ("Adwaita-dark"));
         }
 
-        // {
-        // message ("SS: " + buffer.style_scheme.filename);
-        // copy_resource_to_file(style_manager.get_scheme ("Adwaita").filename, "/home/kai/Adwaita.xml");
-        // copy_resource_to_file(style_manager.get_scheme ("Adwaita-dark").filename, "/home/kai/Adwaita-dark.xml");
-        // }
-
-        // Handle file selection to open documents
+        // Handle switch color scheme
         adw_style_manager.notify["color-scheme"].connect (() => {
             if (adw_style_manager.color_scheme == Adw.ColorScheme.FORCE_LIGHT) {
                 buffer.set_style_scheme (style_manager.get_scheme ("Adwaita"));
@@ -93,7 +87,62 @@ public class Iide.TextView : Panel.Widget {
         view = new GtkSource.View.with_buffer (buffer);
         font_zoomer = new FontZoomer (view);
 
-        // 1. Получаем объект SpaceDrawer из View
+        // #######################################
+        // ## zoom actions
+        var action_group = new SimpleActionGroup();
+
+        var zoom_in_action = new SimpleAction("zoom_in_action", null);
+        zoom_in_action.activate.connect(() => {
+            font_zoomer.zoom_in();
+        });
+        action_group.add_action(zoom_in_action);
+
+        var zoom_out_action = new SimpleAction("zoom_out_action", null);
+        zoom_out_action.activate.connect(() => {
+            font_zoomer.zoom_out();
+        });
+        action_group.add_action(zoom_out_action);
+
+        var zoom_reset_action = new SimpleAction("zoom_reset_action", null);
+        zoom_reset_action.activate.connect(() => {
+            font_zoomer.zoom_reset();
+        });
+        action_group.add_action(zoom_reset_action);
+
+        view.insert_action_group("widget", action_group);
+
+        var font_size_menu = new GLib.Menu();
+        font_size_menu.append("Increase Font Size", "widget.zoom_in_action");
+        font_size_menu.append("Decrease Font Size", "widget.zoom_out_action");
+        font_size_menu.append("Reset Font Size to default", "widget.zoom_reset_action");
+
+        var view_extra_menu = new GLib.Menu();
+        view_extra_menu.append_submenu ("Font Size", font_size_menu);
+
+        view.extra_menu = view_extra_menu;
+
+        // #######################################
+        // ## ShortcutController
+        var trigger_in = Gtk.ShortcutTrigger.parse_string("<Primary>plus");
+        var action_in = new Gtk.NamedAction("widget.zoom_in_action"); // Ссылаемся на имя в группе
+        var shortcut_in = new Gtk.Shortcut(trigger_in, action_in);
+
+        var trigger_out = Gtk.ShortcutTrigger.parse_string("<Primary>minus");
+        var action_out = new Gtk.NamedAction("widget.zoom_out_action"); // Ссылаемся на имя в группе
+        var shortcut_out = new Gtk.Shortcut(trigger_out, action_out);
+
+        var trigger_reset = Gtk.ShortcutTrigger.parse_string("<Primary>0");
+        var action_reset = new Gtk.NamedAction("widget.zoom_reset_action"); // Ссылаемся на имя в группе
+        var shortcut_reset = new Gtk.Shortcut(trigger_reset, action_reset);
+
+        var controller = new Gtk.ShortcutController();
+        controller.add_shortcut(shortcut_in);
+        controller.add_shortcut(shortcut_out);
+        controller.add_shortcut(shortcut_reset);
+        view.add_controller(controller); // Добавляем контроллер к виджету
+
+        // #######################################
+        // ## SpaceDrawer
         var space_drawer = view.get_space_drawer ();
 
         // 2. Устанавливаем типы отображаемых символов
@@ -137,6 +186,10 @@ public class Iide.TextView : Panel.Widget {
         buffer.modified_changed.connect_after (() => {
             modified = view.buffer.get_modified ();
         });
+    }
+
+    public void view_grab_focus () {
+        view.grab_focus ();
     }
 
     // lang can be null, in the case of *No highlight style* aka Normal text

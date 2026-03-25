@@ -59,6 +59,11 @@ public class FontZoomer : Object {
         }
     }
 
+    public void zoom_reset() {
+        current_size = 11;
+        update_css();
+    }
+
     private void update_css() {
         // В GTK4 для GtkSourceView селектор 'textview' по-прежнему актуален
         string css = "textview { font-size: %dpt; }".printf(current_size);

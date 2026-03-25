@@ -25,13 +25,13 @@ using Gtk;
 using Panel;
 
 public class Iide.DocumentManager : GLib.Object {
-    public Gee.HashMap<string, Panel.Widget> documents;
+    public Gee.HashMap<string, TextView> documents;
 
     public DocumentManager () {
-        documents = new Gee.HashMap<string, Panel.Widget> ();
+        documents = new Gee.HashMap<string, TextView> ();
     }
 
-    public signal void document_opened (Panel.Widget document);
+    public signal void document_opened (TextView document);
     public signal void document_closed (string uri);
 
     public Panel.Widget? open_document (GLib.File file, Gtk.Window window) {
@@ -39,6 +39,7 @@ public class Iide.DocumentManager : GLib.Object {
         if (documents.has_key (uri)) {
             var widget = documents.get (uri);
             widget.raise ();
+            widget.view_grab_focus ();
             return widget;
         } else {
             var buffer = new GtkSource.Buffer (null);
