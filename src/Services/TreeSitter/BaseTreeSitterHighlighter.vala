@@ -11,7 +11,7 @@ public abstract class Iide.BaseTreeSitterHighlighter : Object {
 
     protected BaseTreeSitterHighlighter(View view) {
         this.view = view;
-        this.buffer = (Buffer)view.get_buffer();
+        this.buffer = (Buffer) view.get_buffer();
         this.tree = null;
 
         // 1. Настройка парсера (например, для C)
@@ -41,7 +41,7 @@ public abstract class Iide.BaseTreeSitterHighlighter : Object {
 
         {
             // Clear buffer tags table
-            var tags = new GLib.List<Gtk.TextTag>();
+            var tags = new GLib.List<Gtk.TextTag> ();
             buffer.tag_table.foreach((tag) => {
                 tags.append(tag);
             });
@@ -63,7 +63,7 @@ public abstract class Iide.BaseTreeSitterHighlighter : Object {
     }
 
     protected virtual void apply_highlighting() {
-        if (tree == null) return;
+        if (tree == null)return;
 
         // 4. Очистка старых тегов (в реальном коде лучше делать только для грязной зоны)
         TextIter start, end;
@@ -78,10 +78,10 @@ public abstract class Iide.BaseTreeSitterHighlighter : Object {
         // Пример: подсвечиваем типы узлов "identifier"
         // message(depth.to_string() + " " + parent_node?.type() + " -> " + node.type());
         switch (node.type()) {
-        case "identifier":
+        case "identifier" :
             highlight_range(node, "def:identifier");
             break;
-        case "string":
+        case "string" :
             highlight_range(node, "def:string");
             break;
         case "integer":
@@ -102,6 +102,12 @@ public abstract class Iide.BaseTreeSitterHighlighter : Object {
         case "return":
         case "break":
         case "continue":
+        case "if":
+        case "else":
+        case "elif":
+        case "raise":
+        case "while":
+        case "with":
             highlight_range(node, "c:type-keyword");
             break;
         default:
@@ -140,8 +146,8 @@ public abstract class Iide.BaseTreeSitterHighlighter : Object {
 
     public static void get_iters_from_ts_node(TextBuffer buffer, TreeSitter.Node node,
                                               out TextIter start_iter, out TextIter end_iter) {
-        start_iter = get_iter_at_ts_point(buffer, (int)node.start_point().row, (int)node.start_point().column);
-        end_iter = get_iter_at_ts_point(buffer, (int)node.end_point().row, (int)node.end_point().column);
+        start_iter = get_iter_at_ts_point(buffer, (int) node.start_point().row, (int) node.start_point().column);
+        end_iter = get_iter_at_ts_point(buffer, (int) node.end_point().row, (int) node.end_point().column);
     }
 
     private static TextIter get_iter_at_ts_point(TextBuffer buffer, int row, int byte_col) {
