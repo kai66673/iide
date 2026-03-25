@@ -25,31 +25,10 @@ public abstract class Iide.BaseTreeSitterHighlighter : Object {
         // Отключаем встроенную подсветку GtkSourceView
         buffer.highlight_syntax = false;
 
-        // TODO: segfault...
-        // buffer.notify["style-scheme"].connect(on_style_scheme_changed);
+        buffer.notify["style-scheme"].connect_after(on_style_scheme_changed);
     }
 
     private void on_style_scheme_changed() {
-        message("on_style_scheme_changed!!!");
-
-        {
-            // Clear buffer tags
-            TextIter start, end;
-            buffer.get_bounds(out start, out end);
-            buffer.remove_all_tags(start, end);
-        }
-
-        {
-            // Clear buffer tags table
-            var tags = new GLib.List<Gtk.TextTag> ();
-            buffer.tag_table.foreach((tag) => {
-                tags.append(tag);
-            });
-            foreach (var tag in tags) {
-                buffer.tag_table.remove(tag);
-            }
-        }
-
         this.tree = parser.parse_string(null, buffer.text.data);
         traverse_node(tree.root_node(), 0, null);
     }
