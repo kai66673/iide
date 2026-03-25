@@ -93,6 +93,21 @@ public class Iide.TextView : Panel.Widget {
         view = new GtkSource.View.with_buffer (buffer);
         font_zoomer = new FontZoomer (view);
 
+        // 1. Получаем объект SpaceDrawer из View
+        var space_drawer = view.get_space_drawer ();
+
+        // 2. Устанавливаем типы отображаемых символов
+        space_drawer.set_enable_matrix (true);
+        space_drawer.set_types_for_locations (
+                                              GtkSource.SpaceLocationFlags.ALL,
+                                              GtkSource.SpaceTypeFlags.NONE
+        );
+        space_drawer.set_types_for_locations (
+                                              GtkSource.SpaceLocationFlags.LEADING | GtkSource.SpaceLocationFlags.TRAILING,
+                                              GtkSource.SpaceTypeFlags.SPACE | GtkSource.SpaceTypeFlags.TAB
+        );
+
+
         buffer.set_modified (false);
 
         icon_name = "text-x-generic";
