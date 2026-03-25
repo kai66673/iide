@@ -75,7 +75,14 @@ public abstract class Iide.BaseTreeSitterHighlighter : Object {
     }
 
     private void traverse_node(TreeSitter.Node node, int depth, TreeSitter.Node? parent_node) {
-        // Пример: подсвечиваем типы узлов "identifier"
+        highlight_node(node);
+
+        for (uint i = 0; i < node.child_count(); i++) {
+            traverse_node(node.child(i), depth + 1, node);
+        }
+    }
+
+    protected virtual void highlight_node(TreeSitter.Node node) {
         // message(depth.to_string() + " " + parent_node?.type() + " -> " + node.type());
         switch (node.type()) {
         case "identifier" :
@@ -113,13 +120,9 @@ public abstract class Iide.BaseTreeSitterHighlighter : Object {
         default:
             break;
         }
-
-        for (uint i = 0; i < node.child_count(); i++) {
-            traverse_node(node.child(i), depth + 1, node);
-        }
     }
 
-    private void highlight_range(TreeSitter.Node node, string style_name) {
+    protected void highlight_range(TreeSitter.Node node, string style_name) {
         TextIter s_iter, e_iter;
         get_iters_from_ts_node(buffer, node, out s_iter, out e_iter);
 
