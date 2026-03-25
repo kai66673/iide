@@ -12,7 +12,7 @@ iide_sources = [
     'Services/TreeSitter/model/AstItem.vala',
     'Services/TreeSitter/model/AstModel.vala',
     'Services/TreeSitter/BaseTreeSitterHighlighter.vala',
-    'Services/TreeSitter/PythonTreeSitterHighlighter.vala',
+    'Services/TreeSitter/python/PythonTreeSitterHighlighter.vala',
 ]
 
 iide_deps = [
