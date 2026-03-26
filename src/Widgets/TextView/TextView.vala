@@ -89,57 +89,57 @@ public class Iide.TextView : Panel.Widget {
 
         // #######################################
         // ## zoom actions
-        var action_group = new SimpleActionGroup();
+        var action_group = new SimpleActionGroup ();
 
-        var zoom_in_action = new SimpleAction("zoom_in_action", null);
-        zoom_in_action.activate.connect(() => {
-            font_zoomer.zoom_in();
+        var zoom_in_action = new SimpleAction ("zoom_in_action", null);
+        zoom_in_action.activate.connect (() => {
+            font_zoomer.zoom_in ();
         });
-        action_group.add_action(zoom_in_action);
+        action_group.add_action (zoom_in_action);
 
-        var zoom_out_action = new SimpleAction("zoom_out_action", null);
-        zoom_out_action.activate.connect(() => {
-            font_zoomer.zoom_out();
+        var zoom_out_action = new SimpleAction ("zoom_out_action", null);
+        zoom_out_action.activate.connect (() => {
+            font_zoomer.zoom_out ();
         });
-        action_group.add_action(zoom_out_action);
+        action_group.add_action (zoom_out_action);
 
-        var zoom_reset_action = new SimpleAction("zoom_reset_action", null);
-        zoom_reset_action.activate.connect(() => {
-            font_zoomer.zoom_reset();
+        var zoom_reset_action = new SimpleAction ("zoom_reset_action", null);
+        zoom_reset_action.activate.connect (() => {
+            font_zoomer.zoom_reset ();
         });
-        action_group.add_action(zoom_reset_action);
+        action_group.add_action (zoom_reset_action);
 
-        view.insert_action_group("widget", action_group);
+        view.insert_action_group ("widget", action_group);
 
-        var font_size_menu = new GLib.Menu();
-        font_size_menu.append("Increase Font Size", "widget.zoom_in_action");
-        font_size_menu.append("Decrease Font Size", "widget.zoom_out_action");
-        font_size_menu.append("Reset Font Size to default", "widget.zoom_reset_action");
+        var font_size_menu = new GLib.Menu ();
+        font_size_menu.append ("Increase Font Size", "widget.zoom_in_action");
+        font_size_menu.append ("Decrease Font Size", "widget.zoom_out_action");
+        font_size_menu.append ("Reset Font Size to default", "widget.zoom_reset_action");
 
-        var view_extra_menu = new GLib.Menu();
+        var view_extra_menu = new GLib.Menu ();
         view_extra_menu.append_submenu ("Font Size", font_size_menu);
 
         view.extra_menu = view_extra_menu;
 
         // #######################################
         // ## ShortcutController
-        var trigger_in = Gtk.ShortcutTrigger.parse_string("<Primary>plus");
-        var action_in = new Gtk.NamedAction("widget.zoom_in_action"); // Ссылаемся на имя в группе
-        var shortcut_in = new Gtk.Shortcut(trigger_in, action_in);
+        var trigger_in = Gtk.ShortcutTrigger.parse_string ("<Primary>plus");
+        var action_in = new Gtk.NamedAction ("widget.zoom_in_action"); // Ссылаемся на имя в группе
+        var shortcut_in = new Gtk.Shortcut (trigger_in, action_in);
 
-        var trigger_out = Gtk.ShortcutTrigger.parse_string("<Primary>minus");
-        var action_out = new Gtk.NamedAction("widget.zoom_out_action"); // Ссылаемся на имя в группе
-        var shortcut_out = new Gtk.Shortcut(trigger_out, action_out);
+        var trigger_out = Gtk.ShortcutTrigger.parse_string ("<Primary>minus");
+        var action_out = new Gtk.NamedAction ("widget.zoom_out_action"); // Ссылаемся на имя в группе
+        var shortcut_out = new Gtk.Shortcut (trigger_out, action_out);
 
-        var trigger_reset = Gtk.ShortcutTrigger.parse_string("<Primary>0");
-        var action_reset = new Gtk.NamedAction("widget.zoom_reset_action"); // Ссылаемся на имя в группе
-        var shortcut_reset = new Gtk.Shortcut(trigger_reset, action_reset);
+        var trigger_reset = Gtk.ShortcutTrigger.parse_string ("<Primary>0");
+        var action_reset = new Gtk.NamedAction ("widget.zoom_reset_action"); // Ссылаемся на имя в группе
+        var shortcut_reset = new Gtk.Shortcut (trigger_reset, action_reset);
 
-        var controller = new Gtk.ShortcutController();
-        controller.add_shortcut(shortcut_in);
-        controller.add_shortcut(shortcut_out);
-        controller.add_shortcut(shortcut_reset);
-        view.add_controller(controller); // Добавляем контроллер к виджету
+        var controller = new Gtk.ShortcutController ();
+        controller.add_shortcut (shortcut_in);
+        controller.add_shortcut (shortcut_out);
+        controller.add_shortcut (shortcut_reset);
+        view.add_controller (controller); // Добавляем контроллер к виджету
 
         // #######################################
         // ## SpaceDrawer
@@ -170,9 +170,21 @@ public class Iide.TextView : Panel.Widget {
         view.auto_indent = true;
         view.indent_on_tab = true;
 
+        var map = new GtkSource.Map ();
+        map.set_view (view);
+
         var scroll = new Gtk.ScrolledWindow ();
         scroll.vexpand = true;
-        scroll.set_child (view);
+
+        var view_box = new Gtk.Box (Gtk.Orientation.HORIZONTAL, 0);
+        view_box.append (view);
+        view_box.append (map);
+
+        scroll.set_child (view_box);
+
+        map.set_vadjustment (view.get_vadjustment ());
+        view.hexpand = true;
+        map.set_size_request (20, -1);
 
         var box = new Gtk.Box (Gtk.Orientation.VERTICAL, 0);
         box.append (scroll);
