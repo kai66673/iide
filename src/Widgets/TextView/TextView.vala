@@ -172,22 +172,28 @@ public class Iide.TextView : Panel.Widget {
 
         var map = new GtkSource.Map ();
         map.set_view (view);
+        map.add_css_class ("textview-map");
 
         var scroll = new Gtk.ScrolledWindow ();
+        scroll.hexpand = true;
         scroll.vexpand = true;
 
-        var view_box = new Gtk.Box (Gtk.Orientation.HORIZONTAL, 0);
-        view_box.append (view);
-        view_box.append (map);
+        scroll.set_child (view);
 
-        scroll.set_child (view_box);
+        scroll.get_vadjustment ().bind_property ("value",
+                                                 map.get_vadjustment (), "value",
+                                                 BindingFlags.BIDIRECTIONAL | BindingFlags.SYNC_CREATE);
 
-        map.set_vadjustment (view.get_vadjustment ());
-        view.hexpand = true;
-        map.set_size_request (20, -1);
+        var subbox = new Gtk.Box (Gtk.Orientation.HORIZONTAL, 0);
+        subbox.homogeneous = false;
+        subbox.append (scroll);
+        subbox.append (map);
+
+        var font_map = Pango.CairoFontMap.get_default ();
+        map.set_font_map (font_map);
 
         var box = new Gtk.Box (Gtk.Orientation.VERTICAL, 0);
-        box.append (scroll);
+        box.append (subbox);
         child = box;
 
         title = file.get_basename ();

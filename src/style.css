@@ -2,3 +2,8 @@ textview {
     font-family: Monospace;
     font-size: 11pt;
 }
+
+.textview-map {
+    font-family: Monospace;
+    font-size: 2pt;
+}
