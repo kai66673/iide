@@ -294,6 +294,6 @@ public class Iide.Window : Panel.DocumentWorkspace {
     }
 
     public void open_project_dialog () {
-        project_manager.open_project_dialog (this);
+        project_manager.open_project_dialog.begin (this);
     }
 }

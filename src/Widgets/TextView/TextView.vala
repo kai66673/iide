@@ -89,68 +89,51 @@ public class Iide.TextView : Panel.Widget {
         view = new GtkSource.View.with_buffer (buffer);
         font_zoomer = new FontZoomer (view);
 
-        var action_group = new SimpleActionGroup ();
+        // Connect to application-level zoom and minimap changes
+        var app = GLib.Application.get_default () as Iide.Application;
+        if (app != null) {
+            app.zoom_changed.connect ((level) => {
+                font_zoomer.set_zoom_level (level);
+            });
+            app.minimap_changed.connect ((visible) => {
+                toggle_minimap_visible (visible);
+            });
+        }
 
-        var toggle_minimap_action = new SimpleAction.stateful ("toggle_minimap", null, new Variant.boolean (settings.show_minimap));
-        toggle_minimap_action.activate.connect (() => {
-            var state = !toggle_minimap_action.get_state ().get_boolean ();
-            toggle_minimap_action.set_state (new Variant.boolean (state));
-            settings.show_minimap = state;
-            toggle_minimap_visible (state);
+        // Build extra menu for context menu
+        var zoom_section = new GLib.Menu ();
+        zoom_section.append (_("Zoom In"), "app.zoom_in");
+        zoom_section.append (_("Zoom Out"), "app.zoom_out");
+        zoom_section.append (_("Reset Zoom"), "app.zoom_reset");
+
+        var view_section = new GLib.Menu ();
+        view_section.append (_("Minimap"), "app.toggle_minimap");
+
+        var extra_menu = new GLib.Menu ();
+        extra_menu.append_section (null, zoom_section);
+        extra_menu.append_section (null, view_section);
+        view.extra_menu = extra_menu;
+
+        // Connect to settings changes to apply to all open documents
+        settings.editor_setting_changed.connect ((key) => {
+            switch (key) {
+                case "editor-font-size":
+                    font_zoomer.set_zoom_level (settings.editor_font_size);
+                    break;
+                case "show-minimap":
+                    toggle_minimap_visible (settings.show_minimap);
+                    break;
+                case "show-line-numbers":
+                    view.show_line_numbers = settings.show_line_numbers;
+                    break;
+                case "highlight-current-line":
+                    view.highlight_current_line = settings.highlight_current_line;
+                    break;
+                case "auto-indent":
+                    view.auto_indent = settings.auto_indent;
+                    break;
+            }
         });
-        action_group.add_action (toggle_minimap_action);
-
-        var zoom_in_action = new SimpleAction ("zoom_in_action", null);
-        zoom_in_action.activate.connect (() => {
-            font_zoomer.zoom_in ();
-        });
-        action_group.add_action (zoom_in_action);
-
-        var zoom_out_action = new SimpleAction ("zoom_out_action", null);
-        zoom_out_action.activate.connect (() => {
-            font_zoomer.zoom_out ();
-        });
-        action_group.add_action (zoom_out_action);
-
-        var zoom_reset_action = new SimpleAction ("zoom_reset_action", null);
-        zoom_reset_action.activate.connect (() => {
-            font_zoomer.zoom_reset ();
-            settings.editor_font_size = 0;
-        });
-        action_group.add_action (zoom_reset_action);
-
-        view.insert_action_group ("widget", action_group);
-
-        var font_size_menu = new GLib.Menu ();
-        font_size_menu.append ("Increase Font Size", "widget.zoom_in_action");
-        font_size_menu.append ("Decrease Font Size", "widget.zoom_out_action");
-        font_size_menu.append ("Reset Font Size to default", "widget.zoom_reset_action");
-
-        var view_extra_menu = new GLib.Menu ();
-        view_extra_menu.append("Show Minimap", "widget.toggle_minimap");
-        view_extra_menu.append_submenu ("Font Size", font_size_menu);
-
-        view.extra_menu = view_extra_menu;
-
-        // #######################################
-        // ## ShortcutController
-        var trigger_in = Gtk.ShortcutTrigger.parse_string ("<Primary>plus");
-        var action_in = new Gtk.NamedAction ("widget.zoom_in_action"); // Ссылаемся на имя в группе
-        var shortcut_in = new Gtk.Shortcut (trigger_in, action_in);
-
-        var trigger_out = Gtk.ShortcutTrigger.parse_string ("<Primary>minus");
-        var action_out = new Gtk.NamedAction ("widget.zoom_out_action"); // Ссылаемся на имя в группе
-        var shortcut_out = new Gtk.Shortcut (trigger_out, action_out);
-
-        var trigger_reset = Gtk.ShortcutTrigger.parse_string ("<Primary>0");
-        var action_reset = new Gtk.NamedAction ("widget.zoom_reset_action"); // Ссылаемся на имя в группе
-        var shortcut_reset = new Gtk.Shortcut (trigger_reset, action_reset);
-
-        var controller = new Gtk.ShortcutController ();
-        controller.add_shortcut (shortcut_in);
-        controller.add_shortcut (shortcut_out);
-        controller.add_shortcut (shortcut_reset);
-        view.add_controller (controller); // Добавляем контроллер к виджету
 
         // #######################################
         // ## SpaceDrawer

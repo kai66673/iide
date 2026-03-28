@@ -21,6 +21,9 @@
 public class Iide.Application : Adw.Application {
     private Iide.SettingsService settings;
 
+    public signal void zoom_changed (int zoom_level);
+    public signal void minimap_changed (bool visible);
+
     public Application () {
         Object (
                 application_id: "org.github.kai66673.iide",
@@ -37,13 +40,34 @@ public class Iide.Application : Adw.Application {
             { "preferences", this.on_preferences_action },
             { "save", this.on_save_action },
             { "open_project", this.on_open_project_action },
+            { "zoom_in", this.on_zoom_in_action },
+            { "zoom_out", this.on_zoom_out_action },
+            { "zoom_reset", this.on_zoom_reset_action },
             { "quit", this.quit }
         };
         this.add_action_entries (action_entries, this);
-        this.set_accels_for_action ("app.quit", { "<control>q" });
-        this.set_accels_for_action ("app.preferences", { "<control>comma" });
-        this.set_accels_for_action ("app.save", { "<control>s" });
-        this.set_accels_for_action ("app.open_project", { "<control>o" });
+
+        var toggle_minimap = new SimpleAction.stateful (
+            "toggle_minimap",
+            null,
+            new Variant.boolean (settings.show_minimap)
+        );
+        toggle_minimap.activate.connect (() => {
+            var new_state = !toggle_minimap.get_state ().get_boolean ();
+            toggle_minimap.set_state (new Variant.boolean (new_state));
+            settings.show_minimap = new_state;
+            minimap_changed (new_state);
+        });
+        this.add_action (toggle_minimap);
+
+        this.set_accels_for_action ("app.quit", { "<primary>q" });
+        this.set_accels_for_action ("app.preferences", { "<primary>comma" });
+        this.set_accels_for_action ("app.save", { "<primary>s" });
+        this.set_accels_for_action ("app.open_project", { "<primary>o" });
+        this.set_accels_for_action ("app.toggle_minimap", { "<primary>m" });
+        this.set_accels_for_action ("app.zoom_in", { "<primary>plus", "<primary>equal" });
+        this.set_accels_for_action ("app.zoom_out", { "<primary>minus" });
+        this.set_accels_for_action ("app.zoom_reset", { "<primary>0" });
     }
 
     public Iide.SettingsService get_settings () {
@@ -89,5 +113,24 @@ public class Iide.Application : Adw.Application {
     private void on_open_project_action () {
         var win = active_window as Iide.Window;
         win?.open_project_dialog ();
+    }
+
+    private void on_zoom_in_action () {
+        if (settings.editor_font_size < FontSizeHelper.MAX_ZOOM_LEVEL) {
+            settings.editor_font_size++;
+            zoom_changed (settings.editor_font_size);
+        }
+    }
+
+    private void on_zoom_out_action () {
+        if (settings.editor_font_size > FontSizeHelper.MIN_ZOOM_LEVEL) {
+            settings.editor_font_size--;
+            zoom_changed (settings.editor_font_size);
+        }
+    }
+
+    private void on_zoom_reset_action () {
+        settings.editor_font_size = FontSizeHelper.DEFAULT_ZOOM_LEVEL;
+        zoom_changed (settings.editor_font_size);
     }
 }

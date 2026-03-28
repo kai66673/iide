@@ -80,6 +80,8 @@ public class Iide.SettingsService : Object {
     private static SettingsService? _instance;
     private Settings settings;
 
+    public signal void editor_setting_changed (string key);
+
     public static SettingsService get_instance () {
         if (_instance == null) {
             _instance = new SettingsService ();
@@ -97,6 +99,7 @@ public class Iide.SettingsService : Object {
         }
         set {
             settings.set_string ("color-scheme", value.to_string ());
+            editor_setting_changed ("color-scheme");
         }
     }
 
@@ -106,6 +109,7 @@ public class Iide.SettingsService : Object {
         }
         set {
             settings.set_double ("editor-font-size", (double) value);
+            editor_setting_changed ("editor-font-size");
         }
     }
 
@@ -115,6 +119,7 @@ public class Iide.SettingsService : Object {
         }
         set {
             settings.set_boolean ("show-minimap", value);
+            editor_setting_changed ("show-minimap");
         }
     }
 
@@ -124,6 +129,7 @@ public class Iide.SettingsService : Object {
         }
         set {
             settings.set_boolean ("show-line-numbers", value);
+            editor_setting_changed ("show-line-numbers");
         }
     }
 
@@ -133,6 +139,7 @@ public class Iide.SettingsService : Object {
         }
         set {
             settings.set_boolean ("highlight-current-line", value);
+            editor_setting_changed ("highlight-current-line");
         }
     }
 
@@ -142,6 +149,7 @@ public class Iide.SettingsService : Object {
         }
         set {
             settings.set_boolean ("auto-indent", value);
+            editor_setting_changed ("auto-indent");
         }
     }
 

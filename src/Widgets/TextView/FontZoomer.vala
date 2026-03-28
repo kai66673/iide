@@ -65,4 +65,16 @@ public class FontZoomer : Object {
         view.add_css_class("zoom-" + zoom_level.to_string());
         settings.editor_font_size = zoom_level;
     }
+
+    public void set_zoom_level (int level) {
+        if (level < FontSizeHelper.MIN_ZOOM_LEVEL || level > FontSizeHelper.MAX_ZOOM_LEVEL) {
+            return;
+        }
+        if (zoom_level == level) {
+            return;
+        }
+        view.remove_css_class("zoom-" + zoom_level.to_string());
+        zoom_level = level;
+        view.add_css_class("zoom-" + zoom_level.to_string());
+    }
 }
