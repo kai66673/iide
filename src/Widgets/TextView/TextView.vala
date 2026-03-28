@@ -117,7 +117,7 @@ public class Iide.TextView : Panel.Widget {
         // Connect to settings changes to apply to all open documents
         settings.editor_setting_changed.connect ((key) => {
             switch (key) {
-                case "editor-font-size":
+                case "editor-font-size" :
                     font_zoomer.set_zoom_level (settings.editor_font_size);
                     break;
                 case "show-minimap":
@@ -201,7 +201,12 @@ public class Iide.TextView : Panel.Widget {
         });
     }
 
-    public void toggle_minimap_visible(bool visible) {
+    public override void size_allocate (int width, int height, int baseline) {
+        base.size_allocate (width, height, baseline);
+        source_map.visible = settings.show_minimap && width >= 600;
+    }
+
+    public void toggle_minimap_visible (bool visible) {
         source_map.visible = visible;
     }
 
