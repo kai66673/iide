@@ -43,7 +43,7 @@ public class Iide.Application : Adw.Application {
             { "zoom_in", this.on_zoom_in_action },
             { "zoom_out", this.on_zoom_out_action },
             { "zoom_reset", this.on_zoom_reset_action },
-            { "quit", this.quit }
+            { "quit", this.on_quit_action }
         };
         this.add_action_entries (action_entries, this);
 
@@ -132,5 +132,12 @@ public class Iide.Application : Adw.Application {
     private void on_zoom_reset_action () {
         settings.editor_font_size = FontSizeHelper.DEFAULT_ZOOM_LEVEL;
         zoom_changed (settings.editor_font_size);
+    }
+
+    private void on_quit_action () {
+        var win = this.active_window;
+        if (win != null) {
+            win.close ();
+        }
     }
 }
