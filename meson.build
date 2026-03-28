@@ -42,7 +42,7 @@ tree_sitter_lib = static_library(
     ],
 )
 
-tree_sitter_vapi = meson.get_compiler('vala').find_library('libtreesitter', dirs: join_paths(meson.source_root(), 'vapi'))
+tree_sitter_vapi = meson.get_compiler('vala').find_library('libtreesitter', dirs: join_paths(meson.project_source_root(), 'vapi'))
 
 tree_sitter_xml_sources = [
     'parsers/xml/xml/src/parser.c',

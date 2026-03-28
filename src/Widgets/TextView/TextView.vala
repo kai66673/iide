@@ -50,6 +50,7 @@ public class Iide.SaveDelegate : Panel.SaveDelegate {
 
 public class Iide.TextView : Panel.Widget {
     private GtkSource.View view;
+    private GtkSource.Map source_map;
     private Iide.TreeSitterManager ts_manager;
     private BaseTreeSitterHighlighter? ts_highlighter;
     private FontZoomer font_zoomer;
@@ -88,8 +89,16 @@ public class Iide.TextView : Panel.Widget {
         font_zoomer = new FontZoomer (view);
 
         // #######################################
-        // ## zoom actions
+        // ## extra actions
         var action_group = new SimpleActionGroup ();
+
+        var toggle_minimap_action = new SimpleAction.stateful ("toggle_minimap", null, new Variant.boolean(true));
+        toggle_minimap_action.activate.connect (() => {
+            var state = !toggle_minimap_action.get_state ().get_boolean ();
+            toggle_minimap_action.set_state (new Variant.boolean (state));
+            toggle_minimap_visible (state);
+        });
+        action_group.add_action (toggle_minimap_action);
 
         var zoom_in_action = new SimpleAction ("zoom_in_action", null);
         zoom_in_action.activate.connect (() => {
@@ -117,6 +126,7 @@ public class Iide.TextView : Panel.Widget {
         font_size_menu.append ("Reset Font Size to default", "widget.zoom_reset_action");
 
         var view_extra_menu = new GLib.Menu ();
+        view_extra_menu.append("Show Minimap", "widget.toggle_minimap");
         view_extra_menu.append_submenu ("Font Size", font_size_menu);
 
         view.extra_menu = view_extra_menu;
@@ -170,9 +180,9 @@ public class Iide.TextView : Panel.Widget {
         view.auto_indent = true;
         view.indent_on_tab = true;
 
-        var map = new GtkSource.Map ();
-        map.set_view (view);
-        map.add_css_class ("textview-map");
+        source_map = new GtkSource.Map ();
+        source_map.set_view (view);
+        source_map.add_css_class ("textview-map");
 
         var scroll = new Gtk.ScrolledWindow ();
         scroll.hexpand = true;
@@ -181,16 +191,16 @@ public class Iide.TextView : Panel.Widget {
         scroll.set_child (view);
 
         scroll.get_vadjustment ().bind_property ("value",
-                                                 map.get_vadjustment (), "value",
+                                                 source_map.get_vadjustment (), "value",
                                                  BindingFlags.BIDIRECTIONAL | BindingFlags.SYNC_CREATE);
 
         var subbox = new Gtk.Box (Gtk.Orientation.HORIZONTAL, 0);
         subbox.homogeneous = false;
         subbox.append (scroll);
-        subbox.append (map);
+        subbox.append (source_map);
 
         var font_map = Pango.CairoFontMap.get_default ();
-        map.set_font_map (font_map);
+        source_map.set_font_map (font_map);
 
         var box = new Gtk.Box (Gtk.Orientation.VERTICAL, 0);
         box.append (subbox);
@@ -204,6 +214,10 @@ public class Iide.TextView : Panel.Widget {
         buffer.modified_changed.connect_after (() => {
             modified = view.buffer.get_modified ();
         });
+    }
+
+    public void toggle_minimap_visible(bool visible) {
+        source_map.visible = visible;
     }
 
     public void view_grab_focus () {
