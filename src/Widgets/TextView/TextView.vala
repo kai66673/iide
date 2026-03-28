@@ -54,6 +54,7 @@ public class Iide.TextView : Panel.Widget {
     private Iide.TreeSitterManager ts_manager;
     private BaseTreeSitterHighlighter? ts_highlighter;
     private FontZoomer font_zoomer;
+    private Iide.SettingsService settings;
 
     public GtkSource.LanguageManager manager;
     public string uri { get; private set; }
@@ -65,6 +66,7 @@ public class Iide.TextView : Panel.Widget {
         this.uri = file.get_uri ();
         this.ts_manager = new TreeSitterManager ();
         this.ts_highlighter = null;
+        this.settings = Iide.SettingsService.get_instance ();
 
         manager = GtkSource.LanguageManager.get_default ();
         var adw_style_manager = Adw.StyleManager.get_default ();
@@ -76,7 +78,6 @@ public class Iide.TextView : Panel.Widget {
             buffer.set_style_scheme (style_manager.get_scheme ("Adwaita-dark"));
         }
 
-        // Handle switch color scheme
         adw_style_manager.notify["color-scheme"].connect (() => {
             if (adw_style_manager.color_scheme == Adw.ColorScheme.FORCE_LIGHT) {
                 buffer.set_style_scheme (style_manager.get_scheme ("Adwaita"));
@@ -88,14 +89,17 @@ public class Iide.TextView : Panel.Widget {
         view = new GtkSource.View.with_buffer (buffer);
         font_zoomer = new FontZoomer (view);
 
-        // #######################################
-        // ## extra actions
+        if (settings.editor_font_size > 0) {
+            font_zoomer.set_font_size ((double) settings.editor_font_size);
+        }
+
         var action_group = new SimpleActionGroup ();
 
-        var toggle_minimap_action = new SimpleAction.stateful ("toggle_minimap", null, new Variant.boolean(true));
+        var toggle_minimap_action = new SimpleAction.stateful ("toggle_minimap", null, new Variant.boolean (settings.show_minimap));
         toggle_minimap_action.activate.connect (() => {
             var state = !toggle_minimap_action.get_state ().get_boolean ();
             toggle_minimap_action.set_state (new Variant.boolean (state));
+            settings.show_minimap = state;
             toggle_minimap_visible (state);
         });
         action_group.add_action (toggle_minimap_action);
@@ -115,6 +119,7 @@ public class Iide.TextView : Panel.Widget {
         var zoom_reset_action = new SimpleAction ("zoom_reset_action", null);
         zoom_reset_action.activate.connect (() => {
             font_zoomer.zoom_reset ();
+            settings.editor_font_size = 0;
         });
         action_group.add_action (zoom_reset_action);
 
@@ -175,14 +180,15 @@ public class Iide.TextView : Panel.Widget {
 
         ts_highlighter = ts_manager.get_ts_highlighter (view);
 
-        view.show_line_numbers = true;
-        view.highlight_current_line = true;
-        view.auto_indent = true;
+        view.show_line_numbers = settings.show_line_numbers;
+        view.highlight_current_line = settings.highlight_current_line;
+        view.auto_indent = settings.auto_indent;
         view.indent_on_tab = true;
 
         source_map = new GtkSource.Map ();
         source_map.set_view (view);
         source_map.add_css_class ("textview-map");
+        source_map.visible = settings.show_minimap;
 
         var scroll = new Gtk.ScrolledWindow ();
         scroll.hexpand = true;

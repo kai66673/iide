@@ -26,10 +26,12 @@ public class Iide.Window : Panel.DocumentWorkspace {
 
     private Iide.DocumentManager document_manager;
     private Iide.ProjectManager project_manager;
+    private Iide.SettingsService settings;
 
     public Window (Gtk.Application app) { Object (application: app); }
 
     construct {
+        settings = Iide.SettingsService.get_instance ();
         document_manager = new Iide.DocumentManager ();
         project_manager = new Iide.ProjectManager ();
         document_manager.document_opened.connect ((widget) => {
@@ -53,13 +55,13 @@ public class Iide.Window : Panel.DocumentWorkspace {
 
         header.pack_end (menu_button);
 
-        dock.reveal_start = true;
-        dock.start_width = 200;
+        dock.reveal_start = settings.reveal_start_panel;
+        dock.start_width = settings.panel_start_width;
         var start_toggle_btn = new Panel.ToggleButton (dock, Panel.Area.START);
         header.pack_start (start_toggle_btn);
 
-        dock.reveal_end = false;
-        dock.end_width = 200;
+        dock.reveal_end = settings.reveal_end_panel;
+        dock.end_width = settings.panel_end_width;
         var end_toggle_btn = new Panel.ToggleButton (dock, Panel.Area.END);
         header.pack_end (end_toggle_btn);
 
@@ -67,21 +69,65 @@ public class Iide.Window : Panel.DocumentWorkspace {
 
         // Theme switcher
         var style_manager = Adw.StyleManager.get_default ();
-        var theme_toggle = new Gtk.ToggleButton ();
-        theme_toggle.active = style_manager.color_scheme == Adw.ColorScheme.FORCE_DARK;
-        theme_toggle.icon_name = theme_toggle.active ? "weather-clear-night-symbolic" : "weather-clear-symbolic";
-        theme_toggle.tooltip_text = theme_toggle.active ? "Switch to Light Theme" : "Switch to Dark Theme";
-        theme_toggle.toggled.connect (() => {
-            style_manager.color_scheme = theme_toggle.active ? Adw.ColorScheme.FORCE_DARK : Adw.ColorScheme.FORCE_LIGHT;
-            theme_toggle.icon_name = theme_toggle.active ? "weather-clear-night-symbolic" : "weather-clear-symbolic";
-            theme_toggle.tooltip_text = theme_toggle.active ? "Switch to Light Theme" : "Switch to Dark Theme";
+        style_manager.color_scheme = settings.color_scheme.to_adw_color_scheme ();
+
+        var theme_list = new Gtk.StringList ({"System", "Light", "Dark"});
+        var expr = new Gtk.PropertyExpression (typeof (Gtk.StringObject), null, "string");
+        var theme_dropdown = new Gtk.DropDown (theme_list, expr) {
+            selected = (uint) settings.color_scheme,
+            tooltip_text = _("Color Scheme"),
+            show_arrow = false
+        };
+
+        var factory = new Gtk.SignalListItemFactory ();
+        factory.setup.connect ((item) => {
+            var list_item = item as Gtk.ListItem;
+            var box = new Gtk.Box (Gtk.Orientation.HORIZONTAL, 6);
+            var icon = new Gtk.Image ();
+            var label = new Gtk.Label (null);
+            label.xalign = 0;
+            box.append (icon);
+            box.append (label);
+            list_item.set_child (box);
         });
-        header.pack_end (theme_toggle);
-        style_manager.color_scheme = Adw.ColorScheme.FORCE_LIGHT;
+        factory.bind.connect ((item) => {
+            var list_item = item as Gtk.ListItem;
+            var box = list_item.get_child () as Gtk.Box;
+            var icon = box.get_first_child () as Gtk.Image;
+            var label = icon.get_next_sibling () as Gtk.Label;
+            var obj = list_item.get_item () as Gtk.StringObject;
+            var text = obj.get_string ();
+            label.set_label (text);
+
+            string icon_name;
+            switch (text) {
+                case "System":
+                    icon_name = "weather-overcast-symbolic";
+                    break;
+                case "Light":
+                    icon_name = "weather-clear-symbolic";
+                    break;
+                case "Dark":
+                    icon_name = "weather-clear-night-symbolic";
+                    break;
+                default:
+                    icon_name = "image-missing-symbolic";
+                    break;
+            }
+            icon.icon_name = icon_name;
+        });
+        theme_dropdown.set_factory (factory);
+
+        theme_dropdown.notify["selected"].connect (() => {
+            var scheme = (ColorScheme) theme_dropdown.selected;
+            settings.color_scheme = scheme;
+            style_manager.color_scheme = scheme.to_adw_color_scheme ();
+        });
+        header.pack_end (theme_dropdown);
 
         // statusbar
-        dock.reveal_bottom = false;
-        dock.bottom_height = 200;
+        dock.reveal_bottom = settings.reveal_bottom_panel;
+        dock.bottom_height = settings.panel_bottom_height;
         var bottom_toggle_btn = new Panel.ToggleButton (dock, Panel.Area.BOTTOM);
         statusbar.add_suffix (1, bottom_toggle_btn);
 
@@ -144,6 +190,7 @@ public class Iide.Window : Panel.DocumentWorkspace {
 
         // Handle window close
         this.close_request.connect (() => {
+            save_window_settings ();
             bool has_unsaved = false;
             foreach (var entry in document_manager.documents.entries) {
                 if (entry.value is Iide.TextView) {
@@ -174,13 +221,56 @@ public class Iide.Window : Panel.DocumentWorkspace {
                     } else if (response == "discard") {
                         this.destroy ();
                     }
-                    // cancel does nothing
                 });
                 dialog.present (this);
                 return true;
             }
             return false;
         });
+
+        dock.notify["reveal-start"].connect (() => {
+            settings.reveal_start_panel = dock.reveal_start;
+        });
+        dock.notify["reveal-end"].connect (() => {
+            settings.reveal_end_panel = dock.reveal_end;
+        });
+        dock.notify["reveal-bottom"].connect (() => {
+            settings.reveal_bottom_panel = dock.reveal_bottom;
+        });
+        dock.notify["start-width"].connect (() => {
+            settings.panel_start_width = (int) dock.start_width;
+        });
+        dock.notify["end-width"].connect (() => {
+            settings.panel_end_width = (int) dock.end_width;
+        });
+        dock.notify["bottom-height"].connect (() => {
+            settings.panel_bottom_height = (int) dock.bottom_height;
+        });
+    }
+
+    private void save_window_settings () {
+        settings.reveal_start_panel = dock.reveal_start;
+        settings.reveal_end_panel = dock.reveal_end;
+        settings.reveal_bottom_panel = dock.reveal_bottom;
+        settings.panel_start_width = (int) dock.start_width;
+        settings.panel_end_width = (int) dock.end_width;
+        settings.panel_bottom_height = (int) dock.bottom_height;
+
+        bool maximized = false;
+        var surface = this.get_surface ();
+        if (surface != null) {
+            var toplevel = surface as Gdk.Toplevel;
+            if (toplevel != null) {
+                var state = toplevel.get_state ();
+                maximized = (state & Gdk.ToplevelState.MAXIMIZED) != 0;
+            }
+        }
+
+        if (!maximized) {
+            settings.window_width = (int) this.get_width ();
+            settings.window_height = (int) this.get_height ();
+        }
+        settings.window_maximized = maximized;
     }
 
     public void save_modified () {

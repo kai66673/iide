@@ -1,5 +1,112 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <schemalist gettext-domain="iide">
 	<schema id="org.github.kai66673.iide" path="/org/github/kai66673/iide/">
+		<key name="color-scheme" type="s">
+			<default>"system"</default>
+			<summary>Color scheme</summary>
+			<description>Color scheme: light, dark, or system</description>
+		</key>
+
+		<key name="editor-font-size" type="d">
+			<default>0</default>
+			<summary>Editor font size</summary>
+			<description>Editor font size in points (0 = default)</description>
+		</key>
+
+		<key name="show-minimap" type="b">
+			<default>true</default>
+			<summary>Show minimap</summary>
+			<description>Whether to show the minimap in text editors</description>
+		</key>
+
+		<key name="show-line-numbers" type="b">
+			<default>true</default>
+			<summary>Show line numbers</summary>
+			<description>Whether to show line numbers in text editors</description>
+		</key>
+
+		<key name="highlight-current-line" type="b">
+			<default>true</default>
+			<summary>Highlight current line</summary>
+			<description>Whether to highlight the current line in text editors</description>
+		</key>
+
+		<key name="auto-indent" type="b">
+			<default>true</default>
+			<summary>Auto indent</summary>
+			<description>Whether to enable auto indentation</description>
+		</key>
+
+		<key name="panel-start-width" type="d">
+			<default>250</default>
+			<summary>Start panel width</summary>
+			<description>Width of the start panel (file tree)</description>
+		</key>
+
+		<key name="panel-end-width" type="d">
+			<default>250</default>
+			<summary>End panel width</summary>
+			<description>Width of the end panel</description>
+		</key>
+
+		<key name="panel-bottom-height" type="d">
+			<default>200</default>
+			<summary>Bottom panel height</summary>
+			<description>Height of the bottom panel (terminal)</description>
+		</key>
+
+		<key name="reveal-start-panel" type="b">
+			<default>true</default>
+			<summary>Reveal start panel</summary>
+			<description>Whether the start panel is visible</description>
+		</key>
+
+		<key name="reveal-end-panel" type="b">
+			<default>false</default>
+			<summary>Reveal end panel</summary>
+			<description>Whether the end panel is visible</description>
+		</key>
+
+		<key name="reveal-bottom-panel" type="b">
+			<default>false</default>
+			<summary>Reveal bottom panel</summary>
+			<description>Whether the bottom panel is visible</description>
+		</key>
+
+		<key name="recent-projects" type="as">
+			<default>[]</default>
+			<summary>Recent projects</summary>
+			<description>List of recently opened project paths</description>
+		</key>
+
+		<key name="max-recent-projects" type="d">
+			<default>10</default>
+			<summary>Maximum recent projects</summary>
+			<description>Maximum number of recent projects to remember</description>
+		</key>
+
+		<key name="last-open-directory" type="s">
+			<default>""</default>
+			<summary>Last open directory</summary>
+			<description>Last directory used for opening files or projects</description>
+		</key>
+
+		<key name="window-width" type="d">
+			<default>1200</default>
+			<summary>Window width</summary>
+			<description>Width of the main window</description>
+		</key>
+
+		<key name="window-height" type="d">
+			<default>800</default>
+			<summary>Window height</summary>
+			<description>Height of the main window</description>
+		</key>
+
+		<key name="window-maximized" type="b">
+			<default>false</default>
+			<summary>Window maximized</summary>
+			<description>Whether the window is maximized</description>
+		</key>
 	</schema>
 </schemalist>

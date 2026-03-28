@@ -19,6 +19,8 @@
  */
 
 public class Iide.Application : Adw.Application {
+    private Iide.SettingsService settings;
+
     public Application () {
         Object (
                 application_id: "org.github.kai66673.iide",
@@ -28,6 +30,8 @@ public class Iide.Application : Adw.Application {
     }
 
     construct {
+        settings = Iide.SettingsService.get_instance ();
+
         ActionEntry[] action_entries = {
             { "about", this.on_about_action },
             { "preferences", this.on_preferences_action },
@@ -40,6 +44,10 @@ public class Iide.Application : Adw.Application {
         this.set_accels_for_action ("app.preferences", { "<control>comma" });
         this.set_accels_for_action ("app.save", { "<control>s" });
         this.set_accels_for_action ("app.open_project", { "<control>o" });
+    }
+
+    public Iide.SettingsService get_settings () {
+        return settings;
     }
 
     public override void activate () {
@@ -68,7 +76,9 @@ public class Iide.Application : Adw.Application {
     }
 
     private void on_preferences_action () {
-        message ("app.preferences action activated");
+        var dialog = new Iide.PreferencesDialog ();
+        dialog.set_transient_for (this.active_window);
+        dialog.present ();
     }
 
     private void on_save_action () {
