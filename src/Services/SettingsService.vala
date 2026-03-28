@@ -58,6 +58,24 @@ public enum ColorScheme {
     }
 }
 
+public class FontSizeHelper : Object {
+    public const int DEFAULT_ZOOM_LEVEL = 6;
+    public const int MIN_ZOOM_LEVEL = 1;
+    public const int MAX_ZOOM_LEVEL = 15;
+    private const int[] FONT_SIZES = { 4, 6, 8, 10, 12, 14, 16, 18, 20, 24, 28, 32, 36, 40, 48 };
+
+    public static int get_size_for_zoom_level (int zoom_level) {
+        if (zoom_level >= MIN_ZOOM_LEVEL && zoom_level <= MAX_ZOOM_LEVEL) {
+            return FONT_SIZES[zoom_level - 1];
+        }
+        return FONT_SIZES[DEFAULT_ZOOM_LEVEL - 1];
+    }
+
+    public static int[] get_available_sizes () {
+        return FONT_SIZES;
+    }
+}
+
 public class Iide.SettingsService : Object {
     private static SettingsService? _instance;
     private Settings settings;
@@ -82,12 +100,12 @@ public class Iide.SettingsService : Object {
         }
     }
 
-    public double editor_font_size {
+    public int editor_font_size {
         get {
-            return settings.get_double ("editor-font-size");
+            return (int) settings.get_double ("editor-font-size");
         }
         set {
-            settings.set_double ("editor-font-size", value);
+            settings.set_double ("editor-font-size", (double) value);
         }
     }
 
@@ -205,6 +223,15 @@ public class Iide.SettingsService : Object {
         }
     }
 
+    public string current_project_path {
+        owned get {
+            return settings.get_string ("current-project-path");
+        }
+        set {
+            settings.set_string ("current-project-path", value);
+        }
+    }
+
     public int window_width {
         get {
             return (int) settings.get_double ("window-width");
@@ -233,26 +260,46 @@ public class Iide.SettingsService : Object {
     }
 
     public void add_recent_project (string path) {
-        var projects = new Gee.ArrayList<string> ();
-        projects.add (path);
+        var projects = new List<string> ();
+        projects.prepend (path);
 
         foreach (var p in recent_projects) {
-            if (p != path && projects.size < max_recent_projects) {
-                projects.add (p);
+            if (p != path) {
+                bool found = false;
+                foreach (var existing in projects) {
+                    if (existing == path) {
+                        found = true;
+                        break;
+                    }
+                }
+                if (!found) {
+                    projects.append (p);
+                }
             }
         }
 
-        settings.set_strv ("recent-projects", projects.to_array ());
+        var arr = new string[projects.length ()];
+        int i = 0;
+        foreach (var p in projects) {
+            arr[i++] = p;
+        }
+        settings.set_strv ("recent-projects", arr);
     }
 
     public void remove_recent_project (string path) {
-        var projects = new Gee.ArrayList<string> ();
+        var projects = new List<string> ();
         foreach (var p in recent_projects) {
             if (p != path) {
-                projects.add (p);
+                projects.append (p);
             }
         }
-        settings.set_strv ("recent-projects", projects.to_array ());
+
+        var arr = new string[projects.length ()];
+        int i = 0;
+        foreach (var p in projects) {
+            arr[i++] = p;
+        }
+        settings.set_strv ("recent-projects", arr);
     }
 
     public void clear_recent_projects () {

@@ -28,6 +28,7 @@ public class Iide.ProjectManager : Object {
             current_project_root = project_root;
             current_project_name = project_root.get_basename ();
 
+            settings.current_project_path = project_root.get_path ();
             settings.add_recent_project (project_root.get_path ());
             settings.last_open_directory = project_root.get_parent ().get_path ();
 
@@ -41,7 +42,17 @@ public class Iide.ProjectManager : Object {
         if (current_project_root != null) {
             current_project_root = null;
             current_project_name = null;
+            settings.current_project_path = "";
             project_closed ();
+        }
+    }
+
+    public void open_project_by_path (string path) {
+        if (path != null && path != "") {
+            var file = GLib.File.new_for_path (path);
+            if (file.query_exists (null)) {
+                open_project_async.begin (file);
+            }
         }
     }
 
@@ -49,7 +60,7 @@ public class Iide.ProjectManager : Object {
         return current_project_root;
     }
 
-    public string ? get_current_project_name () {
+    public string? get_current_project_name () {
         return current_project_name;
     }
 

@@ -152,6 +152,14 @@ public class Iide.Window : Panel.DocumentWorkspace {
         });
         panel_widget_left1.can_maximize = true;
 
+        Timeout.add (100, () => {
+            var last_project_path = settings.current_project_path;
+            if (last_project_path != null && last_project_path != "") {
+                project_manager.open_project_by_path (last_project_path);
+            }
+            return Source.REMOVE;
+        });
+
         var panel_widget_left2 = new Panel.Widget ();
         panel_widget_left2.title = "LEFT 2";
         panel_widget_left2.icon_name = "folder-symbolic";

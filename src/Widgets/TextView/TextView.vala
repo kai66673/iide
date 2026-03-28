@@ -89,10 +89,6 @@ public class Iide.TextView : Panel.Widget {
         view = new GtkSource.View.with_buffer (buffer);
         font_zoomer = new FontZoomer (view);
 
-        if (settings.editor_font_size > 0) {
-            font_zoomer.set_font_size ((double) settings.editor_font_size);
-        }
-
         var action_group = new SimpleActionGroup ();
 
         var toggle_minimap_action = new SimpleAction.stateful ("toggle_minimap", null, new Variant.boolean (settings.show_minimap));

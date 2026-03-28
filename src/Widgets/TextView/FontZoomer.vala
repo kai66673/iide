@@ -4,7 +4,7 @@ using GLib;
 
 public class FontZoomer : Object {
     private View view;
-    private int zoom_level = 6;
+    private int zoom_level;
     private Iide.SettingsService settings;
 
     public FontZoomer(View source_view) {
@@ -14,6 +14,12 @@ public class FontZoomer : Object {
         if (!this.view.has_css_class("text-view")) {
             this.view.add_css_class("text-view");
         }
+
+        this.zoom_level = settings.editor_font_size;
+        if (this.zoom_level < FontSizeHelper.MIN_ZOOM_LEVEL || this.zoom_level > FontSizeHelper.MAX_ZOOM_LEVEL) {
+            this.zoom_level = FontSizeHelper.DEFAULT_ZOOM_LEVEL;
+        }
+        this.view.add_css_class("zoom-" + zoom_level.to_string());
 
         var scroll_controller = new EventControllerScroll(EventControllerScrollFlags.VERTICAL);
         scroll_controller.scroll.connect((dx, dy) => {
@@ -36,35 +42,27 @@ public class FontZoomer : Object {
     }
 
     public void zoom_in() {
-        if (zoom_level < 15) {
+        if (zoom_level < FontSizeHelper.MAX_ZOOM_LEVEL) {
             view.remove_css_class("zoom-" + zoom_level.to_string());
             zoom_level++;
             view.add_css_class("zoom-" + zoom_level.to_string());
-            save_zoom_level ();
+            settings.editor_font_size = zoom_level;
         }
     }
 
     public void zoom_out() {
-        if (zoom_level > 1) {
+        if (zoom_level > FontSizeHelper.MIN_ZOOM_LEVEL) {
             view.remove_css_class("zoom-" + zoom_level.to_string());
             zoom_level--;
             view.add_css_class("zoom-" + zoom_level.to_string());
-            save_zoom_level ();
+            settings.editor_font_size = zoom_level;
         }
     }
 
     public void zoom_reset() {
         view.remove_css_class("zoom-" + zoom_level.to_string());
-        zoom_level = 6;
+        zoom_level = FontSizeHelper.DEFAULT_ZOOM_LEVEL;
         view.add_css_class("zoom-" + zoom_level.to_string());
-        save_zoom_level ();
-    }
-
-    public void set_font_size (double size) {
-        settings.editor_font_size = size;
-    }
-
-    private void save_zoom_level () {
         settings.editor_font_size = zoom_level;
     }
 }

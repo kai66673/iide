@@ -112,6 +112,27 @@ public class Iide.PreferencesDialog : Adw.PreferencesWindow {
             settings.auto_indent = auto_indent_row.active;
         });
         editor_group.add (auto_indent_row);
+
+        var sizes = FontSizeHelper.get_available_sizes ();
+        var size_strings = new string[sizes.length];
+        for (int i = 0; i < sizes.length; i++) {
+            size_strings[i] = "%d px".printf (sizes[i]);
+        }
+        var font_size_model = new Gtk.StringList (size_strings);
+        var current_level = settings.editor_font_size;
+        if (current_level < FontSizeHelper.MIN_ZOOM_LEVEL || current_level > FontSizeHelper.MAX_ZOOM_LEVEL) {
+            current_level = FontSizeHelper.DEFAULT_ZOOM_LEVEL;
+        }
+
+        var font_size_row = new Adw.ComboRow () {
+            title = _("Font Size"),
+            model = font_size_model,
+            selected = (uint) (current_level - 1)
+        };
+        font_size_row.notify["selected"].connect (() => {
+            settings.editor_font_size = (int) font_size_row.selected + 1;
+        });
+        editor_group.add (font_size_row);
         editor_page.add (editor_group);
 
         var projects_page = new Adw.PreferencesPage () {
