@@ -10,6 +10,7 @@ iide_sources = [
     'Services/DocumentManager.vala',
     'Services/IconProvider.vala',
     'Services/ProjectManager.vala',
+    'Services/SettingsManager.vala',
     'Services/TreeSitter/TreeSitterManager.vala',
     'Services/TreeSitter/model/AstItem.vala',
     'Services/TreeSitter/model/AstModel.vala',

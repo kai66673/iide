@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<schemalist>
+  <schema id="org.github.kai66673.iide" path="/org/github/kai66673/iide/">
+    <key name="window-width" type="i">
+      <default>1200</default>
+      <summary>Window width</summary>
+      <description>The width of the main window.</description>
+    </key>
+    <key name="window-height" type="i">
+      <default>800</default>
+      <summary>Window height</summary>
+      <description>The height of the main window.</description>
+    </key>
+    <key name="window-maximized" type="b">
+      <default>false</default>
+      <summary>Window maximized</summary>
+      <description>Whether the window is maximized.</description>
+    </key>
+    <key name="theme" type="s">
+      <default>'light'</default>
+      <summary>Theme</summary>
+      <description>The current theme (light or dark).</description>
+    </key>
+    <key name="recent-projects" type="as">
+      <default>[]</default>
+      <summary>Recent projects</summary>
+      <description>List of recently opened projects.</description>
+    </key>
+  </schema>
+</schemalist>

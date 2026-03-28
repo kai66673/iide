@@ -73,6 +73,12 @@ public class Iide.ProjectManager : Object {
                 var file = dialog.get_file ();
                 if (file != null) {
                     open_project_async (file);
+
+                    // Сохраняем проект в недавние
+                    var app = (Iide.Application) parent_window.get_application ();
+                    if (app != null) {
+                        app.settings_manager.add_recent_project (file.get_path ());
+                    }
                 }
             }
         });

@@ -26,12 +26,57 @@ public class Iide.Window : Panel.DocumentWorkspace {
 
     private Iide.DocumentManager document_manager;
     private Iide.ProjectManager project_manager;
+    private Application app;
+    private Adw.HeaderBar header;
 
-    public Window (Gtk.Application app) { Object (application: app); }
+    public Window (Application app) {
+        Object (application: app);
+
+        // Загрузка состояния окна
+        int width, height;
+        bool is_maximized;
+        if (app == null) {
+            message ("app is null");
+        }
+        app.settings_manager.load_window_state (out width, out height, out is_maximized);
+
+        this.set_default_size (width, height);
+        if (is_maximized) {
+            this.maximize ();
+        }
+
+        // Theme switcher
+        var style_manager = Adw.StyleManager.get_default ();
+        var theme_toggle = new Gtk.ToggleButton ();
+
+        // Загрузка сохраненной темы
+        var saved_theme = app.settings_manager.load_theme ();
+        theme_toggle.active = saved_theme == "dark";
+        style_manager.color_scheme = theme_toggle.active ? Adw.ColorScheme.FORCE_DARK : Adw.ColorScheme.FORCE_LIGHT;
+
+        theme_toggle.icon_name = theme_toggle.active ? "weather-clear-night-symbolic" : "weather-clear-symbolic";
+        theme_toggle.tooltip_text = theme_toggle.active ? "Switch to Light Theme" : "Switch to Dark Theme";
+        var app_ref = (Iide.Application) this.get_application ();
+        theme_toggle.toggled.connect (() => {
+            style_manager.color_scheme = theme_toggle.active ? Adw.ColorScheme.FORCE_DARK : Adw.ColorScheme.FORCE_LIGHT;
+            theme_toggle.icon_name = theme_toggle.active ? "weather-clear-night-symbolic" : "weather-clear-symbolic";
+            theme_toggle.tooltip_text = theme_toggle.active ? "Switch to Light Theme" : "Switch to Dark Theme";
+
+            // Сохранение темы
+            app_ref.settings_manager.save_theme (theme_toggle.active ? "dark" : "light");
+        });
+        header.pack_end (theme_toggle);
+    }
 
     construct {
         document_manager = new Iide.DocumentManager ();
         project_manager = new Iide.ProjectManager ();
+
+        // Сохранение состояния окна при закрытии
+        this.close_request.connect (() => {
+            app.settings_manager.save_window_state (this.get_width (), this.get_height (), this.is_maximized ());
+            return false;
+        });
         document_manager.document_opened.connect ((widget) => {
             grid.add (widget);
             widget.raise ();
@@ -39,7 +84,7 @@ public class Iide.Window : Panel.DocumentWorkspace {
         });
 
         // Header
-        var header = new Adw.HeaderBar ();
+        header = new Adw.HeaderBar ();
         var menu_button = new Gtk.MenuButton ();
         menu_button.icon_name = "open-menu-symbolic";
 
@@ -64,20 +109,6 @@ public class Iide.Window : Panel.DocumentWorkspace {
         header.pack_end (end_toggle_btn);
 
         set_titlebar (header);
-
-        // Theme switcher
-        var style_manager = Adw.StyleManager.get_default ();
-        var theme_toggle = new Gtk.ToggleButton ();
-        theme_toggle.active = style_manager.color_scheme == Adw.ColorScheme.FORCE_DARK;
-        theme_toggle.icon_name = theme_toggle.active ? "weather-clear-night-symbolic" : "weather-clear-symbolic";
-        theme_toggle.tooltip_text = theme_toggle.active ? "Switch to Light Theme" : "Switch to Dark Theme";
-        theme_toggle.toggled.connect (() => {
-            style_manager.color_scheme = theme_toggle.active ? Adw.ColorScheme.FORCE_DARK : Adw.ColorScheme.FORCE_LIGHT;
-            theme_toggle.icon_name = theme_toggle.active ? "weather-clear-night-symbolic" : "weather-clear-symbolic";
-            theme_toggle.tooltip_text = theme_toggle.active ? "Switch to Light Theme" : "Switch to Dark Theme";
-        });
-        header.pack_end (theme_toggle);
-        style_manager.color_scheme = Adw.ColorScheme.FORCE_LIGHT;
 
         // statusbar
         dock.reveal_bottom = false;

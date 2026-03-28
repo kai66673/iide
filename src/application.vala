@@ -19,12 +19,16 @@
  */
 
 public class Iide.Application : Adw.Application {
+    public Iide.SettingsManager settings_manager;
+
     public Application () {
         Object (
                 application_id: "org.github.kai66673.iide",
                 flags: ApplicationFlags.DEFAULT_FLAGS,
                 resource_base_path: "/org/github/kai66673/iide"
         );
+
+        settings_manager = new Iide.SettingsManager ();
     }
 
     construct {
