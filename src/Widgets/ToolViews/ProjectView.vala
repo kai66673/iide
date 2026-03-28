@@ -48,9 +48,34 @@ public class Iide.FileTreeView : Box {
         // Скрываем заголовок
         column_view.get_first_child ().set_visible (false);
 
+        // Устанавливаем корневой каталог, если передан
+        if (root_dir != null) {
+            root_directory = root_dir;
+        }
+
+        setup_view ();
+    }
+
+    public void set_root_file (GLib.File? root_dir) {
+        root_directory = root_dir;
+    }
+
+    private void setup_view () {
         var column = new ColumnViewColumn (null, create_factory ());
         column.expand = true;
         sorter = new CustomSorter ((a, b) => {
+            var fi1 = a as FileItem;
+            var fi2 = b as FileItem;
+            if (fi1 == null || fi2 == null)return 0;
+
+            // Сначала сравниваем тип: директории перед файлами
+            if (fi1.is_directory != fi2.is_directory) {
+                return fi1.is_directory ? -1 : 1;
+            }
+            // Затем по имени
+            return strcmp (fi1.name.down (), fi2.name.down ());
+        });
+        sorter.set_sort_func ((a, b) => {
             var fi1 = a as FileItem;
             var fi2 = b as FileItem;
             if (fi1 == null || fi2 == null)return 0;
@@ -79,9 +104,6 @@ public class Iide.FileTreeView : Box {
                 }
             }
         });
-
-        // Безопасно устанавливаем корень (даже если это null)
-        this.root_directory = root_dir;
     }
 
     private GLib.ListStore create_file_model (GLib.File dir) {
@@ -155,7 +177,7 @@ public class Iide.FileItem : Object {
     public FileItem (GLib.File file, GLib.FileInfo info) {
         Object (
                 file : file,
-                name: info.get_display_name (),
+                name : info.get_display_name (),
                 is_directory: info.get_file_type () == GLib.FileType.DIRECTORY
         );
     }

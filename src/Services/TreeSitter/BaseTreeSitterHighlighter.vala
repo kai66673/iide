@@ -6,6 +6,8 @@ public abstract class Iide.BaseTreeSitterHighlighter : Object {
     protected Buffer buffer;
     private TreeSitter.Parser parser;
     private TreeSitter.Tree? tree;
+    private uint debounce_source = 0;
+    private const int DEBOUNCE_DELAY_MS = 300; // Задержка в миллисекундах
 
     protected abstract unowned TreeSitter.Language language();
 
@@ -34,11 +36,21 @@ public abstract class Iide.BaseTreeSitterHighlighter : Object {
     }
 
     private void on_buffer_changed() {
-        // 3. Парсим весь текст (для простоты примера)
-        // В реальном приложении используйте ts_tree_edit для инкрементальности
-        this.tree = parser.parse_string(null, buffer.text.data);
+        // Отменяем предыдущий таймер, если он есть
+        if (debounce_source != 0) {
+            GLib.Source.remove(debounce_source);
+            debounce_source = 0;
+        }
 
-        apply_highlighting();
+        // Устанавливаем новый таймер для debounce
+        debounce_source = GLib.Timeout.add(DEBOUNCE_DELAY_MS, () => {
+            // 3. Парсим весь текст (для простоты примера)
+            // В реальном приложении используйте ts_tree_edit для инкрементальности
+            this.tree = parser.parse_string(null, buffer.text.data);
+            apply_highlighting();
+            debounce_source = 0;
+            return GLib.Source.REMOVE;
+        });
     }
 
     protected virtual void apply_highlighting() {

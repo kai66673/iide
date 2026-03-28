@@ -25,11 +25,13 @@ using Panel;
 public class Iide.Window : Panel.DocumentWorkspace {
 
     private Iide.DocumentManager document_manager;
+    private Iide.ProjectManager project_manager;
 
     public Window (Gtk.Application app) { Object (application: app); }
 
     construct {
         document_manager = new Iide.DocumentManager ();
+        project_manager = new Iide.ProjectManager ();
         document_manager.document_opened.connect ((widget) => {
             grid.add (widget);
             widget.raise ();
@@ -42,6 +44,7 @@ public class Iide.Window : Panel.DocumentWorkspace {
         menu_button.icon_name = "open-menu-symbolic";
 
         var menu = new GLib.Menu ();
+        menu.append (_("Open Project"), "app.open_project");
         menu.append (_("Save All"), "app.save");
         menu.append (_("Preferences"), "app.preferences");
         menu.append (_("About"), "app.about");
@@ -88,8 +91,19 @@ public class Iide.Window : Panel.DocumentWorkspace {
         var panel_widget_left1 = new Panel.Widget ();
         panel_widget_left1.title = "Project Tree";
         panel_widget_left1.icon_name = "folder-symbolic";
-        var folder_view = new Iide.FileTreeView (File.new_for_path ("/home/kai/BAS/bcad-ws/packages"));
+
+        // Создаем FileTreeView без начального пути
+        var folder_view = new Iide.FileTreeView (null);
         panel_widget_left1.child = folder_view;
+
+        // Подключаем сигналы менеджера проекта
+        project_manager.project_opened.connect ((project_root) => {
+            folder_view.set_root_file (project_root);
+        });
+
+        project_manager.project_closed.connect (() => {
+            folder_view.set_root_file (null);
+        });
         panel_widget_left1.can_maximize = true;
 
         var panel_widget_left2 = new Panel.Widget ();
@@ -179,5 +193,9 @@ public class Iide.Window : Panel.DocumentWorkspace {
                 }
             }
         }
+    }
+
+    public void open_project_dialog () {
+        project_manager.open_project_dialog (this);
     }
 }

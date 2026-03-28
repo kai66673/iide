@@ -9,11 +9,13 @@ iide_sources = [
     'Services/Utils.vala',
     'Services/DocumentManager.vala',
     'Services/IconProvider.vala',
+    'Services/ProjectManager.vala',
     'Services/TreeSitter/TreeSitterManager.vala',
     'Services/TreeSitter/model/AstItem.vala',
     'Services/TreeSitter/model/AstModel.vala',
     'Services/TreeSitter/BaseTreeSitterHighlighter.vala',
     'Services/TreeSitter/python/PythonTreeSitterHighlighter.vala',
+    'Services/TreeSitter/cpp/CppTreeSitterHighlighter.vala',
 ]
 
 iide_deps = [

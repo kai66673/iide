@@ -32,12 +32,14 @@ public class Iide.Application : Adw.Application {
             { "about", this.on_about_action },
             { "preferences", this.on_preferences_action },
             { "save", this.on_save_action },
+            { "open_project", this.on_open_project_action },
             { "quit", this.quit }
         };
         this.add_action_entries (action_entries, this);
         this.set_accels_for_action ("app.quit", { "<control>q" });
         this.set_accels_for_action ("app.preferences", { "<control>comma" });
         this.set_accels_for_action ("app.save", { "<control>s" });
+        this.set_accels_for_action ("app.open_project", { "<control>o" });
     }
 
     public override void activate () {
@@ -72,5 +74,10 @@ public class Iide.Application : Adw.Application {
     private void on_save_action () {
         var win = active_window as Iide.Window;
         win?.save_modified ();
+    }
+
+    private void on_open_project_action () {
+        var win = active_window as Iide.Window;
+        win?.open_project_dialog ();
     }
 }
