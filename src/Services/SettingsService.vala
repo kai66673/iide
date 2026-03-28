@@ -240,6 +240,24 @@ public class Iide.SettingsService : Object {
         }
     }
 
+    public string[] open_documents {
+        owned get {
+            return settings.get_strv ("open-documents");
+        }
+        set {
+            settings.set_strv ("open-documents", value);
+        }
+    }
+
+    public string panel_layout {
+        owned get {
+            return settings.get_string ("panel-layout");
+        }
+        set {
+            settings.set_string ("panel-layout", value);
+        }
+    }
+
     public int window_width {
         get {
             return (int) settings.get_double ("window-width");

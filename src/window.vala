@@ -55,13 +55,20 @@ public class Iide.Window : Panel.DocumentWorkspace {
 
         header.pack_end (menu_button);
 
-        dock.reveal_start = settings.reveal_start_panel;
-        dock.start_width = settings.panel_start_width;
+        var panel_layout = settings.panel_layout;
+        if (panel_layout != null && panel_layout != "") {
+            Iide.PanelLayoutHelper.deserialize_dock (panel_layout, dock);
+        } else {
+            dock.reveal_start = settings.reveal_start_panel;
+            dock.start_width = settings.panel_start_width;
+            dock.reveal_end = settings.reveal_end_panel;
+            dock.end_width = settings.panel_end_width;
+            dock.reveal_bottom = settings.reveal_bottom_panel;
+            dock.bottom_height = settings.panel_bottom_height;
+        }
         var start_toggle_btn = new Panel.ToggleButton (dock, Panel.Area.START);
         header.pack_start (start_toggle_btn);
 
-        dock.reveal_end = settings.reveal_end_panel;
-        dock.end_width = settings.panel_end_width;
         var end_toggle_btn = new Panel.ToggleButton (dock, Panel.Area.END);
         header.pack_end (end_toggle_btn);
 
@@ -126,8 +133,6 @@ public class Iide.Window : Panel.DocumentWorkspace {
         header.pack_end (theme_dropdown);
 
         // statusbar
-        dock.reveal_bottom = settings.reveal_bottom_panel;
-        dock.bottom_height = settings.panel_bottom_height;
         var bottom_toggle_btn = new Panel.ToggleButton (dock, Panel.Area.BOTTOM);
         statusbar.add_suffix (1, bottom_toggle_btn);
 
@@ -157,6 +162,12 @@ public class Iide.Window : Panel.DocumentWorkspace {
             if (last_project_path != null && last_project_path != "") {
                 project_manager.open_project_by_path (last_project_path);
             }
+
+            var open_docs = settings.open_documents;
+            foreach (var uri in open_docs) {
+                document_manager.open_document_by_uri (uri, this);
+            }
+
             return Source.REMOVE;
         });
 
@@ -198,7 +209,13 @@ public class Iide.Window : Panel.DocumentWorkspace {
 
         // Handle window close
         this.close_request.connect (() => {
+            message ("CLOSE_REQUEST: starting window close");
+            message ("CLOSE_REQUEST: documents count = %d", document_manager.documents.size);
+            foreach (var entry in document_manager.documents.entries) {
+                message ("CLOSE_REQUEST: document = %s", entry.key);
+            }
             save_window_settings ();
+            settings.open_documents = document_manager.get_open_document_uris ();
             bool has_unsaved = false;
             foreach (var entry in document_manager.documents.entries) {
                 if (entry.value is Iide.TextView) {
@@ -225,8 +242,10 @@ public class Iide.Window : Panel.DocumentWorkspace {
                                 }
                             }
                         }
+                        settings.open_documents = document_manager.get_open_document_uris ();
                         this.destroy ();
                     } else if (response == "discard") {
+                        settings.open_documents = {};
                         this.destroy ();
                     }
                 });
@@ -235,34 +254,10 @@ public class Iide.Window : Panel.DocumentWorkspace {
             }
             return false;
         });
-
-        dock.notify["reveal-start"].connect (() => {
-            settings.reveal_start_panel = dock.reveal_start;
-        });
-        dock.notify["reveal-end"].connect (() => {
-            settings.reveal_end_panel = dock.reveal_end;
-        });
-        dock.notify["reveal-bottom"].connect (() => {
-            settings.reveal_bottom_panel = dock.reveal_bottom;
-        });
-        dock.notify["start-width"].connect (() => {
-            settings.panel_start_width = (int) dock.start_width;
-        });
-        dock.notify["end-width"].connect (() => {
-            settings.panel_end_width = (int) dock.end_width;
-        });
-        dock.notify["bottom-height"].connect (() => {
-            settings.panel_bottom_height = (int) dock.bottom_height;
-        });
     }
 
     private void save_window_settings () {
-        settings.reveal_start_panel = dock.reveal_start;
-        settings.reveal_end_panel = dock.reveal_end;
-        settings.reveal_bottom_panel = dock.reveal_bottom;
-        settings.panel_start_width = (int) dock.start_width;
-        settings.panel_end_width = (int) dock.end_width;
-        settings.panel_bottom_height = (int) dock.bottom_height;
+        settings.panel_layout = Iide.PanelLayoutHelper.serialize_dock (dock);
 
         bool maximized = false;
         var surface = this.get_surface ();
