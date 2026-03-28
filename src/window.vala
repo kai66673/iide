@@ -202,9 +202,14 @@ public class Iide.Window : Panel.DocumentWorkspace {
                 project_manager.open_project_by_path (last_project_path);
             }
 
-            var open_docs = settings.open_documents;
-            foreach (var uri in open_docs) {
-                document_manager.open_document_by_uri (uri, this);
+            var grid_data = settings.grid_layout;
+            if (grid_data != null && grid_data != "") {
+                restore_grid_documents (grid_data);
+            } else {
+                var open_docs = settings.open_documents;
+                foreach (var uri in open_docs) {
+                    document_manager.open_document_by_uri (uri, this);
+                }
             }
 
             return Source.REMOVE;
@@ -250,7 +255,7 @@ public class Iide.Window : Panel.DocumentWorkspace {
                         settings.open_documents = document_manager.get_open_document_uris ();
                         this.destroy ();
                     } else if (response == "discard") {
-                        settings.open_documents = {};
+                        settings.open_documents = document_manager.get_open_document_uris ();
                         this.destroy ();
                     }
                 });
@@ -263,6 +268,8 @@ public class Iide.Window : Panel.DocumentWorkspace {
 
     private void save_window_settings () {
         settings.panel_layout = Iide.PanelLayoutHelper.serialize_dock (dock);
+        var grid_json = Iide.PanelLayoutHelper.serialize_grid (grid);
+        settings.grid_layout = grid_json;
 
         bool maximized = false;
         var surface = this.get_surface ();
@@ -324,6 +331,75 @@ public class Iide.Window : Panel.DocumentWorkspace {
 
             add_widget (widget, pos);
         }
+    }
+
+    private async void restore_grid_documents_async (Gee.ArrayList<Iide.PanelLayoutHelper.DocumentInfo> sorted_docs) {
+        uint last_col = 0;
+        foreach (var doc_info in sorted_docs) {
+            if (doc_info.column > last_col) {
+                last_col = doc_info.column;
+            }
+        }
+
+        for (uint i = 1; i <= last_col; i++) {
+            grid.insert_column (i);
+        }
+
+        foreach (var doc_info in sorted_docs) {
+            var file = GLib.File.new_for_uri (doc_info.uri);
+            if (!file.query_exists (null)) {
+                continue;
+            }
+
+            var buffer = new GtkSource.Buffer (null);
+            var source_file = new GtkSource.File ();
+            source_file.location = file;
+            var file_loader = new GtkSource.FileLoader (buffer, source_file);
+
+            var pos = new Panel.Position ();
+            pos.area = Panel.Area.CENTER;
+            pos.column = doc_info.column;
+            pos.row = doc_info.row;
+
+            file_loader.load_async.begin (Priority.DEFAULT, null, null, (obj, res) => {
+                try {
+                    file_loader.load_async.end (res);
+                    var panel_widget = new Iide.TextView (file, buffer);
+                    panel_widget.notify["parent"].connect (() => {
+                        if (panel_widget.parent == null) {
+                            document_manager.close_document (file);
+                        }
+                    });
+                    document_manager.documents.set (doc_info.uri, panel_widget);
+
+                    this.add_widget (panel_widget, pos);
+
+                    panel_widget.raise ();
+                    panel_widget.view_grab_focus ();
+                } catch (Error e) {
+                    warning ("Failed to load file %s: %s", file.get_path (), e.message);
+                }
+            });
+        }
+    }
+
+    private void restore_grid_documents (string grid_data) {
+        var docs = Iide.PanelLayoutHelper.parse_grid_documents (grid_data);
+        if (docs.size == 0) {
+            return;
+        }
+
+        var sorted_docs = new Gee.ArrayList<Iide.PanelLayoutHelper.DocumentInfo> ();
+        foreach (var doc in docs) {
+            sorted_docs.add (doc);
+        }
+        sorted_docs.sort ((a, b) => {
+            int col_cmp = (int)(a.column - b.column);
+            if (col_cmp != 0) return col_cmp;
+            return (int)(a.row - b.row);
+        });
+
+        restore_grid_documents_async.begin (sorted_docs);
     }
 
     public void save_modified () {

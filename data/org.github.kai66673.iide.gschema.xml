@@ -109,6 +109,12 @@
 			<description>JSON string describing panel dock layout</description>
 		</key>
 
+		<key name="grid-layout" type="s">
+			<default>""</default>
+			<summary>Grid layout</summary>
+			<description>JSON string describing grid layout</description>
+		</key>
+
 		<key name="window-width" type="d">
 			<default>1200</default>
 			<summary>Window width</summary>

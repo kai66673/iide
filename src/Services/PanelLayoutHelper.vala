@@ -34,6 +34,12 @@ public class Iide.PanelLayoutHelper : Object {
         public uint depth { get; set; }
     }
 
+    public class DocumentInfo {
+        public string uri { get; set; }
+        public uint column { get; set; }
+        public uint row { get; set; }
+    }
+
     public static string serialize_dock (Panel.Dock dock) {
         var builder = new Json.Builder ();
         builder.begin_object ();
@@ -171,5 +177,88 @@ public class Iide.PanelLayoutHelper : Object {
         } catch (Error e) {
             warning ("Failed to parse dock layout: %s", e.message);
         }
+    }
+
+    public static string serialize_grid (Panel.Grid grid) {
+        var builder = new Json.Builder ();
+        builder.begin_object ();
+
+        builder.set_member_name ("n_columns");
+        builder.add_int_value ((int) grid.get_n_columns ());
+
+        builder.set_member_name ("documents");
+        builder.begin_array ();
+
+        grid.foreach_frame ((frame) => {
+            var pages = frame.get_pages ();
+            var position = frame.get_position ();
+
+            for (uint i = 0; i < pages.get_n_items (); i++) {
+                var item = pages.get_item (i) as Adw.TabPage;
+                if (item == null) {
+                    continue;
+                }
+                var child = item.get_child ();
+                if (child == null) {
+                    continue;
+                }
+                var widget = child as Panel.Widget;
+                if (widget == null) {
+                    continue;
+                }
+                var text_view = widget as Iide.TextView;
+                if (text_view == null) {
+                    continue;
+                }
+
+                builder.begin_object ();
+                builder.set_member_name ("uri");
+                builder.add_string_value (text_view.uri);
+                if (position != null) {
+                    builder.set_member_name ("column");
+                    builder.add_int_value ((int) position.get_column ());
+                    builder.set_member_name ("row");
+                    builder.add_int_value ((int) position.get_row ());
+                }
+                builder.end_object ();
+            }
+        });
+
+        builder.end_array ();
+        builder.end_object ();
+
+        var generator = new Json.Generator ();
+        generator.root = builder.get_root ();
+        return generator.to_data (null);
+    }
+
+    public static Gee.ArrayList<DocumentInfo> parse_grid_documents (string data) {
+        var result = new Gee.ArrayList<DocumentInfo> ();
+
+        if (data == null || data == "") {
+            return result;
+        }
+
+        try {
+            var parser = new Json.Parser ();
+            parser.load_from_data (data);
+            var root = parser.get_root ().get_object ();
+
+            if (root.has_member ("documents")) {
+                var docs_array = root.get_array_member ("documents");
+                foreach (var node in docs_array.get_elements ()) {
+                    var obj = node.get_object ();
+                    var info = new DocumentInfo ();
+                    info.uri = obj.get_string_member ("uri");
+                    info.column = obj.has_member ("column") ? (uint) obj.get_int_member ("column") : 0;
+                    info.row = obj.has_member ("row") ? (uint) obj.get_int_member ("row") : 0;
+                    result.add (info);
+                }
+            }
+        } catch (Error e) {
+            warning ("Failed to parse grid documents: %s", e.message);
+        }
+
+        return result;
     }
 }

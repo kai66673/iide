@@ -90,12 +90,12 @@ public class Iide.DocumentManager : GLib.Object {
         return documents.has_key (file.get_uri ());
     }
 
-    public string[] get_open_document_uris () {
+    public Gee.ArrayList<string> get_open_document_uris () {
         var uris = new Gee.ArrayList<string> ();
         foreach (var uri in documents.keys) {
             uris.add (uri);
         }
-        return uris.to_array ();
+        return uris;
     }
 
     public void open_document_by_uri (string uri, Gtk.Window window) {

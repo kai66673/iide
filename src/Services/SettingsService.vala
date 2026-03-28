@@ -240,12 +240,22 @@ public class Iide.SettingsService : Object {
         }
     }
 
-    public string[] open_documents {
+    public Gee.ArrayList<string> open_documents {
         owned get {
-            return settings.get_strv ("open-documents");
+            var arr = settings.get_strv ("open-documents");
+            var list = new Gee.ArrayList<string> ();
+            foreach (var s in arr) {
+                list.add (s);
+            }
+            return (owned) list;
         }
         set {
-            settings.set_strv ("open-documents", value);
+            var arr = new string[value.size];
+            int i = 0;
+            foreach (var s in value) {
+                arr[i++] = s;
+            }
+            settings.set_strv ("open-documents", arr);
         }
     }
 
@@ -255,6 +265,16 @@ public class Iide.SettingsService : Object {
         }
         set {
             settings.set_string ("panel-layout", value);
+        }
+    }
+
+    public string grid_layout {
+        owned get {
+            return settings.get_string ("grid-layout");
+        }
+        set {
+            settings.set_string ("grid-layout", value);
+            Settings.sync ();
         }
     }
 
