@@ -13,6 +13,7 @@ iide_sources = [
     'Services/ProjectManager.vala',
     'Services/SettingsService.vala',
     'Services/PanelLayoutHelper.vala',
+    'Services/LSPService.vala',
     'Services/TreeSitter/TreeSitterManager.vala',
     'Services/TreeSitter/model/AstItem.vala',
     'Services/TreeSitter/model/AstModel.vala',
@@ -31,6 +32,7 @@ iide_deps = [
     dependency('vte-2.91-gtk4', version: '>= 0.75.0'),
     dependency('gee-0.8'),
     dependency('json-glib-1.0'),
+    dependency('jsonrpc-glib-1.0'),
 ]
 
 iide_sources += gnome.compile_resources('iide-resources', 'iide.gresource.xml', c_name: 'iide')
