@@ -132,9 +132,7 @@ public class Iide.Window : Panel.DocumentWorkspace {
         });
         header.pack_end (theme_dropdown);
 
-        // statusbar
-        var bottom_toggle_btn = new Panel.ToggleButton (dock, Panel.Area.BOTTOM);
-        statusbar.add_suffix (1, bottom_toggle_btn);
+        // statusbar (создаётся после восстановления layout)
 
         var panel_area_left = new Panel.Position ();
         panel_area_left.area = Panel.Area.START;
@@ -156,20 +154,6 @@ public class Iide.Window : Panel.DocumentWorkspace {
             folder_view.set_root_file (null);
         });
         panel_widget_left1.can_maximize = true;
-
-        Timeout.add (100, () => {
-            var last_project_path = settings.current_project_path;
-            if (last_project_path != null && last_project_path != "") {
-                project_manager.open_project_by_path (last_project_path);
-            }
-
-            var open_docs = settings.open_documents;
-            foreach (var uri in open_docs) {
-                document_manager.open_document_by_uri (uri, this);
-            }
-
-            return Source.REMOVE;
-        });
 
         var panel_widget_left2 = new Panel.Widget ();
         panel_widget_left2.title = "LEFT 2";
@@ -195,10 +179,36 @@ public class Iide.Window : Panel.DocumentWorkspace {
         panel_widget_right.child = new Gtk.Label ("RIGHT");
         panel_widget_right.can_maximize = true;
 
-        add_widget (panel_widget_left1, panel_area_left);
-        add_widget (panel_widget_left2, panel_area_left);
-        add_widget (panel_widget_right, panel_area_right);
-        add_widget (panel_widget_bottom, panel_area_bottom);
+        // Восстанавливаем виджеты из сохранённого layout
+        var dock_layout = settings.panel_layout;
+        if (dock_layout != null && dock_layout != "") {
+            restore_dock_widgets (dock_layout,
+                                  panel_widget_left1, panel_widget_left2,
+                                  panel_widget_right, panel_widget_bottom);
+        } else {
+            add_widget (panel_widget_left1, panel_area_left);
+            add_widget (panel_widget_left2, panel_area_left);
+            add_widget (panel_widget_right, panel_area_right);
+            add_widget (panel_widget_bottom, panel_area_bottom);
+        }
+
+        // Создаём toggle button для BOTTOM после восстановления layout
+        var bottom_toggle_btn = new Panel.ToggleButton (dock, Panel.Area.BOTTOM);
+        statusbar.add_suffix (1, bottom_toggle_btn);
+
+        Timeout.add (100, () => {
+            var last_project_path = settings.current_project_path;
+            if (last_project_path != null && last_project_path != "") {
+                project_manager.open_project_by_path (last_project_path);
+            }
+
+            var open_docs = settings.open_documents;
+            foreach (var uri in open_docs) {
+                document_manager.open_document_by_uri (uri, this);
+            }
+
+            return Source.REMOVE;
+        });
 
         // Handle file activation to open documents
         folder_view.file_activated.connect ((item) => {
@@ -209,11 +219,6 @@ public class Iide.Window : Panel.DocumentWorkspace {
 
         // Handle window close
         this.close_request.connect (() => {
-            message ("CLOSE_REQUEST: starting window close");
-            message ("CLOSE_REQUEST: documents count = %d", document_manager.documents.size);
-            foreach (var entry in document_manager.documents.entries) {
-                message ("CLOSE_REQUEST: document = %s", entry.key);
-            }
             save_window_settings ();
             settings.open_documents = document_manager.get_open_document_uris ();
             bool has_unsaved = false;
@@ -274,6 +279,51 @@ public class Iide.Window : Panel.DocumentWorkspace {
             settings.window_height = (int) this.get_height ();
         }
         settings.window_maximized = maximized;
+    }
+
+    private void restore_dock_widgets (string layout_data,
+                                        Panel.Widget widget_left1,
+                                        Panel.Widget widget_left2,
+                                        Panel.Widget widget_right,
+                                        Panel.Widget widget_bottom) {
+        var widgets = Iide.PanelLayoutHelper.parse_widgets (layout_data);
+
+        Gee.HashMap<string, Panel.Widget> widget_map = new Gee.HashMap<string, Panel.Widget> ();
+        widget_map.set ("Project Tree", widget_left1);
+        widget_map.set ("LEFT 2", widget_left2);
+        widget_map.set ("RIGHT", widget_right);
+        widget_map.set ("BOTTOM", widget_bottom);
+
+        if (widgets.size == 0) {
+            var pos_left = new Panel.Position ();
+            pos_left.area = Panel.Area.START;
+            add_widget (widget_left1, pos_left);
+            add_widget (widget_left2, pos_left);
+
+            var pos_right = new Panel.Position ();
+            pos_right.area = Panel.Area.END;
+            add_widget (widget_right, pos_right);
+
+            var pos_bottom = new Panel.Position ();
+            pos_bottom.area = Panel.Area.BOTTOM;
+            add_widget (widget_bottom, pos_bottom);
+            return;
+        }
+
+        foreach (var info in widgets) {
+            var widget = widget_map.get (info.title);
+            if (widget == null) {
+                continue;
+            }
+
+            var pos = new Panel.Position ();
+            pos.area = (Panel.Area) info.area;
+            pos.column = info.column;
+            pos.row = info.row;
+            pos.depth = info.depth;
+
+            add_widget (widget, pos);
+        }
     }
 
     public void save_modified () {
