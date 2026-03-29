@@ -49,17 +49,24 @@ public class Iide.SaveDelegate : Panel.SaveDelegate {
 }
 
 public class Iide.TextView : Panel.Widget {
-    private GtkSource.View view;
+    private GtkSource.View _text_view;
     private GtkSource.Map source_map;
     private Iide.TreeSitterManager ts_manager;
     private BaseTreeSitterHighlighter? ts_highlighter;
     private FontZoomer font_zoomer;
     private Iide.SettingsService settings;
+    private GtkSource.MarkAttributes error_mark_attrs;
+    private GtkSource.MarkAttributes warning_mark_attrs;
+    private GtkSource.MarkAttributes info_mark_attrs;
 
     public GtkSource.LanguageManager manager;
     public string uri { get; private set; }
+    public GtkSource.View text_view { get { return _text_view; } }
 
-    public bool is_modified { get { return ((GtkSource.Buffer) view.buffer).get_modified (); } }
+    public bool is_modified { get { return ((GtkSource.Buffer) _text_view.buffer).get_modified (); } }
+
+    public signal void text_changed (string text);
+    public signal void buffer_saved ();
 
     public TextView (GLib.File file, GtkSource.Buffer buffer) {
         Object ();
@@ -86,8 +93,8 @@ public class Iide.TextView : Panel.Widget {
             }
         });
 
-        view = new GtkSource.View.with_buffer (buffer);
-        font_zoomer = new FontZoomer (view);
+        _text_view = new GtkSource.View.with_buffer (buffer);
+        font_zoomer = new FontZoomer (_text_view);
 
         // Connect to application-level zoom and minimap changes
         var app = GLib.Application.get_default () as Iide.Application;
@@ -112,7 +119,7 @@ public class Iide.TextView : Panel.Widget {
         var extra_menu = new GLib.Menu ();
         extra_menu.append_section (null, zoom_section);
         extra_menu.append_section (null, view_section);
-        view.extra_menu = extra_menu;
+        _text_view.extra_menu = extra_menu;
 
         // Connect to settings changes to apply to all open documents
         settings.editor_setting_changed.connect ((key) => {
@@ -124,20 +131,20 @@ public class Iide.TextView : Panel.Widget {
                     toggle_minimap_visible (settings.show_minimap);
                     break;
                 case "show-line-numbers":
-                    view.show_line_numbers = settings.show_line_numbers;
+                    _text_view.show_line_numbers = settings.show_line_numbers;
                     break;
                 case "highlight-current-line":
-                    view.highlight_current_line = settings.highlight_current_line;
+                    _text_view.highlight_current_line = settings.highlight_current_line;
                     break;
                 case "auto-indent":
-                    view.auto_indent = settings.auto_indent;
+                    _text_view.auto_indent = settings.auto_indent;
                     break;
             }
         });
 
         // #######################################
         // ## SpaceDrawer
-        var space_drawer = view.get_space_drawer ();
+        var space_drawer = _text_view.get_space_drawer ();
 
         // 2. Устанавливаем типы отображаемых символов
         space_drawer.set_enable_matrix (true);
@@ -157,23 +164,70 @@ public class Iide.TextView : Panel.Widget {
 
         change_syntax_highlight_from_file (file);
 
-        ts_highlighter = ts_manager.get_ts_highlighter (view);
+        ts_highlighter = ts_manager.get_ts_highlighter (_text_view);
 
-        view.show_line_numbers = settings.show_line_numbers;
-        view.highlight_current_line = settings.highlight_current_line;
-        view.auto_indent = settings.auto_indent;
-        view.indent_on_tab = true;
+        _text_view.show_line_numbers = settings.show_line_numbers;
+        _text_view.highlight_current_line = settings.highlight_current_line;
+        _text_view.auto_indent = settings.auto_indent;
+        _text_view.indent_on_tab = true;
 
         source_map = new GtkSource.Map ();
-        source_map.set_view (view);
+        source_map.set_view (_text_view);
         source_map.add_css_class ("textview-map");
         source_map.visible = settings.show_minimap;
+
+        _text_view.show_line_numbers = true;
+        _text_view.set_show_line_marks (true);
+
+        var left_gutter = _text_view.get_gutter (Gtk.TextWindowType.LEFT);
+        left_gutter.visible = true;
+
+        var text_buffer = (Gtk.TextBuffer) _text_view.buffer;
+        var error_tag = new Gtk.TextTag ("lsp_error_line");
+        error_tag.underline = Pango.Underline.ERROR;
+        var error_fg = Gdk.RGBA ();
+        error_fg.parse ("#e01b24");
+        error_tag.foreground_rgba = error_fg;
+        var error_bg = Gdk.RGBA ();
+        error_bg.parse ("#e01b24");
+        error_bg.alpha = 0.2f;
+        error_tag.background_rgba = error_bg;
+        text_buffer.tag_table.add (error_tag);
+
+        var warning_tag = new Gtk.TextTag ("lsp_warning_line");
+        warning_tag.underline = Pango.Underline.ERROR_LINE;
+        var warning_fg = Gdk.RGBA ();
+        warning_fg.parse ("#f5c211");
+        warning_tag.foreground_rgba = warning_fg;
+        var warning_bg = Gdk.RGBA ();
+        warning_bg.parse ("#f5c211");
+        warning_bg.alpha = 0.2f;
+        warning_tag.background_rgba = warning_bg;
+        text_buffer.tag_table.add (warning_tag);
+
+        error_mark_attrs = new GtkSource.MarkAttributes ();
+        error_mark_attrs.set_icon_name ("dialog-error");
+        var err_bg = Gdk.RGBA ();
+        err_bg.parse ("#e01b24");
+        error_mark_attrs.set_background (err_bg);
+        _text_view.set_mark_attributes ("error", error_mark_attrs, 100);
+
+        warning_mark_attrs = new GtkSource.MarkAttributes ();
+        warning_mark_attrs.set_icon_name ("dialog-warning");
+        var warn_bg = Gdk.RGBA ();
+        warn_bg.parse ("#f5c211");
+        warning_mark_attrs.set_background (warn_bg);
+        _text_view.set_mark_attributes ("warning", warning_mark_attrs, 90);
+
+        info_mark_attrs = new GtkSource.MarkAttributes ();
+        info_mark_attrs.set_icon_name ("dialog-information");
+        _text_view.set_mark_attributes ("info", info_mark_attrs, 80);
 
         var scroll = new Gtk.ScrolledWindow ();
         scroll.hexpand = true;
         scroll.vexpand = true;
 
-        scroll.set_child (view);
+        scroll.set_child (_text_view);
 
         scroll.get_vadjustment ().bind_property ("value",
                                                  source_map.get_vadjustment (), "value",
@@ -197,7 +251,11 @@ public class Iide.TextView : Panel.Widget {
         modified = false;
 
         buffer.modified_changed.connect_after (() => {
-            modified = view.buffer.get_modified ();
+            modified = _text_view.buffer.get_modified ();
+        });
+
+        buffer.changed.connect (() => {
+            text_changed (buffer.text);
         });
     }
 
@@ -211,25 +269,26 @@ public class Iide.TextView : Panel.Widget {
     }
 
     public void view_grab_focus () {
-        view.grab_focus ();
+        _text_view.grab_focus ();
     }
 
     // lang can be null, in the case of *No highlight style* aka Normal text
     public GtkSource.Language? language {
         set {
-            ((GtkSource.Buffer) view.buffer).language = value;
+            ((GtkSource.Buffer) _text_view.buffer).language = value;
         }
         get {
-            return ((GtkSource.Buffer) view.buffer).language;
+            return ((GtkSource.Buffer) _text_view.buffer).language;
         }
     }
 
     public bool save () {
         try {
-            var text = view.buffer.text;
+            var text = _text_view.buffer.text;
             var file = GLib.File.new_for_uri (uri);
             file.replace_contents (text.data, null, false, GLib.FileCreateFlags.NONE, null);
-            ((GtkSource.Buffer) view.buffer).set_modified (false);
+            ((GtkSource.Buffer) _text_view.buffer).set_modified (false);
+            buffer_saved ();
         } catch (Error e) {
             critical (e.message);
         }
@@ -248,6 +307,52 @@ public class Iide.TextView : Panel.Widget {
         if (file.get_basename () == "CMakeLists.txt") {
             language = manager.get_language ("cmake");
             icon_name = "text-x-cmake"; // Specific icon for CMake
+        }
+    }
+
+    public void update_diagnostics (Gee.ArrayList<Iide.LSPClient.Diagnostic> diagnostics) {
+        var buffer = (GtkSource.Buffer) _text_view.buffer;
+        var text_buffer = (Gtk.TextBuffer) buffer;
+
+        Gtk.TextIter start, end;
+        buffer.get_start_iter (out start);
+        buffer.get_end_iter (out end);
+        buffer.remove_source_marks (start, end, null);
+        text_buffer.remove_tag_by_name ("lsp_error_line", start, end);
+        text_buffer.remove_tag_by_name ("lsp_warning_line", start, end);
+
+        int line_count = buffer.get_line_count ();
+
+        foreach (var diag in diagnostics) {
+            if (diag.start_line >= line_count) {
+                continue;
+            }
+
+            Gtk.TextIter mark_iter, line_end;
+            buffer.get_iter_at_line (out mark_iter, diag.start_line);
+            buffer.get_iter_at_line (out line_end, diag.start_line);
+            line_end.forward_char ();
+
+            string category;
+            switch (diag.severity) {
+                case 1: 
+                    category = "error"; 
+                    text_buffer.apply_tag_by_name ("lsp_error_line", mark_iter, line_end);
+                    break;
+                case 2: 
+                    category = "warning"; 
+                    text_buffer.apply_tag_by_name ("lsp_warning_line", mark_iter, line_end);
+                    break;
+                case 3: 
+                case 4: 
+                    category = "info"; 
+                    break;
+                default: 
+                    category = "error"; 
+                    break;
+            }
+
+            buffer.create_source_mark (null, category, mark_iter);
         }
     }
 }

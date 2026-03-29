@@ -312,7 +312,7 @@ public class Iide.LSPClient : GLib.Object {
             string message = reader.get_string_value ();
             reader.end_member ();
 
-            print ("[LSP %d] %s\n", type, message);
+            debug ("[LSP %d] %s", type, message);
         } catch (Error e) {
         }
     }

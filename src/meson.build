@@ -14,6 +14,7 @@ iide_sources = [
     'Services/SettingsService.vala',
     'Services/PanelLayoutHelper.vala',
     'Services/LSPService.vala',
+    'Services/LSPManager.vala',
     'Services/TreeSitter/TreeSitterManager.vala',
     'Services/TreeSitter/model/AstItem.vala',
     'Services/TreeSitter/model/AstModel.vala',

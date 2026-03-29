@@ -3,23 +3,23 @@ using GtkSource;
 using GLib;
 
 public class FontZoomer : Object {
-    private View view;
+    private View src_view;
     private int zoom_level;
     private Iide.SettingsService settings;
 
-    public FontZoomer(View source_view) {
-        this.view = source_view;
+    public FontZoomer(View src_view) {
+        this.src_view = src_view;
         this.settings = Iide.SettingsService.get_instance ();
 
-        if (!this.view.has_css_class("text-view")) {
-            this.view.add_css_class("text-view");
+        if (!this.src_view.has_css_class("text-view")) {
+            this.src_view.add_css_class("text-view");
         }
 
         this.zoom_level = settings.editor_font_size;
         if (this.zoom_level < FontSizeHelper.MIN_ZOOM_LEVEL || this.zoom_level > FontSizeHelper.MAX_ZOOM_LEVEL) {
             this.zoom_level = FontSizeHelper.DEFAULT_ZOOM_LEVEL;
         }
-        this.view.add_css_class("zoom-" + zoom_level.to_string());
+        this.src_view.add_css_class("zoom-" + zoom_level.to_string());
 
         var scroll_controller = new EventControllerScroll(EventControllerScrollFlags.VERTICAL);
         scroll_controller.scroll.connect((dx, dy) => {
@@ -38,31 +38,31 @@ public class FontZoomer : Object {
             return false;
         });
 
-        this.view.add_controller(scroll_controller);
+        this.src_view.add_controller(scroll_controller);
     }
 
     public void zoom_in() {
         if (zoom_level < FontSizeHelper.MAX_ZOOM_LEVEL) {
-            view.remove_css_class("zoom-" + zoom_level.to_string());
+            src_view.remove_css_class("zoom-" + zoom_level.to_string());
             zoom_level++;
-            view.add_css_class("zoom-" + zoom_level.to_string());
+            src_view.add_css_class("zoom-" + zoom_level.to_string());
             settings.editor_font_size = zoom_level;
         }
     }
 
     public void zoom_out() {
         if (zoom_level > FontSizeHelper.MIN_ZOOM_LEVEL) {
-            view.remove_css_class("zoom-" + zoom_level.to_string());
+            src_view.remove_css_class("zoom-" + zoom_level.to_string());
             zoom_level--;
-            view.add_css_class("zoom-" + zoom_level.to_string());
+            src_view.add_css_class("zoom-" + zoom_level.to_string());
             settings.editor_font_size = zoom_level;
         }
     }
 
     public void zoom_reset() {
-        view.remove_css_class("zoom-" + zoom_level.to_string());
+        src_view.remove_css_class("zoom-" + zoom_level.to_string());
         zoom_level = FontSizeHelper.DEFAULT_ZOOM_LEVEL;
-        view.add_css_class("zoom-" + zoom_level.to_string());
+        src_view.add_css_class("zoom-" + zoom_level.to_string());
         settings.editor_font_size = zoom_level;
     }
 
@@ -73,8 +73,8 @@ public class FontZoomer : Object {
         if (zoom_level == level) {
             return;
         }
-        view.remove_css_class("zoom-" + zoom_level.to_string());
+        src_view.remove_css_class("zoom-" + zoom_level.to_string());
         zoom_level = level;
-        view.add_css_class("zoom-" + zoom_level.to_string());
+        src_view.add_css_class("zoom-" + zoom_level.to_string());
     }
 }

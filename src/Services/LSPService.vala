@@ -28,6 +28,9 @@ public class Iide.LSPClient : GLib.Object {
     private IOConsumer? consumer;
     private GLib.OutputStream? stdin_stream;
     private uint next_request_id = 1;
+    private Gee.ArrayList<string> message_queue;
+    private int queue_head = 0;
+    private bool is_writing = false;
 
     public signal void initialized ();
     public signal void diagnostics_received (string uri, Gee.ArrayList<Diagnostic> diagnostics);
@@ -51,6 +54,10 @@ public class Iide.LSPClient : GLib.Object {
 
     public async bool start_server (string command, string[] args, string? workspace_root) {
         try {
+            message_queue = new Gee.ArrayList<string> ();
+            queue_head = 0;
+            is_writing = false;
+
             var argv = new Gee.ArrayList<string> ();
             argv.add (command);
             foreach (var arg in args) {
@@ -59,19 +66,26 @@ public class Iide.LSPClient : GLib.Object {
 
             launcher = new SubprocessLauncher (SubprocessFlags.STDOUT_PIPE | SubprocessFlags.STDIN_PIPE);
             process = launcher.spawnv (argv.to_array ());
+            debug ("LSP: Started process %s", command);
 
             stdin_stream = process.get_stdin_pipe ();
             consumer = new IOConsumer (process.get_stdout_pipe ());
             consumer.message.connect (on_message_received);
+            debug ("LSP: Connected stdout pipe");
 
             var init_params = build_init_params (workspace_root);
             var init_json = build_request ("initialize", init_params);
+            debug ("LSP: Sending initialize request");
             yield send_message (init_json);
+            debug ("LSP: initialize sent");
 
             var notif = build_notification ("initialized", null);
+            debug ("LSP: Sending initialized notification");
             yield send_message (notif);
+            debug ("LSP: initialized sent");
 
             initialized ();
+            debug ("LSP: Server initialized successfully");
             return true;
         } catch (Error e) {
             error_occurred ("Failed to start LSP server: %s".printf (e.message));
@@ -80,8 +94,35 @@ public class Iide.LSPClient : GLib.Object {
     }
 
     private async bool send_message (string message) {
-        if (stdin_stream == null) return false;
+        if (stdin_stream == null) {
+            warning ("LSP: stdin_stream is null");
+            return false;
+        }
 
+        if (is_writing) {
+            message_queue.add (message);
+            debug ("LSP: Queued message (queue size: %d)", message_queue.size);
+            return true;
+        }
+
+        is_writing = true;
+        bool result = yield do_write_message (message);
+
+        while (queue_head < message_queue.size) {
+            var next = message_queue.get (queue_head);
+            queue_head++;
+            if (next != null) {
+                yield do_write_message (next);
+            }
+        }
+
+        message_queue.clear ();
+        queue_head = 0;
+        is_writing = false;
+        return result;
+    }
+
+    private async bool do_write_message (string message) {
         try {
             var data = message.data;
             var length = data.length;
@@ -95,8 +136,10 @@ public class Iide.LSPClient : GLib.Object {
 
             size_t bytes_written = 0;
             yield stdin_stream.write_all_async (buffer, GLib.Priority.DEFAULT, null, out bytes_written);
+            yield stdin_stream.flush_async (GLib.Priority.DEFAULT, null);
             return true;
         } catch (Error e) {
+            warning ("LSP Write error: %s", e.message);
             error_occurred ("Write error: %s".printf (e.message));
             return false;
         }
@@ -189,25 +232,43 @@ public class Iide.LSPClient : GLib.Object {
     }
 
     private void on_message_received (GLib.Bytes data) {
-        string response = (string) data.get_data ();
-
+        uint8[] raw_data = data.get_data ();
+        
+        if (raw_data.length > 0 && raw_data[0] == 0xEF && raw_data.length > 2 && 
+            raw_data[1] == 0xBB && raw_data[2] == 0xBF) {
+            uint8[] new_data = new uint8[raw_data.length - 3];
+            for (int i = 0; i < new_data.length; i++) {
+                new_data[i] = raw_data[i + 3];
+            }
+            raw_data = new_data;
+        }
+        
+        for (int i = 0; i < raw_data.length; i++) {
+            if (raw_data[i] == '\n' || raw_data[i] == '\r') {
+                raw_data[i] = ' ';
+            }
+        }
+        
         var parser = new Json.Parser ();
         try {
-            parser.load_from_data (response);
+            parser.load_from_data ((string) raw_data);
             var reader = new Json.Reader (parser.get_root ());
 
             reader.read_member ("jsonrpc");
             string jsonrpc = reader.get_string_value ();
             reader.end_member ();
-            if (jsonrpc != "2.0") return;
+            if (jsonrpc != "2.0") {
+                return;
+            }
 
             if (reader.read_member ("method")) {
                 string method = reader.get_string_value ();
                 reader.end_member ();
 
-                reader.read_member ("params");
-                handle_notification (reader, method);
-                reader.end_member ();
+                if (reader.read_member ("params")) {
+                    handle_notification (reader, method);
+                    reader.end_member ();
+                }
             } else {
                 reader.end_member ();
                 if (reader.read_member ("id")) {
@@ -215,7 +276,6 @@ public class Iide.LSPClient : GLib.Object {
                 }
             }
         } catch (Error e) {
-            error_occurred ("Parse error: %s".printf (e.message));
         }
     }
 
@@ -232,11 +292,17 @@ public class Iide.LSPClient : GLib.Object {
 
     private void handle_publish_diagnostics (Json.Reader reader) {
         try {
-            reader.read_member ("uri");
+            if (!reader.read_member ("uri")) {
+                return;
+            }
             string uri = reader.get_string_value ();
             reader.end_member ();
 
-            reader.read_member ("diagnostics");
+            if (!reader.read_member ("diagnostics")) {
+                reader.end_member ();
+                return;
+            }
+
             var diagnostics = new Gee.ArrayList<Diagnostic> ();
 
             if (reader.is_array ()) {
@@ -257,7 +323,7 @@ public class Iide.LSPClient : GLib.Object {
 
     private Diagnostic parse_diagnostic (Json.Reader reader) throws Error {
         int severity = 1;
-        string message = "";
+        string diag_message = "";
         int start_line = 0, start_col = 0, end_line = 0, end_col = 0;
 
         if (reader.read_member ("severity")) {
@@ -266,7 +332,7 @@ public class Iide.LSPClient : GLib.Object {
         }
 
         if (reader.read_member ("message")) {
-            message = reader.get_string_value ();
+            diag_message = reader.get_string_value ();
             reader.end_member ();
         }
 
@@ -294,7 +360,7 @@ public class Iide.LSPClient : GLib.Object {
         return (Diagnostic) Object.new (
             typeof (Diagnostic),
             "severity", severity,
-            "message", message,
+            "message", diag_message,
             "start_line", start_line,
             "start_column", start_col,
             "end_line", end_line,
@@ -312,12 +378,13 @@ public class Iide.LSPClient : GLib.Object {
             string message = reader.get_string_value ();
             reader.end_member ();
 
-            print ("[LSP %d] %s\n", type, message);
+            debug ("[LSP %d] %s", type, message);
         } catch (Error e) {
         }
     }
 
     public void text_document_did_open (string uri, string language_id, int version, string text) {
+        debug ("LSP: Sending didOpen for %s (lang=%s)", uri, language_id);
         var builder = new Json.Builder ();
         builder.begin_object ();
         builder.set_member_name ("textDocument");
@@ -335,6 +402,7 @@ public class Iide.LSPClient : GLib.Object {
 
         var notif = build_notification ("textDocument/didOpen", builder.get_root ());
         send_message.begin (notif);
+        debug ("LSP: didOpen sent");
     }
 
     public void text_document_did_change (string uri, int version, string text) {
@@ -370,81 +438,103 @@ public class Iide.LSPClient : GLib.Object {
 
 public class Iide.IOConsumer : GLib.Object {
     private GLib.InputStream stream;
-    private int content_length = -1;
     private uint8[] chunk_buffer = new uint8[65536];
     private int chunk_used = 0;
 
     public signal void message (GLib.Bytes data);
 
     public IOConsumer (GLib.InputStream stream) {
+        if (stream == null) {
+            warning ("IOConsumer: stream is NULL");
+            return;
+        }
         this.stream = stream;
-        read_chunk ();
+        new Thread<void> ("lsp-reader", () => {
+            read_thread ();
+        });
     }
 
-    private async void read_chunk () {
-        try {
-            uint8[] buffer = new uint8[65536];
-            size_t bytes_read = 0;
-            bool success = yield stream.read_all_async (buffer, 65536, null, out bytes_read);
-            if (!success || bytes_read == 0) {
-                return;
-            }
-
-            int available = chunk_used + (int) bytes_read;
-            if (available > chunk_buffer.length) {
-                available = chunk_buffer.length - chunk_used;
-                if ((int) bytes_read < available) {
-                    available = (int) bytes_read;
+    private void read_thread () {
+        uint8[] buffer = new uint8[65536];
+        while (true) {
+            try {
+                size_t bytes_read = stream.read (buffer);
+                if (bytes_read == 0) {
+                    break;
                 }
+                
+                bool at_line_start = true;
+                
+                for (size_t i = 0; i < bytes_read; i++) {
+                    uint8 byte = buffer[i];
+                    bool is_newline = (byte == '\n');
+                    
+                    if (at_line_start) {
+                        if (byte == 'I' || byte == 'E' || byte == 'W' || byte == '<') {
+                            while (i < bytes_read && buffer[i] != '\n') {
+                                i++;
+                            }
+                            at_line_start = true;
+                            continue;
+                        }
+                    }
+                    
+                    chunk_buffer[chunk_used++] = byte;
+                    if (chunk_used >= chunk_buffer.length) {
+                        warning ("IOConsumer: buffer overflow, resetting");
+                        chunk_used = 0;
+                    }
+                    at_line_start = is_newline;
+                }
+                process_buffer ();
+            } catch (Error e) {
+                warning ("IOConsumer: Thread error: %s", e.message);
+                break;
             }
-            
-            for (size_t i = 0; i < bytes_read && chunk_used < chunk_buffer.length; i++) {
-                chunk_buffer[chunk_used++] = buffer[i];
-            }
-
-            process_buffer ();
-            read_chunk ();
-        } catch (Error e) {
         }
     }
 
     private void process_buffer () {
-        int header_end = -1;
-        for (int i = 0; i < chunk_used - 3; i++) {
-            if (chunk_buffer[i] == '\r' && chunk_buffer[i+1] == '\n' &&
-                chunk_buffer[i+2] == '\n') {
-                header_end = i;
-                break;
-            }
-        }
-        
-        if (header_end == -1 && chunk_used >= 4) {
-            for (int i = 0; i < chunk_used - 4; i++) {
+        while (chunk_used > 0) {
+            int header_end = -1;
+            int body_start = -1;
+            int content_length = -1;
+            
+            for (int i = 0; i < chunk_used - 3; i++) {
                 if (chunk_buffer[i] == '\r' && chunk_buffer[i+1] == '\n' &&
                     chunk_buffer[i+2] == '\r' && chunk_buffer[i+3] == '\n') {
                     header_end = i;
+                    body_start = i + 4;
                     break;
                 }
             }
-        }
-        
-        if (header_end == -1) return;
-
-        string header = (string) chunk_buffer[0:header_end];
-        int body_start = header_end + (chunk_buffer[header_end + 1] == '\n' ? 4 : 4);
-
-        string[] lines = header.split ("\r\n");
-        foreach (var line in lines) {
-            if (line.has_prefix ("Content-Length: ")) {
-                string len_str = line.substring (15);
-                content_length = int.parse (len_str);
+            
+            if (header_end == -1) {
+                if (chunk_used > 4000) {
+                    warning ("IOConsumer: no header in %d bytes", chunk_used);
+                    chunk_used = 0;
+                }
+                return;
             }
-        }
+            
+            string header = ((string) chunk_buffer[0:header_end]);
+            string[] lines = header.split ("\r\n");
+            foreach (var line in lines) {
+                if (line.has_prefix ("Content-Length: ")) {
+                    content_length = int.parse (line.substring (15));
+                }
+            }
 
-        if (content_length == -1) return;
+            if (content_length <= 0) {
+                warning ("IOConsumer: no Content-Length");
+                chunk_used = 0;
+                return;
+            }
 
-        int body_length = chunk_used - body_start;
-        if (body_length >= content_length) {
+            if (chunk_used < body_start + content_length) {
+                return;
+            }
+            
             uint8[] body = new uint8[content_length];
             for (int i = 0; i < content_length; i++) {
                 body[i] = chunk_buffer[body_start + i];
@@ -456,12 +546,7 @@ public class Iide.IOConsumer : GLib.Object {
             }
             chunk_used = remaining;
 
-            content_length = -1;
             message (new GLib.Bytes (body));
-
-            if (chunk_used > 0) {
-                process_buffer ();
-            }
         }
     }
 }

@@ -26,9 +26,23 @@ using Panel;
 
 public class Iide.DocumentManager : GLib.Object {
     public Gee.HashMap<string, TextView> documents;
+    private Iide.LSPManager lsp_manager;
+    private string? current_workspace_root;
 
     public DocumentManager () {
         documents = new Gee.HashMap<string, TextView> ();
+        lsp_manager = Iide.LSPManager.get_instance ();
+
+        lsp_manager.diagnostics_updated.connect ((uri, diagnostics) => {
+            var doc = documents.get (uri);
+            if (doc != null) {
+                doc.update_diagnostics (diagnostics);
+            }
+        });
+    }
+
+    public void set_workspace_root (string? root) {
+        current_workspace_root = root;
     }
 
     public signal void document_opened (TextView document);
@@ -56,9 +70,25 @@ public class Iide.DocumentManager : GLib.Object {
                             close_document (file);
                         }
                     });
+
+                    panel_widget.text_changed.connect ((text) => {
+                        lsp_manager.change_document.begin (uri, text);
+                    });
+
+                    panel_widget.buffer_saved.connect (() => {
+                        string content = ((GtkSource.Buffer) panel_widget.text_view.buffer).text;
+                        lsp_manager.change_document.begin (uri, content);
+                    });
+
                     documents.set (uri, panel_widget);
                     message ("DocumentManager: added document %s, total documents: %d", uri, documents.size);
                     document_opened (panel_widget);
+
+                    string content = buffer.text;
+                    string? lang_id = lsp_manager.get_language_id_for_file (file);
+                    if (lang_id != null) {
+                        lsp_manager.open_document.begin (uri, lang_id, content, current_workspace_root);
+                    }
                 } catch (Error e) {
                     var dialog = new Adw.AlertDialog ("Error Opening File", "Failed to read file %s: %s".printf (file.get_path (), e.message));
                     dialog.add_response ("ok", "OK");
@@ -75,6 +105,7 @@ public class Iide.DocumentManager : GLib.Object {
         string uri = file.get_uri ();
         if (documents.has_key (uri)) {
             documents.unset (uri);
+            lsp_manager.close_document.begin (uri);
             document_closed (uri);
             return true;
         }
@@ -137,6 +168,12 @@ public class Iide.DocumentManager : GLib.Object {
                     });
                     documents.set (file_uri, panel_widget);
                     document_opened (panel_widget);
+
+                    string content = buffer.text;
+                    string? lang_id = lsp_manager.get_language_id_for_file (file);
+                    if (lang_id != null) {
+                        lsp_manager.open_document.begin (file_uri, lang_id, content, current_workspace_root);
+                    }
                 } catch (Error e) {
                     warning ("Failed to load file %s: %s", file.get_path (), e.message);
                 }

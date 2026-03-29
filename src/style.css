@@ -7,6 +7,25 @@ textview {
     font-size: 4px;
 }
 
+.lsp_error_line {
+    background: rgba(224, 27, 36, 0.2);
+    text-decoration: underline;
+    text-decoration-color: #e01b24;
+}
+
+.lsp_warning_line {
+    background: rgba(245, 194, 17, 0.2);
+    text-decoration: underline;
+    text-decoration-style: wavy;
+    text-decoration-color: #f5c211;
+}
+
+.lsp_info_line {
+    background: rgba(50, 132, 255, 0.2);
+    text-decoration: underline;
+    text-decoration-color: #3284ff;
+}
+
 .text-view.zoom-2 {
     font-size: 6px;
 }

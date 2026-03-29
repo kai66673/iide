@@ -40,6 +40,14 @@ public class Iide.Window : Panel.DocumentWorkspace {
             widget.view_grab_focus ();
         });
 
+        project_manager.project_opened.connect ((project_root) => {
+            document_manager.set_workspace_root (project_root.get_uri ());
+        });
+
+        project_manager.project_closed.connect (() => {
+            document_manager.set_workspace_root (null);
+        });
+
         // Header
         var header = new Adw.HeaderBar ();
         var menu_button = new Gtk.MenuButton ();
@@ -373,6 +381,13 @@ public class Iide.Window : Panel.DocumentWorkspace {
                     document_manager.documents.set (doc_info.uri, panel_widget);
 
                     this.add_widget (panel_widget, pos);
+
+                    string content = buffer.text;
+                    var lsp_manager = Iide.LSPManager.get_instance ();
+                    string? lang_id = lsp_manager.get_language_id_for_file (file);
+                    if (lang_id != null) {
+                        lsp_manager.open_document.begin (doc_info.uri, lang_id, content, null);
+                    }
 
                     panel_widget.raise ();
                     panel_widget.view_grab_focus ();
