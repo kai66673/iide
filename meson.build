@@ -132,3 +132,12 @@ gnome.post_install(
     gtk_update_icon_cache: true,
     update_desktop_database: true,
 )
+
+local_settings_conf = configuration_data()
+local_settings_conf.set('PREFIX', get_option('prefix'))
+local_settings_sh = configure_file(
+    input: 'scripts/install-local-settings.sh.in',
+    output: 'install-local-settings.sh',
+    configuration: local_settings_conf,
+)
+meson.add_install_script(local_settings_sh)

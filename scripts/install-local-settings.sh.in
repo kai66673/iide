@@ -1,0 +1,33 @@
+#!/bin/bash
+set -e
+
+PREFIX="@PREFIX@"
+LOCAL_SCHEMA_DIR="$HOME/.local/share/glib-2.0/schemas"
+LOCAL_ICON_DIR="$HOME/.local/share/icons/hicolor"
+CURRENT_DIR="$(cd "$(dirname "$0")" && pwd)"
+
+install_schemas() {
+    mkdir -p "$LOCAL_SCHEMA_DIR"
+    if [ -f "@PREFIX@/share/glib-2.0/schemas/org.github.kai66673.iide.gschema.xml" ]; then
+        cp "@PREFIX@/share/glib-2.0/schemas/org.github.kai66673.iide.gschema.xml" "$LOCAL_SCHEMA_DIR/"
+    elif [ -f "$CURRENT_DIR/data/org.github.kai66673.iide.gschema.xml" ]; then
+        cp "$CURRENT_DIR/data/org.github.kai66673.iide.gschema.xml" "$LOCAL_SCHEMA_DIR/"
+    fi
+    glib-compile-schemas "$LOCAL_SCHEMA_DIR"
+    echo "GSettings schemas installed to $LOCAL_SCHEMA_DIR"
+}
+
+install_icons() {
+    if [ -d "$CURRENT_DIR/data/icons" ]; then
+        mkdir -p "$LOCAL_ICON_DIR"
+        cp -r "$CURRENT_DIR/data/icons/"* "$LOCAL_ICON_DIR/" 2>/dev/null || true
+        gtk-update-icon-cache "$LOCAL_ICON_DIR" 2>/dev/null || true
+        echo "Icons installed to $LOCAL_ICON_DIR"
+    fi
+}
+
+echo "Installing iide settings locally for development..."
+install_schemas
+install_icons
+echo "Done! If needed, set:"
+echo "  export XDG_DATA_DIRS=\"\$HOME/.local/share:\$XDG_DATA_DIRS\""
