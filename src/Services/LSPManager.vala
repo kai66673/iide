@@ -176,6 +176,7 @@ public class Iide.LSPManager : GLib.Object {
                 }
 
                 bool started = yield client.start_server (cmd, args, workspace_root);
+
                 if (started) {
                     servers.set (server_key, client);
                     message ("LSP server '%s' started successfully", server_key);
@@ -195,7 +196,7 @@ public class Iide.LSPManager : GLib.Object {
 
     private void process_pending_opens (string server_key) {
         var to_remove = new Gee.ArrayList<int> ();
-        
+
         for (int i = 0; i < pending_opens.size; i++) {
             var item = pending_opens.get (i);
             var cfg_key = get_server_key_for_language (item.language_id);
@@ -209,7 +210,7 @@ public class Iide.LSPManager : GLib.Object {
                 to_remove.add (i);
             }
         }
-        
+
         for (int i = to_remove.size - 1; i >= 0; i--) {
             pending_opens.remove_at (to_remove.get (i));
         }
@@ -238,7 +239,7 @@ public class Iide.LSPManager : GLib.Object {
         document_versions.unset (uri);
     }
 
-    private string? get_server_key_for_language (string language_id) {
+    private string ? get_server_key_for_language (string language_id) {
         foreach (var config in language_configs) {
             if (config.language_id == language_id) {
                 return config.language_id;
@@ -247,8 +248,7 @@ public class Iide.LSPManager : GLib.Object {
         return null;
     }
 
-    public string? get_language_id_for_file (GLib.File file) {
-        string path = file.get_path () ?? "";
+    public string ? get_language_id_for_file (GLib.File file) {
         string filename = file.get_basename () ?? "";
 
         foreach (var config in language_configs) {

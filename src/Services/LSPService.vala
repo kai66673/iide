@@ -77,11 +77,13 @@ public class Iide.LSPClient : GLib.Object {
             var init_json = build_request ("initialize", init_params);
             debug ("LSP: Sending initialize request");
             yield send_message (init_json);
+
             debug ("LSP: initialize sent");
 
             var notif = build_notification ("initialized", null);
             debug ("LSP: Sending initialized notification");
             yield send_message (notif);
+
             debug ("LSP: initialized sent");
 
             initialized ();
@@ -136,7 +138,9 @@ public class Iide.LSPClient : GLib.Object {
 
             size_t bytes_written = 0;
             yield stdin_stream.write_all_async (buffer, GLib.Priority.DEFAULT, null, out bytes_written);
+
             yield stdin_stream.flush_async (GLib.Priority.DEFAULT, null);
+
             return true;
         } catch (Error e) {
             warning ("LSP Write error: %s", e.message);
@@ -233,8 +237,8 @@ public class Iide.LSPClient : GLib.Object {
 
     private void on_message_received (GLib.Bytes data) {
         uint8[] raw_data = data.get_data ();
-        
-        if (raw_data.length > 0 && raw_data[0] == 0xEF && raw_data.length > 2 && 
+
+        if (raw_data.length > 0 && raw_data[0] == 0xEF && raw_data.length > 2 &&
             raw_data[1] == 0xBB && raw_data[2] == 0xBF) {
             uint8[] new_data = new uint8[raw_data.length - 3];
             for (int i = 0; i < new_data.length; i++) {
@@ -242,13 +246,13 @@ public class Iide.LSPClient : GLib.Object {
             }
             raw_data = new_data;
         }
-        
+
         for (int i = 0; i < raw_data.length; i++) {
             if (raw_data[i] == '\n' || raw_data[i] == '\r') {
                 raw_data[i] = ' ';
             }
         }
-        
+
         var parser = new Json.Parser ();
         try {
             parser.load_from_data ((string) raw_data);
@@ -281,12 +285,12 @@ public class Iide.LSPClient : GLib.Object {
 
     private void handle_notification (Json.Reader reader, string method) {
         switch (method) {
-            case "textDocument/publishDiagnostics":
-                handle_publish_diagnostics (reader);
-                break;
-            case "window/showMessage":
-                handle_show_message (reader);
-                break;
+        case "textDocument/publishDiagnostics" :
+            handle_publish_diagnostics (reader);
+            break;
+        case "window/showMessage" :
+            handle_show_message (reader);
+            break;
         }
     }
 
@@ -358,29 +362,26 @@ public class Iide.LSPClient : GLib.Object {
         }
 
         return (Diagnostic) Object.new (
-            typeof (Diagnostic),
-            "severity", severity,
-            "message", diag_message,
-            "start_line", start_line,
-            "start_column", start_col,
-            "end_line", end_line,
-            "end_column", end_col
+                                        typeof (Diagnostic),
+                                        "severity", severity,
+                                        "message", diag_message,
+                                        "start_line", start_line,
+                                        "start_column", start_col,
+                                        "end_line", end_line,
+                                        "end_column", end_col
         );
     }
 
     private void handle_show_message (Json.Reader reader) {
-        try {
-            reader.read_member ("type");
-            int type = (int) reader.get_int_value ();
-            reader.end_member ();
+        reader.read_member ("type");
+        int type = (int) reader.get_int_value ();
+        reader.end_member ();
 
-            reader.read_member ("message");
-            string message = reader.get_string_value ();
-            reader.end_member ();
+        reader.read_member ("message");
+        string message = reader.get_string_value ();
+        reader.end_member ();
 
-            debug ("[LSP %d] %s", type, message);
-        } catch (Error e) {
-        }
+        debug ("[LSP %d] %s", type, message);
     }
 
     public void text_document_did_open (string uri, string language_id, int version, string text) {
@@ -462,13 +463,13 @@ public class Iide.IOConsumer : GLib.Object {
                 if (bytes_read == 0) {
                     break;
                 }
-                
+
                 bool at_line_start = true;
-                
+
                 for (size_t i = 0; i < bytes_read; i++) {
                     uint8 byte = buffer[i];
                     bool is_newline = (byte == '\n');
-                    
+
                     if (at_line_start) {
                         if (byte == 'I' || byte == 'E' || byte == 'W' || byte == '<') {
                             while (i < bytes_read && buffer[i] != '\n') {
@@ -478,7 +479,7 @@ public class Iide.IOConsumer : GLib.Object {
                             continue;
                         }
                     }
-                    
+
                     chunk_buffer[chunk_used++] = byte;
                     if (chunk_used >= chunk_buffer.length) {
                         warning ("IOConsumer: buffer overflow, resetting");
@@ -499,16 +500,16 @@ public class Iide.IOConsumer : GLib.Object {
             int header_end = -1;
             int body_start = -1;
             int content_length = -1;
-            
+
             for (int i = 0; i < chunk_used - 3; i++) {
-                if (chunk_buffer[i] == '\r' && chunk_buffer[i+1] == '\n' &&
-                    chunk_buffer[i+2] == '\r' && chunk_buffer[i+3] == '\n') {
+                if (chunk_buffer[i] == '\r' && chunk_buffer[i + 1] == '\n' &&
+                    chunk_buffer[i + 2] == '\r' && chunk_buffer[i + 3] == '\n') {
                     header_end = i;
                     body_start = i + 4;
                     break;
                 }
             }
-            
+
             if (header_end == -1) {
                 if (chunk_used > 4000) {
                     warning ("IOConsumer: no header in %d bytes", chunk_used);
@@ -516,8 +517,8 @@ public class Iide.IOConsumer : GLib.Object {
                 }
                 return;
             }
-            
-            string header = ((string) chunk_buffer[0:header_end]);
+
+            string header = ((string) chunk_buffer[0: header_end]);
             string[] lines = header.split ("\r\n");
             foreach (var line in lines) {
                 if (line.has_prefix ("Content-Length: ")) {
@@ -534,7 +535,7 @@ public class Iide.IOConsumer : GLib.Object {
             if (chunk_used < body_start + content_length) {
                 return;
             }
-            
+
             uint8[] body = new uint8[content_length];
             for (int i = 0; i < content_length; i++) {
                 body[i] = chunk_buffer[body_start + i];
