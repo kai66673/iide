@@ -28,6 +28,7 @@ public class Iide.LSPManager : GLib.Object {
     private Gee.HashMap<string, int> document_versions;
     private Gee.HashMap<string, bool> server_starting;
     private Gee.ArrayList<PendingOpen> pending_opens;
+    private Iide.ProjectManager project_manager;
 
     private class PendingOpen {
         public string uri;
@@ -45,65 +46,6 @@ public class Iide.LSPManager : GLib.Object {
 
     public signal void diagnostics_updated (string uri, Gee.ArrayList<LSPClient.Diagnostic> diagnostics);
 
-    private struct LanguageConfig {
-        public string language_id;
-        public string[] server_command;
-        public string[] file_patterns;
-    }
-
-    private static LanguageConfig[] language_configs = {
-        LanguageConfig () {
-            language_id = "c",
-            server_command = { "clangd" },
-            file_patterns = { "*.c", "*.h" }
-        },
-        LanguageConfig () {
-            language_id = "cpp",
-            server_command = { "clangd" },
-            file_patterns = { "*.cpp", "*.cc", "*.cxx", "*.hpp", "*.hxx", "*.h" }
-        },
-        LanguageConfig () {
-            language_id = "python",
-            server_command = { "pylsp" },
-            file_patterns = { "*.py" }
-        },
-        LanguageConfig () {
-            language_id = "rust",
-            server_command = { "rust-analyzer" },
-            file_patterns = { "*.rs" }
-        },
-        LanguageConfig () {
-            language_id = "go",
-            server_command = { "gopls" },
-            file_patterns = { "*.go" }
-        },
-        LanguageConfig () {
-            language_id = "typescript",
-            server_command = { "typescript-language-server", "--stdio" },
-            file_patterns = { "*.ts", "*.tsx" }
-        },
-        LanguageConfig () {
-            language_id = "javascript",
-            server_command = { "typescript-language-server", "--stdio" },
-            file_patterns = { "*.js", "*.jsx" }
-        },
-        LanguageConfig () {
-            language_id = "json",
-            server_command = { "vscode-json-languageserver", "--stdio" },
-            file_patterns = { "*.json" }
-        },
-        LanguageConfig () {
-            language_id = "html",
-            server_command = { "vscode-html-language-server", "--stdio" },
-            file_patterns = { "*.html", "*.htm" }
-        },
-        LanguageConfig () {
-            language_id = "css",
-            server_command = { "vscode-css-language-server", "--stdio" },
-            file_patterns = { "*.css", "*.scss", "*.less" }
-        },
-    };
-
     public static unowned LSPManager get_instance () {
         if (_instance == null) {
             _instance = new LSPManager ();
@@ -117,6 +59,7 @@ public class Iide.LSPManager : GLib.Object {
         document_versions = new Gee.HashMap<string, int> ();
         server_starting = new Gee.HashMap<string, bool> ();
         pending_opens = new Gee.ArrayList<PendingOpen> ();
+        project_manager = Iide.ProjectManager.get_instance ();
     }
 
     public async void open_document (string uri, string language_id, string content, string? workspace_root) {
@@ -155,39 +98,42 @@ public class Iide.LSPManager : GLib.Object {
 
         server_starting.set (server_key, true);
 
-        foreach (var config in language_configs) {
-            if (config.language_id == server_key) {
-                string? cmd = Environment.find_program_in_path (config.server_command[0]);
-                if (cmd == null) {
-                    warning ("LSP server '%s' not found", config.server_command[0]);
-                    server_starting.unset (server_key);
-                    process_pending_opens (server_key);
-                    return;
-                }
-
-                var client = new Iide.LSPClient ();
-                client.diagnostics_received.connect ((uri, diags) => {
-                    diagnostics_updated (uri, diags);
-                });
-
-                string[] args = {};
-                for (int i = 1; i < config.server_command.length; i++) {
-                    args += config.server_command[i];
-                }
-
-                bool started = yield client.start_server (cmd, args, workspace_root);
-
-                if (started) {
-                    servers.set (server_key, client);
-                    message ("LSP server '%s' started successfully", server_key);
-                } else {
-                    warning ("Failed to start LSP server '%s'", server_key);
-                }
-
+        var config = project_manager.get_language_config (server_key);
+        if (config != null) {
+            string? cmd = Environment.find_program_in_path (config.server_command[0]);
+            if (cmd == null) {
+                warning ("LSP server '%s' not found", config.server_command[0]);
                 server_starting.unset (server_key);
                 process_pending_opens (server_key);
                 return;
             }
+
+            var client = new Iide.LSPClient ();
+            client.diagnostics_received.connect ((uri, diags) => {
+                diagnostics_updated (uri, diags);
+            });
+
+            string[] args = {};
+            for (int i = 1; i < config.server_command.length; i++) {
+                args += config.server_command[i];
+            }
+
+            bool started = yield client.start_server (cmd, args, workspace_root);
+
+            if (started) {
+                servers.set (server_key, client);
+                message ("LSP server '%s' started successfully", server_key);
+            } else {
+                warning ("Failed to start LSP server '%s'", server_key);
+            }
+
+            server_starting.unset (server_key);
+            process_pending_opens (server_key);
+            return;
+        } else {
+            warning ("No language config found for '%s'", server_key);
+            server_starting.unset (server_key);
+            process_pending_opens (server_key);
         }
 
         server_starting.unset (server_key);
@@ -240,10 +186,9 @@ public class Iide.LSPManager : GLib.Object {
     }
 
     private string ? get_server_key_for_language (string language_id) {
-        foreach (var config in language_configs) {
-            if (config.language_id == language_id) {
-                return config.language_id;
-            }
+        var config = project_manager.get_language_config (language_id);
+        if (config != null) {
+            return config.language_id;
         }
         return null;
     }
@@ -251,7 +196,7 @@ public class Iide.LSPManager : GLib.Object {
     public string ? get_language_id_for_file (GLib.File file) {
         string filename = file.get_basename () ?? "";
 
-        foreach (var config in language_configs) {
+        foreach (var config in project_manager.get_language_configs ()) {
             foreach (var pattern in config.file_patterns) {
                 if (pattern_matches (pattern, filename)) {
                     return config.language_id;

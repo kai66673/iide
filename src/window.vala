@@ -33,7 +33,7 @@ public class Iide.Window : Panel.DocumentWorkspace {
     construct {
         settings = Iide.SettingsService.get_instance ();
         document_manager = new Iide.DocumentManager ();
-        project_manager = new Iide.ProjectManager ();
+        project_manager = Iide.ProjectManager.get_instance ();
         document_manager.document_opened.connect ((widget) => {
             grid.add (widget);
             widget.raise ();
