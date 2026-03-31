@@ -86,7 +86,7 @@ public class Iide.Window : Panel.DocumentWorkspace {
         var style_manager = Adw.StyleManager.get_default ();
         style_manager.color_scheme = settings.color_scheme.to_adw_color_scheme ();
 
-        var theme_list = new Gtk.StringList ({"System", "Light", "Dark"});
+        var theme_list = new Gtk.StringList ({ "System", "Light", "Dark" });
         var expr = new Gtk.PropertyExpression (typeof (Gtk.StringObject), null, "string");
         var theme_dropdown = new Gtk.DropDown (theme_list, expr) {
             selected = (uint) settings.color_scheme,
@@ -216,17 +216,51 @@ public class Iide.Window : Panel.DocumentWorkspace {
 
         Timeout.add (100, () => {
             var last_project_path = settings.current_project_path;
-            if (last_project_path != null && last_project_path != "") {
-                project_manager.open_project_by_path (last_project_path);
-            }
 
             var grid_data = settings.grid_layout;
-            if (grid_data != null && grid_data != "") {
-                restore_grid_documents (grid_data);
+            bool has_grid_docs = grid_data != null && grid_data != "";
+
+            var open_docs = settings.open_documents;
+            bool has_open_docs = open_docs.size > 0;
+
+            if (last_project_path != null && last_project_path != "") {
+                bool project_opened_handled = false;
+
+                project_manager.project_opened.connect (() => {
+                    if (!project_opened_handled) {
+                        project_opened_handled = true;
+                        if (has_grid_docs) {
+                            restore_grid_documents (grid_data);
+                        } else if (has_open_docs) {
+                            foreach (var uri in open_docs) {
+                                document_manager.open_document_by_uri (uri, this);
+                            }
+                        }
+                    }
+                });
+
+                project_manager.open_project_by_path (last_project_path);
+
+                Timeout.add (500, () => {
+                    if (!project_opened_handled) {
+                        project_opened_handled = true;
+                        if (has_grid_docs) {
+                            restore_grid_documents (grid_data);
+                        } else if (has_open_docs) {
+                            foreach (var uri in open_docs) {
+                                document_manager.open_document_by_uri (uri, this);
+                            }
+                        }
+                    }
+                    return Source.REMOVE;
+                });
             } else {
-                var open_docs = settings.open_documents;
-                foreach (var uri in open_docs) {
-                    document_manager.open_document_by_uri (uri, this);
+                if (has_grid_docs) {
+                    restore_grid_documents (grid_data);
+                } else if (has_open_docs) {
+                    foreach (var uri in open_docs) {
+                        document_manager.open_document_by_uri (uri, this);
+                    }
                 }
             }
 
@@ -307,11 +341,11 @@ public class Iide.Window : Panel.DocumentWorkspace {
     }
 
     private void restore_dock_widgets (string layout_data,
-                                        Panel.Widget widget_left1,
-                                        Panel.Widget widget_left2,
-                                        Panel.Widget widget_right,
-                                        Panel.Widget widget_bottom,
-                                        Panel.Widget widget_logs) {
+                                       Panel.Widget widget_left1,
+                                       Panel.Widget widget_left2,
+                                       Panel.Widget widget_right,
+                                       Panel.Widget widget_bottom,
+                                       Panel.Widget widget_logs) {
         var widgets = Iide.PanelLayoutHelper.parse_widgets (layout_data);
 
         Gee.HashMap<string, Panel.Widget> widget_map = new Gee.HashMap<string, Panel.Widget> ();
@@ -400,10 +434,13 @@ public class Iide.Window : Panel.DocumentWorkspace {
                     this.add_widget (panel_widget, pos);
 
                     string content = buffer.text;
-                    var lsp_manager = Iide.LSPManager.get_instance ();
+                    var lsp_manager = Iide.IdeLspManager.get_instance ();
                     string? lang_id = lsp_manager.get_language_id_for_file (file);
                     if (lang_id != null) {
-                        lsp_manager.open_document.begin (doc_info.uri, lang_id, content, null);
+                        string? workspace_root = project_manager.get_workspace_root_path ();
+                        lsp_manager.open_document.begin (doc_info.uri, lang_id, content, workspace_root);
+                        var logger = LoggerService.get_instance ();
+                        logger.info ("Settings", "restore " + doc_info.uri + " (" + lang_id + ")--> " + workspace_root);
                     }
 
                     panel_widget.raise ();
@@ -426,9 +463,9 @@ public class Iide.Window : Panel.DocumentWorkspace {
             sorted_docs.add (doc);
         }
         sorted_docs.sort ((a, b) => {
-            int col_cmp = (int)(a.column - b.column);
-            if (col_cmp != 0) return col_cmp;
-            return (int)(a.row - b.row);
+            int col_cmp = (int) (a.column - b.column);
+            if (col_cmp != 0)return col_cmp;
+            return (int) (a.row - b.row);
         });
 
         restore_grid_documents_async.begin (sorted_docs);

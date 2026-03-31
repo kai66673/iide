@@ -26,17 +26,32 @@ using Panel;
 
 public class Iide.DocumentManager : GLib.Object {
     public Gee.HashMap<string, TextView> documents;
-    private Iide.LSPManager lsp_manager;
+    private Iide.IdeLspManager lsp_manager;
     private string? current_workspace_root;
 
     public DocumentManager () {
         documents = new Gee.HashMap<string, TextView> ();
-        lsp_manager = Iide.LSPManager.get_instance ();
+        lsp_manager = Iide.IdeLspManager.get_instance ();
 
-        lsp_manager.diagnostics_updated.connect ((uri, diagnostics) => {
+        lsp_manager.connect_diagnostics ((uri, diagnostics) => {
             var doc = documents.get (uri);
             if (doc != null) {
-                doc.update_diagnostics (diagnostics);
+                var lsp_diagnostics = new Gee.ArrayList<IdeLspDiagnostic> ();
+                foreach (var diag in diagnostics) {
+                    var d = new IdeLspDiagnostic ();
+                    d.severity = diag.severity;
+                    d.message = diag.message;
+                    d.start_line = diag.start_line;
+                    d.start_column = diag.start_column;
+                    d.end_line = diag.end_line;
+                    d.end_column = diag.end_column;
+                    lsp_diagnostics.add (d);
+                }
+                
+                Idle.add (() => {
+                    doc.update_diagnostics (lsp_diagnostics);
+                    return false;
+                });
             }
         });
     }
@@ -65,6 +80,9 @@ public class Iide.DocumentManager : GLib.Object {
                 try {
                     file_loader.load_async.end (res);
                     panel_widget = new Iide.TextView (file, buffer);
+                    
+                    uint change_timeout = 0;
+                    
                     panel_widget.notify["parent"].connect (() => {
                         if (panel_widget.parent == null) {
                             close_document (file);

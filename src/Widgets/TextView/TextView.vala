@@ -310,9 +310,11 @@ public class Iide.TextView : Panel.Widget {
         }
     }
 
-    public void update_diagnostics (Gee.ArrayList<Iide.LSPClient.Diagnostic> diagnostics) {
+    public void update_diagnostics (Gee.ArrayList<IdeLspDiagnostic> diagnostics) {
         var buffer = (GtkSource.Buffer) _text_view.buffer;
         var text_buffer = (Gtk.TextBuffer) buffer;
+
+        text_buffer.begin_user_action ();
 
         Gtk.TextIter start, end;
         buffer.get_start_iter (out start);
@@ -328,20 +330,20 @@ public class Iide.TextView : Panel.Widget {
                 continue;
             }
 
-            Gtk.TextIter mark_iter, line_end;
-            buffer.get_iter_at_line (out mark_iter, diag.start_line);
-            buffer.get_iter_at_line (out line_end, diag.start_line);
-            line_end.forward_char ();
+            Gtk.TextIter start_iter, line_end_iter, end_iter;
+            text_buffer.get_iter_at_line (out start_iter, diag.start_line);
+            text_buffer.get_iter_at_line (out line_end_iter, diag.start_line);
+            line_end_iter.forward_line ();
 
             string category;
             switch (diag.severity) {
                 case 1: 
                     category = "error"; 
-                    text_buffer.apply_tag_by_name ("lsp_error_line", mark_iter, line_end);
+                    text_buffer.apply_tag_by_name ("lsp_error_line", start_iter, line_end_iter);
                     break;
                 case 2: 
                     category = "warning"; 
-                    text_buffer.apply_tag_by_name ("lsp_warning_line", mark_iter, line_end);
+                    text_buffer.apply_tag_by_name ("lsp_warning_line", start_iter, line_end_iter);
                     break;
                 case 3: 
                 case 4: 
@@ -352,7 +354,9 @@ public class Iide.TextView : Panel.Widget {
                     break;
             }
 
-            buffer.create_source_mark (null, category, mark_iter);
+            buffer.create_source_mark (null, category, start_iter);
         }
+
+        text_buffer.end_user_action ();
     }
 }

@@ -40,6 +40,22 @@ public static int main (string[] args) {
         test_clangd_server_start ();
     });
 
+    Test.add_func ("/lsp/did_change_valid_json", () => {
+        test_did_change_valid_json ();
+    });
+
+    Test.add_func ("/lsp/did_change_content_length", () => {
+        test_did_change_content_length ();
+    });
+
+    Test.add_func ("/lsp/clangd_diagnostics_parse", () => {
+        test_clangd_diagnostics_parse ();
+    });
+
+    Test.add_func ("/lsp/did_change_full_document", () => {
+        test_did_change_full_document ();
+    });
+
     return Test.run ();
 }
 
@@ -117,7 +133,7 @@ private void test_clangd_server_start () {
     bool server_initialized = false;
     bool error_received = false;
 
-    var client = new Iide.LSPClient ();
+    var client = new Iide.IdeLspClient ();
     client.initialized.connect (() => {
         server_initialized = true;
         main_loop.quit ();
@@ -146,4 +162,170 @@ private void test_clangd_server_start () {
     main_loop.run ();
 
     assert (server_initialized == true);
+}
+
+private void test_did_change_valid_json () {
+    var builder = new Json.Builder ();
+    builder.begin_object ();
+    builder.set_member_name ("jsonrpc");
+    builder.add_string_value ("2.0");
+    builder.set_member_name ("method");
+    builder.add_string_value ("textDocument/didChange");
+    builder.set_member_name ("params");
+    builder.begin_object ();
+    builder.set_member_name ("textDocument");
+    builder.begin_object ();
+    builder.set_member_name ("uri");
+    builder.add_string_value ("file:///test.c");
+    builder.set_member_name ("version");
+    builder.add_int_value (2);
+    builder.end_object ();
+    builder.set_member_name ("contentChanges");
+    builder.begin_array ();
+    builder.begin_object ();
+    builder.set_member_name ("text");
+    builder.add_string_value ("int main() { return 0; }");
+    builder.end_object ();
+    builder.end_array ();
+    builder.end_object ();
+    builder.end_object ();
+
+    var generator = new Json.Generator ();
+    generator.root = builder.get_root ();
+    string json = generator.to_data (null);
+
+    assert (json.contains ("\"method\":\"textDocument/didChange\""));
+    assert (json.contains ("\"version\":2"));
+    assert (json.contains ("file:///test.c"));
+}
+
+private void test_did_change_content_length () {
+    string content = """
+        {
+            "jsonrpc": "2.0",
+            "method": "textDocument/didChange",
+            "params": {
+                "textDocument": {
+                    "uri": "file:///test.c",
+                    "version": 2
+                },
+                "contentChanges": [
+                    {
+                        "text": "int main() { return 0; }"
+                    }
+                ]
+            }
+        }
+    """;
+
+    int body_length = content.length;
+    string header = "Content-Length: %d\r\n\r\n".printf (body_length);
+
+    int parsed_length = -1;
+    string[] lines = header.split ("\r\n");
+    foreach (var line in lines) {
+        if (line.has_prefix ("Content-Length: ")) {
+            string len_str = line.substring (15);
+            parsed_length = int.parse (len_str);
+        }
+    }
+
+    assert (parsed_length == body_length);
+    assert (parsed_length > 0);
+}
+
+private void test_clangd_diagnostics_parse () {
+    var diagnostic_json = """
+        {
+            "jsonrpc": "2.0",
+            "method": "textDocument/publishDiagnostics",
+            "params": {
+                "uri": "file:///test.c",
+                "version": 1,
+                "diagnostics": [
+                    {
+                        "severity": 1,
+                        "range": {
+                            "start": {"line": 0, "character": 5},
+                            "end": {"line": 0, "character": 9}
+                        },
+                        "message": "expected ';' after return statement"
+                    }
+                ]
+            }
+        }
+    """;
+
+    var parser = new Json.Parser ();
+    try {
+        parser.load_from_data (diagnostic_json);
+    } catch (Error e) {
+        assert_not_reached ();
+    }
+
+    var root = parser.get_root ();
+    var reader = new Json.Reader (root);
+
+    reader.read_member ("method");
+    string method = reader.get_string_value ();
+    reader.end_member ();
+    assert (method == "textDocument/publishDiagnostics");
+
+    reader.read_member ("params");
+    assert (reader.is_object ());
+
+    assert (reader.read_member ("uri"));
+    string uri = reader.get_string_value ();
+    reader.end_member ();
+    assert (uri == "file:///test.c");
+
+    assert (reader.read_member ("diagnostics"));
+    assert (reader.is_array ());
+    int count = 0;
+    while (reader.read_element (count)) {
+        count++;
+        reader.end_element ();
+    }
+    assert (count == 1);
+    reader.end_member ();
+
+    reader.end_member ();
+    reader.end_member ();
+}
+
+private void test_did_change_full_document () {
+    string full_content = """
+#include <stdio.h>
+
+int main() {
+    printf("Hello, World!\\n");
+    return 0;
+}
+""";
+
+    var builder = new Json.Builder ();
+    builder.begin_object ();
+    builder.set_member_name ("textDocument");
+    builder.begin_object ();
+    builder.set_member_name ("uri");
+    builder.add_string_value ("file:///test.c");
+    builder.set_member_name ("version");
+    builder.add_int_value (1);
+    builder.end_object ();
+    builder.set_member_name ("contentChanges");
+    builder.begin_array ();
+    builder.begin_object ();
+    builder.set_member_name ("text");
+    builder.add_string_value (full_content);
+    builder.end_object ();
+    builder.end_array ();
+    builder.end_object ();
+
+    var generator = new Json.Generator ();
+    generator.root = builder.get_root ();
+    string json = generator.to_data (null);
+
+    assert (json.contains ("#include <stdio.h>"));
+    assert (json.contains ("printf"));
+    assert (json.contains ("\"version\":1"));
 }

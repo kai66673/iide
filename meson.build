@@ -127,7 +127,32 @@ config_inc = include_directories('.')
 subdir('data')
 subdir('src')
 subdir('po')
-subdir('tests')
+
+test_lsp_service_sources = [
+    'tests/test_lsp_service.vala',
+    'src/Services/LSP/IdeLspClient.vala',
+]
+
+test_lsp_service_deps = [
+    dependency('glib-2.0'),
+    dependency('gio-2.0'),
+    dependency('json-glib-1.0'),
+    dependency('gee-0.8'),
+    dependency('jsonrpc-glib-1.0'),
+]
+
+test_lsp_service = executable(
+    'test_lsp_service',
+    test_lsp_service_sources,
+    dependencies: test_lsp_service_deps,
+    install: false,
+)
+
+test(
+    'lsp_service',
+    test_lsp_service,
+    protocol: 'exitcode',
+)
 
 gnome.post_install(
     glib_compile_schemas: true,
