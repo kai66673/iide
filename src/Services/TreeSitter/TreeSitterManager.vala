@@ -10,6 +10,8 @@
 // extern unowned TreeSitter.Language ? get_language_ruby ();
 [CCode(cname = "tree_sitter_cpp")]
 extern unowned TreeSitter.Language ? get_language_cpp();
+[CCode(cname = "tree_sitter_vala")]
+extern unowned TreeSitter.Language ? get_language_vala();
 // [CCode (cname = "tree_sitter_go")]
 // extern unowned TreeSitter.Language ? get_language_go ();
 // [CCode (cname = "tree_sitter_bash")]
@@ -38,6 +40,8 @@ class Iide.TreeSitterManager : GLib.Object {
             return new PythonTreeSitterHighlighter(view);
         case "c++":
             return new CppTreeSitterHighlighter(view);
+        case "vala":
+            return new ValaTreeSitterHighlighter(view);
         }
         return null;
     }

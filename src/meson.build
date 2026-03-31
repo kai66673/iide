@@ -23,6 +23,7 @@ iide_sources = [
     'Services/TreeSitter/BaseTreeSitterHighlighter.vala',
     'Services/TreeSitter/python/PythonTreeSitterHighlighter.vala',
     'Services/TreeSitter/cpp/CppTreeSitterHighlighter.vala',
+    'Services/TreeSitter/vala/ValaTreeSitterHighlighter.vala',
 ]
 
 iide_deps = [

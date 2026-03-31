@@ -23,8 +23,6 @@ public abstract class Iide.BaseTreeSitterHighlighter : Object {
 
         buffer.notify["style-scheme"].connect_after(on_style_scheme_changed);
 
-        buffer.highlight_syntax = false;
-        
         Idle.add (() => {
             do_reparse ();
             return Source.REMOVE;

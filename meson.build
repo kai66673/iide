@@ -31,6 +31,7 @@ tree_sitter_sources = [
     'parsers/rust/src/scanner.c',
     'parsers/yaml/src/parser.c',
     'parsers/yaml/src/scanner.c',
+    'parsers/vala/src/parser.c',
 ]
 
 tree_sitter_lib = static_library(
@@ -39,6 +40,7 @@ tree_sitter_lib = static_library(
     include_directories: [
         include_directories('vendor/tree-sitter/lib/src'),
         include_directories('vendor/tree-sitter/lib/include'),
+        include_directories('parsers/vala/src'),
     ],
 )
 
