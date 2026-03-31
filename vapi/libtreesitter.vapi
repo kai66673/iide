@@ -88,8 +88,8 @@ namespace TreeSitter {
       [CCode (cname = "ts_parser_set_language")]
       public bool set_language (Language language);
 
-      [CCode (cname = "ts_parser_parse_string")]
-      public Tree parse_string (Tree? tree, [CCode (array_length_type = "uint32_t")] uint8[] source);
+      [CCode (cname = "ts_parser_parse_string", array_length_type = "uint32_t")]
+      public Tree parse_string ([CCode (transfer = "none")] Tree? tree, uint8[] source);
   }
 
   [CCode (cname = "TSTree", free_function = "ts_tree_delete")]
@@ -97,6 +97,12 @@ namespace TreeSitter {
   public class Tree {
       [CCode (cname = "ts_tree_root_node")]
       public Node root_node ();
+
+      [CCode (cname = "ts_tree_edit")]
+      public void edit (InputEdit edit);
+
+      [CCode (cname = "ts_tree_get_changed_ranges")]
+      public Range[] get_changed_ranges (Tree new_tree);
   }
 
   [SimpleType]
