@@ -55,6 +55,12 @@
 			<description>Height of the bottom panel (terminal)</description>
 		</key>
 
+		<key name="panel-bottom-width" type="d">
+			<default>500</default>
+			<summary>Bottom panel width</summary>
+			<description>Width of the bottom panel split between terminal and log</description>
+		</key>
+
 		<key name="reveal-start-panel" type="b">
 			<default>true</default>
 			<summary>Reveal start panel</summary>

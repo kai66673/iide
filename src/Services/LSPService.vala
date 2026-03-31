@@ -43,6 +43,10 @@ public class Iide.LSPClient : GLib.Object {
         public int start_column { get; construct; default = 0; }
         public int end_line { get; construct; default = 0; }
         public int end_column { get; construct; default = 0; }
+
+        public string to_string () {
+            return "Diagnostic: (" + start_line.to_string () + ") " + message;
+        }
     }
 
     public static unowned LSPClient get_instance () {
@@ -295,6 +299,7 @@ public class Iide.LSPClient : GLib.Object {
     }
 
     private void handle_publish_diagnostics (Json.Reader reader) {
+        LoggerService logger = LoggerService.get_instance ();
         try {
             if (!reader.read_member ("uri")) {
                 return;
@@ -315,6 +320,7 @@ public class Iide.LSPClient : GLib.Object {
                     reader.read_element (i);
                     var diag = parse_diagnostic (reader);
                     diagnostics.add (diag);
+                    logger.debug ("LSP", diag.to_string ());
                     reader.end_element ();
                 }
             }

@@ -173,10 +173,19 @@ public class Iide.Window : Panel.DocumentWorkspace {
         panel_area_bottom.area = Panel.Area.BOTTOM;
 
         var panel_widget_bottom = new Panel.Widget ();
-        panel_widget_bottom.title = "BOTTOM";
-        panel_widget_bottom.icon_name = "folder-symbolic";
+        panel_widget_bottom.title = "Terminal";
+        panel_widget_bottom.icon_name = "utilities-terminal-symbolic";
         panel_widget_bottom.child = new Iide.Terminal ();
         panel_widget_bottom.can_maximize = true;
+
+        var panel_area_logs = new Panel.Position ();
+        panel_area_logs.area = Panel.Area.BOTTOM;
+
+        var panel_widget_logs = new Panel.Widget ();
+        panel_widget_logs.title = "Logs";
+        panel_widget_logs.icon_name = "document-properties-symbolic";
+        panel_widget_logs.child = new Iide.LogView ();
+        panel_widget_logs.can_maximize = true;
 
         var panel_area_right = new Panel.Position ();
         panel_area_right.area = Panel.Area.END;
@@ -192,12 +201,13 @@ public class Iide.Window : Panel.DocumentWorkspace {
         if (dock_layout != null && dock_layout != "") {
             restore_dock_widgets (dock_layout,
                                   panel_widget_left1, panel_widget_left2,
-                                  panel_widget_right, panel_widget_bottom);
+                                  panel_widget_right, panel_widget_bottom, panel_widget_logs);
         } else {
             add_widget (panel_widget_left1, panel_area_left);
             add_widget (panel_widget_left2, panel_area_left);
             add_widget (panel_widget_right, panel_area_right);
             add_widget (panel_widget_bottom, panel_area_bottom);
+            add_widget (panel_widget_logs, panel_area_logs);
         }
 
         // Создаём toggle button для BOTTOM после восстановления layout
@@ -300,13 +310,16 @@ public class Iide.Window : Panel.DocumentWorkspace {
                                         Panel.Widget widget_left1,
                                         Panel.Widget widget_left2,
                                         Panel.Widget widget_right,
-                                        Panel.Widget widget_bottom) {
+                                        Panel.Widget widget_bottom,
+                                        Panel.Widget widget_logs) {
         var widgets = Iide.PanelLayoutHelper.parse_widgets (layout_data);
 
         Gee.HashMap<string, Panel.Widget> widget_map = new Gee.HashMap<string, Panel.Widget> ();
         widget_map.set ("Project Tree", widget_left1);
         widget_map.set ("LEFT 2", widget_left2);
         widget_map.set ("RIGHT", widget_right);
+        widget_map.set ("Terminal", widget_bottom);
+        widget_map.set ("Logs", widget_logs);
         widget_map.set ("BOTTOM", widget_bottom);
 
         if (widgets.size == 0) {
@@ -322,6 +335,10 @@ public class Iide.Window : Panel.DocumentWorkspace {
             var pos_bottom = new Panel.Position ();
             pos_bottom.area = Panel.Area.BOTTOM;
             add_widget (widget_bottom, pos_bottom);
+
+            var pos_logs = new Panel.Position ();
+            pos_logs.area = Panel.Area.BOTTOM;
+            add_widget (widget_logs, pos_logs);
             return;
         }
 

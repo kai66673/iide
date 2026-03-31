@@ -180,6 +180,15 @@ public class Iide.SettingsService : Object {
         }
     }
 
+    public int panel_bottom_width {
+        get {
+            return (int) settings.get_double ("panel-bottom-width");
+        }
+        set {
+            settings.set_double ("panel-bottom-width", (double) value);
+        }
+    }
+
     public bool reveal_start_panel {
         get {
             return settings.get_boolean ("reveal-start-panel");
