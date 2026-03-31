@@ -71,13 +71,17 @@ public class Iide.DocumentManager : GLib.Object {
                         }
                     });
 
-                    panel_widget.text_changed.connect ((text) => {
-                        lsp_manager.change_document.begin (uri, text);
+                    panel_widget.text_deleted.connect ((start_offset, end_offset, deleted_text) => {
+                        lsp_manager.change_document_delete.begin (uri, start_offset, end_offset);
+                    });
+
+                    panel_widget.text_inserted.connect ((offset, inserted_text) => {
+                        lsp_manager.change_document_insert.begin (uri, offset, inserted_text);
                     });
 
                     panel_widget.buffer_saved.connect (() => {
                         string content = ((GtkSource.Buffer) panel_widget.text_view.buffer).text;
-                        lsp_manager.change_document.begin (uri, content);
+                        lsp_manager.change_document_full.begin (uri, content);
                     });
 
                     documents.set (uri, panel_widget);

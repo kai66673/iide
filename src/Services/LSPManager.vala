@@ -162,7 +162,7 @@ public class Iide.LSPManager : GLib.Object {
         }
     }
 
-    public async void change_document (string uri, string content) {
+    public async void change_document_full (string uri, string content) {
         string? server_key = uri_to_server.get (uri);
         if (server_key == null) {
             return;
@@ -178,6 +178,44 @@ public class Iide.LSPManager : GLib.Object {
         document_versions.set (uri, version);
 
         client.text_document_did_change (uri, version, content);
+    }
+
+    public async void change_document_delete (string uri, int start_offset, int end_offset) {
+        string? server_key = uri_to_server.get (uri);
+        if (server_key == null) {
+            return;
+        }
+
+        var client = servers.get (server_key);
+        if (client == null) {
+            return;
+        }
+
+        int version = document_versions.get (uri);
+        version++;
+        document_versions.set (uri, version);
+
+        client.text_document_did_change_delete (uri, version, start_offset, end_offset);
+    }
+
+    public async void change_document_insert (string uri, int offset, string text) {
+        string? server_key = uri_to_server.get (uri);
+        if (server_key == null) {
+            return;
+        }
+
+        var client = servers.get (server_key);
+        if (client == null) {
+            debug ("LSPManager: No client for insert, returning");
+            return;
+        }
+
+        int version = document_versions.get (uri);
+        version++;
+        document_versions.set (uri, version);
+
+        debug ("LSPManager: Calling client.text_document_did_change_insert");
+        client.text_document_did_change_insert (uri, version, offset, text);
     }
 
     public async void close_document (string uri) {

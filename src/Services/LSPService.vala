@@ -31,6 +31,7 @@ public class Iide.LSPClient : GLib.Object {
     private Gee.ArrayList<string> message_queue;
     private int queue_head = 0;
     private bool is_writing = false;
+    private Gee.HashMap<string, string> document_contents;
 
     public signal void initialized ();
     public signal void diagnostics_received (string uri, Gee.ArrayList<Diagnostic> diagnostics);
@@ -57,6 +58,7 @@ public class Iide.LSPClient : GLib.Object {
             message_queue = new Gee.ArrayList<string> ();
             queue_head = 0;
             is_writing = false;
+            document_contents = new Gee.HashMap<string, string> ();
 
             var argv = new Gee.ArrayList<string> ();
             argv.add (command);
@@ -385,6 +387,7 @@ public class Iide.LSPClient : GLib.Object {
     }
 
     public void text_document_did_open (string uri, string language_id, int version, string text) {
+        document_contents.set (uri, text);
         debug ("LSP: Sending didOpen for %s (lang=%s)", uri, language_id);
         var builder = new Json.Builder ();
         builder.begin_object ();
@@ -407,6 +410,8 @@ public class Iide.LSPClient : GLib.Object {
     }
 
     public void text_document_did_change (string uri, int version, string text) {
+        document_contents.set (uri, text);
+
         var builder = new Json.Builder ();
         builder.begin_object ();
         builder.set_member_name ("textDocument");
@@ -427,6 +432,157 @@ public class Iide.LSPClient : GLib.Object {
 
         var notif = build_notification ("textDocument/didChange", builder.get_root ());
         send_message.begin (notif);
+    }
+
+    public void text_document_did_change_delete (string uri, int version, int start_offset, int end_offset) {
+        string? content = document_contents.get (uri);
+        
+        int start_line, start_char, end_line, end_char;
+        if (content != null) {
+            offset_to_line_char_with_content (content, start_offset, out start_line, out start_char);
+            offset_to_line_char_with_content (content, end_offset, out end_line, out end_char);
+            
+            var sb = new StringBuilder ();
+            sb.append (content.substring (0, start_offset));
+            sb.append (content.substring (end_offset));
+            document_contents.set (uri, sb.str);
+        } else {
+            start_line = start_char = end_line = end_char = 0;
+        }
+
+        var builder = new Json.Builder ();
+        builder.begin_object ();
+        builder.set_member_name ("textDocument");
+        builder.begin_object ();
+        builder.set_member_name ("uri");
+        builder.add_string_value (uri);
+        builder.set_member_name ("version");
+        builder.add_int_value (version);
+        builder.end_object ();
+        builder.set_member_name ("contentChanges");
+        builder.begin_array ();
+        builder.begin_object ();
+        builder.set_member_name ("range");
+        builder.begin_object ();
+        builder.set_member_name ("start");
+        builder.begin_object ();
+        builder.set_member_name ("line");
+        builder.add_int_value (start_line);
+        builder.set_member_name ("character");
+        builder.add_int_value (start_char);
+        builder.end_object ();
+        builder.set_member_name ("end");
+        builder.begin_object ();
+        builder.set_member_name ("line");
+        builder.add_int_value (end_line);
+        builder.set_member_name ("character");
+        builder.add_int_value (end_char);
+        builder.end_object ();
+        builder.end_object ();
+        builder.set_member_name ("text");
+        builder.add_string_value ("");
+        builder.end_object ();
+        builder.end_array ();
+        builder.end_object ();
+
+        var notif = build_notification ("textDocument/didChange", builder.get_root ());
+        send_message.begin (notif);
+    }
+
+    public void text_document_did_change_insert (string uri, int version, int offset, string text) {
+        string? content = document_contents.get (uri);
+        
+        int line, char_pos;
+        if (content != null) {
+            offset_to_line_char_with_content (content, offset, out line, out char_pos);
+            
+            var sb = new StringBuilder ();
+            sb.append (content.substring (0, offset));
+            sb.append (text);
+            sb.append (content.substring (offset));
+            document_contents.set (uri, sb.str);
+        } else {
+            line = 0;
+            char_pos = 0;
+        }
+
+        var builder = new Json.Builder ();
+        builder.begin_object ();
+        builder.set_member_name ("textDocument");
+        builder.begin_object ();
+        builder.set_member_name ("uri");
+        builder.add_string_value (uri);
+        builder.set_member_name ("version");
+        builder.add_int_value (version);
+        builder.end_object ();
+        builder.set_member_name ("contentChanges");
+        builder.begin_array ();
+        builder.begin_object ();
+        builder.set_member_name ("range");
+        builder.begin_object ();
+        builder.set_member_name ("start");
+        builder.begin_object ();
+        builder.set_member_name ("line");
+        builder.add_int_value (line);
+        builder.set_member_name ("character");
+        builder.add_int_value (char_pos);
+        builder.end_object ();
+        builder.set_member_name ("end");
+        builder.begin_object ();
+        builder.set_member_name ("line");
+        builder.add_int_value (line);
+        builder.set_member_name ("character");
+        builder.add_int_value (char_pos);
+        builder.end_object ();
+        builder.end_object ();
+        builder.set_member_name ("text");
+        builder.add_string_value (text);
+        builder.end_object ();
+        builder.end_array ();
+        builder.end_object ();
+
+        var notif = build_notification ("textDocument/didChange", builder.get_root ());
+        send_message.begin (notif);
+    }
+
+    private void offset_to_line_char (string uri, int offset, out int line, out int char_pos) {
+        line = 0;
+        char_pos = 0;
+        int current_offset = 0;
+
+        string? content = document_contents.get (uri);
+        if (content == null) {
+            return;
+        }
+
+        for (int i = 0; i < content.length; i++) {
+            if (current_offset >= offset) {
+                break;
+            }
+            if (content[i] == '\n') {
+                line++;
+                char_pos = 0;
+            } else {
+                char_pos++;
+            }
+            current_offset++;
+        }
+    }
+
+    private void offset_to_line_char_with_content (string content, int offset, out int line, out int char_pos) {
+        line = 0;
+        char_pos = 0;
+        int current_offset = 0;
+        
+        for (int i = 0; i < content.length && current_offset < offset; i++) {
+            if (content[i] == '\n') {
+                line++;
+                char_pos = 0;
+            } else {
+                char_pos++;
+            }
+            current_offset++;
+        }
     }
 
     public void stop () {

@@ -95,6 +95,7 @@ public class Iide.LSPClient : GLib.Object {
 
             size_t bytes_written = 0;
             yield stdin_stream.write_all_async (buffer, GLib.Priority.DEFAULT, null, out bytes_written);
+            yield stdin_stream.flush_async (GLib.Priority.DEFAULT, null);
             return true;
         } catch (Error e) {
             error_occurred ("Write error: %s".printf (e.message));

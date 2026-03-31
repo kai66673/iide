@@ -66,6 +66,8 @@ public class Iide.TextView : Panel.Widget {
     public bool is_modified { get { return ((GtkSource.Buffer) _text_view.buffer).get_modified (); } }
 
     public signal void text_changed (string text);
+    public signal void text_deleted (int start_offset, int end_offset, string deleted_text);
+    public signal void text_inserted (int offset, string inserted_text);
     public signal void buffer_saved ();
 
     public TextView (GLib.File file, GtkSource.Buffer buffer) {
@@ -257,6 +259,18 @@ public class Iide.TextView : Panel.Widget {
         buffer.changed.connect (() => {
             text_changed (buffer.text);
         });
+
+        buffer.delete_range.connect ((start, end) => {
+            var deleted_text = buffer.get_text (start, end, false);
+            text_deleted (start.get_offset (), end.get_offset (), deleted_text);
+        });
+
+        buffer.insert_text.connect_after (on_text_inserted);
+    }
+
+    private void on_text_inserted (Gtk.TextIter iter, string text, int length) {
+        int offset = iter.get_offset () - length;
+        text_inserted (offset, text);
     }
 
     public override void size_allocate (int width, int height, int baseline) {
@@ -354,5 +368,7 @@ public class Iide.TextView : Panel.Widget {
 
             buffer.create_source_mark (null, category, mark_iter);
         }
+        
+        _text_view.queue_draw ();
     }
 }
