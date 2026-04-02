@@ -184,24 +184,16 @@ public class Iide.TextView : Panel.Widget {
 
         var text_buffer = (Gtk.TextBuffer) _text_view.buffer;
         var error_tag = new Gtk.TextTag ("lsp_error_line");
-        error_tag.underline = Pango.Underline.ERROR;
-        var error_fg = Gdk.RGBA ();
-        error_fg.parse ("#e01b24");
-        error_tag.foreground_rgba = error_fg;
         var error_bg = Gdk.RGBA ();
         error_bg.parse ("#e01b24");
-        error_bg.alpha = 0.2f;
+        error_bg.alpha = 0.15f;
         error_tag.background_rgba = error_bg;
         text_buffer.tag_table.add (error_tag);
 
         var warning_tag = new Gtk.TextTag ("lsp_warning_line");
-        warning_tag.underline = Pango.Underline.ERROR_LINE;
-        var warning_fg = Gdk.RGBA ();
-        warning_fg.parse ("#f5c211");
-        warning_tag.foreground_rgba = warning_fg;
         var warning_bg = Gdk.RGBA ();
         warning_bg.parse ("#f5c211");
-        warning_bg.alpha = 0.2f;
+        warning_bg.alpha = 0.15f;
         warning_tag.background_rgba = warning_bg;
         text_buffer.tag_table.add (warning_tag);
 
@@ -337,21 +329,21 @@ public class Iide.TextView : Panel.Widget {
 
             string category;
             switch (diag.severity) {
-                case 1: 
-                    category = "error"; 
-                    text_buffer.apply_tag_by_name ("lsp_error_line", start_iter, line_end_iter);
-                    break;
-                case 2: 
-                    category = "warning"; 
-                    text_buffer.apply_tag_by_name ("lsp_warning_line", start_iter, line_end_iter);
-                    break;
-                case 3: 
-                case 4: 
-                    category = "info"; 
-                    break;
-                default: 
-                    category = "error"; 
-                    break;
+            case 1 :
+                category = "error";
+                text_buffer.apply_tag_by_name ("lsp_error_line", start_iter, line_end_iter);
+                break;
+            case 2:
+                category = "warning";
+                text_buffer.apply_tag_by_name ("lsp_warning_line", start_iter, line_end_iter);
+                break;
+            case 3:
+            case 4:
+                category = "info";
+                break;
+            default:
+                category = "error";
+                break;
             }
 
             buffer.create_source_mark (null, category, start_iter);

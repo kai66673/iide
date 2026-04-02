@@ -354,7 +354,8 @@ public class IdeLspClient : GLib.Object {
                 return;
             }
 
-            string header = ((string) read_buffer[0:header_end]);
+            var header_slice = (string) read_buffer[0:header_end];
+            string header = (!) header_slice;
             string[] lines = header.split ("\r\n");
             foreach (var line in lines) {
                 if (line.has_prefix ("Content-Length: ")) {
@@ -372,12 +373,20 @@ public class IdeLspClient : GLib.Object {
                 return;
             }
 
-            string body = ((string) read_buffer[body_start:body_start + content_length]);
-
-            for (size_t i = 0; i < buffer_used - (body_start + content_length); i++) {
-                read_buffer[i] = read_buffer[body_start + content_length + i];
+            var body_bytes = new uint8[content_length + 1];
+            for (int i = 0; i < content_length; i++) {
+                body_bytes[i] = read_buffer[body_start + i];
             }
-            buffer_used = buffer_used - body_start - content_length;
+            body_bytes[content_length] = 0;
+            string body = (string) body_bytes;
+
+            var remaining = buffer_used - (body_start + content_length);
+            if (remaining > 0) {
+                for (size_t i = 0; i < remaining; i++) {
+                    read_buffer[i] = read_buffer[body_start + content_length + i];
+                }
+            }
+            buffer_used = remaining;
 
             handle_message (body);
         }
