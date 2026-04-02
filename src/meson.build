@@ -25,6 +25,9 @@ iide_sources = [
     'Services/TreeSitter/python/PythonTreeSitterHighlighter.vala',
     'Services/TreeSitter/cpp/CppTreeSitterHighlighter.vala',
     'Services/TreeSitter/vala/ValaTreeSitterHighlighter.vala',
+    'Services/Actions/Action.vala',
+    'Services/Actions/ActionManager.vala',
+    'Services/Actions/ShortcutSettings.vala',
 ]
 
 iide_deps = [

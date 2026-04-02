@@ -138,5 +138,11 @@
 			<summary>Window maximized</summary>
 			<description>Whether the window is maximized</description>
 		</key>
+
+		<key name="shortcuts" type="s">
+			<default>""</default>
+			<summary>Custom shortcuts</summary>
+			<description>JSON string mapping action IDs to keyboard shortcuts</description>
+		</key>
 	</schema>
 </schemalist>

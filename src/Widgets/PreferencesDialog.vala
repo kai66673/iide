@@ -52,7 +52,7 @@ public class Iide.PreferencesDialog : Adw.PreferencesWindow {
 
         color_scheme_row = new Adw.ComboRow () {
             title = _("Color Scheme"),
-            model = new Gtk.StringList ({"System", "Light", "Dark"})
+            model = new Gtk.StringList ({ "System", "Light", "Dark" })
         };
         var scheme_index = settings.color_scheme;
         color_scheme_row.selected = (uint) scheme_index;
@@ -167,8 +167,262 @@ public class Iide.PreferencesDialog : Adw.PreferencesWindow {
         projects_group.add (recent_projects_row);
         projects_page.add (projects_group);
 
+        var shortcuts_page = new Adw.PreferencesPage () {
+            title = _("Shortcuts"),
+            icon_name = "input-keyboard-symbolic"
+        };
+
+        var shortcuts_group = new Adw.PreferencesGroup () {
+            title = _("Keyboard Shortcuts")
+        };
+
+        var action_manager = Iide.ActionManager.get_instance ();
+        var actions = action_manager.get_all_actions ();
+
+        var list_box = new Gtk.ListBox () {
+            selection_mode = Gtk.SelectionMode.NONE,
+            show_separators = true
+        };
+
+        var sorted_actions = new Gee.ArrayList<Iide.Action> ();
+        foreach (var action in actions) {
+            sorted_actions.add (action);
+        }
+        sorted_actions.sort ((a, b) => {
+            var cat_cmp = (a.category ?? "").collate (b.category ?? "");
+            if (cat_cmp != 0)return cat_cmp;
+            return a.name.collate (b.name);
+        });
+
+        string? current_category = null;
+        foreach (var action in sorted_actions) {
+            if (action.category != current_category) {
+                current_category = action.category;
+                var header_row = new Gtk.ListBoxRow () {
+                    selectable = false,
+                    activatable = false
+                };
+                var header_label = new Gtk.Label (action.category ?? _("Other")) {
+                    halign = Gtk.Align.START,
+                    margin_top = 8,
+                    margin_bottom = 4
+                };
+                header_label.add_css_class ("title");
+                header_label.add_css_class ("dim-label");
+                header_row.child = header_label;
+                list_box.append (header_row);
+            }
+            var row = new ShortcutRow (action);
+            list_box.append (row);
+        }
+
+        var scrolled = new Gtk.ScrolledWindow () {
+            child = list_box,
+            hexpand = true,
+            vexpand = true
+        };
+        scrolled.set_size_request (-1, 300);
+        shortcuts_group.add (scrolled);
+        shortcuts_page.add (shortcuts_group);
+
         add (appearance_page);
         add (editor_page);
         add (projects_page);
+        add (shortcuts_page);
+    }
+}
+
+private class ShortcutRow : Gtk.ListBoxRow {
+    private Iide.Action action;
+    private Gtk.Label shortcut_label;
+
+    public ShortcutRow (Iide.Action action) {
+        this.action = action;
+
+        var box = new Gtk.Box (Gtk.Orientation.HORIZONTAL, 12) {
+            margin_start = 12,
+            margin_end = 12,
+            margin_top = 8,
+            margin_bottom = 8
+        };
+
+        var info_box = new Gtk.Box (Gtk.Orientation.VERTICAL, 2);
+        var name_label = new Gtk.Label (action.name) {
+            halign = Gtk.Align.START,
+            hexpand = true
+        };
+        name_label.add_css_class ("title");
+        var desc_label = new Gtk.Label (action.description ?? "") {
+            halign = Gtk.Align.START,
+            hexpand = true
+        };
+        desc_label.add_css_class ("caption");
+        desc_label.add_css_class ("dim-label");
+        info_box.append (name_label);
+        info_box.append (desc_label);
+        box.append (info_box);
+
+        shortcut_label = new Gtk.Label (action.shortcut != null ? action.shortcut : _("None")) {
+            halign = Gtk.Align.END,
+            margin_start = 12
+        };
+        shortcut_label.add_css_class ("caption");
+        shortcut_label.add_css_class ("dim-label");
+        box.append (shortcut_label);
+
+        var clear_button = new Gtk.Button () {
+            icon_name = "edit-clear-symbolic",
+            tooltip_text = _("Clear shortcut"),
+            valign = Gtk.Align.CENTER
+        };
+        clear_button.clicked.connect (on_clear_clicked);
+        box.append (clear_button);
+
+        var capture_button = new Gtk.Button () {
+            label = _("Change"),
+            valign = Gtk.Align.CENTER
+        };
+        capture_button.clicked.connect (on_capture_clicked);
+        box.append (capture_button);
+
+        child = box;
+
+        action.shortcut_changed.connect ((new_shortcut) => {
+            shortcut_label.set_label (new_shortcut != null ? new_shortcut : _("None"));
+        });
+    }
+
+    private void on_clear_clicked () {
+        Iide.ActionManager.get_instance ().set_shortcut (action.id, null);
+    }
+
+    private void on_capture_clicked () {
+        var window = this.get_ancestor (typeof (Gtk.Window)) as Gtk.Window;
+        var dialog = new ShortcutCaptureWindow (action, window);
+        dialog.show ();
+    }
+}
+
+private class ShortcutCaptureWindow : Gtk.Window {
+    private Iide.Action action;
+    private Gtk.Label label;
+    private uint keyval = 0;
+    private Gdk.ModifierType modifiers;
+
+    public ShortcutCaptureWindow (Iide.Action action, Gtk.Window? parent) {
+        this.action = action;
+        title = _("Set Shortcut for %s").printf (action.name);
+        modal = true;
+        if (parent != null) {
+            set_transient_for (parent);
+        }
+
+        var content_box = new Gtk.Box (Gtk.Orientation.VERTICAL, 12) {
+            margin_top = 20,
+            margin_bottom = 20,
+            margin_start = 20,
+            margin_end = 20
+        };
+
+        label = new Gtk.Label (_("Press a key combination...")) {
+            halign = Gtk.Align.CENTER
+        };
+        content_box.append (label);
+
+        var current = action.shortcut;
+        if (current != null && current != "") {
+            var hint = new Gtk.Label (_("Current: %s").printf (current)) {
+                halign = Gtk.Align.CENTER
+            };
+            hint.add_css_class ("caption");
+            hint.add_css_class ("dim-label");
+            content_box.append (hint);
+        }
+
+        var event_controller = new Gtk.EventControllerKey ();
+        event_controller.key_pressed.connect (on_key_pressed);
+        content_box.add_controller (event_controller);
+
+        var cancel_button = new Gtk.Button () {
+            label = _("Cancel")
+        };
+        cancel_button.clicked.connect (() => destroy ());
+
+        var clear_button = new Gtk.Button () {
+            label = _("Clear")
+        };
+        clear_button.clicked.connect (() => {
+            Iide.ActionManager.get_instance ().set_shortcut (action.id, null);
+            destroy ();
+        });
+
+        var save_button = new Gtk.Button () {
+            label = _("Save")
+        };
+        save_button.add_css_class ("suggested-action");
+        save_button.clicked.connect (on_save);
+
+        var button_box = new Gtk.Box (Gtk.Orientation.HORIZONTAL, 6);
+        button_box.append (cancel_button);
+        button_box.append (clear_button);
+        button_box.append (save_button);
+        button_box.halign = Gtk.Align.END;
+        content_box.append (button_box);
+
+        child = content_box;
+        set_size_request (350, 120);
+    }
+
+    private bool on_key_pressed (uint keyval, uint keycode, Gdk.ModifierType state) {
+        var modifiers = state & (Gdk.ModifierType.SHIFT_MASK | Gdk.ModifierType.CONTROL_MASK | Gdk.ModifierType.ALT_MASK | Gdk.ModifierType.SUPER_MASK);
+
+        if (keyval == Gdk.Key.Escape) {
+            destroy ();
+            return true;
+        }
+
+        if (keyval == Gdk.Key.BackSpace && modifiers == 0) {
+            Iide.ActionManager.get_instance ().set_shortcut (action.id, null);
+            destroy ();
+            return true;
+        }
+
+        if (modifiers == 0 || (modifiers & Gdk.ModifierType.CONTROL_MASK) != 0 ||
+            (modifiers & Gdk.ModifierType.SHIFT_MASK) != 0 ||
+            (modifiers & Gdk.ModifierType.ALT_MASK) != 0 ||
+            (modifiers & Gdk.ModifierType.SUPER_MASK) != 0) {
+
+            if (modifiers != 0) {
+                this.keyval = keyval;
+                this.modifiers = modifiers;
+                label.set_label (format_shortcut (keyval, modifiers));
+            }
+            return true;
+        }
+        return false;
+    }
+
+    private string format_shortcut (uint keyval, Gdk.ModifierType modifiers) {
+        var accel_string = "";
+
+        if ((modifiers & Gdk.ModifierType.CONTROL_MASK) != 0)accel_string += "<primary>";
+        if ((modifiers & Gdk.ModifierType.ALT_MASK) != 0)accel_string += "<Alt>";
+        if ((modifiers & Gdk.ModifierType.SHIFT_MASK) != 0)accel_string += "<Shift>";
+        if ((modifiers & Gdk.ModifierType.SUPER_MASK) != 0)accel_string += "<Super>";
+
+        var key_name = Gdk.keyval_name (keyval);
+        if (key_name != null) {
+            accel_string += key_name;
+        }
+
+        return accel_string;
+    }
+
+    private void on_save () {
+        if (keyval != 0) {
+            var shortcut = format_shortcut (keyval, modifiers);
+            Iide.ActionManager.get_instance ().set_shortcut (action.id, shortcut);
+        }
+        destroy ();
     }
 }

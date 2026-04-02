@@ -20,6 +20,7 @@
 
 public class Iide.Application : Adw.Application {
     private Iide.SettingsService settings;
+    private Iide.ActionManager action_manager;
 
     public signal void zoom_changed (int zoom_level);
     public signal void minimap_changed (bool visible);
@@ -34,40 +35,40 @@ public class Iide.Application : Adw.Application {
 
     construct {
         settings = Iide.SettingsService.get_instance ();
+        action_manager = Iide.ActionManager.get_instance ();
 
-        ActionEntry[] action_entries = {
-            { "about", this.on_about_action },
-            { "preferences", this.on_preferences_action },
-            { "save", this.on_save_action },
-            { "open_project", this.on_open_project_action },
-            { "zoom_in", this.on_zoom_in_action },
-            { "zoom_out", this.on_zoom_out_action },
-            { "zoom_reset", this.on_zoom_reset_action },
-            { "quit", this.on_quit_action }
-        };
-        this.add_action_entries (action_entries, this);
+        register_builtin_actions ();
+        apply_shortcuts ();
+    }
 
-        var toggle_minimap = new SimpleAction.stateful (
-            "toggle_minimap",
-            null,
-            new Variant.boolean (settings.show_minimap)
-        );
-        toggle_minimap.activate.connect (() => {
-            var new_state = !toggle_minimap.get_state ().get_boolean ();
-            toggle_minimap.set_state (new Variant.boolean (new_state));
-            settings.show_minimap = new_state;
-            minimap_changed (new_state);
+    private void register_builtin_actions () {
+        action_manager.register_action (new SaveAllAction (this));
+        action_manager.register_action (new OpenProjectAction (this));
+        action_manager.register_action (new PreferencesAction (this));
+        action_manager.register_action (new ToggleMinimapAction (this));
+        action_manager.register_action (new ZoomInAction ());
+        action_manager.register_action (new ZoomOutAction ());
+        action_manager.register_action (new ZoomResetAction ());
+        action_manager.register_action (new QuitAction ());
+    }
+
+    private void apply_shortcuts () {
+        action_manager.apply_shortcuts_to_application (this);
+
+        action_manager.get_all_actions ().foreach ((action) => {
+            action.shortcut_changed.connect ((new_shortcut) => {
+                if (new_shortcut != null && new_shortcut != "") {
+                    this.set_accels_for_action ("app." + action.id, { new_shortcut });
+                } else {
+                    this.set_accels_for_action ("app." + action.id, {});
+                }
+            });
+            return true;
         });
-        this.add_action (toggle_minimap);
+    }
 
-        this.set_accels_for_action ("app.quit", { "<primary>q" });
-        this.set_accels_for_action ("app.preferences", { "<primary>comma" });
-        this.set_accels_for_action ("app.save", { "<primary>s" });
-        this.set_accels_for_action ("app.open_project", { "<primary>o" });
-        this.set_accels_for_action ("app.toggle_minimap", { "<primary>m" });
-        this.set_accels_for_action ("app.zoom_in", { "<primary>plus", "<primary>equal" });
-        this.set_accels_for_action ("app.zoom_out", { "<primary>minus" });
-        this.set_accels_for_action ("app.zoom_reset", { "<primary>0" });
+    public Iide.ActionManager get_action_manager () {
+        return action_manager;
     }
 
     public Iide.SettingsService get_settings () {
@@ -91,61 +92,185 @@ public class Iide.Application : Adw.Application {
         var win = this.active_window ?? new Iide.Window (this);
         win.present ();
     }
+}
 
-    private void on_about_action () {
-        string[] developers = { "kai" };
-        var about = new Adw.AboutDialog () {
-            application_name = "iide",
-            application_icon = "org.github.kai66673.iide",
-            developer_name = "kai",
-            translator_credits = _("translator-credits"),
-            version = "0.1.0",
-            developers = developers,
-            copyright = "© 2026 kai",
-        };
+private class SaveAllAction : Iide.Action {
+    private weak Iide.Application app;
 
-        about.present (this.active_window);
+    public SaveAllAction (Iide.Application app) {
+        this.app = app;
     }
 
-    private void on_preferences_action () {
-        var dialog = new Iide.PreferencesDialog ();
-        dialog.set_transient_for (this.active_window);
-        dialog.present ();
+    public override string id { get { return "save"; } }
+    public override string name { get { return _("Save All"); } }
+    public override string? description { get { return _("Save all open documents"); } }
+    public override string? icon_name { get { return "document-save-symbolic"; } }
+    public override string? category { get { return "File"; } }
+
+    public override bool can_execute () {
+        return app?.active_window is Iide.Window;
     }
 
-    private void on_save_action () {
-        var win = active_window as Iide.Window;
+    public override void execute () {
+        var win = app?.active_window as Iide.Window;
         win?.save_modified ();
     }
+}
 
-    private void on_open_project_action () {
-        var win = active_window as Iide.Window;
+private class OpenProjectAction : Iide.Action {
+    private weak Iide.Application app;
+
+    public OpenProjectAction (Iide.Application app) {
+        this.app = app;
+    }
+
+    public override string id { get { return "open_project"; } }
+    public override string name { get { return _("Open Project"); } }
+    public override string? description { get { return _("Open a project folder"); } }
+    public override string? icon_name { get { return "folder-open-symbolic"; } }
+    public override string? category { get { return "File"; } }
+
+    public override bool can_execute () {
+        return true;
+    }
+
+    public override void execute () {
+        var win = app?.active_window as Iide.Window;
         win?.open_project_dialog ();
     }
+}
 
-    private void on_zoom_in_action () {
-        if (settings.editor_font_size < FontSizeHelper.MAX_ZOOM_LEVEL) {
-            settings.editor_font_size++;
-            zoom_changed (settings.editor_font_size);
-        }
+private class PreferencesAction : Iide.Action {
+    private weak Iide.Application app;
+
+    public PreferencesAction (Iide.Application app) {
+        this.app = app;
     }
 
-    private void on_zoom_out_action () {
-        if (settings.editor_font_size > FontSizeHelper.MIN_ZOOM_LEVEL) {
-            settings.editor_font_size--;
-            zoom_changed (settings.editor_font_size);
-        }
+    public override string id { get { return "preferences"; } }
+    public override string name { get { return _("Preferences"); } }
+    public override string? description { get { return _("Open preferences dialog"); } }
+    public override string? icon_name { get { return "preferences-system-symbolic"; } }
+    public override string? category { get { return "Application"; } }
+
+    public override bool can_execute () {
+        return true;
     }
 
-    private void on_zoom_reset_action () {
+    public override void execute () {
+        var dialog = new Iide.PreferencesDialog ();
+        dialog.set_transient_for (app?.active_window);
+        dialog.present ();
+    }
+}
+
+private class ToggleMinimapAction : Iide.Action {
+    private weak Iide.Application app;
+
+    public ToggleMinimapAction (Iide.Application app) {
+        this.app = app;
+        this.state = Iide.SettingsService.get_instance ().show_minimap;
+    }
+
+    public override string id { get { return "toggle_minimap"; } }
+    public override string name { get { return _("Toggle Minimap"); } }
+    public override string? description { get { return _("Show or hide the minimap"); } }
+    public override string? icon_name { get { return "view-fullscreen-symbolic"; } }
+    public override string? category { get { return "View"; } }
+    public override bool is_toggle { get { return true; } }
+
+    public override bool can_execute () {
+        return true;
+    }
+
+    public override void execute () {
+        var settings = Iide.SettingsService.get_instance ();
+        state = !state;
+        settings.show_minimap = state;
+        app?.minimap_changed (state);
+        state_changed (state);
+        Iide.ActionManager.get_instance ().set_toggle_state (id, state);
+    }
+}
+
+private class ZoomInAction : Iide.Action {
+    private Iide.SettingsService settings;
+
+    public override string id { get { return "zoom_in"; } }
+    public override string name { get { return _("Zoom In"); } }
+    public override string? description { get { return _("Increase editor font size"); } }
+    public override string? icon_name { get { return "zoom-in-symbolic"; } }
+    public override string? category { get { return "View"; } }
+
+    public override bool can_execute () {
+        settings = Iide.SettingsService.get_instance ();
+        return settings.editor_font_size < FontSizeHelper.MAX_ZOOM_LEVEL;
+    }
+
+    public override void execute () {
+        settings = Iide.SettingsService.get_instance ();
+        var app = GLib.Application.get_default () as Iide.Application;
+        settings.editor_font_size++;
+        app?.zoom_changed (settings.editor_font_size);
+    }
+}
+
+private class ZoomOutAction : Iide.Action {
+    private Iide.SettingsService settings;
+
+    public override string id { get { return "zoom_out"; } }
+    public override string name { get { return _("Zoom Out"); } }
+    public override string? description { get { return _("Decrease editor font size"); } }
+    public override string? icon_name { get { return "zoom-out-symbolic"; } }
+    public override string? category { get { return "View"; } }
+
+    public override bool can_execute () {
+        settings = Iide.SettingsService.get_instance ();
+        return settings.editor_font_size > FontSizeHelper.MIN_ZOOM_LEVEL;
+    }
+
+    public override void execute () {
+        settings = Iide.SettingsService.get_instance ();
+        var app = GLib.Application.get_default () as Iide.Application;
+        settings.editor_font_size--;
+        app?.zoom_changed (settings.editor_font_size);
+    }
+}
+
+private class ZoomResetAction : Iide.Action {
+    private Iide.SettingsService settings;
+
+    public override string id { get { return "zoom_reset"; } }
+    public override string name { get { return _("Zoom Reset"); } }
+    public override string? description { get { return _("Reset editor font size to default"); } }
+    public override string? icon_name { get { return "zoom-original-symbolic"; } }
+    public override string? category { get { return "View"; } }
+
+    public override bool can_execute () {
+        return true;
+    }
+
+    public override void execute () {
+        settings = Iide.SettingsService.get_instance ();
+        var app = GLib.Application.get_default () as Iide.Application;
         settings.editor_font_size = FontSizeHelper.DEFAULT_ZOOM_LEVEL;
-        zoom_changed (settings.editor_font_size);
+        app?.zoom_changed (settings.editor_font_size);
+    }
+}
+
+private class QuitAction : Iide.Action {
+    public override string id { get { return "quit"; } }
+    public override string name { get { return _("Quit"); } }
+    public override string? description { get { return _("Quit the application"); } }
+    public override string? icon_name { get { return "application-exit-symbolic"; } }
+    public override string? category { get { return "Application"; } }
+
+    public override bool can_execute () {
+        return true;
     }
 
-    private void on_quit_action () {
-        var win = this.active_window;
-        if (win != null) {
-            win.close ();
-        }
+    public override void execute () {
+        var app = GLib.Application.get_default () as Iide.Application;
+        app?.quit ();
     }
 }
