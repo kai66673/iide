@@ -55,9 +55,7 @@ public class Iide.TextView : Panel.Widget {
     private BaseTreeSitterHighlighter? ts_highlighter;
     private FontZoomer font_zoomer;
     private Iide.SettingsService settings;
-    private GtkSource.MarkAttributes error_mark_attrs;
-    private GtkSource.MarkAttributes warning_mark_attrs;
-    private GtkSource.MarkAttributes info_mark_attrs;
+    private GutterMarkRenderer mark_renderer;
 
     public GtkSource.LanguageManager manager;
     public string uri { get; private set; }
@@ -165,6 +163,9 @@ public class Iide.TextView : Panel.Widget {
         change_syntax_highlight_from_file (file);
 
         ts_highlighter = ts_manager.get_ts_highlighter (_text_view);
+        if (ts_highlighter != null) {
+            ((GtkSource.Buffer) (_text_view.buffer)).highlight_syntax = false;
+        }
 
         _text_view.show_line_numbers = settings.show_line_numbers;
         _text_view.highlight_current_line = settings.highlight_current_line;
@@ -177,43 +178,37 @@ public class Iide.TextView : Panel.Widget {
         source_map.visible = settings.show_minimap;
 
         _text_view.show_line_numbers = true;
-        _text_view.set_show_line_marks (true);
+        _text_view.set_show_line_marks (false);
 
         var left_gutter = _text_view.get_gutter (Gtk.TextWindowType.LEFT);
         left_gutter.visible = true;
 
-        var text_buffer = (Gtk.TextBuffer) _text_view.buffer;
-        var error_tag = new Gtk.TextTag ("lsp_error_line");
-        var error_bg = Gdk.RGBA ();
-        error_bg.parse ("#e01b24");
-        error_bg.alpha = 0.15f;
-        error_tag.background_rgba = error_bg;
-        text_buffer.tag_table.add (error_tag);
+        mark_renderer = new GutterMarkRenderer ();
+        mark_renderer.set_icon ("error", "dialog-error");
+        mark_renderer.set_icon ("warning", "dialog-warning");
+        mark_renderer.set_icon ("info", "dialog-information");
 
-        var warning_tag = new Gtk.TextTag ("lsp_warning_line");
-        var warning_bg = Gdk.RGBA ();
-        warning_bg.parse ("#f5c211");
-        warning_bg.alpha = 0.15f;
-        warning_tag.background_rgba = warning_bg;
-        text_buffer.tag_table.add (warning_tag);
+        mark_renderer.set_icons_size (get_icon_size_for_zoom (font_zoomer.get_zoom_level ()));
+        left_gutter.insert (mark_renderer, 0);
 
-        error_mark_attrs = new GtkSource.MarkAttributes ();
-        error_mark_attrs.set_icon_name ("dialog-error");
+        var error_mark_attrs = new GtkSource.MarkAttributes ();
         var err_bg = Gdk.RGBA ();
         err_bg.parse ("#e01b24");
         error_mark_attrs.set_background (err_bg);
         _text_view.set_mark_attributes ("error", error_mark_attrs, 100);
 
-        warning_mark_attrs = new GtkSource.MarkAttributes ();
-        warning_mark_attrs.set_icon_name ("dialog-warning");
+        var warning_mark_attrs = new GtkSource.MarkAttributes ();
         var warn_bg = Gdk.RGBA ();
         warn_bg.parse ("#f5c211");
         warning_mark_attrs.set_background (warn_bg);
         _text_view.set_mark_attributes ("warning", warning_mark_attrs, 90);
 
-        info_mark_attrs = new GtkSource.MarkAttributes ();
-        info_mark_attrs.set_icon_name ("dialog-information");
+        var info_mark_attrs = new GtkSource.MarkAttributes ();
         _text_view.set_mark_attributes ("info", info_mark_attrs, 80);
+
+        font_zoomer.zoom_changed.connect ((level) => {
+            mark_renderer.set_icons_size (get_icon_size_for_zoom (level));
+        });
 
         var scroll = new Gtk.ScrolledWindow ();
         scroll.hexpand = true;
@@ -322,7 +317,7 @@ public class Iide.TextView : Panel.Widget {
                 continue;
             }
 
-            Gtk.TextIter start_iter, line_end_iter, end_iter;
+            Gtk.TextIter start_iter, line_end_iter;
             text_buffer.get_iter_at_line (out start_iter, diag.start_line);
             text_buffer.get_iter_at_line (out line_end_iter, diag.start_line);
             line_end_iter.forward_line ();
@@ -350,5 +345,9 @@ public class Iide.TextView : Panel.Widget {
         }
 
         text_buffer.end_user_action ();
+    }
+
+    private int get_icon_size_for_zoom (int zoom_level) {
+        return FontSizeHelper.get_size_for_zoom_level (zoom_level);
     }
 }

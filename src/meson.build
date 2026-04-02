@@ -4,6 +4,7 @@ iide_sources = [
     'window.vala',
     'Widgets/TextView/TextView.vala',
     'Widgets/TextView/FontZoomer.vala',
+    'Widgets/TextView/GutterMarkRenderer.vala',
     'Widgets/ToolViews/ProjectView.vala',
     'Widgets/ToolViews/TerminalView.vala',
     'Widgets/ToolViews/LogView.vala',
