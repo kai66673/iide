@@ -184,27 +184,10 @@ public class Iide.TextView : Panel.Widget {
         left_gutter.visible = true;
 
         mark_renderer = new GutterMarkRenderer ();
-        mark_renderer.set_icon ("error", "dialog-error");
-        mark_renderer.set_icon ("warning", "dialog-warning");
-        mark_renderer.set_icon ("info", "dialog-information");
-
         mark_renderer.set_icons_size (get_icon_size_for_zoom (font_zoomer.get_zoom_level ()));
         left_gutter.insert (mark_renderer, 0);
 
-        var error_mark_attrs = new GtkSource.MarkAttributes ();
-        var err_bg = Gdk.RGBA ();
-        err_bg.parse ("#e01b2430");
-        error_mark_attrs.set_background (err_bg);
-        _text_view.set_mark_attributes ("error", error_mark_attrs, 100);
-
-        var warning_mark_attrs = new GtkSource.MarkAttributes ();
-        var warn_bg = Gdk.RGBA ();
-        warn_bg.parse ("#f5c21130");
-        warning_mark_attrs.set_background (warn_bg);
-        _text_view.set_mark_attributes ("warning", warning_mark_attrs, 90);
-
-        var info_mark_attrs = new GtkSource.MarkAttributes ();
-        _text_view.set_mark_attributes ("info", info_mark_attrs, 80);
+        LspDiagnosticsMark.set_mark_attributes (_text_view);
 
         font_zoomer.zoom_changed.connect ((level) => {
             mark_renderer.set_icons_size (get_icon_size_for_zoom (level));
@@ -244,6 +227,9 @@ public class Iide.TextView : Panel.Widget {
         buffer.changed.connect (() => {
             text_changed (buffer.text);
         });
+
+        _text_view.has_tooltip = true;
+        _text_view.query_tooltip.connect (on_query_tooltip);
     }
 
     public override void size_allocate (int width, int height, int baseline) {
@@ -298,46 +284,24 @@ public class Iide.TextView : Panel.Widget {
     }
 
     public void update_diagnostics (Gee.ArrayList<IdeLspDiagnostic> diagnostics) {
-        var buffer = (GtkSource.Buffer) _text_view.buffer;
-        var text_buffer = (Gtk.TextBuffer) buffer;
+        var text_buffer = (Gtk.TextBuffer) _text_view.buffer;
 
         text_buffer.begin_user_action ();
 
-        Gtk.TextIter start, end;
-        buffer.get_start_iter (out start);
-        buffer.get_end_iter (out end);
-        buffer.remove_source_marks (start, end, null);
+        LspDiagnosticsMark.clear_mark_attributes (_text_view);
 
-        int line_count = buffer.get_line_count ();
+        int line_count = text_buffer.get_line_count ();
 
         foreach (var diag in diagnostics) {
             if (diag.start_line >= line_count) {
                 continue;
             }
 
-            Gtk.TextIter start_iter, line_end_iter;
+            Gtk.TextIter start_iter;
             text_buffer.get_iter_at_line (out start_iter, diag.start_line);
-            text_buffer.get_iter_at_line (out line_end_iter, diag.start_line);
-            line_end_iter.forward_line ();
 
-            string category;
-            switch (diag.severity) {
-            case 1 :
-                category = "error";
-                break;
-            case 2:
-                category = "warning";
-                break;
-            case 3:
-            case 4:
-                category = "info";
-                break;
-            default:
-                category = "error";
-                break;
-            }
-
-            buffer.create_source_mark (null, category, start_iter);
+            var mark = new LspDiagnosticsMark.from_lsp_diagnostic (diag);
+            text_buffer.add_mark (mark, start_iter); // Добавляем в буфер вручную
         }
 
         text_buffer.end_user_action ();
@@ -345,5 +309,77 @@ public class Iide.TextView : Panel.Widget {
 
     private int get_icon_size_for_zoom (int zoom_level) {
         return FontSizeHelper.get_size_for_zoom_level (zoom_level);
+    }
+
+    private bool on_query_tooltip (int x, int y, bool keyboard_mode, Gtk.Tooltip tooltip) {
+        Gtk.TextIter iter;
+
+        // Преобразуем координаты окна в координаты буфера
+        int buffer_x, buffer_y;
+        _text_view.window_to_buffer_coords (Gtk.TextWindowType.WIDGET, x, y, out buffer_x, out buffer_y);
+
+        // Получаем итератор в месте курсора мыши
+        if (!_text_view.get_iter_at_location (out iter, buffer_x, buffer_y)) {
+            return false;
+        }
+
+        // Ищем маркеры в этой строке (по категории "error")
+        var buffer = (GtkSource.Buffer) _text_view.buffer;
+        var marks = buffer.get_source_marks_at_line (iter.get_line (), null);
+
+        if (marks == null) {
+            return false;
+        }
+
+        var sb = new StringBuilder ();
+
+        string separator = "";
+        for (int i = 0; i < 40; i++)separator += "─";
+
+        foreach (var mark in marks) {
+            var lsp_mark = mark as LspDiagnosticsMark;
+            if (lsp_mark == null) {
+                continue;
+            }
+
+            string icon;
+            string header_color;
+
+            switch (lsp_mark.severity) {
+            case 1 :
+                icon = "❌";
+                header_color = "#F44336"; // Красный
+                break;
+            case 2:
+                icon = "⚠️";
+                header_color = "#FF9800"; // Оранжевый
+                break;
+            case 3:
+            case 4:
+                icon = "ℹ️";
+                header_color = "#2196F3"; // Синий
+                break;
+            default:
+                icon = "❌";
+                header_color = "#F44336"; // Красный
+                break;
+            }
+
+            if (sb.len > 0) {
+                sb.append ("\n" + separator + "\n");
+            }
+
+            // Заголовок и основное сообщение
+            sb.append_printf ("%s <span font_weight='bold' foreground='%s'>%s</span>\n",
+                              icon, header_color, lsp_mark.category.up ());
+            sb.append_printf ("<span>%s</span>", GLib.Markup.escape_text (lsp_mark.diagnostic_message));
+        }
+
+        if (sb.len > 0) {
+            tooltip.set_markup (sb.str);
+            return true;
+        }
+
+        return false; // Ничего не показывать
     }
 }

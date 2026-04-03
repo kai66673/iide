@@ -19,6 +19,7 @@ iide_sources = [
     'Services/LSP/IdeLspClient.vala',
     'Services/LSP/IdeLspService.vala',
     'Services/LSP/IdeLspManager.vala',
+    'Services/LSP/LspDiagnosticsMark.vala',
     'Services/TreeSitter/TreeSitterManager.vala',
     'Services/TreeSitter/model/AstItem.vala',
     'Services/TreeSitter/model/AstModel.vala',

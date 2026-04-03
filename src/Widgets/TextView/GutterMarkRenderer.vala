@@ -4,24 +4,6 @@ using GLib;
 
 public class Iide.GutterMarkRenderer : GutterRenderer {
     private int current_icon_size = 16;
-    private string? error_icon_name;
-    private string? warning_icon_name;
-    private string? info_icon_name;
-
-    public void set_icon (string category, string? icon_name) {
-        switch (category) {
-        case "error":
-            error_icon_name = icon_name;
-            break;
-        case "warning":
-            warning_icon_name = icon_name;
-            break;
-        case "info":
-            info_icon_name = icon_name;
-            break;
-        }
-        queue_resize ();
-    }
 
     public void set_icons_size (int size) {
         if (current_icon_size == size) {
@@ -58,19 +40,9 @@ public class Iide.GutterMarkRenderer : GutterRenderer {
         string? icon_name_to_draw = null;
 
         foreach (var text_mark in marks) {
-            var mark = text_mark as GtkSource.Mark;
-            if (mark != null) {
-                var category = mark.get_category ();
-                if (category == "error" && error_icon_name != null) {
-                    icon_name_to_draw = error_icon_name;
-                    break;
-                } else if (category == "warning" && warning_icon_name != null) {
-                    icon_name_to_draw = warning_icon_name;
-                    break;
-                } else if (category == "info" && info_icon_name != null) {
-                    icon_name_to_draw = info_icon_name;
-                    break;
-                }
+            var lsp_mark = text_mark as LspDiagnosticsMark;
+            if (lsp_mark != null) {
+                icon_name_to_draw = lsp_mark.get_icon_name ();
             }
         }
 
