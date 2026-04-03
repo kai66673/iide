@@ -47,7 +47,7 @@ public class Iide.DocumentManager : GLib.Object {
                     d.end_column = diag.end_column;
                     lsp_diagnostics.add (d);
                 }
-                
+
                 Idle.add (() => {
                     doc.update_diagnostics (lsp_diagnostics);
                     return false;
@@ -80,9 +80,7 @@ public class Iide.DocumentManager : GLib.Object {
                 try {
                     file_loader.load_async.end (res);
                     panel_widget = new Iide.TextView (file, buffer);
-                    
-                    uint change_timeout = 0;
-                    
+
                     panel_widget.notify["parent"].connect (() => {
                         if (panel_widget.parent == null) {
                             close_document (file);
