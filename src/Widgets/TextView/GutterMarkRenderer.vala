@@ -57,17 +57,20 @@ public class Iide.GutterMarkRenderer : GutterRenderer {
 
         string? icon_name_to_draw = null;
 
-        foreach (var mark in marks) {
-            var category = ((GtkSource.Mark) mark).get_category ();
-            if (category == "error" && error_icon_name != null) {
-                icon_name_to_draw = error_icon_name;
-                break;
-            } else if (category == "warning" && warning_icon_name != null) {
-                icon_name_to_draw = warning_icon_name;
-                break;
-            } else if (category == "info" && info_icon_name != null) {
-                icon_name_to_draw = info_icon_name;
-                break;
+        foreach (var text_mark in marks) {
+            var mark = text_mark as GtkSource.Mark;
+            if (mark != null) {
+                var category = mark.get_category ();
+                if (category == "error" && error_icon_name != null) {
+                    icon_name_to_draw = error_icon_name;
+                    break;
+                } else if (category == "warning" && warning_icon_name != null) {
+                    icon_name_to_draw = warning_icon_name;
+                    break;
+                } else if (category == "info" && info_icon_name != null) {
+                    icon_name_to_draw = info_icon_name;
+                    break;
+                }
             }
         }
 

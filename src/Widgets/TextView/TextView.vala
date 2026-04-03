@@ -193,13 +193,13 @@ public class Iide.TextView : Panel.Widget {
 
         var error_mark_attrs = new GtkSource.MarkAttributes ();
         var err_bg = Gdk.RGBA ();
-        err_bg.parse ("#e01b24");
+        err_bg.parse ("#e01b2430");
         error_mark_attrs.set_background (err_bg);
         _text_view.set_mark_attributes ("error", error_mark_attrs, 100);
 
         var warning_mark_attrs = new GtkSource.MarkAttributes ();
         var warn_bg = Gdk.RGBA ();
-        warn_bg.parse ("#f5c211");
+        warn_bg.parse ("#f5c21130");
         warning_mark_attrs.set_background (warn_bg);
         _text_view.set_mark_attributes ("warning", warning_mark_attrs, 90);
 
@@ -307,8 +307,6 @@ public class Iide.TextView : Panel.Widget {
         buffer.get_start_iter (out start);
         buffer.get_end_iter (out end);
         buffer.remove_source_marks (start, end, null);
-        text_buffer.remove_tag_by_name ("lsp_error_line", start, end);
-        text_buffer.remove_tag_by_name ("lsp_warning_line", start, end);
 
         int line_count = buffer.get_line_count ();
 
@@ -326,11 +324,9 @@ public class Iide.TextView : Panel.Widget {
             switch (diag.severity) {
             case 1 :
                 category = "error";
-                text_buffer.apply_tag_by_name ("lsp_error_line", start_iter, line_end_iter);
                 break;
             case 2:
                 category = "warning";
-                text_buffer.apply_tag_by_name ("lsp_warning_line", start_iter, line_end_iter);
                 break;
             case 3:
             case 4:
