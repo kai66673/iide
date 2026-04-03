@@ -29,6 +29,15 @@ public class Iide.LogView : Gtk.Box {
     private Gtk.SearchEntry search_entry;
     private Iide.LoggerService logger;
 
+    private Gtk.TextTag tag_debug;
+    private Gtk.TextTag tag_info;
+    private Gtk.TextTag tag_warning;
+    private Gtk.TextTag tag_error;
+    private Gtk.TextTag tag_critical;
+    private Gtk.TextTag tag_bold;
+    private Gtk.TextTag tag_dim;
+
+    private GLib.Mutex buffer_lock;
     private bool auto_scroll = true;
     private const int MAX_VISIBLE_LINES = 5000;
     private int line_count = 0;
@@ -90,13 +99,13 @@ public class Iide.LogView : Gtk.Box {
         toolbar.append (search_entry);
 
         buffer = new Gtk.TextBuffer (null);
-        buffer.create_tag ("debug", foreground: "#888888");
-        buffer.create_tag ("info", foreground: "#4a9eff");
-        buffer.create_tag ("warning", foreground: "#f5a623");
-        buffer.create_tag ("error", foreground: "#e74c3c");
-        buffer.create_tag ("critical", foreground: "#ff4757", weight: Pango.Weight.BOLD);
-        buffer.create_tag ("bold", weight: Pango.Weight.BOLD);
-        buffer.create_tag ("dim", foreground: "#666666");
+        tag_debug = buffer.create_tag (null, foreground: "#888888");
+        tag_info = buffer.create_tag (null, foreground: "#4a9eff", weight: Pango.Weight.BOLD);
+        tag_warning = buffer.create_tag (null, foreground: "#f5a623", weight: Pango.Weight.BOLD);
+        tag_error = buffer.create_tag (null, foreground: "#e74c3c", weight: Pango.Weight.BOLD);
+        tag_critical = buffer.create_tag (null, foreground: "#ff4757", weight: Pango.Weight.BOLD, background: "#330000");
+        tag_bold = buffer.create_tag (null, weight: Pango.Weight.BOLD);
+        tag_dim = buffer.create_tag (null, foreground: "#666666", style: Pango.Style.ITALIC);
 
         text_view = new Gtk.TextView () {
             buffer = buffer,
@@ -130,73 +139,90 @@ public class Iide.LogView : Gtk.Box {
     }
 
     private void append_entry (Iide.LogEntry entry) {
-        Gtk.TextIter end;
-        buffer.get_end_iter (out end);
+        buffer_lock.lock ();
+        try {
+            var timestamp = entry.get_timestamp_string ();
+            var level_str = entry.level.to_string ();
+            var domain = entry.domain;
+            var message = entry.message;
 
-        var timestamp = entry.get_timestamp_string ();
-        var level_str = entry.level.to_string ();
-        var domain = entry.domain;
-        var message = entry.message;
-
-        string tag_name;
-        switch (entry.level) {
+            Gtk.TextTag tag;
+            switch (entry.level) {
             case Iide.LogLevel.DEBUG:
-                tag_name = "debug";
+                tag = tag_debug;
                 break;
             case Iide.LogLevel.INFO:
-                tag_name = "info";
+                tag = tag_info;
                 break;
             case Iide.LogLevel.WARNING:
-                tag_name = "warning";
+                tag = tag_warning;
                 break;
             case Iide.LogLevel.ERROR:
-                tag_name = "error";
+                tag = tag_error;
                 break;
             case Iide.LogLevel.CRITICAL:
-                tag_name = "critical";
+                tag = tag_critical;
                 break;
             default:
-                tag_name = "dim";
+                tag = tag_dim;
                 break;
+            }
+
+            var ts_text = "[%s] ".printf (timestamp);
+            var level_text = "[%s] ".printf (level_str);
+            var domain_text = "[%s] ".printf (domain);
+
+            int offset = buffer.get_char_count ();
+
+            Gtk.TextIter iter;
+            buffer.get_end_iter (out iter);
+            buffer.insert (ref iter, ts_text, ts_text.length);
+            buffer.get_end_iter (out iter);
+            buffer.insert (ref iter, level_text, level_text.length);
+            buffer.get_end_iter (out iter);
+            buffer.insert (ref iter, domain_text, domain_text.length);
+            buffer.get_end_iter (out iter);
+            buffer.insert (ref iter, message, message.length);
+
+            if (entry.details != null) {
+                buffer.get_end_iter (out iter);
+                buffer.insert (ref iter, "\n  ", 3);
+                buffer.get_end_iter (out iter);
+                buffer.insert (ref iter, entry.details, entry.details.length);
+            }
+
+            buffer.get_end_iter (out iter);
+            buffer.insert (ref iter, "\n", 1);
+
+            Gtk.TextIter start, end;
+            buffer.get_iter_at_offset (out start, offset);
+            buffer.get_iter_at_offset (out end, offset + (int) ts_text.length);
+            buffer.apply_tag (tag_dim, start, end);
+
+            buffer.get_iter_at_offset (out start, offset + (int) ts_text.length);
+            buffer.get_iter_at_offset (out end, offset + (int) ts_text.length + (int) level_text.length);
+            buffer.apply_tag (tag, start, end);
+
+            buffer.get_iter_at_offset (out start, offset + (int) ts_text.length + (int) level_text.length);
+            buffer.get_iter_at_offset (out end, offset + (int) ts_text.length + (int) level_text.length + (int) domain_text.length);
+            buffer.apply_tag (tag_bold, start, end);
+
+            if (entry.details != null) {
+                int detail_start = offset + (int) ts_text.length + (int) level_text.length + (int) domain_text.length + (int) message.length + 1;
+                buffer.get_iter_at_offset (out start, detail_start);
+                buffer.get_iter_at_offset (out end, detail_start + 3);
+                buffer.apply_tag (tag_dim, start, end);
+            }
+
+            line_count++;
+            if (auto_scroll) {
+                scroll_to_end ();
+            }
+
+            trim_buffer ();
+        } finally {
+            buffer_lock.unlock ();
         }
-
-        var ts_text = "[%s] ".printf (timestamp);
-        var level_text = "[%s] ".printf (level_str);
-        var domain_text = "[%s] ".printf (domain);
-
-        var start = end;
-        buffer.insert (ref end, ts_text, ts_text.length);
-        buffer.apply_tag_by_name ("dim", start, end);
-
-        start = end;
-        buffer.insert (ref end, level_text, level_text.length);
-        buffer.apply_tag_by_name (tag_name, start, end);
-
-        start = end;
-        buffer.insert (ref end, domain_text, domain_text.length);
-        buffer.apply_tag_by_name ("bold", start, end);
-
-        start = end;
-        buffer.insert (ref end, message, message.length);
-
-        if (entry.details != null) {
-            start = end;
-            buffer.insert (ref end, "\n  ", 3);
-            buffer.apply_tag_by_name ("dim", start, end);
-
-            start = end;
-            buffer.insert (ref end, entry.details, entry.details.length);
-        }
-
-        start = end;
-        buffer.insert (ref end, "\n", 1);
-
-        line_count++;
-        if (auto_scroll) {
-            scroll_to_end ();
-        }
-
-        trim_buffer ();
     }
 
     private void scroll_to_end () {
@@ -207,12 +233,17 @@ public class Iide.LogView : Gtk.Box {
 
     private void trim_buffer () {
         if (line_count > MAX_VISIBLE_LINES) {
-            Gtk.TextIter start;
-            buffer.get_iter_at_line (out start, line_count - MAX_VISIBLE_LINES);
-            Gtk.TextIter end = start;
-            buffer.get_iter_at_line (out end, line_count - MAX_VISIBLE_LINES + 100);
-            buffer.delete (ref start, ref end);
-            line_count -= 100;
+            buffer_lock.lock ();
+            try {
+                Gtk.TextIter start;
+                buffer.get_iter_at_line (out start, line_count - MAX_VISIBLE_LINES);
+                Gtk.TextIter end = start;
+                buffer.get_iter_at_line (out end, line_count - MAX_VISIBLE_LINES + 100);
+                buffer.delete (ref start, ref end);
+                line_count -= 100;
+            } finally {
+                buffer_lock.unlock ();
+            }
         }
     }
 
@@ -248,23 +279,94 @@ public class Iide.LogView : Gtk.Box {
     }
 
     private void rebuild_log_view () {
-        buffer.set_text ("");
-        line_count = 0;
+        buffer_lock.lock ();
+        try {
+            buffer.set_text ("");
+            line_count = 0;
 
-        var filter_level = (int) level_filter.selected;
-        var search_text = search_entry.text;
+            var filter_level = (int) level_filter.selected;
+            var search_text = search_entry.text;
 
-        foreach (var entry in logger.get_entries ()) {
-            if (filter_level > 0) {
-                var entry_level = (int) entry.level + 1;
-                if (entry_level != filter_level) {
+            foreach (var entry in logger.get_entries ()) {
+                if (filter_level > 0) {
+                    var entry_level = (int) entry.level + 1;
+                    if (entry_level != filter_level) {
+                        continue;
+                    }
+                }
+                if (!matches_search (entry, search_text)) {
                     continue;
                 }
+                append_entry_unlocked (entry);
             }
-            if (!matches_search (entry, search_text)) {
-                continue;
-            }
-            append_entry (entry);
+        } finally {
+            buffer_lock.unlock ();
         }
+    }
+
+    private void append_entry_unlocked (Iide.LogEntry entry) {
+        Gtk.TextIter end;
+        buffer.get_end_iter (out end);
+
+        var timestamp = entry.get_timestamp_string ();
+        var level_str = entry.level.to_string ();
+        var domain = entry.domain;
+        var message = entry.message;
+
+        Gtk.TextTag tag;
+        switch (entry.level) {
+        case Iide.LogLevel.DEBUG:
+            tag = tag_debug;
+            break;
+        case Iide.LogLevel.INFO:
+            tag = tag_info;
+            break;
+        case Iide.LogLevel.WARNING:
+            tag = tag_warning;
+            break;
+        case Iide.LogLevel.ERROR:
+            tag = tag_error;
+            break;
+        case Iide.LogLevel.CRITICAL:
+            tag = tag_critical;
+            break;
+        default:
+            tag = tag_dim;
+            break;
+        }
+
+        var ts_text = "[%s] ".printf (timestamp);
+        var level_text = "[%s] ".printf (level_str);
+        var domain_text = "[%s] ".printf (domain);
+
+        var ts_start = end;
+        buffer.insert (ref end, ts_text, ts_text.length);
+        var ts_end = end;
+        buffer.apply_tag (tag_dim, ts_start, ts_end);
+
+        var level_start = end;
+        buffer.insert (ref end, level_text, level_text.length);
+        var level_end = end;
+        buffer.apply_tag (tag, level_start, level_end);
+
+        var domain_start = end;
+        buffer.insert (ref end, domain_text, domain_text.length);
+        var domain_end = end;
+        buffer.apply_tag (tag_bold, domain_start, domain_end);
+
+        buffer.insert (ref end, message, message.length);
+
+        if (entry.details != null) {
+            var detail_start = end;
+            buffer.insert (ref end, "\n  ", 3);
+            var detail_end = end;
+            buffer.apply_tag (tag_dim, detail_start, detail_end);
+
+            buffer.insert (ref end, entry.details, entry.details.length);
+        }
+
+        buffer.insert (ref end, "\n", 1);
+
+        line_count++;
     }
 }

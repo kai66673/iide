@@ -3,6 +3,11 @@ textview {
     font-size: 14px;
 }
 
+.log-view text {
+    font-family: Monospace;
+    font-size: 12px;
+}
+
 .text-view.zoom-1 {
     font-size: 4px;
 }

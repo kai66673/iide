@@ -59,7 +59,8 @@ public class Iide.LogEntry : Object {
     public string get_timestamp_string () {
         var time = new DateTime.from_unix_utc (timestamp / 1000000);
         var local = time.to_timezone (new TimeZone.local ());
-        return local.format ("%H:%M:%S.%%03u");
+        var msec = (int) ((timestamp / 1000) % 1000);
+        return "%s.%03d".printf (local.format ("%H:%M:%S"), msec);
     }
 }
 
