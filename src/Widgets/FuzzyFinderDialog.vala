@@ -24,19 +24,19 @@ public class Iide.FuzzyFinderDialog : Adw.Window {
 
     public FuzzyFinderDialog (Window parent_window, Iide.DocumentManager document_manager) {
         Object (
-            title: _("Quick Open"),
-            modal: true,
-            destroy_with_parent: true,
-            default_width: 600,
-            default_height: 400
+                title: _("Quick Open"),
+                modal: true,
+                destroy_with_parent: true,
+                default_width: 600,
+                default_height: 400
         );
-        
+
         this.parent_window = parent_window;
         this.document_manager = document_manager;
         this.project_manager = Iide.ProjectManager.get_instance ();
         this.all_files = new Gee.ArrayList<FileEntry> ();
         this.filtered_files = new Gee.ArrayList<FileEntry> ();
-        
+
         setup_ui ();
         load_project_files ();
     }
@@ -82,7 +82,7 @@ public class Iide.FuzzyFinderDialog : Adw.Window {
         list_view = new Gtk.ListView (selection, null);
         list_view.hexpand = true;
         list_view.vexpand = true;
-        
+
         var factory = new Gtk.SignalListItemFactory ();
         factory.setup.connect ((item) => {
             var list_item = item as Gtk.ListItem;
@@ -91,17 +91,17 @@ public class Iide.FuzzyFinderDialog : Adw.Window {
             item_box.margin_end = 6;
             item_box.margin_top = 6;
             item_box.margin_bottom = 6;
-            
+
             var name_label = new Gtk.Label (null);
             name_label.xalign = 0;
             name_label.add_css_class ("title-5");
             name_label.hexpand = true;
-            
+
             var path_label = new Gtk.Label (null);
             path_label.xalign = 0;
             path_label.add_css_class ("dim-label");
             path_label.hexpand = true;
-            
+
             item_box.append (name_label);
             item_box.append (path_label);
             list_item.set_child (item_box);
@@ -111,10 +111,10 @@ public class Iide.FuzzyFinderDialog : Adw.Window {
             var item_box = list_item.get_child () as Gtk.Box;
             var name_label = item_box.get_first_child () as Gtk.Label;
             var path_label = name_label.get_next_sibling () as Gtk.Label;
-            
+
             var index = list_item.get_position ();
             if (index >= 0 && index < filtered_files.size) {
-                var entry = filtered_files[(int)index];
+                var entry = filtered_files[(int) index];
                 name_label.set_label (entry.name);
                 path_label.set_label (entry.relative_path);
             }
@@ -130,15 +130,15 @@ public class Iide.FuzzyFinderDialog : Adw.Window {
         set_content (vbox);
 
         search_entry.changed.connect (on_search_changed);
-        
+
         var key_controller = new Gtk.EventControllerKey ();
         key_controller.key_pressed.connect (on_key_pressed);
         search_entry.add_controller (key_controller);
-        
+
         list_view.activate.connect (() => {
             open_selected ();
         });
-        
+
         search_entry.activate.connect (() => {
             open_selected ();
         });
@@ -167,9 +167,9 @@ public class Iide.FuzzyFinderDialog : Adw.Window {
 
     private void scan_directory (GLib.File dir, string base_path) throws Error {
         var enumerator = dir.enumerate_children (
-            "standard::name,standard::type",
-            FileQueryInfoFlags.NONE,
-            null
+                                                 "standard::name,standard::type",
+                                                 FileQueryInfoFlags.NONE,
+                                                 null
         );
 
         FileInfo? info;
@@ -201,14 +201,14 @@ public class Iide.FuzzyFinderDialog : Adw.Window {
 
         if (query == "") {
             foreach (var f in all_files) {
-                if (filtered_files.size >= MAX_RESULTS) break;
+                if (filtered_files.size >= MAX_RESULTS)break;
                 filtered_files.add (f);
             }
         } else {
             foreach (var f in all_files) {
                 if (fuzzy_match (f.name.down (), query)) {
                     filtered_files.add (f);
-                    if (filtered_files.size >= MAX_RESULTS) break;
+                    if (filtered_files.size >= MAX_RESULTS)break;
                 }
             }
         }
@@ -233,7 +233,7 @@ public class Iide.FuzzyFinderDialog : Adw.Window {
         }
 
         string_list.splice (0, string_list.get_n_items (), strings);
-        
+
         if (filtered_files.size > 0) {
             selection.selected = 0;
         }
@@ -244,7 +244,7 @@ public class Iide.FuzzyFinderDialog : Adw.Window {
         if (index >= 0 && index < filtered_files.size) {
             var entry = filtered_files[index];
             var file = GLib.File.new_for_path (entry.path);
-            document_manager.open_document (file, parent_window);
+            document_manager.open_document (file, parent_window, null);
             this.close ();
         }
     }

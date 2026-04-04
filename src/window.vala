@@ -272,7 +272,7 @@ public class Iide.Window : Panel.DocumentWorkspace {
         // Handle file activation to open documents
         folder_view.file_activated.connect ((item) => {
             if (!item.is_directory) {
-                document_manager.open_document (item.file, this);
+                document_manager.open_document (item.file, this, null);
             }
         });
 
@@ -408,49 +408,56 @@ public class Iide.Window : Panel.DocumentWorkspace {
 
         foreach (var doc_info in sorted_docs) {
             var file = GLib.File.new_for_uri (doc_info.uri);
-            if (!file.query_exists (null)) {
-                continue;
-            }
-
-            var buffer = new GtkSource.Buffer (null);
-            var source_file = new GtkSource.File ();
-            source_file.location = file;
-            var file_loader = new GtkSource.FileLoader (buffer, source_file);
-
             var pos = new Panel.Position ();
             pos.area = Panel.Area.CENTER;
             pos.column = doc_info.column;
             pos.row = doc_info.row;
+            document_manager.open_document (file, this, pos);
 
-            file_loader.load_async.begin (Priority.DEFAULT, null, null, (obj, res) => {
-                try {
-                    file_loader.load_async.end (res);
-                    var panel_widget = new Iide.TextView (file, buffer);
-                    panel_widget.notify["parent"].connect (() => {
-                        if (panel_widget.parent == null) {
-                            document_manager.close_document (file);
-                        }
-                    });
-                    document_manager.documents.set (doc_info.uri, panel_widget);
+            // var file = GLib.File.new_for_uri (doc_info.uri);
+            // if (!file.query_exists (null)) {
+            // continue;
+            // }
 
-                    this.add_widget (panel_widget, pos);
+            // var buffer = new GtkSource.Buffer (null);
+            // var source_file = new GtkSource.File ();
+            // source_file.location = file;
+            // var file_loader = new GtkSource.FileLoader (buffer, source_file);
 
-                    string content = buffer.text;
-                    var lsp_manager = Iide.IdeLspManager.get_instance ();
-                    string? lang_id = lsp_manager.get_language_id_for_file (file);
-                    if (lang_id != null) {
-                        string? workspace_root = project_manager.get_workspace_root_path ();
-                        lsp_manager.open_document.begin (doc_info.uri, lang_id, content, workspace_root);
-                        var logger = LoggerService.get_instance ();
-                        logger.info ("Settings", "restore " + doc_info.uri + " (" + lang_id + ")--> " + workspace_root);
-                    }
+            // var pos = new Panel.Position ();
+            // pos.area = Panel.Area.CENTER;
+            // pos.column = doc_info.column;
+            // pos.row = doc_info.row;
 
-                    panel_widget.raise ();
-                    panel_widget.view_grab_focus ();
-                } catch (Error e) {
-                    warning ("Failed to load file %s: %s", file.get_path (), e.message);
-                }
-            });
+            // file_loader.load_async.begin (Priority.DEFAULT, null, null, (obj, res) => {
+            // try {
+            // file_loader.load_async.end (res);
+            // var panel_widget = new Iide.TextView (file, buffer);
+            // panel_widget.notify["parent"].connect (() => {
+            // if (panel_widget.parent == null) {
+            // document_manager.close_document (file);
+            // }
+            // });
+            // document_manager.documents.set (doc_info.uri, panel_widget);
+
+            // this.add_widget (panel_widget, pos);
+
+            // string content = buffer.text;
+            // var lsp_manager = Iide.IdeLspManager.get_instance ();
+            // string? lang_id = lsp_manager.get_language_id_for_file (file);
+            // if (lang_id != null) {
+            // string? workspace_root = project_manager.get_workspace_root_path ();
+            // lsp_manager.open_document.begin (doc_info.uri, lang_id, content, workspace_root);
+            // var logger = LoggerService.get_instance ();
+            // logger.info ("Settings", "restore " + doc_info.uri + " (" + lang_id + ")--> " + workspace_root);
+            // }
+
+            // panel_widget.raise ();
+            // panel_widget.view_grab_focus ();
+            // } catch (Error e) {
+            // warning ("Failed to load file %s: %s", file.get_path (), e.message);
+            // }
+            // });
         }
     }
 

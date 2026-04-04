@@ -65,11 +65,11 @@ public class Iide.DocumentManager : GLib.Object {
     public signal void document_opened (TextView document);
     public signal void document_closed (string uri);
 
-    public Panel.Widget? open_document (GLib.File file, Iide.Window window) {
-        return open_document_with_selection (file, window, -1, -1, -1);
+    public Panel.Widget? open_document (GLib.File file, Iide.Window window, Panel.Position ? pos) {
+        return open_document_with_selection (file, window, -1, -1, -1, pos);
     }
 
-    public Panel.Widget? open_document_with_selection (GLib.File file, Iide.Window window, int line, int start_col, int end_col) {
+    public Panel.Widget? open_document_with_selection (GLib.File file, Iide.Window window, int line, int start_col, int end_col, Panel.Position ? pos) {
         string uri = file.get_uri ();
 
         logger.debug ("Doc", "Open document: " + uri + " / HAS_KEY: " + (documents.has_key (uri) ? "YES" : "NO"));
@@ -109,22 +109,27 @@ public class Iide.DocumentManager : GLib.Object {
                     });
 
                     documents.set (uri, panel_widget);
-                    message ("DocumentManager: added document %s, total documents: %d", uri, documents.size);
-                    document_opened (panel_widget);
+                    if (pos == null) {
+                        window.grid.add (panel_widget);
+                    } else {
+                        window.add_widget (panel_widget, pos);
+                    }
+                    panel_widget.raise ();
+                    panel_widget.view_grab_focus ();
+                    logger.debug ("Doc", "Document panel widget created: " + uri);
+
+                    if (line >= 0) {
+                        // TODO: with timeout...
+                        panel_widget.select_and_scroll (line, start_col, end_col);
+                    }
 
                     string content = buffer.text;
                     string? lang_id = lsp_manager.get_language_id_for_file (file);
                     if (lang_id != null) {
                         lsp_manager.open_document.begin (uri, lang_id, content, current_workspace_root);
                     }
-
-                    if (line >= 0) {
-                        panel_widget.select_and_scroll (line, start_col, end_col);
-                    }
                 } catch (Error e) {
-                    var dialog = new Adw.AlertDialog ("Error Opening File", "Failed to read file %s: %s".printf (file.get_path (), e.message));
-                    dialog.add_response ("ok", "OK");
-                    dialog.present (window);
+                    logger.error ("Doc", "Error Opening File", "Failed to read file %s: %s".printf (file.get_path (), e.message));
                 }
             });
             return panel_widget;
@@ -164,7 +169,7 @@ public class Iide.DocumentManager : GLib.Object {
     public void open_document_by_uri (string uri, Iide.Window window) {
         var file = GLib.File.new_for_uri (uri);
         if (file.query_exists (null)) {
-            open_document (file, window);
+            open_document (file, window, null);
         }
     }
 }

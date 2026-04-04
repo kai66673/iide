@@ -53,10 +53,10 @@ public class Iide.SearchInFilesDialog : Adw.Window {
 
         public ResultGroup (string file_path, string file_name, string relative_path, int result_count) {
             Object (
-                file_path: file_path,
-                file_name: file_name,
-                relative_path: relative_path,
-                result_count: result_count
+                    file_path: file_path,
+                    file_name: file_name,
+                    relative_path: relative_path,
+                    result_count: result_count
             );
         }
 
@@ -193,8 +193,8 @@ public class Iide.SearchInFilesDialog : Adw.Window {
 
     private void navigate_up () {
         var current = (int) selection.selected;
-        if (current <= 0) return;
-        
+        if (current <= 0)return;
+
         for (int i = current - 1; i >= 0; i--) {
             if (filtered_items[i] is SearchResult) {
                 selection.selected = i;
@@ -207,8 +207,8 @@ public class Iide.SearchInFilesDialog : Adw.Window {
     private void navigate_down () {
         var current = (int) selection.selected;
         var max = (int) string_list.get_n_items () - 1;
-        if (current >= max) return;
-        
+        if (current >= max)return;
+
         for (int i = current + 1; i < filtered_items.size; i++) {
             if (filtered_items[i] is SearchResult) {
                 selection.selected = i;
@@ -245,18 +245,18 @@ public class Iide.SearchInFilesDialog : Adw.Window {
 
         filtered_items = new Gee.ArrayList<ListItem> ();
         foreach (var entry in results_by_file) {
-            if (filtered_items.size >= MAX_RESULTS) break;
+            if (filtered_items.size >= MAX_RESULTS)break;
 
             var group = new ResultGroup (
-                entry.key,
-                entry.value[0].file_name,
-                entry.value[0].relative_path,
-                entry.value.size
+                                         entry.key,
+                                         entry.value[0].file_name,
+                                         entry.value[0].relative_path,
+                                         entry.value.size
             );
             filtered_items.add (group);
 
             foreach (var result in entry.value) {
-                if (filtered_items.size >= MAX_RESULTS) break;
+                if (filtered_items.size >= MAX_RESULTS)break;
                 filtered_items.add (result);
             }
         }
@@ -293,14 +293,14 @@ public class Iide.SearchInFilesDialog : Adw.Window {
             if (item is SearchResult) {
                 var result = item as SearchResult;
                 var file = GLib.File.new_for_path (result.file_path);
-                
+
                 var query_lower = current_query.down ();
                 var line_lower = result.line_content.down ();
                 var pos = line_lower.index_of (query_lower);
                 var start_col = pos >= 0 ? pos : 0;
                 var end_col = pos >= 0 ? pos + (int) current_query.length : start_col;
-                
-                document_manager.open_document_with_selection (file, parent_window, result.line_number, start_col, end_col);
+
+                document_manager.open_document_with_selection (file, parent_window, result.line_number, start_col, end_col, null);
                 this.close ();
             }
         }
@@ -371,12 +371,12 @@ public class Iide.SearchInFilesDialog : Adw.Window {
 
             while ((line = dis.read_line ()) != null) {
                 all_items.add (new SearchResult (
-                    file_path,
-                    file.get_basename (),
-                    relative_path,
-                    line_num,
-                    line.strip (),
-                    0, 0
+                                                 file_path,
+                                                 file.get_basename (),
+                                                 relative_path,
+                                                 line_num,
+                                                 line.strip (),
+                                                 0, 0
                 ));
                 line_num++;
             }
