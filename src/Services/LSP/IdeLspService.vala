@@ -41,8 +41,8 @@ public class IdeLspService : GLib.Object {
     }
 
     private void init_language_configs () {
-        language_configs.set ("python", new LanguageConfig ("pylsp", new string[0]));
-        language_configs.set ("python3", new LanguageConfig ("pylsp", new string[0]));
+        language_configs.set ("python", new LanguageConfig ("basedpyright-langserver", { "--stdio" }));
+        language_configs.set ("python3", new LanguageConfig ("basedpyright-langserver", { "--stdio" }));
         language_configs.set ("cpp", new LanguageConfig ("clangd", new string[0]));
         language_configs.set ("c++", new LanguageConfig ("clangd", new string[0]));
         language_configs.set ("c", new LanguageConfig ("clangd", new string[0]));

@@ -44,7 +44,7 @@ public class Iide.ProjectManager : Object {
     private void init_default_language_configs () {
         language_configs.set ("c", new LanguageConfig ("c", { "clangd" }, { "*.c", "*.h" }));
         language_configs.set ("cpp", new LanguageConfig ("cpp", { "clangd" }, { "*.cpp", "*.cc", "*.cxx", "*.hpp", "*.hxx", "*.h" }));
-        language_configs.set ("python", new LanguageConfig ("python", { "pylsp" }, { "*.py" }));
+        language_configs.set ("python", new LanguageConfig ("python", { "basedpyright-langserver", "--stdio" }, { "*.py" }));
         language_configs.set ("rust", new LanguageConfig ("rust", { "rust-analyzer" }, { "*.rs" }));
         language_configs.set ("go", new LanguageConfig ("go", { "gopls" }, { "*.go" }));
         language_configs.set ("typescript", new LanguageConfig ("typescript", { "typescript-language-server", "--stdio" }, { "*.ts", "*.tsx" }));
