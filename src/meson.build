@@ -9,6 +9,7 @@ iide_sources = [
     'Widgets/ToolViews/TerminalView.vala',
     'Widgets/ToolViews/LogView.vala',
     'Widgets/PreferencesDialog.vala',
+    'Widgets/FuzzyFinderDialog.vala',
     'Services/Utils.vala',
     'Services/LoggerService.vala',
     'Services/DocumentManager.vala',

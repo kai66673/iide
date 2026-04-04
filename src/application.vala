@@ -46,6 +46,7 @@ public class Iide.Application : Adw.Application {
         action_manager.register_action (new OpenProjectAction (this));
         action_manager.register_action (new PreferencesAction (this));
         action_manager.register_action (new ToggleMinimapAction (this));
+        action_manager.register_action (new FuzzyFinderAction (this));
         action_manager.register_action (new ZoomInAction ());
         action_manager.register_action (new ZoomOutAction ());
         action_manager.register_action (new ZoomResetAction ());
@@ -272,5 +273,32 @@ private class QuitAction : Iide.Action {
     public override void execute () {
         var app = GLib.Application.get_default () as Iide.Application;
         app?.quit ();
+    }
+}
+
+private class FuzzyFinderAction : Iide.Action {
+    private weak Iide.Application app;
+
+    public FuzzyFinderAction (Iide.Application app) {
+        this.app = app;
+    }
+
+    public override string id { get { return "fuzzy_finder"; } }
+    public override string name { get { return _("Quick Open"); } }
+    public override string? description { get { return _("Open a file quickly by name"); } }
+    public override string? icon_name { get { return "system-search-symbolic"; } }
+    public override string? category { get { return "File"; } }
+
+    public override bool can_execute () {
+        return app?.active_window is Iide.Window;
+    }
+
+    public override void execute () {
+        var win = app?.active_window as Iide.Window;
+        if (win != null) {
+            var dialog = new Iide.FuzzyFinderDialog (win, win.get_document_manager ());
+            dialog.set_transient_for (win);
+            dialog.present ();
+        }
     }
 }

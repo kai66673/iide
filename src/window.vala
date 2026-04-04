@@ -55,6 +55,7 @@ public class Iide.Window : Panel.DocumentWorkspace {
 
         var menu = new GLib.Menu ();
         menu.append (_("Open Project"), "app.open_project");
+        menu.append (_("Quick Open"), "app.fuzzy_finder");
         menu.append (_("Save All"), "app.save");
         menu.append (_("Preferences"), "app.preferences");
         menu.append (_("About"), "app.about");
@@ -485,5 +486,9 @@ public class Iide.Window : Panel.DocumentWorkspace {
 
     public void open_project_dialog () {
         project_manager.open_project_dialog.begin (this);
+    }
+
+    public Iide.DocumentManager get_document_manager () {
+        return document_manager;
     }
 }
