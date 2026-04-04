@@ -56,6 +56,7 @@ public class Iide.Window : Panel.DocumentWorkspace {
         var menu = new GLib.Menu ();
         menu.append (_("Open Project"), "app.open_project");
         menu.append (_("Quick Open"), "app.fuzzy_finder");
+        menu.append (_("Search in Files"), "app.search_in_files");
         menu.append (_("Save All"), "app.save");
         menu.append (_("Preferences"), "app.preferences");
         menu.append (_("About"), "app.about");

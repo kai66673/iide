@@ -64,11 +64,18 @@ public class Iide.DocumentManager : GLib.Object {
     public signal void document_closed (string uri);
 
     public Panel.Widget? open_document (GLib.File file, Gtk.Window window) {
+        return open_document_with_selection (file, window, -1, -1, -1);
+    }
+
+    public Panel.Widget? open_document_with_selection (GLib.File file, Gtk.Window window, int line, int start_col, int end_col) {
         string uri = file.get_uri ();
         if (documents.has_key (uri)) {
             var widget = documents.get (uri);
             widget.raise ();
             widget.view_grab_focus ();
+            if (line >= 0) {
+                widget.select_and_scroll (line, start_col, end_col);
+            }
             return widget;
         } else {
             var buffer = new GtkSource.Buffer (null);
@@ -104,6 +111,10 @@ public class Iide.DocumentManager : GLib.Object {
                     string? lang_id = lsp_manager.get_language_id_for_file (file);
                     if (lang_id != null) {
                         lsp_manager.open_document.begin (uri, lang_id, content, current_workspace_root);
+                    }
+
+                    if (line >= 0) {
+                        panel_widget.select_and_scroll (line, start_col, end_col);
                     }
                 } catch (Error e) {
                     var dialog = new Adw.AlertDialog ("Error Opening File", "Failed to read file %s: %s".printf (file.get_path (), e.message));

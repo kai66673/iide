@@ -26,6 +26,7 @@ public class Iide.ShortcutSettings : Object {
         shortcuts_cache.set ("preferences", "<primary>comma");
         shortcuts_cache.set ("toggle_minimap", "<primary>m");
         shortcuts_cache.set ("fuzzy_finder", "<primary>p");
+        shortcuts_cache.set ("search_in_files", "<primary><shift>f");
         shortcuts_cache.set ("zoom_in", "<primary>plus");
         shortcuts_cache.set ("zoom_out", "<primary>minus");
         shortcuts_cache.set ("zoom_reset", "<primary>0");

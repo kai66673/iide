@@ -380,6 +380,23 @@ public class Iide.TextView : Panel.Widget {
             return true;
         }
 
-        return false; // Ничего не показывать
+        return false;
+    }
+
+    public void select_and_scroll (int line, int start_col, int end_col) {
+        var buffer = _text_view.buffer;
+        
+        if (line >= buffer.get_line_count ()) {
+            return;
+        }
+
+        Gtk.TextIter start_iter;
+        buffer.get_iter_at_line_offset (out start_iter, line, start_col);
+
+        Gtk.TextIter end_iter;
+        buffer.get_iter_at_line_offset (out end_iter, line, end_col);
+
+        buffer.select_range (start_iter, end_iter);
+        _text_view.scroll_to_iter (start_iter, 0.0, true, 0.5, 1.0);
     }
 }

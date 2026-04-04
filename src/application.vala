@@ -47,6 +47,7 @@ public class Iide.Application : Adw.Application {
         action_manager.register_action (new PreferencesAction (this));
         action_manager.register_action (new ToggleMinimapAction (this));
         action_manager.register_action (new FuzzyFinderAction (this));
+        action_manager.register_action (new SearchInFilesAction (this));
         action_manager.register_action (new ZoomInAction ());
         action_manager.register_action (new ZoomOutAction ());
         action_manager.register_action (new ZoomResetAction ());
@@ -297,6 +298,33 @@ private class FuzzyFinderAction : Iide.Action {
         var win = app?.active_window as Iide.Window;
         if (win != null) {
             var dialog = new Iide.FuzzyFinderDialog (win, win.get_document_manager ());
+            dialog.set_transient_for (win);
+            dialog.present ();
+        }
+    }
+}
+
+private class SearchInFilesAction : Iide.Action {
+    private weak Iide.Application app;
+
+    public SearchInFilesAction (Iide.Application app) {
+        this.app = app;
+    }
+
+    public override string id { get { return "search_in_files"; } }
+    public override string name { get { return _("Search in Files"); } }
+    public override string? description { get { return _("Search for text in all project files"); } }
+    public override string? icon_name { get { return "edit-find-symbolic"; } }
+    public override string? category { get { return "Edit"; } }
+
+    public override bool can_execute () {
+        return app?.active_window is Iide.Window;
+    }
+
+    public override void execute () {
+        var win = app?.active_window as Iide.Window;
+        if (win != null) {
+            var dialog = new Iide.SearchInFilesDialog (win, win.get_document_manager ());
             dialog.set_transient_for (win);
             dialog.present ();
         }
