@@ -45,7 +45,7 @@ public class IdeLspClient : GLib.Object {
         read_buffer = new uint8[65536];
     }
 
-    public async bool start_server (string command, string[] args, string? workspace_root) {
+    public async bool start_server (string command, string[] args, string? workspace_root, Json.Node? initialization_options = null) {
         this.workspace_root = workspace_root;
 
         try {
@@ -66,7 +66,7 @@ public class IdeLspClient : GLib.Object {
             });
 
             SourceFunc cont = start_server.callback;
-            var init_params = build_init_params (workspace_root);
+            var init_params = build_init_params (workspace_root, initialization_options);
             
             new Thread<void> ("lsp-init", () => {
                 var json = build_request_json ("initialize", init_params);
@@ -150,7 +150,7 @@ public class IdeLspClient : GLib.Object {
         }
     }
 
-    private Json.Node build_init_params (string? workspace_root) {
+    private Json.Node build_init_params (string? workspace_root, Json.Node? initialization_options = null) {
         var builder = new Json.Builder ();
         builder.begin_object ();
         builder.set_member_name ("processId");
@@ -162,24 +162,41 @@ public class IdeLspClient : GLib.Object {
         builder.set_member_name ("version");
         builder.add_string_value ("0.1.0");
         builder.end_object ();
+        builder.set_member_name ("rootUri");
+        if (workspace_root != null) {
+            builder.add_string_value (workspace_root);
+        } else {
+            builder.add_null_value ();
+        }
+        builder.set_member_name ("workspaceFolders");
+        builder.begin_array ();
+        if (workspace_root != null) {
+            builder.begin_object ();
+            builder.set_member_name ("uri");
+            builder.add_string_value (workspace_root);
+            builder.set_member_name ("name");
+            builder.add_string_value ("workspace");
+            builder.end_object ();
+        }
+        builder.end_array ();
         builder.set_member_name ("capabilities");
         builder.begin_object ();
-
         builder.set_member_name ("textDocument");
         builder.begin_object ();
         builder.set_member_name ("syncKind");
-        builder.begin_object ();
-        builder.set_member_name ("textDocumentSync");
         builder.add_int_value (1);
         builder.end_object ();
         builder.end_object ();
-        builder.end_object ();
-
         builder.set_member_name ("workspace");
         builder.begin_object ();
         builder.set_member_name ("workspaceFolders");
         builder.add_boolean_value (true);
         builder.end_object ();
+        builder.end_object ();
+        if (initialization_options != null) {
+            builder.set_member_name ("initializationOptions");
+            builder.add_value (initialization_options.copy ());
+        }
         builder.end_object ();
 
         return builder.get_root ();
