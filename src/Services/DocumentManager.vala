@@ -65,11 +65,11 @@ public class Iide.DocumentManager : GLib.Object {
     public signal void document_opened (TextView document);
     public signal void document_closed (string uri);
 
-    public Panel.Widget? open_document (GLib.File file, Gtk.Window window) {
+    public Panel.Widget? open_document (GLib.File file, Iide.Window window) {
         return open_document_with_selection (file, window, -1, -1, -1);
     }
 
-    public Panel.Widget? open_document_with_selection (GLib.File file, Gtk.Window window, int line, int start_col, int end_col) {
+    public Panel.Widget? open_document_with_selection (GLib.File file, Iide.Window window, int line, int start_col, int end_col) {
         string uri = file.get_uri ();
 
         logger.debug ("Doc", "Open document: " + uri + " / HAS_KEY: " + (documents.has_key (uri) ? "YES" : "NO"));
@@ -161,57 +161,10 @@ public class Iide.DocumentManager : GLib.Object {
         return uris;
     }
 
-    public void open_document_by_uri (string uri, Gtk.Window window) {
+    public void open_document_by_uri (string uri, Iide.Window window) {
         var file = GLib.File.new_for_uri (uri);
         if (file.query_exists (null)) {
             open_document (file, window);
-        }
-    }
-
-    public void open_documents_by_uris (Gee.List<string> uris, Gee.List<uint?> column_indices, owned Panel.Grid grid, Gtk.Window window) {
-        uint? last_column = null;
-        uint current_col_index = 0;
-
-        for (int i = 0; i < uris.size; i++) {
-            var uri = uris.get (i);
-            if (i < column_indices.size && column_indices.get (i) != null) {
-                current_col_index = column_indices.get (i);
-            }
-
-            var file = GLib.File.new_for_uri (uri);
-            if (!file.query_exists (null)) {
-                continue;
-            }
-
-            string file_uri = uri;
-            var buffer = new GtkSource.Buffer (null);
-            var source_file = new GtkSource.File ();
-            source_file.location = file;
-
-            var file_loader = new GtkSource.FileLoader (buffer, source_file);
-            file_loader.load_async.begin (Priority.DEFAULT, null, null, (obj, res) => {
-                try {
-                    file_loader.load_async.end (res);
-                    var panel_widget = new Iide.TextView (file, buffer);
-                    panel_widget.notify["parent"].connect (() => {
-                        if (panel_widget.parent == null) {
-                            close_document (file);
-                        }
-                    });
-                    documents.set (file_uri, panel_widget);
-                    document_opened (panel_widget);
-
-                    string content = buffer.text;
-                    string? lang_id = lsp_manager.get_language_id_for_file (file);
-                    if (lang_id != null) {
-                        lsp_manager.open_document.begin (file_uri, lang_id, content, current_workspace_root);
-                    }
-                } catch (Error e) {
-                    warning ("Failed to load file %s: %s", file.get_path (), e.message);
-                }
-            });
-
-            last_column = current_col_index;
         }
     }
 }
