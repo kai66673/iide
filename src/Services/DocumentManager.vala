@@ -29,6 +29,8 @@ public class Iide.DocumentManager : GLib.Object {
     private Iide.IdeLspManager lsp_manager;
     private string? current_workspace_root;
 
+    private LoggerService logger = LoggerService.get_instance ();
+
     public DocumentManager () {
         documents = new Gee.HashMap<string, TextView> ();
         lsp_manager = Iide.IdeLspManager.get_instance ();
@@ -69,6 +71,9 @@ public class Iide.DocumentManager : GLib.Object {
 
     public Panel.Widget? open_document_with_selection (GLib.File file, Gtk.Window window, int line, int start_col, int end_col) {
         string uri = file.get_uri ();
+
+        logger.debug ("Doc", "Open document: " + uri + " / HAS_KEY: " + (documents.has_key (uri) ? "YES" : "NO"));
+
         if (documents.has_key (uri)) {
             var widget = documents.get (uri);
             widget.raise ();

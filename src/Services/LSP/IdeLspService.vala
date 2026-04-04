@@ -1,9 +1,7 @@
 using GLib;
 using Gee;
 
-namespace Iide {
-
-public class IdeLspService : GLib.Object {
+public class Iide.IdeLspService : GLib.Object {
     private static IdeLspService? _instance;
     private Gee.HashMap<string, IdeLspClient> clients;
     private Gee.HashMap<string, string> uri_to_client_key;
@@ -11,6 +9,8 @@ public class IdeLspService : GLib.Object {
     private Gee.HashMap<string, bool> client_starting;
     private Gee.ArrayList<PendingOpen> pending_opens;
     private Gee.HashMap<string, LanguageConfig> language_configs;
+
+    private LoggerService logger = LoggerService.get_instance ();
 
     public signal void diagnostics_updated (string uri, ArrayList<IdeLspDiagnostic> diagnostics);
 
@@ -82,7 +82,8 @@ public class IdeLspService : GLib.Object {
             var client = clients.get (server_key);
             uri_to_client_key.set (uri, server_key);
             document_versions.set (uri, 1);
-            client.text_document_did_open (uri, language_id, 1, content);
+            yield client.text_document_did_open (uri, language_id, 1, content);
+
             return;
         }
 
@@ -113,9 +114,9 @@ public class IdeLspService : GLib.Object {
             clients.set (server_key, client);
             uri_to_client_key.set (uri, server_key);
             document_versions.set (uri, 1);
-            client.text_document_did_open (uri, language_id, 1, content);
+            yield client.text_document_did_open (uri, language_id, 1, content);
 
-            process_pending_opens ();
+            yield process_pending_opens ();
         } else {
             warning ("IdeLspService: Failed to start LSP server for %s", server_key);
         }
@@ -137,6 +138,8 @@ public class IdeLspService : GLib.Object {
 
     public async void change_document (string uri, string content, int? change_start = null, int? change_end = null) {
         var server_key = uri_to_client_key.get (uri);
+
+        logger.debug ("LSP", "Changed doc: " + uri + " / server_key: " + server_key);
         if (server_key == null || !clients.has_key (server_key)) {
             return;
         }
@@ -145,7 +148,7 @@ public class IdeLspService : GLib.Object {
         var version = document_versions.get (uri);
         document_versions.set (uri, version + 1);
 
-        client.text_document_did_change (uri, version + 1, content, change_start, change_end);
+        yield client.text_document_did_change (uri, version + 1, content, change_start, change_end);
     }
 
     public async void close_document (string uri) {
@@ -155,13 +158,13 @@ public class IdeLspService : GLib.Object {
         }
 
         var client = clients.get (server_key);
-        client.text_document_did_close (uri);
+        yield client.text_document_did_close (uri);
 
         uri_to_client_key.unset (uri);
         document_versions.unset (uri);
     }
 
-    private string? get_server_key_for_language (string language_id) {
+    private string ? get_server_key_for_language (string language_id) {
         if (language_configs.has_key (language_id)) {
             return language_id;
         }
@@ -183,7 +186,7 @@ public class IdeLspService : GLib.Object {
         language_configs.set (language_id, new LanguageConfig (command, args, workspace_root));
     }
 
-    public IdeLspClient? get_client_for_uri (string uri) {
+    public IdeLspClient ? get_client_for_uri (string uri) {
         var server_key = uri_to_client_key.get (uri);
         if (server_key == null) {
             return null;
@@ -197,6 +200,4 @@ public class IdeLspService : GLib.Object {
         }
         clients.clear ();
     }
-}
-
 }
