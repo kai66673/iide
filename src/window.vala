@@ -28,7 +28,10 @@ public class Iide.Window : Panel.DocumentWorkspace {
     private Iide.ProjectManager project_manager;
     private Iide.SettingsService settings;
 
-    public Window (Gtk.Application app) { Object (application: app); }
+    public Window (Gtk.Application app) {
+        Object (application: app);
+        GtkSource.init ();
+    }
 
     construct {
         settings = Iide.SettingsService.get_instance ();
