@@ -402,7 +402,7 @@ private void test_integration_didopen_didchange_diagnostics () {
 
     client.initialized.connect (() => {
         print ("Client initialized, sending didOpen...\n");
-        client.text_document_did_open (test_uri, "c", 1, initial_content);
+        client.text_document_did_open.begin (test_uri, "c", 1, initial_content);
     });
 
     client.diagnostics_received.connect ((uri, diagnostics) => {
@@ -413,7 +413,7 @@ private void test_integration_didopen_didchange_diagnostics () {
         if (diagnostics_count == 1) {
             first_diag_received = true;
             print ("First diagnostics (after didOpen) received, sending didChange...\n");
-            client.text_document_did_change (test_uri, 2, updated_content, null, null);
+            client.text_document_did_change.begin (test_uri, 2, updated_content, null, null);
         } else if (diagnostics_count >= 2) {
             print ("Second diagnostics (after didChange) received\n");
             main_loop.quit ();

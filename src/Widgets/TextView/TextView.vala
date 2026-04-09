@@ -98,7 +98,7 @@ public class Iide.TextView : Panel.Widget {
         // Настройки для борьбы с багами геометрии
         completion.show_icons = false; // Упрощаем попап, чтобы не ломать размеры
         completion.remember_info_visibility = false;
-        var provider = new OldLspCompletionProvider (this);
+        var provider = new LspCompletionProvider (this);
 
         completion.add_provider (provider);
 

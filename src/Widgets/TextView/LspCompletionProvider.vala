@@ -54,11 +54,11 @@ namespace Iide {
         }
     }
 
-    public class OldLspCompletionProvider : GLib.Object, CompletionProvider {
+    public class LspCompletionProvider : GLib.Object, CompletionProvider {
         private weak Iide.TextView text_view;
         private IdeLspService lsp_service;
 
-        public OldLspCompletionProvider (Iide.TextView view) {
+        public LspCompletionProvider (Iide.TextView view) {
             this.text_view = view;
             this.lsp_service = IdeLspService.get_instance ();
         }

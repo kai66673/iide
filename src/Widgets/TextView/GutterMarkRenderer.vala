@@ -56,25 +56,22 @@ public class Iide.GutterMarkRenderer : GutterRenderer {
         }
 
         var theme = Gtk.IconTheme.get_for_display (display);
-        try {
-            var gicon = new GLib.ThemedIcon (icon_name_to_draw);
-            var paintable = theme.lookup_by_gicon (gicon, current_icon_size, 1, Gtk.TextDirection.NONE, 0);
-            if (paintable == null) {
-                return;
-            }
-
-            int y, height;
-            lines.get_line_yrange (line, GutterRendererAlignmentMode.CELL, out y, out height);
-
-            var snapshot_size = (float) current_icon_size;
-            var x = (float) xpad;
-            var y_pos = (float) y + ((float) height - snapshot_size) / 2.0f;
-
-            var point = Graphene.Point () { x = x, y = y_pos };
-            snapshot.translate (point);
-            paintable.snapshot (snapshot, snapshot_size, snapshot_size);
-            snapshot.translate (Graphene.Point () { x = -x, y = -y_pos });
-        } catch (Error e) {
+        var gicon = new GLib.ThemedIcon (icon_name_to_draw);
+        var paintable = theme.lookup_by_gicon (gicon, current_icon_size, 1, Gtk.TextDirection.NONE, 0);
+        if (paintable == null) {
+            return;
         }
+
+        int y, height;
+        lines.get_line_yrange (line, GutterRendererAlignmentMode.CELL, out y, out height);
+
+        var snapshot_size = (float) current_icon_size;
+        var x = (float) xpad;
+        var y_pos = (float) y + ((float) height - snapshot_size) / 2.0f;
+
+        var point = Graphene.Point () { x = x, y = y_pos };
+        snapshot.translate (point);
+        paintable.snapshot (snapshot, snapshot_size, snapshot_size);
+        snapshot.translate (Graphene.Point () { x = -x, y = -y_pos });
     }
 }

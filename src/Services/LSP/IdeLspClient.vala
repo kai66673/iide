@@ -263,64 +263,6 @@ public class Iide.IdeLspClient : GLib.Object {
         return builder.get_root ();
     }
 
-    private async string ? send_request (string method, Json.Node? params) {
-        int id = (int) next_request_id++;
-
-        var builder = new Json.Builder ();
-        builder.begin_object ();
-        builder.set_member_name ("jsonrpc");
-        builder.add_string_value ("2.0");
-        builder.set_member_name ("id");
-        builder.add_int_value (id);
-        builder.set_member_name ("method");
-        builder.add_string_value (method);
-        builder.set_member_name ("params");
-        if (params != null) {
-            builder.add_value (params);
-        } else {
-            builder.begin_object ();
-            builder.end_object ();
-        }
-        builder.end_object ();
-
-        var generator = new Json.Generator ();
-        generator.root = builder.get_root ();
-        string json = generator.to_data (null);
-
-        yield send_message (json);
-
-        // Use GLib.Idle to frequently check for response without blocking
-        return yield wait_for_response (id);
-    }
-
-    private async string ? wait_for_response (int id) {
-        var source = new TimeoutSource (5000);
-        source.set_callback (() => {
-            wait_for_response.callback ();
-            return Source.REMOVE;
-        });
-        source.attach (MainContext.get_thread_default ());
-
-        // Check periodically until we get response or timeout
-        while (true) {
-            if (pending_responses.has_key (id)) {
-                var result = pending_responses.get (id);
-                pending_responses.unset (id);
-                return result;
-            }
-
-            // Brief yield to allow event processing
-            yield sleep (50);
-
-            // Check again after yield
-            if (pending_responses.has_key (id)) {
-                var result = pending_responses.get (id);
-                pending_responses.unset (id);
-                return result;
-            }
-        }
-    }
-
     private async void send_notification (string method, Json.Node? params) {
         var builder = new Json.Builder ();
         builder.begin_object ();
@@ -427,7 +369,12 @@ public class Iide.IdeLspClient : GLib.Object {
 
             // Обработка документации (может быть строкой или объектом MarkupContent)
             if (item_obj.has_member ("documentation")) {
-                item.documentation = item_obj.get_string_member ("documentation");
+                var doc_node = item_obj.get_member ("documentation");
+                if (doc_node.get_node_type () == Json.NodeType.OBJECT) {
+                    item.documentation = doc_node.get_object ().get_string_member ("value");
+                } else {
+                    item.documentation = item_obj.get_string_member ("documentation");
+                }
             }
 
             result.items.add (item);
@@ -652,15 +599,6 @@ public class Iide.IdeLspClient : GLib.Object {
         builder.end_object ();
 
         yield send_notification ("textDocument/didClose", builder.get_root ());
-    }
-
-    private async bool sleep (uint ms) {
-        var source = new TimeoutSource (ms);
-        source.set_callback (() => {
-            return Source.REMOVE;
-        });
-        source.attach (MainContext.get_thread_default ());
-        return true;
     }
 
     public void shutdown () {
