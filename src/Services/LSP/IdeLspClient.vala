@@ -521,100 +521,42 @@ namespace Iide {
         private bool reader_started = false;
 
         private void read_loop () {
-            if (stdout_stream == null) {
-                warning ("LSP: stdout_stream is null in read_loop");
-                return;
-            }
+            var data_stream = new DataInputStream (stdout_stream);
+            // Важно: LSP использует CRLF (\r\n)
+            data_stream.set_newline_type (DataStreamNewlineType.CR_LF);
 
-            reader_started = true;
-            uint8[] buffer = new uint8[65536];
-            while (!shutting_down) {
-                try {
-                    size_t bytes_read = stdout_stream.read (buffer);
-                    if (bytes_read == 0) {
-                        if (!shutting_down) {
-                            warning ("LSP: stdout read returned 0, process may have exited");
+            try {
+                while (true) {
+                    size_t content_length = 0;
+
+                    // 1. Читаем заголовки до пустой строки
+                    string line;
+                    while ((line = data_stream.read_line (null)) != null && line != "") {
+                        if (line.has_prefix ("Content-Length:")) {
+                            content_length = (size_t) uint64.parse (line.replace ("Content-Length:", "").strip ());
                         }
-                        break;
                     }
 
-                    if (buffer_used + bytes_read > read_buffer.length) {
-                        buffer_used = 0;
-                    }
+                    if (content_length == 0)continue;
 
-                    for (size_t i = 0; i < bytes_read; i++) {
-                        read_buffer[buffer_used++] = buffer[i];
-                    }
+                    // 2. Читаем ровно content_length байт тела сообщения
+                    uint8[] buffer = new uint8[content_length];
+                    size_t bytes_read;
+                    data_stream.read_all (buffer, out bytes_read);
 
-                    process_read_buffer ();
-                } catch (Error e) {
-                    if (!shutting_down) {
-                        warning ("LSP read error: %s", e.message);
-                    }
-                    break;
-                }
-            }
-            reader_started = false;
-        }
+                    if (bytes_read > 0) {
+                        string json_data = (string) buffer;
+                        json_data = json_data.substring (0, (int) bytes_read);
 
-        private void process_read_buffer () {
-            while (buffer_used > 0) {
-                int header_end = -1;
-                int body_start = -1;
-                int content_length = -1;
-
-                for (int i = 0; i < buffer_used - 3; i++) {
-                    if (read_buffer[i] == '\r' && read_buffer[i + 1] == '\n' &&
-                        read_buffer[i + 2] == '\r' && read_buffer[i + 3] == '\n') {
-                        header_end = i;
-                        body_start = i + 4;
-                        break;
+                        // Передаем обработку в основной поток (Main Loop)
+                        Idle.add (() => {
+                            handle_message (json_data);
+                            return false;
+                        });
                     }
                 }
-
-                if (header_end == -1) {
-                    if (buffer_used > 4096) {
-                        warning ("LSP: no header found in %lu bytes", buffer_used);
-                        buffer_used = 0;
-                    }
-                    return;
-                }
-
-                var header_slice = (string) read_buffer[0 : header_end];
-                string header = (!) header_slice;
-                string[] lines = header.split ("\r\n");
-                foreach (var line in lines) {
-                    if (line.has_prefix ("Content-Length: ")) {
-                        content_length = int.parse (line.substring (15));
-                    }
-                }
-
-                if (content_length <= 0) {
-                    warning ("LSP: no Content-Length");
-                    buffer_used = 0;
-                    return;
-                }
-
-                if (buffer_used < body_start + content_length) {
-                    return;
-                }
-
-                var body_bytes = new uint8[content_length + 1];
-                for (int i = 0; i < content_length; i++) {
-                    body_bytes[i] = read_buffer[body_start + i];
-                }
-                body_bytes[content_length] = 0;
-                string body = (string) body_bytes;
-
-                var remaining = buffer_used - (body_start + content_length);
-                if (remaining > 0) {
-                    for (size_t i = 0; i < remaining; i++) {
-                        read_buffer[i] = read_buffer[body_start + content_length + i];
-                    }
-                }
-                buffer_used = remaining;
-
-                handle_message (body);
+            } catch (Error e) {
+                warning ("LSP Read Error: %s", e.message);
             }
         }
 
