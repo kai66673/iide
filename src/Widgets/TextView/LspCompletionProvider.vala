@@ -102,9 +102,9 @@ namespace Iide {
         }
 
         public virtual void display (CompletionContext context, CompletionProposal proposal, CompletionCell cell) {
-            var p = (MyProposal) proposal;
+            var p = (LspCompletionProposal) proposal;
             if (cell.column == CompletionColumn.TYPED_TEXT) {
-                cell.text = p.label;
+                cell.text = p.item.label;
             }
         }
 

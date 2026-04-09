@@ -94,13 +94,13 @@ public class Iide.TextView : Panel.Widget {
         _text_view = new GtkSource.View.with_buffer (buffer);
         font_zoomer = new FontZoomer (_text_view);
 
-        // var completion = _text_view.get_completion ();
-        //// Настройки для борьбы с багами геометрии
-        // completion.show_icons = false; // Упрощаем попап, чтобы не ломать размеры
-        // completion.remember_info_visibility = false;
-        // var provider = new OldLspCompletionProvider (this);
+        var completion = _text_view.get_completion ();
+        // Настройки для борьбы с багами геометрии
+        completion.show_icons = false; // Упрощаем попап, чтобы не ломать размеры
+        completion.remember_info_visibility = false;
+        var provider = new OldLspCompletionProvider (this);
 
-        // completion.add_provider (provider);
+        completion.add_provider (provider);
 
         // Connect to application-level zoom and minimap changes
         var app = GLib.Application.get_default () as Iide.Application;

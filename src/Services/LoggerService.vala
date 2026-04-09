@@ -19,6 +19,8 @@
  * SPDX-License-Identifier: GPL-3.0-or-later
  */
 
+using GLib;
+
 public enum Iide.LogLevel {
     DEBUG,
     INFO,
@@ -28,23 +30,23 @@ public enum Iide.LogLevel {
 
     public string to_string () {
         switch (this) {
-            case DEBUG:    return "DEBUG";
-            case INFO:     return "INFO";
-            case WARNING:  return "WARN";
-            case ERROR:    return "ERROR";
-            case CRITICAL: return "CRITICAL";
-            default:       return "UNKNOWN";
+        case DEBUG:    return "DEBUG";
+        case INFO:     return "INFO";
+        case WARNING:  return "WARN";
+        case ERROR:    return "ERROR";
+        case CRITICAL: return "CRITICAL";
+        default:       return "UNKNOWN";
         }
     }
 
     public string get_color () {
         switch (this) {
-            case DEBUG:    return "#888888";
-            case INFO:     return "#4a9eff";
-            case WARNING:  return "#f5a623";
-            case ERROR:    return "#e74c3c";
-            case CRITICAL: return "#ff4757";
-            default:       return "#ffffff";
+        case DEBUG:    return "#888888";
+        case INFO:     return "#4a9eff";
+        case WARNING:  return "#f5a623";
+        case ERROR:    return "#e74c3c";
+        case CRITICAL: return "#ff4757";
+        default:       return "#ffffff";
         }
     }
 }
@@ -84,7 +86,7 @@ public class Iide.LoggerService : Object {
     private LoggerService () {
         entries = new Gee.ArrayList<Iide.LogEntry> ();
         log_file = File.new_for_path (
-            Path.build_filename (Environment.get_user_data_dir (), "iide", "iide.log")
+                                      Path.build_filename (Environment.get_user_data_dir (), "iide", "iide.log")
         );
         try {
             var dir = log_file.get_parent ();
@@ -97,7 +99,7 @@ public class Iide.LoggerService : Object {
     }
 
     public void log (LogLevel level, string domain, string message, string? details = null) {
-        if (!enable_logging) return;
+        if (!enable_logging)return;
 
         var entry = new Iide.LogEntry () {
             timestamp = (int64) get_real_time (),
