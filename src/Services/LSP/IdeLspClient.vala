@@ -62,12 +62,19 @@ public class Iide.IdeLspCompletionResult : GLib.Object {
     public bool is_incomplete { get; set; default = false; }
 }
 
-
 private class Iide.CallbackWrapper {
     public SourceFunc callback;
     public CallbackWrapper (owned SourceFunc cb) {
         this.callback = (owned) cb;
     }
+}
+
+public class Iide.IdeLspLocation : GLib.Object {
+    public string uri { get; set; }
+    public int start_line { get; set; }
+    public int start_column { get; set; }
+    public int end_line { get; set; }
+    public int end_column { get; set; }
 }
 
 public class Iide.IdeLspClient : GLib.Object {
@@ -606,5 +613,73 @@ public class Iide.IdeLspClient : GLib.Object {
         if (process != null) {
             process.force_exit ();
         }
+    }
+
+    public async Gee.ArrayList<IdeLspLocation>? request_definition (string uri, int line, int character) {
+        int id = (int) next_request_id;
+
+        var builder = new Json.Builder ();
+        builder.begin_object ();
+        builder.set_member_name ("textDocument");
+        builder.begin_object ();
+        builder.set_member_name ("uri");
+        builder.add_string_value (uri);
+        builder.end_object ();
+
+        builder.set_member_name ("position");
+        builder.begin_object ();
+        builder.set_member_name ("line");
+        builder.add_int_value (line);
+        builder.set_member_name ("character");
+        builder.add_int_value (character);
+        builder.end_object ();
+        builder.end_object ();
+
+        var json = build_request_json ("textDocument/definition", builder.get_root ());
+
+        // Используем ваш CallbackWrapper
+        pending_callbacks.set (id, new CallbackWrapper (request_definition.callback));
+        send_message_sync (json);
+
+        yield; // Ждем ответа от handle_response
+
+        var response = response_data.get (id);
+        response_data.unset (id);
+
+        if (response == null || !response.has_member ("result") || response.get_member ("result").get_node_type () == Json.NodeType.NULL) {
+            return null;
+        }
+
+        return parse_definition_result (response.get_member ("result"));
+    }
+
+    private Gee.ArrayList<IdeLspLocation> parse_definition_result (Json.Node node) {
+        var locations = new Gee.ArrayList<IdeLspLocation> ();
+
+        if (node.get_node_type () == Json.NodeType.ARRAY) {
+            node.get_array ().foreach_element ((array, index, item_node) => {
+                locations.add (parse_single_location (item_node.get_object ()));
+            });
+        } else if (node.get_node_type () == Json.NodeType.OBJECT) {
+            locations.add (parse_single_location (node.get_object ()));
+        }
+
+        return locations;
+    }
+
+    private IdeLspLocation parse_single_location (Json.Object obj) {
+        var loc = new IdeLspLocation ();
+        loc.uri = obj.get_string_member ("uri");
+
+        var range = obj.get_object_member ("range");
+        var start = range.get_object_member ("start");
+        var end = range.get_object_member ("end");
+
+        loc.start_line = (int) start.get_int_member ("line");
+        loc.start_column = (int) start.get_int_member ("character");
+        loc.end_line = (int) end.get_int_member ("line");
+        loc.end_column = (int) end.get_int_member ("character");
+
+        return loc;
     }
 }

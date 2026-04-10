@@ -91,7 +91,7 @@ public class Iide.DocumentManager : GLib.Object {
             file_loader.load_async.begin (Priority.DEFAULT, null, null, (obj, res) => {
                 try {
                     file_loader.load_async.end (res);
-                    panel_widget = new Iide.TextView (file, buffer);
+                    panel_widget = new Iide.TextView (file, buffer, this);
 
                     panel_widget.notify["parent"].connect (() => {
                         if (panel_widget.parent == null) {

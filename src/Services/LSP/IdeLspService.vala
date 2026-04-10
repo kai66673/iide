@@ -201,11 +201,17 @@ public class Iide.IdeLspService : GLib.Object {
         clients.clear ();
     }
 
-    public async IdeLspCompletionResult? request_completion (string uri, int line, int character, string? trigger_character = null) {
+    public async IdeLspCompletionResult ? request_completion (string uri, int line, int character, string? trigger_character = null) {
         var client = get_client_for_uri (uri);
         if (client == null) {
             return null;
         }
         return yield client.request_completion (uri, line, character, trigger_character);
+    }
+
+    public async Gee.ArrayList<IdeLspLocation>? goto_definition (string uri, int line, int character) {
+        var client = get_client_for_uri (uri);
+        if (client == null)return null;
+        return yield client.request_definition (uri, line, character);
     }
 }

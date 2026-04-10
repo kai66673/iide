@@ -56,6 +56,7 @@ public class Iide.TextView : Panel.Widget {
     private FontZoomer font_zoomer;
     private Iide.SettingsService settings;
     private GutterMarkRenderer mark_renderer;
+    private DocumentManager document_manager;
 
     public GtkSource.LanguageManager manager;
     public string uri { get; private set; }
@@ -66,9 +67,10 @@ public class Iide.TextView : Panel.Widget {
     public signal void text_changed (string text);
     public signal void buffer_saved ();
 
-    public TextView (GLib.File file, GtkSource.Buffer buffer) {
+    public TextView (GLib.File file, GtkSource.Buffer buffer, DocumentManager document_manager) {
         Object ();
         this.uri = file.get_uri ();
+        this.document_manager = document_manager;
         this.ts_manager = new TreeSitterManager ();
         this.ts_highlighter = null;
         this.settings = Iide.SettingsService.get_instance ();
@@ -238,6 +240,17 @@ public class Iide.TextView : Panel.Widget {
 
         _text_view.has_tooltip = true;
         _text_view.query_tooltip.connect (on_query_tooltip);
+
+        // Создаем контроллер для кликов
+        var click_gest = new Gtk.GestureClick ();
+        // Указываем, что хотим ловить все кнопки, либо только левую (1)
+        click_gest.set_button (1);
+
+        // Подключаем сигнал нажатия
+        click_gest.pressed.connect (on_click_pressed);
+
+        // Добавляем контроллер к виджету
+        _text_view.add_controller (click_gest);
     }
 
     public override void size_allocate (int width, int height, int baseline) {
@@ -406,5 +419,38 @@ public class Iide.TextView : Panel.Widget {
 
         buffer.select_range (start_iter, end_iter);
         _text_view.scroll_to_iter (start_iter, 0.0, true, 0.5, 1.0);
+    }
+
+    private void on_click_pressed (Gtk.GestureClick gesture, int n_press, double x, double y) {
+        // Получаем состояние модификаторов через основной контроллер
+        var modifiers = gesture.get_current_event_state ();
+
+        if ((modifiers & Gdk.ModifierType.CONTROL_MASK) != 0) {
+            Gtk.TextIter iter;
+            // В GTK4 координаты в сигнале уже относительны виджета
+            // Переводим их в координаты буфера (с учетом прокрутки)
+            int buf_x, buf_y;
+            _text_view.window_to_buffer_coords (Gtk.TextWindowType.WIDGET, (int) x, (int) y, out buf_x, out buf_y);
+
+            if (_text_view.get_iter_at_location (out iter, buf_x, buf_y)) {
+                _text_view.get_buffer ().place_cursor (iter);
+
+                // Запускаем асинхронный переход
+                handle_ctrl_click_async.begin (iter.get_line (), iter.get_line_offset ());
+            }
+        }
+    }
+
+    private async void handle_ctrl_click_async (int line, int col) {
+        var lsp_service = IdeLspService.get_instance ();
+        var locations = yield lsp_service.goto_definition (uri, line, col);
+
+        if (locations == null || locations.size == 0) {
+            LoggerService.get_instance ().warning ("LSP", "No locations found for goto definition");
+            return;
+        }
+
+        var loc = locations.get (0);
+        LoggerService.get_instance ().warning ("LSP", "TODO: goto definition");
     }
 }
