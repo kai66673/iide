@@ -35,7 +35,7 @@ public class Iide.Window : Panel.DocumentWorkspace {
 
     construct {
         settings = Iide.SettingsService.get_instance ();
-        document_manager = new Iide.DocumentManager ();
+        document_manager = new Iide.DocumentManager (this);
         project_manager = Iide.ProjectManager.get_instance ();
         document_manager.document_opened.connect ((widget) => {
             grid.add (widget);
@@ -275,7 +275,7 @@ public class Iide.Window : Panel.DocumentWorkspace {
         // Handle file activation to open documents
         folder_view.file_activated.connect ((item) => {
             if (!item.is_directory) {
-                document_manager.open_document (item.file, this, null);
+                document_manager.open_document (item.file, null);
             }
         });
 
@@ -415,7 +415,7 @@ public class Iide.Window : Panel.DocumentWorkspace {
             pos.area = Panel.Area.CENTER;
             pos.column = doc_info.column;
             pos.row = doc_info.row;
-            document_manager.open_document (file, this, pos);
+            document_manager.open_document (file, pos);
         }
     }
 

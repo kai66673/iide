@@ -300,7 +300,7 @@ public class Iide.SearchInFilesDialog : Adw.Window {
                 var start_col = pos >= 0 ? pos : 0;
                 var end_col = pos >= 0 ? pos + (int) current_query.length : start_col;
 
-                document_manager.open_document_with_selection (file, parent_window, result.line_number, start_col, end_col, null);
+                document_manager.open_document_with_selection (file, result.line_number, start_col, end_col, null);
                 this.close ();
             }
         }

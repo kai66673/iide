@@ -25,13 +25,15 @@ using Gtk;
 using Panel;
 
 public class Iide.DocumentManager : GLib.Object {
+    public Window window;
     public Gee.HashMap<string, TextView> documents;
     private Iide.IdeLspManager lsp_manager;
     private string? current_workspace_root;
 
     private LoggerService logger = LoggerService.get_instance ();
 
-    public DocumentManager () {
+    public DocumentManager (Window window) {
+        this.window = window;
         documents = new Gee.HashMap<string, TextView> ();
         lsp_manager = Iide.IdeLspManager.get_instance ();
 
@@ -65,11 +67,11 @@ public class Iide.DocumentManager : GLib.Object {
     public signal void document_opened (TextView document);
     public signal void document_closed (string uri);
 
-    public Panel.Widget? open_document (GLib.File file, Iide.Window window, Panel.Position ? pos) {
-        return open_document_with_selection (file, window, -1, -1, -1, pos);
+    public Panel.Widget? open_document (GLib.File file, Panel.Position ? pos) {
+        return open_document_with_selection (file, -1, -1, -1, pos);
     }
 
-    public Panel.Widget? open_document_with_selection (GLib.File file, Iide.Window window, int line, int start_col, int end_col, Panel.Position ? pos) {
+    public Panel.Widget? open_document_with_selection (GLib.File file, int line, int start_col, int end_col, Panel.Position ? pos) {
         string uri = file.get_uri ();
 
         logger.debug ("Doc", "Open document: " + uri + " / HAS_KEY: " + (documents.has_key (uri) ? "YES" : "NO"));
@@ -91,7 +93,7 @@ public class Iide.DocumentManager : GLib.Object {
             file_loader.load_async.begin (Priority.DEFAULT, null, null, (obj, res) => {
                 try {
                     file_loader.load_async.end (res);
-                    panel_widget = new Iide.TextView (file, buffer, this);
+                    panel_widget = new Iide.TextView (file, buffer, window);
 
                     panel_widget.notify["parent"].connect (() => {
                         if (panel_widget.parent == null) {
@@ -169,7 +171,7 @@ public class Iide.DocumentManager : GLib.Object {
     public void open_document_by_uri (string uri, Iide.Window window) {
         var file = GLib.File.new_for_uri (uri);
         if (file.query_exists (null)) {
-            open_document (file, window, null);
+            open_document (file, null);
         }
     }
 }

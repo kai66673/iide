@@ -56,9 +56,9 @@ public class Iide.TextView : Panel.Widget {
     private FontZoomer font_zoomer;
     private Iide.SettingsService settings;
     private GutterMarkRenderer mark_renderer;
-    private DocumentManager document_manager;
 
     public GtkSource.LanguageManager manager;
+    public Window window;
     public string uri { get; private set; }
     public GtkSource.View text_view { get { return _text_view; } }
 
@@ -67,10 +67,10 @@ public class Iide.TextView : Panel.Widget {
     public signal void text_changed (string text);
     public signal void buffer_saved ();
 
-    public TextView (GLib.File file, GtkSource.Buffer buffer, DocumentManager document_manager) {
+    public TextView (GLib.File file, GtkSource.Buffer buffer, Window window) {
         Object ();
         this.uri = file.get_uri ();
-        this.document_manager = document_manager;
+        this.window = window;
         this.ts_manager = new TreeSitterManager ();
         this.ts_highlighter = null;
         this.settings = Iide.SettingsService.get_instance ();
@@ -451,6 +451,6 @@ public class Iide.TextView : Panel.Widget {
         }
 
         var loc = locations.get (0);
-        LoggerService.get_instance ().warning ("LSP", "TODO: goto definition");
+        window.get_document_manager ().open_document_with_selection (File.new_for_uri (loc.uri), loc.start_line, loc.start_column, loc.end_column, null);
     }
 }

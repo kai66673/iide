@@ -244,7 +244,7 @@ public class Iide.FuzzyFinderDialog : Adw.Window {
         if (index >= 0 && index < filtered_files.size) {
             var entry = filtered_files[index];
             var file = GLib.File.new_for_path (entry.path);
-            document_manager.open_document (file, parent_window, null);
+            document_manager.open_document (file, null);
             this.close ();
         }
     }
