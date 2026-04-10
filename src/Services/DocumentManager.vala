@@ -81,7 +81,7 @@ public class Iide.DocumentManager : GLib.Object {
             widget.raise ();
             widget.view_grab_focus ();
             if (line >= 0) {
-                widget.select_and_scroll (line, start_col, end_col);
+                widget.select_and_scroll (line, start_col, end_col, false);
             }
             return widget;
         } else {
@@ -122,7 +122,7 @@ public class Iide.DocumentManager : GLib.Object {
 
                     if (line >= 0) {
                         // TODO: with timeout...
-                        panel_widget.select_and_scroll (line, start_col, end_col);
+                        panel_widget.select_and_scroll (line, start_col, end_col, true);
                     }
 
                     string content = buffer.text;

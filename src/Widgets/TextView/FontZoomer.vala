@@ -6,11 +6,11 @@ public class FontZoomer : Object {
     private View src_view;
     private int zoom_level;
     private Iide.SettingsService settings;
-    public signal void zoom_changed (int level);
+    public signal void zoom_changed(int level);
 
     public FontZoomer(View src_view) {
         this.src_view = src_view;
-        this.settings = Iide.SettingsService.get_instance ();
+        this.settings = Iide.SettingsService.get_instance();
 
         if (!this.src_view.has_css_class("text-view")) {
             this.src_view.add_css_class("text-view");
@@ -25,7 +25,7 @@ public class FontZoomer : Object {
         var scroll_controller = new EventControllerScroll(EventControllerScrollFlags.VERTICAL);
         scroll_controller.scroll.connect((dx, dy) => {
             var event = scroll_controller.get_current_event();
-            if (event == null) return false;
+            if (event == null)return false;
 
             var modifiers = event.get_modifier_state();
             if ((modifiers & Gdk.ModifierType.CONTROL_MASK) != 0) {
@@ -48,7 +48,7 @@ public class FontZoomer : Object {
             zoom_level++;
             src_view.add_css_class("zoom-" + zoom_level.to_string());
             settings.editor_font_size = zoom_level;
-            zoom_changed (zoom_level);
+            zoom_changed(zoom_level);
         }
     }
 
@@ -58,7 +58,7 @@ public class FontZoomer : Object {
             zoom_level--;
             src_view.add_css_class("zoom-" + zoom_level.to_string());
             settings.editor_font_size = zoom_level;
-            zoom_changed (zoom_level);
+            zoom_changed(zoom_level);
         }
     }
 
@@ -67,23 +67,23 @@ public class FontZoomer : Object {
         zoom_level = FontSizeHelper.DEFAULT_ZOOM_LEVEL;
         src_view.add_css_class("zoom-" + zoom_level.to_string());
         settings.editor_font_size = zoom_level;
-        zoom_changed (zoom_level);
+        zoom_changed(zoom_level);
     }
 
-    public void set_zoom_level (int level) {
+    public void set_zoom_level(int level) {
         if (level < FontSizeHelper.MIN_ZOOM_LEVEL || level > FontSizeHelper.MAX_ZOOM_LEVEL) {
             return;
         }
         if (zoom_level == level) {
             return;
         }
-        src_view.remove_css_class ("zoom-" + zoom_level.to_string ());
+        src_view.remove_css_class("zoom-" + zoom_level.to_string());
         zoom_level = level;
-        src_view.add_css_class ("zoom-" + zoom_level.to_string ());
-        zoom_changed (zoom_level);
+        src_view.add_css_class("zoom-" + zoom_level.to_string());
+        zoom_changed(zoom_level);
     }
 
-    public int get_zoom_level () {
+    public int get_zoom_level() {
         return zoom_level;
     }
 }

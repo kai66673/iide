@@ -55,11 +55,11 @@ namespace Iide {
     }
 
     public class LspCompletionProvider : GLib.Object, CompletionProvider {
-        private weak Iide.TextView text_view;
+        private weak SourceView source_view;
         private IdeLspService lsp_service;
 
-        public LspCompletionProvider (Iide.TextView view) {
-            this.text_view = view;
+        public LspCompletionProvider (SourceView view) {
+            this.source_view = view;
             this.lsp_service = IdeLspService.get_instance ();
         }
 
@@ -73,18 +73,18 @@ namespace Iide {
         public virtual async GLib.ListModel populate_async (CompletionContext context, GLib.Cancellable? cancellable) throws GLib.Error {
             var store = new GLib.ListStore (typeof (LspCompletionProposal));
 
-            if (text_view == null) {
+            if (source_view == null) {
                 return store;
             }
 
-            var buffer = text_view.text_view.buffer;
+            var buffer = source_view.buffer;
             var insert_mark = buffer.get_insert ();
             TextIter iter;
             buffer.get_iter_at_mark (out iter, insert_mark);
 
             int line = iter.get_line ();
             int character = iter.get_line_offset ();
-            string uri = text_view.uri;
+            string uri = source_view.uri;
 
             var result = yield lsp_service.request_completion (uri, line, character);
 

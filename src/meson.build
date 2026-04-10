@@ -3,6 +3,7 @@ iide_sources = [
     'application.vala',
     'window.vala',
     'Widgets/TextView/TextView.vala',
+    'Widgets/TextView/SourceView.vala',
     'Widgets/TextView/FontZoomer.vala',
     'Widgets/TextView/GutterMarkRenderer.vala',
     'Widgets/TextView/LspCompletionProvider.vala',
