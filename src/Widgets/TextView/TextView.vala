@@ -49,16 +49,16 @@ public class Iide.SaveDelegate : Panel.SaveDelegate {
 }
 
 public class Iide.TextView : Panel.Widget {
-    private SourceView _text_view;
+    private SourceView source_view;
     private GtkSource.Map source_map;
     private FontZoomer font_zoomer;
     private Iide.SettingsService settings;
 
     public Window window;
     public string uri { get; private set; }
-    public GtkSource.View text_view { get { return _text_view; } }
+    public GtkSource.View text_view { get { return source_view; } }
 
-    public bool is_modified { get { return ((GtkSource.Buffer) _text_view.buffer).get_modified (); } }
+    public bool is_modified { get { return ((GtkSource.Buffer) source_view.buffer).get_modified (); } }
 
     public signal void text_changed (string text);
     public signal void buffer_saved ();
@@ -86,9 +86,9 @@ public class Iide.TextView : Panel.Widget {
             }
         });
 
-        _text_view = new SourceView (window, uri, buffer);
-        icon_name = _text_view.icon_name;
-        font_zoomer = new FontZoomer (_text_view);
+        source_view = new SourceView (window, uri, buffer);
+        icon_name = source_view.icon_name;
+        font_zoomer = new FontZoomer (source_view);
 
         // Connect to application-level zoom and minimap changes
         var app = GLib.Application.get_default () as Iide.Application;
@@ -114,19 +114,19 @@ public class Iide.TextView : Panel.Widget {
         });
 
         source_map = new GtkSource.Map ();
-        source_map.set_view (_text_view);
+        source_map.set_view (source_view);
         source_map.add_css_class ("textview-map");
         source_map.visible = settings.show_minimap;
 
         font_zoomer.zoom_changed.connect ((level) => {
-            _text_view.mark_renderer.set_icons_size (FontSizeHelper.get_size_for_zoom_level (level));
+            source_view.mark_renderer.set_icons_size (FontSizeHelper.get_size_for_zoom_level (level));
         });
 
         var scroll = new Gtk.ScrolledWindow ();
         scroll.hexpand = true;
         scroll.vexpand = true;
 
-        scroll.set_child (_text_view);
+        scroll.set_child (source_view);
 
         scroll.get_vadjustment ().bind_property ("value",
                                                  source_map.get_vadjustment (), "value",
@@ -168,15 +168,15 @@ public class Iide.TextView : Panel.Widget {
     }
 
     public void view_grab_focus () {
-        _text_view.grab_focus ();
+        source_view.grab_focus ();
     }
 
     public bool save () {
         try {
-            var text = _text_view.buffer.text;
+            var text = source_view.buffer.text;
             var file = GLib.File.new_for_uri (uri);
             file.replace_contents (text.data, null, false, GLib.FileCreateFlags.NONE, null);
-            ((GtkSource.Buffer) _text_view.buffer).set_modified (false);
+            ((GtkSource.Buffer) source_view.buffer).set_modified (false);
             buffer_saved ();
         } catch (Error e) {
             critical (e.message);
@@ -185,11 +185,11 @@ public class Iide.TextView : Panel.Widget {
     }
 
     public void update_diagnostics (Gee.ArrayList<IdeLspDiagnostic> diagnostics) {
-        var text_buffer = (Gtk.TextBuffer) _text_view.buffer;
+        var text_buffer = (Gtk.TextBuffer) source_view.buffer;
 
         text_buffer.begin_user_action ();
 
-        LspDiagnosticsMark.clear_mark_attributes (_text_view);
+        LspDiagnosticsMark.clear_mark_attributes (source_view);
 
         int line_count = text_buffer.get_line_count ();
 
@@ -209,6 +209,6 @@ public class Iide.TextView : Panel.Widget {
     }
 
     public void select_and_scroll (int line, int start_col, int end_col, bool is_new) {
-        _text_view.select_and_scroll (line, start_col, end_col, is_new);
+        source_view.select_and_scroll (line, start_col, end_col, is_new);
     }
 }
