@@ -120,6 +120,7 @@ COPYING
 meson.build
 org.github.kai66673.iide.json
 README.md
+repomix-output.pdf
 ```
 
 # Files
@@ -2060,273 +2061,6 @@ public class Iide.ValaTreeSitterHighlighter : BaseTreeSitterHighlighter {
 }
 ```
 
-## File: src/Widgets/TextView/SourceView.vala
-```
-public class Iide.SourceView : GtkSource.View {
-    public Window window;
-    public string uri { get; private set; }
-    private Iide.TreeSitterManager ts_manager;
-    public BaseTreeSitterHighlighter? ts_highlighter;
-    public GutterMarkRenderer mark_renderer;
-    public string icon_name = "text-x-generic";
-    private Gtk.TextIter? pending_scroll_iter = null;
-
-    public SourceView (Window window, string uri, GtkSource.Buffer buffer) {
-        Object (buffer : buffer);
-        this.window = window;
-        this.uri = uri;
-        this.ts_manager = new TreeSitterManager ();
-        this.ts_highlighter = null;
-
-        // LSP-complete
-        var completion = get_completion ();
-        completion.show_icons = false; // Упрощаем попап, чтобы не ломать размеры
-        completion.remember_info_visibility = false;
-        var provider = new LspCompletionProvider (this);
-        completion.add_provider (provider);
-
-        // Build extra menu for context menu
-        var zoom_section = new GLib.Menu ();
-        zoom_section.append (_("Zoom In"), "app.zoom_in");
-        zoom_section.append (_("Zoom Out"), "app.zoom_out");
-        zoom_section.append (_("Reset Zoom"), "app.zoom_reset");
-
-        var view_section = new GLib.Menu ();
-        view_section.append (_("Minimap"), "app.toggle_minimap");
-
-        var extra_menu = new GLib.Menu ();
-        extra_menu.append_section (null, zoom_section);
-        extra_menu.append_section (null, view_section);
-        this.extra_menu = extra_menu;
-
-        var settings = Iide.SettingsService.get_instance ();
-
-        show_line_numbers = settings.show_line_numbers;
-        highlight_current_line = settings.highlight_current_line;
-        auto_indent = settings.auto_indent;
-        indent_on_tab = true;
-
-        // Marks gutter
-        set_show_line_marks (false);
-        var left_gutter = get_gutter (Gtk.TextWindowType.LEFT);
-        left_gutter.visible = true;
-
-        mark_renderer = new GutterMarkRenderer ();
-        mark_renderer.set_icons_size (FontSizeHelper.get_size_for_zoom_level (settings.editor_font_size));
-        left_gutter.insert (mark_renderer, 0);
-
-        LspDiagnosticsMark.set_mark_attributes (this);
-
-        // Connect to settings changes to apply to all open documents
-        settings.editor_setting_changed.connect ((key) => {
-            switch (key) {
-                case "show-line-numbers" :
-                    show_line_numbers = settings.show_line_numbers;
-                    break;
-                case "highlight-current-line":
-                    highlight_current_line = settings.highlight_current_line;
-                    break;
-                case "auto-indent":
-                    auto_indent = settings.auto_indent;
-                    break;
-            }
-        });
-
-        // SpaceDrawer
-        var space_drawer = get_space_drawer ();
-
-        // 2. Устанавливаем типы отображаемых символов
-        space_drawer.set_enable_matrix (true);
-        space_drawer.set_types_for_locations (
-                                              GtkSource.SpaceLocationFlags.ALL,
-                                              GtkSource.SpaceTypeFlags.NONE
-        );
-        space_drawer.set_types_for_locations (
-                                              GtkSource.SpaceLocationFlags.LEADING | GtkSource.SpaceLocationFlags.TRAILING,
-                                              GtkSource.SpaceTypeFlags.SPACE | GtkSource.SpaceTypeFlags.TAB
-        );
-
-        // Tree-sitter
-        detect_language ();
-        ts_highlighter = ts_manager.get_ts_highlighter (this);
-        if (ts_highlighter != null) {
-            ((GtkSource.Buffer) (buffer)).highlight_syntax = false;
-        }
-
-        // LSP-tooltips
-        has_tooltip = true;
-        query_tooltip.connect (on_query_tooltip);
-
-        // Control-click controller (goto definition)
-        var click_gest = new Gtk.GestureClick ();
-        click_gest.set_button (1);
-        click_gest.pressed.connect (on_click_pressed);
-        add_controller (click_gest);
-
-        buffer.set_modified (false);
-    }
-
-    public GtkSource.Language? language {
-        set {
-            ((GtkSource.Buffer) buffer).language = value;
-        }
-        get {
-            return ((GtkSource.Buffer) buffer).language;
-        }
-    }
-
-    public void detect_language () {
-        var manager = GtkSource.LanguageManager.get_default ();
-        var file = GLib.File.new_for_uri (uri);
-
-        string mime_type = mime_type_for_file (file);
-        message ("MIME: _ " + mime_type);
-
-        icon_name = IconProvider.get_mime_type_icon_name (mime_type);
-        language = manager.guess_language (file.get_path (), mime_type);
-
-        // Fake file type detection
-        // "Not all files are equal"
-        if (file.get_basename () == "CMakeLists.txt") {
-            language = manager.get_language ("cmake");
-            icon_name = "text-x-cmake"; // Specific icon for CMake
-        }
-    }
-
-    private bool on_query_tooltip (int x, int y, bool keyboard_mode, Gtk.Tooltip tooltip) {
-        Gtk.TextIter iter;
-
-        // Преобразуем координаты окна в координаты буфера
-        int buffer_x, buffer_y;
-        window_to_buffer_coords (Gtk.TextWindowType.WIDGET, x, y, out buffer_x, out buffer_y);
-
-        // Получаем итератор в месте курсора мыши
-        if (!get_iter_at_location (out iter, buffer_x, buffer_y)) {
-            return false;
-        }
-
-        // Ищем маркеры в этой строке (по категории "error")
-        var buffer = (GtkSource.Buffer) buffer;
-        var marks = buffer.get_source_marks_at_line (iter.get_line (), null);
-
-        if (marks == null) {
-            return false;
-        }
-
-        var sb = new StringBuilder ();
-
-        string separator = "";
-        for (int i = 0; i < 40; i++)separator += "─";
-
-        foreach (var mark in marks) {
-            var lsp_mark = mark as LspDiagnosticsMark;
-            if (lsp_mark == null) {
-                continue;
-            }
-
-            string icon;
-            string header_color;
-
-            switch (lsp_mark.severity) {
-            case 1 :
-                icon = "❌";
-                header_color = "#F44336"; // Красный
-                break;
-            case 2:
-                icon = "⚠️";
-                header_color = "#FF9800"; // Оранжевый
-                break;
-            case 3:
-            case 4:
-                icon = "ℹ️";
-                header_color = "#2196F3"; // Синий
-                break;
-            default:
-                icon = "❌";
-                header_color = "#F44336"; // Красный
-                break;
-            }
-
-            if (sb.len > 0) {
-                sb.append ("\n" + separator + "\n");
-            }
-
-            // Заголовок и основное сообщение
-            sb.append_printf ("%s <span font_weight='bold' foreground='%s'>%s</span>\n",
-                              icon, header_color, lsp_mark.category.up ());
-            sb.append_printf ("<span>%s</span>", GLib.Markup.escape_text (lsp_mark.diagnostic_message));
-        }
-
-        if (sb.len > 0) {
-            tooltip.set_markup (sb.str);
-            return true;
-        }
-
-        return false;
-    }
-
-    private void on_click_pressed (Gtk.GestureClick gesture, int n_press, double x, double y) {
-        // Получаем состояние модификаторов через основной контроллер
-        var modifiers = gesture.get_current_event_state ();
-
-        if ((modifiers & Gdk.ModifierType.CONTROL_MASK) != 0) {
-            Gtk.TextIter iter;
-            // В GTK4 координаты в сигнале уже относительны виджета
-            // Переводим их в координаты буфера (с учетом прокрутки)
-            int buf_x, buf_y;
-            window_to_buffer_coords (Gtk.TextWindowType.WIDGET, (int) x, (int) y, out buf_x, out buf_y);
-
-            if (get_iter_at_location (out iter, buf_x, buf_y)) {
-                get_buffer ().place_cursor (iter);
-
-                // Запускаем асинхронный переход
-                handle_ctrl_click_async.begin (iter.get_line (), iter.get_line_offset ());
-            }
-        }
-    }
-
-    private async void handle_ctrl_click_async (int line, int col) {
-        var lsp_service = IdeLspService.get_instance ();
-        var locations = yield lsp_service.goto_definition (uri, line, col);
-
-        if (locations == null || locations.size == 0) {
-            LoggerService.get_instance ().warning ("LSP", "No locations found for goto definition");
-            return;
-        }
-
-        var loc = locations.get (0);
-        window.get_document_manager ().open_document_with_selection (File.new_for_uri (loc.uri), loc.start_line, loc.start_column, loc.end_column, null);
-    }
-
-    public void select_and_scroll (int line, int start_col, int end_col, bool is_new) {
-        if (line >= buffer.get_line_count ()) {
-            return;
-        }
-
-        Gtk.TextIter start_iter;
-        buffer.get_iter_at_line_offset (out start_iter, line, start_col);
-
-        Gtk.TextIter end_iter;
-        buffer.get_iter_at_line_offset (out end_iter, line, end_col);
-
-        buffer.select_range (start_iter, end_iter);
-        scroll_to_iter (start_iter, 0.0, true, 0.5, 0.5);
-        pending_scroll_iter = null;
-        if (is_new) {
-            pending_scroll_iter = start_iter;
-        }
-    }
-
-    public override void size_allocate (int width, int height, int baseline) {
-        base.size_allocate (width, height, baseline);
-        if (pending_scroll_iter != null) {
-            scroll_to_iter (pending_scroll_iter, 0.0, true, 0.5, 0.5);
-            pending_scroll_iter = null;
-        }
-    }
-}
-```
-
 ## File: src/config.vapi
 ```
 [CCode (cprefix = "", lower_case_cprefix = "", cheader_filename = "config.h")]
@@ -3243,6 +2977,396 @@ namespace Iide {
             print ("Файл успешно скопирован в: %s\n", local_path);
         } catch (Error e) {
             stderr.printf ("Ошибка при копировании: %s\n", e.message);
+        }
+    }
+}
+```
+
+## File: src/Widgets/TextView/SourceView.vala
+```
+public class Iide.WordRange {
+    public int line;
+    public int start_column;
+    public int end_column;
+
+    public WordRange (int line, int start_column, int end_column) {
+        this.line = line;
+        this.start_column = start_column;
+        this.end_column = end_column;
+    }
+
+    public bool is_equal (WordRange? other) {
+        if (other == null) {
+            return false;
+        }
+        return line == other.line && start_column == other.start_column && end_column == other.end_column;
+    }
+}
+
+public class Iide.LspTooltipWidget : Gtk.Box {
+    private Gtk.Label label;
+    private Gtk.Spinner spinner;
+
+    public LspTooltipWidget () {
+        Object (
+                orientation: Gtk.Orientation.HORIZONTAL,
+                spacing: 6,
+                margin_top: 8,
+                margin_bottom: 8,
+                margin_start: 8,
+                margin_end: 8
+        );
+
+        spinner = new Gtk.Spinner ();
+        label = new Gtk.Label ("Загрузка...");
+        label.use_markup = true;
+        label.wrap = true;
+        label.max_width_chars = 60;
+
+        append (spinner);
+        append (label);
+        spinner.start ();
+    }
+
+    public void update_text (string? text, bool show_spinner) {
+        if (show_spinner) {
+            spinner.start ();
+            spinner.show ();
+        } else {
+            spinner.stop ();
+            spinner.hide ();
+        }
+
+        if (text != null && text != "") {
+            label.set_markup (text);
+        } else {
+            label.set_text ("Нет информации");
+        }
+    }
+}
+
+
+public class Iide.SourceView : GtkSource.View {
+    public Window window;
+    public string uri { get; private set; }
+    private Iide.TreeSitterManager ts_manager;
+    public BaseTreeSitterHighlighter? ts_highlighter;
+    public GutterMarkRenderer mark_renderer;
+    public string icon_name = "text-x-generic";
+    private Gtk.TextIter? pending_scroll_iter = null;
+
+    private WordRange? last_hover_range = null;
+    private LspTooltipWidget tooltip_widget;
+    private string tooltip_separator = "────────────────────────────────────────";
+
+    public SourceView (Window window, string uri, GtkSource.Buffer buffer) {
+        Object (buffer : buffer);
+        this.window = window;
+        this.uri = uri;
+        this.ts_manager = new TreeSitterManager ();
+        this.ts_highlighter = null;
+
+        this.tooltip_widget = new LspTooltipWidget ();
+
+        // LSP-complete
+        var completion = get_completion ();
+        completion.show_icons = false; // Упрощаем попап, чтобы не ломать размеры
+        completion.remember_info_visibility = false;
+        var provider = new LspCompletionProvider (this);
+        completion.add_provider (provider);
+
+        // Build extra menu for context menu
+        var zoom_section = new GLib.Menu ();
+        zoom_section.append (_("Zoom In"), "app.zoom_in");
+        zoom_section.append (_("Zoom Out"), "app.zoom_out");
+        zoom_section.append (_("Reset Zoom"), "app.zoom_reset");
+
+        var view_section = new GLib.Menu ();
+        view_section.append (_("Minimap"), "app.toggle_minimap");
+
+        var extra_menu = new GLib.Menu ();
+        extra_menu.append_section (null, zoom_section);
+        extra_menu.append_section (null, view_section);
+        this.extra_menu = extra_menu;
+
+        var settings = Iide.SettingsService.get_instance ();
+
+        show_line_numbers = settings.show_line_numbers;
+        highlight_current_line = settings.highlight_current_line;
+        auto_indent = settings.auto_indent;
+        indent_on_tab = true;
+
+        // Marks gutter
+        set_show_line_marks (false);
+        var left_gutter = get_gutter (Gtk.TextWindowType.LEFT);
+        left_gutter.visible = true;
+
+        mark_renderer = new GutterMarkRenderer ();
+        mark_renderer.set_icons_size (FontSizeHelper.get_size_for_zoom_level (settings.editor_font_size));
+        left_gutter.insert (mark_renderer, 0);
+
+        LspDiagnosticsMark.set_mark_attributes (this);
+
+        // Connect to settings changes to apply to all open documents
+        settings.editor_setting_changed.connect ((key) => {
+            switch (key) {
+                case "show-line-numbers" :
+                    show_line_numbers = settings.show_line_numbers;
+                    break;
+                case "highlight-current-line" :
+                    highlight_current_line = settings.highlight_current_line;
+                    break;
+                case "auto-indent":
+                    auto_indent = settings.auto_indent;
+                    break;
+            }
+        });
+
+        // SpaceDrawer
+        var space_drawer = get_space_drawer ();
+
+        // 2. Устанавливаем типы отображаемых символов
+        space_drawer.set_enable_matrix (true);
+        space_drawer.set_types_for_locations (
+                                              GtkSource.SpaceLocationFlags.ALL,
+                                              GtkSource.SpaceTypeFlags.NONE
+        );
+        space_drawer.set_types_for_locations (
+                                              GtkSource.SpaceLocationFlags.LEADING | GtkSource.SpaceLocationFlags.TRAILING,
+                                              GtkSource.SpaceTypeFlags.SPACE | GtkSource.SpaceTypeFlags.TAB
+        );
+
+        // Tree-sitter
+        detect_language ();
+        ts_highlighter = ts_manager.get_ts_highlighter (this);
+        if (ts_highlighter != null) {
+            ((GtkSource.Buffer) (buffer)).highlight_syntax = false;
+        }
+
+        // LSP-tooltips
+        has_tooltip = true;
+        query_tooltip.connect (on_query_tooltip);
+
+        // Control-click controller (goto definition)
+        var click_gest = new Gtk.GestureClick ();
+        click_gest.set_button (1);
+        click_gest.pressed.connect (on_click_pressed);
+        add_controller (click_gest);
+
+        buffer.set_modified (false);
+    }
+
+    public GtkSource.Language? language {
+        set {
+            ((GtkSource.Buffer) buffer).language = value;
+        }
+        get {
+            return ((GtkSource.Buffer) buffer).language;
+        }
+    }
+
+    public void detect_language () {
+        var manager = GtkSource.LanguageManager.get_default ();
+        var file = GLib.File.new_for_uri (uri);
+
+        string mime_type = mime_type_for_file (file);
+        message ("MIME: _ " + mime_type);
+
+        icon_name = IconProvider.get_mime_type_icon_name (mime_type);
+        language = manager.guess_language (file.get_path (), mime_type);
+
+        // Fake file type detection
+        // "Not all files are equal"
+        if (file.get_basename () == "CMakeLists.txt") {
+            language = manager.get_language ("cmake");
+            icon_name = "text-x-cmake"; // Specific icon for CMake
+        }
+    }
+
+    public WordRange ? get_word_range_under_cursor (Gtk.TextIter cursor_iter) {
+        // 2. Нюанс: Если курсор на пробеле или переносе строки, слова под ним нет
+        unichar c = cursor_iter.get_char ();
+        if (c.isspace () || c == '\0') {
+            return null;
+        }
+
+        // 3. Создаем копию для поиска конца слова
+        Gtk.TextIter end_iter = cursor_iter;
+
+        // 4. Ищем начало слова
+        // Если курсор уже в начале слова, backward_word_start вернет false или уйдет на слово назад.
+        // Поэтому проверяем, не стоим ли мы уже на начале.
+        if (!cursor_iter.starts_word ()) {
+            cursor_iter.backward_word_start ();
+        }
+
+        // 5. Ищем конец слова
+        if (!end_iter.ends_word ()) {
+            end_iter.forward_word_end ();
+        }
+
+        return new WordRange (cursor_iter.get_line (), cursor_iter.get_line_offset (), end_iter.get_line_offset ());
+    }
+
+    private bool on_lsp_diagnostics_tooltip (GLib.SList<weak GtkSource.Mark> marks, Gtk.Tooltip tooltip) {
+        var sb = new StringBuilder ();
+
+        foreach (var mark in marks) {
+            var lsp_mark = mark as LspDiagnosticsMark;
+            if (lsp_mark == null) {
+                continue;
+            }
+
+            string icon;
+            string header_color;
+
+            switch (lsp_mark.severity) {
+            case 1 :
+                icon = "❌";
+                header_color = "#F44336"; // Красный
+                break;
+            case 2 :
+                icon = "⚠️";
+                header_color = "#FF9800"; // Оранжевый
+                break;
+            case 3:
+            case 4:
+                icon = "ℹ️";
+                header_color = "#2196F3"; // Синий
+                break;
+            default:
+                icon = "❌";
+                header_color = "#F44336"; // Красный
+                break;
+            }
+
+            if (sb.len > 0) {
+                sb.append ("\n" + tooltip_separator + "\n");
+            }
+
+            // Заголовок и основное сообщение
+            sb.append_printf ("%s <span font_weight='bold' foreground='%s'>%s</span>\n",
+                              icon, header_color, lsp_mark.category.up ());
+            sb.append_printf ("<span>%s</span>", GLib.Markup.escape_text (lsp_mark.diagnostic_message));
+        }
+
+        if (sb.len > 0) {
+            tooltip_widget.update_text (sb.str, false);
+            tooltip.set_custom (tooltip_widget);
+            return true;
+        }
+
+        return false;
+    }
+
+    private bool on_lsp_hover_tooltip (Gtk.TextIter iter, Gtk.Tooltip tooltip) {
+        WordRange? word_range = get_word_range_under_cursor (iter);
+        if (word_range == null) {
+            last_hover_range = null;
+            return false;
+        }
+
+        tooltip.set_custom (tooltip_widget);
+
+        // Проверяем, не тот же ли эти 100мс назад
+        if (word_range.is_equal (last_hover_range)) {
+            return true;
+        }
+        tooltip_widget.update_text ("Loading...", true);
+        last_hover_range = word_range;
+
+        fetch_lsp_hover_async.begin (word_range.line, word_range.start_column + 1);
+
+        return true;
+    }
+
+    private bool on_query_tooltip (int x, int y, bool keyboard_mode, Gtk.Tooltip tooltip) {
+        Gtk.TextIter iter;
+
+        // Преобразуем координаты окна в координаты буфера
+        int buffer_x, buffer_y;
+        window_to_buffer_coords (Gtk.TextWindowType.WIDGET, x, y, out buffer_x, out buffer_y);
+
+        // Получаем итератор в месте курсора мыши
+        if (!get_iter_at_location (out iter, buffer_x, buffer_y)) {
+            return false;
+        }
+
+        // Ищем маркеры в этой строке (по категории "error")
+        var buffer = (GtkSource.Buffer) buffer;
+        var marks = buffer.get_source_marks_at_line (iter.get_line (), null);
+
+        if (marks.length () > 0) {
+            return on_lsp_diagnostics_tooltip (marks, tooltip);
+        }
+
+        return on_lsp_hover_tooltip (iter, tooltip);
+    }
+
+    private async void fetch_lsp_hover_async (int line, int col) {
+        var lsp_service = IdeLspService.get_instance ();
+        string? markdown = yield lsp_service.request_hover (uri, line, col);
+
+        tooltip_widget.update_text (markdown, false);
+    }
+
+    private void on_click_pressed (Gtk.GestureClick gesture, int n_press, double x, double y) {
+        // Получаем состояние модификаторов через основной контроллер
+        var modifiers = gesture.get_current_event_state ();
+
+        if ((modifiers & Gdk.ModifierType.CONTROL_MASK) != 0) {
+            Gtk.TextIter iter;
+            // В GTK4 координаты в сигнале уже относительны виджета
+            // Переводим их в координаты буфера (с учетом прокрутки)
+            int buf_x, buf_y;
+            window_to_buffer_coords (Gtk.TextWindowType.WIDGET, (int) x, (int) y, out buf_x, out buf_y);
+
+            if (get_iter_at_location (out iter, buf_x, buf_y)) {
+                get_buffer ().place_cursor (iter);
+
+                // Запускаем асинхронный переход
+                handle_ctrl_click_async.begin (iter.get_line (), iter.get_line_offset ());
+            }
+        }
+    }
+
+    private async void handle_ctrl_click_async (int line, int col) {
+        var lsp_service = IdeLspService.get_instance ();
+        var locations = yield lsp_service.goto_definition (uri, line, col);
+
+        if (locations == null || locations.size == 0) {
+            LoggerService.get_instance ().warning ("LSP", "No locations found for goto definition");
+            return;
+        }
+
+        var loc = locations.get (0);
+        window.get_document_manager ().open_document_with_selection (File.new_for_uri (loc.uri), loc.start_line, loc.start_column, loc.end_column, null);
+    }
+
+    public void select_and_scroll (int line, int start_col, int end_col, bool is_new) {
+        if (line >= buffer.get_line_count ()) {
+            return;
+        }
+
+        Gtk.TextIter start_iter;
+        buffer.get_iter_at_line_offset (out start_iter, line, start_col);
+
+        Gtk.TextIter end_iter;
+        buffer.get_iter_at_line_offset (out end_iter, line, end_col);
+
+        buffer.select_range (start_iter, end_iter);
+        scroll_to_iter (start_iter, 0.0, true, 0.5, 0.5);
+        pending_scroll_iter = null;
+        if (is_new) {
+            pending_scroll_iter = start_iter;
+        }
+    }
+
+    public override void size_allocate (int width, int height, int baseline) {
+        base.size_allocate (width, height, baseline);
+        if (pending_scroll_iter != null) {
+            scroll_to_iter (pending_scroll_iter, 0.0, true, 0.5, 0.5);
+            pending_scroll_iter = null;
         }
     }
 }
@@ -6356,180 +6480,6 @@ public class Iide.GutterMarkRenderer : GutterRenderer {
 }
 ```
 
-## File: src/Widgets/TextView/LspCompletionProvider.vala
-```
-/*
- * LspCompletionProvider.vala
- *
- * Copyright 2026 kai
- *
- * This program is free software: you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation, either version 3 of the License, or
- * (at your option) any later version.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program.  If not, see <https://www.gnu.org/licenses/>.
- *
- * SPDX-License-Identifier: GPL-3.0-or-later
- */
-
-using GLib;
-using Gee;
-using Gtk;
-using GtkSource;
-
-namespace Iide {
-
-    public class LspCompletionProposal : GLib.Object, CompletionProposal {
-        public IdeLspCompletionItem item { get; private set; }
-
-        public LspCompletionProposal (IdeLspCompletionItem item) {
-            this.item = item;
-        }
-
-        public string get_label () {
-            return item.label;
-        }
-
-        public string ? get_markup () {
-            return item.label;
-        }
-
-        public string get_text () {
-            return item.insert_text;
-        }
-
-        public Icon ? get_icon () {
-            return null;
-        }
-
-        public string ? get_info () {
-            return item.documentation;
-        }
-    }
-
-    public class LspCompletionProvider : GLib.Object, CompletionProvider {
-        private weak SourceView source_view;
-        private IdeLspService lsp_service;
-
-        public LspCompletionProvider (SourceView view) {
-            this.source_view = view;
-            this.lsp_service = IdeLspService.get_instance ();
-        }
-
-        public virtual CompletionActivation get_activation (CompletionContext context) {
-            // Разрешаем показ при наборе текста (INTERACTIVE)
-            // и принудительный показ по Ctrl+Space (USER_REQUESTED)
-            return // CompletionActivation.INTERACTIVE |
-                   CompletionActivation.USER_REQUESTED;
-        }
-
-        public virtual async GLib.ListModel populate_async (CompletionContext context, GLib.Cancellable? cancellable) throws GLib.Error {
-            var store = new GLib.ListStore (typeof (LspCompletionProposal));
-
-            if (source_view == null) {
-                return store;
-            }
-
-            var buffer = source_view.buffer;
-            var insert_mark = buffer.get_insert ();
-            TextIter iter;
-            buffer.get_iter_at_mark (out iter, insert_mark);
-
-            int line = iter.get_line ();
-            int character = iter.get_line_offset ();
-            string uri = source_view.uri;
-
-            var result = yield lsp_service.request_completion (uri, line, character);
-
-            if (result == null || result.items.size == 0) {
-                return store;
-            }
-
-
-            foreach (var item in result.items) {
-                var proposal = new LspCompletionProposal (item);
-                store.append (proposal);
-            }
-
-            return store;
-        }
-
-        public virtual void display (CompletionContext context, CompletionProposal proposal, CompletionCell cell) {
-            var p = (LspCompletionProposal) proposal;
-            if (cell.column == CompletionColumn.TYPED_TEXT) {
-                cell.text = p.item.label;
-            }
-        }
-
-        // 2. Исправляем вставку (сдвиг)
-        public virtual void activate (CompletionContext context, CompletionProposal proposal) {
-            var view = context.get_view ();
-            var buffer = view.get_buffer ();
-
-            TextIter start, end;
-
-            // Пытаемся получить границы, которые GSV уже определил как "слово под курсором"
-            if (context.get_bounds (out start, out end)) {
-                // Если границы найдены, просто удаляем этот участок
-                buffer.delete (ref start, ref end);
-            } else {
-                // Если границ нет (редкий случай), используем старый метод, но аккуратно
-                buffer.get_iter_at_mark (out start, buffer.get_insert ());
-                end = start;
-                string? word = context.get_word ();
-                if (word != null && word != "") {
-                    start.backward_chars (word.char_count ());
-                    buffer.delete (ref start, ref end);
-                }
-            }
-
-            // Вставляем слово
-            var p = (LspCompletionProposal) proposal;
-            buffer.insert (ref start, p.get_label (), -1);
-        }
-
-        // Обязательные методы-заглушки
-        public virtual void refilter (CompletionContext context, GLib.ListModel model) {
-            // Когда пользователь вводит текст, GSV передает нам текущую модель (наш ListStore).
-            // Мы очищаем его и заполняем заново исходя из нового слова.
-            var list = model as GLib.ListStore;
-            if (list == null)
-                return;
-
-            string? word = context.get_word ();
-            if (word == null || word.length == 0) {
-                list.remove_all ();
-                return;
-            }
-
-            var store = new GLib.ListStore (typeof (LspCompletionProposal));
-            for (var i = 0; i < list.get_n_items (); i++) {
-                var proposal = (LspCompletionProposal) list.get_item (i);
-                if (proposal.get_label ().has_prefix (word)) {
-                    store.append (proposal);
-                }
-            }
-            model = store;
-
-            if (model.get_n_items () == 0) {
-                context.get_completion ().hide ();
-            }
-        }
-
-        public virtual string ? get_title () { return "Simple"; }
-        public virtual int get_priority (CompletionContext context) { return 100; }
-        public virtual bool is_running (CompletionContext context) { return true; }
-    }
-}
-```
-
 ## File: src/Widgets/ToolViews/ProjectView.vala
 ```
 using Gtk;
@@ -7307,6 +7257,292 @@ private string build_did_change_message (string uri, int version, string content
 }
 ```
 
+## File: src/Services/TreeSitter/TreeSitterManager.vala
+```
+// [CCode (cname = "tree_sitter_rust")]
+// extern unowned TreeSitter.Language ? get_language_rust ();
+// [CCode (cname = "tree_sitter_c")]
+// extern unowned TreeSitter.Language ? get_language_c ();
+// [CCode (cname = "tree_sitter_javascript")]
+// extern unowned TreeSitter.Language ? get_language_javascript ();
+// [CCode (cname = "tree_sitter_python")]
+// extern unowned TreeSitter.Language ? get_language_python ();
+// [CCode (cname = "tree_sitter_ruby")]
+// extern unowned TreeSitter.Language ? get_language_ruby ();
+[CCode(cname = "tree_sitter_cpp")]
+extern unowned TreeSitter.Language ? get_language_cpp();
+[CCode(cname = "tree_sitter_vala")]
+extern unowned TreeSitter.Language ? get_language_vala();
+// [CCode (cname = "tree_sitter_go")]
+// extern unowned TreeSitter.Language ? get_language_go ();
+// [CCode (cname = "tree_sitter_bash")]
+// extern unowned TreeSitter.Language ? get_language_bash ();
+// [CCode (cname = "tree_sitter_json")]
+// extern unowned TreeSitter.Language ? get_language_json ();
+// [CCode (cname = "tree_sitter_php")]
+// extern unowned TreeSitter.Language ? get_language_php ();
+// [CCode (cname = "tree_sitter_html")]
+// extern unowned TreeSitter.Language ? get_language_html ();
+// [CCode (cname = "tree_sitter_xml")]
+// extern unowned TreeSitter.Language ? get_language_xml ();
+// [CCode (cname = "tree_sitter_typescript")]
+// extern unowned TreeSitter.Language ? get_language_typescript ();
+// [CCode (cname = "tree_sitter_yaml")]
+// extern unowned TreeSitter.Language ? get_language_yaml ();
+
+
+
+class Iide.TreeSitterManager : GLib.Object {
+    public BaseTreeSitterHighlighter ? get_ts_highlighter(GtkSource.View view) {
+        var language_name = ((GtkSource.Buffer) view.buffer).language.name.down();
+        message("LANG Detected: " + language_name);
+        switch (language_name) {
+        case "python" :
+            return new PythonTreeSitterHighlighter(view);
+        case "c++":
+            return new CppTreeSitterHighlighter(view);
+        case "vala":
+            return new ValaTreeSitterHighlighter(view);
+        }
+        return null;
+    }
+
+    // public unowned TreeSitter.Language? get_ts_language (GtkSource.Buffer buffer) {
+    // var language_name = buffer.language.name.down ();
+    // unowned TreeSitter.Language? language = null;
+    // switch (language_name) {
+    // case "bash" :
+    // language = get_language_bash ();
+    // break;
+    // case "c" :
+    // language = get_language_c ();
+    // break;
+    // case "cpp" :
+    // language = get_language_cpp ();
+    // break;
+    // case "go" :
+    // language = get_language_go ();
+    // break;
+    // case "javascript" :
+    // language = get_language_javascript ();
+    // break;
+    // case "json" :
+    // language = get_language_json ();
+    // break;
+    // case "html" :
+    // language = get_language_html ();
+    // break;
+    // case "php" :
+    // language = get_language_php ();
+    // break;
+    // case "python" :
+    // language = get_language_python ();
+    // break;
+    // case "ruby" :
+    // language = get_language_ruby ();
+    // break;
+    // case "rust" :
+    // language = get_language_rust ();
+    // break;
+    // case "typescript" :
+    // language = get_language_typescript ();
+    // break;
+    // case "xml" :
+    // language = get_language_xml ();
+    // break;
+    // case "yaml" :
+    // language = get_language_yaml ();
+    // break;
+    // }
+    // return language;
+    // }
+}
+```
+
+## File: src/Widgets/TextView/LspCompletionProvider.vala
+```
+/*
+ * LspCompletionProvider.vala
+ *
+ * Copyright 2026 kai
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see <https://www.gnu.org/licenses/>.
+ *
+ * SPDX-License-Identifier: GPL-3.0-or-later
+ */
+
+using GLib;
+using Gee;
+using Gtk;
+using GtkSource;
+
+namespace Iide {
+
+    public class LspCompletionProposal : GLib.Object, CompletionProposal {
+        public IdeLspCompletionItem item { get; private set; }
+
+        public LspCompletionProposal (IdeLspCompletionItem item) {
+            this.item = item;
+        }
+
+        public string get_label () {
+            return item.label;
+        }
+
+        public string ? get_markup () {
+            return item.label;
+        }
+
+        public string get_text () {
+            return item.insert_text;
+        }
+
+        public Icon ? get_icon () {
+            return null;
+        }
+
+        public string ? get_info () {
+            return item.documentation;
+        }
+    }
+
+    public class LspCompletionProvider : GLib.Object, CompletionProvider {
+        private weak SourceView source_view;
+        private IdeLspService lsp_service;
+        private GLib.ListStore base_store;
+        private Gtk.FilterListModel filter_model;
+        private string current_word = "";
+
+        private bool filter_proposals (Object item) {
+            var proposal = item as LspCompletionProposal;
+            if (proposal == null)return false;
+
+            // Получаем текущее слово из контекста (нужно сохранить его в провайдере перед фильтрацией)
+            string filter_text = this.current_word.down ();
+
+            if (filter_text == "")return true;
+
+            // Проверяем: содержит ли заголовок предложения набранный текст
+            return proposal.get_label ().down ().contains (filter_text);
+        }
+
+        public LspCompletionProvider (SourceView view) {
+            this.source_view = view;
+            this.lsp_service = IdeLspService.get_instance ();
+
+            // 1. Создаем хранилище
+            base_store = new GLib.ListStore (typeof (LspCompletionProposal));
+
+            // 2. Создаем фильтр, который вызывает наш метод filter_proposals
+            var custom_filter = new Gtk.CustomFilter (filter_proposals);
+
+            // 3. Создаем модель-обертку
+            filter_model = new Gtk.FilterListModel (base_store, custom_filter);
+        }
+
+        public virtual CompletionActivation get_activation (CompletionContext context) {
+            // Разрешаем показ при наборе текста (INTERACTIVE)
+            // и принудительный показ по Ctrl+Space (USER_REQUESTED)
+            return // CompletionActivation.INTERACTIVE |
+                   CompletionActivation.USER_REQUESTED;
+        }
+
+        public virtual async GLib.ListModel populate_async (CompletionContext context, GLib.Cancellable? cancellable) throws GLib.Error {
+            base_store.remove_all ();
+            current_word = context.get_word ();
+
+            if (source_view == null) {
+                return filter_model;
+            }
+
+            var buffer = source_view.buffer;
+            var insert_mark = buffer.get_insert ();
+            TextIter iter;
+            buffer.get_iter_at_mark (out iter, insert_mark);
+
+            int line = iter.get_line ();
+            int character = iter.get_line_offset ();
+            string uri = source_view.uri;
+
+            var result = yield lsp_service.request_completion (uri, line, character);
+
+            if (result == null || result.items.size == 0) {
+                return filter_model;
+            }
+
+            foreach (var item in result.items) {
+                var proposal = new LspCompletionProposal (item);
+                base_store.append (proposal);
+            }
+
+            return filter_model;
+        }
+
+        public virtual void display (CompletionContext context, CompletionProposal proposal, CompletionCell cell) {
+            var p = (LspCompletionProposal) proposal;
+            if (cell.column == CompletionColumn.TYPED_TEXT) {
+                cell.text = p.item.label;
+            }
+        }
+
+        // 2. Исправляем вставку (сдвиг)
+        public virtual void activate (CompletionContext context, CompletionProposal proposal) {
+            var view = context.get_view ();
+            var buffer = view.get_buffer ();
+
+            TextIter start, end;
+
+            // Пытаемся получить границы, которые GSV уже определил как "слово под курсором"
+            if (context.get_bounds (out start, out end)) {
+                // Если границы найдены, просто удаляем этот участок
+                buffer.delete (ref start, ref end);
+            } else {
+                // Если границ нет (редкий случай), используем старый метод, но аккуратно
+                buffer.get_iter_at_mark (out start, buffer.get_insert ());
+                end = start;
+                string? word = context.get_word ();
+                if (word != null && word != "") {
+                    start.backward_chars (word.char_count ());
+                    buffer.delete (ref start, ref end);
+                }
+            }
+
+            // Вставляем слово
+            var p = (LspCompletionProposal) proposal;
+            buffer.insert (ref start, p.get_label (), -1);
+        }
+
+        // Обязательные методы-заглушки
+        public virtual void refilter (CompletionContext context, GLib.ListModel model) {
+            current_word = context.get_word ();
+
+            // 6. Достаем фильтр и заставляем его пересчитать список
+            var filter = filter_model.get_filter () as Gtk.CustomFilter;
+            filter.changed (Gtk.FilterChange.DIFFERENT);
+
+            if (model.get_n_items () == 0) {
+                context.get_completion ().hide ();
+            }
+        }
+
+        public virtual string ? get_title () { return "Simple"; }
+        public virtual int get_priority (CompletionContext context) { return 100; }
+        public virtual bool is_running (CompletionContext context) { return true; }
+    }
+}
+```
+
 ## File: src/Services/LSP/IdeLspService.vala
 ```
 using GLib;
@@ -7520,113 +7756,20 @@ public class Iide.IdeLspService : GLib.Object {
         return yield client.request_completion (uri, line, character, trigger_character);
     }
 
+    public async string ? request_hover (string uri, int line, int character) {
+        var client = get_client_for_uri (uri);
+        if (client == null) {
+            logger.debug ("HOVER", "client is null!");
+            return null;
+        }
+        return yield client.request_hover (uri, line, character);
+    }
+
     public async Gee.ArrayList<IdeLspLocation>? goto_definition (string uri, int line, int character) {
         var client = get_client_for_uri (uri);
         if (client == null)return null;
         return yield client.request_definition (uri, line, character);
     }
-}
-```
-
-## File: src/Services/TreeSitter/TreeSitterManager.vala
-```
-// [CCode (cname = "tree_sitter_rust")]
-// extern unowned TreeSitter.Language ? get_language_rust ();
-// [CCode (cname = "tree_sitter_c")]
-// extern unowned TreeSitter.Language ? get_language_c ();
-// [CCode (cname = "tree_sitter_javascript")]
-// extern unowned TreeSitter.Language ? get_language_javascript ();
-// [CCode (cname = "tree_sitter_python")]
-// extern unowned TreeSitter.Language ? get_language_python ();
-// [CCode (cname = "tree_sitter_ruby")]
-// extern unowned TreeSitter.Language ? get_language_ruby ();
-[CCode(cname = "tree_sitter_cpp")]
-extern unowned TreeSitter.Language ? get_language_cpp();
-[CCode(cname = "tree_sitter_vala")]
-extern unowned TreeSitter.Language ? get_language_vala();
-// [CCode (cname = "tree_sitter_go")]
-// extern unowned TreeSitter.Language ? get_language_go ();
-// [CCode (cname = "tree_sitter_bash")]
-// extern unowned TreeSitter.Language ? get_language_bash ();
-// [CCode (cname = "tree_sitter_json")]
-// extern unowned TreeSitter.Language ? get_language_json ();
-// [CCode (cname = "tree_sitter_php")]
-// extern unowned TreeSitter.Language ? get_language_php ();
-// [CCode (cname = "tree_sitter_html")]
-// extern unowned TreeSitter.Language ? get_language_html ();
-// [CCode (cname = "tree_sitter_xml")]
-// extern unowned TreeSitter.Language ? get_language_xml ();
-// [CCode (cname = "tree_sitter_typescript")]
-// extern unowned TreeSitter.Language ? get_language_typescript ();
-// [CCode (cname = "tree_sitter_yaml")]
-// extern unowned TreeSitter.Language ? get_language_yaml ();
-
-
-
-class Iide.TreeSitterManager : GLib.Object {
-    public BaseTreeSitterHighlighter ? get_ts_highlighter(GtkSource.View view) {
-        var language_name = ((GtkSource.Buffer) view.buffer).language.name.down();
-        message("LANG Detected: " + language_name);
-        switch (language_name) {
-        case "python" :
-            return new PythonTreeSitterHighlighter(view);
-        case "c++":
-            return new CppTreeSitterHighlighter(view);
-        case "vala":
-            return new ValaTreeSitterHighlighter(view);
-        }
-        return null;
-    }
-
-    // public unowned TreeSitter.Language? get_ts_language (GtkSource.Buffer buffer) {
-    // var language_name = buffer.language.name.down ();
-    // unowned TreeSitter.Language? language = null;
-    // switch (language_name) {
-    // case "bash" :
-    // language = get_language_bash ();
-    // break;
-    // case "c" :
-    // language = get_language_c ();
-    // break;
-    // case "cpp" :
-    // language = get_language_cpp ();
-    // break;
-    // case "go" :
-    // language = get_language_go ();
-    // break;
-    // case "javascript" :
-    // language = get_language_javascript ();
-    // break;
-    // case "json" :
-    // language = get_language_json ();
-    // break;
-    // case "html" :
-    // language = get_language_html ();
-    // break;
-    // case "php" :
-    // language = get_language_php ();
-    // break;
-    // case "python" :
-    // language = get_language_python ();
-    // break;
-    // case "ruby" :
-    // language = get_language_ruby ();
-    // break;
-    // case "rust" :
-    // language = get_language_rust ();
-    // break;
-    // case "typescript" :
-    // language = get_language_typescript ();
-    // break;
-    // case "xml" :
-    // language = get_language_xml ();
-    // break;
-    // case "yaml" :
-    // language = get_language_yaml ();
-    // break;
-    // }
-    // return language;
-    // }
 }
 ```
 
@@ -8568,6 +8711,51 @@ local_settings_sh = configure_file(
 meson.add_install_script(local_settings_sh)
 ```
 
+## File: src/style.css
+```css
+textview {
+⋮----
+.log-view text {
+⋮----
+.text-view.zoom-1 {
+⋮----
+.lsp_error_line {
+⋮----
+.lsp_warning_line {
+⋮----
+.lsp_info_line {
+⋮----
+.text-view.zoom-2 {
+⋮----
+.text-view.zoom-3 {
+⋮----
+.text-view.zoom-4 {
+⋮----
+.text-view.zoom-5 {
+⋮----
+.text-view.zoom-6 {
+⋮----
+.text-view.zoom-7 {
+⋮----
+.text-view.zoom-8 {
+⋮----
+.text-view.zoom-9 {
+⋮----
+.text-view.zoom-10 {
+⋮----
+.text-view.zoom-11 {
+⋮----
+.text-view.zoom-12 {
+⋮----
+.text-view.zoom-13 {
+⋮----
+.text-view.zoom-14 {
+⋮----
+.text-view.zoom-15 {
+⋮----
+.textview-map {
+```
+
 ## File: src/Services/LSP/IdeLspClient.vala
 ```
 using GLib;
@@ -8905,6 +9093,75 @@ public class Iide.IdeLspClient : GLib.Object {
         if (response == null || !response.has_member ("result"))return null;
 
         return parse_completion_result (response.get_member ("result"));
+    }
+
+    public async string ? request_hover (string uri, int line, int character) {
+        int id = (int) next_request_id;
+
+        // Формируем параметры по спецификации LSP
+        var builder = new Json.Builder ();
+        builder.begin_object ();
+        builder.set_member_name ("textDocument");
+        builder.begin_object ();
+        builder.set_member_name ("uri");
+        builder.add_string_value (uri);
+        builder.end_object ();
+
+        builder.set_member_name ("position");
+        builder.begin_object ();
+        builder.set_member_name ("line");
+        builder.add_int_value (line);
+        builder.set_member_name ("character");
+        builder.add_int_value (character);
+        builder.end_object ();
+
+        builder.end_object ();
+
+        var json = build_request_json ("textDocument/hover", builder.get_root ());
+
+        // Сохраняем callback текущей асинхронной функции
+        pending_callbacks.set (id, new CallbackWrapper (request_hover.callback));
+
+        // Отправляем сообщение
+        send_message_sync (json);
+
+        // ПРИОСТАНАВЛИВАЕМ выполнение до вызова callback в handle_incoming_message
+        yield;
+
+        // Когда выполнение возобновилось, забираем данные
+        var response = response_data.get (id);
+        response_data.unset (id);
+
+        if (response == null || !response.has_member ("result"))return null;
+
+        return parse_hover_result (response.get_member ("result"));
+    }
+
+    private string ? parse_hover_result (Json.Node node) {
+        if (node.get_node_type () != Json.NodeType.OBJECT)
+            return null;
+
+        var result = node.get_object ();
+
+        // Случай 1: содержимое в поле 'contents'
+        if (!result.has_member ("contents"))
+            return null;
+
+        var contents = result.get_member ("contents");
+
+        // Если это объект (MarkupContent)
+        if (contents.get_node_type () == Json.NodeType.OBJECT) {
+            var obj = contents.get_object ();
+            if (obj.has_member ("value")) {
+                return obj.get_string_member ("value");
+            }
+        }
+        // Если это просто строка или массив строк
+        else {
+            return contents.get_string ();
+        }
+
+        return null;
     }
 
     private IdeLspCompletionResult ? parse_completion_result (Json.Node node) {
@@ -9255,51 +9512,6 @@ public class Iide.IdeLspClient : GLib.Object {
         return loc;
     }
 }
-```
-
-## File: src/style.css
-```css
-textview {
-⋮----
-.log-view text {
-⋮----
-.text-view.zoom-1 {
-⋮----
-.lsp_error_line {
-⋮----
-.lsp_warning_line {
-⋮----
-.lsp_info_line {
-⋮----
-.text-view.zoom-2 {
-⋮----
-.text-view.zoom-3 {
-⋮----
-.text-view.zoom-4 {
-⋮----
-.text-view.zoom-5 {
-⋮----
-.text-view.zoom-6 {
-⋮----
-.text-view.zoom-7 {
-⋮----
-.text-view.zoom-8 {
-⋮----
-.text-view.zoom-9 {
-⋮----
-.text-view.zoom-10 {
-⋮----
-.text-view.zoom-11 {
-⋮----
-.text-view.zoom-12 {
-⋮----
-.text-view.zoom-13 {
-⋮----
-.text-view.zoom-14 {
-⋮----
-.text-view.zoom-15 {
-⋮----
-.textview-map {
 ```
 
 ## File: src/Widgets/TextView/FontZoomer.vala
