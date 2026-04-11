@@ -57,10 +57,35 @@ namespace Iide {
     public class LspCompletionProvider : GLib.Object, CompletionProvider {
         private weak SourceView source_view;
         private IdeLspService lsp_service;
+        private GLib.ListStore base_store;
+        private Gtk.FilterListModel filter_model;
+        private string current_word = "";
+
+        private bool filter_proposals (Object item) {
+            var proposal = item as LspCompletionProposal;
+            if (proposal == null)return false;
+
+            // Получаем текущее слово из контекста (нужно сохранить его в провайдере перед фильтрацией)
+            string filter_text = this.current_word.down ();
+
+            if (filter_text == "")return true;
+
+            // Проверяем: содержит ли заголовок предложения набранный текст
+            return proposal.get_label ().down ().contains (filter_text);
+        }
 
         public LspCompletionProvider (SourceView view) {
             this.source_view = view;
             this.lsp_service = IdeLspService.get_instance ();
+
+            // 1. Создаем хранилище
+            base_store = new GLib.ListStore (typeof (LspCompletionProposal));
+
+            // 2. Создаем фильтр, который вызывает наш метод filter_proposals
+            var custom_filter = new Gtk.CustomFilter (filter_proposals);
+
+            // 3. Создаем модель-обертку
+            filter_model = new Gtk.FilterListModel (base_store, custom_filter);
         }
 
         public virtual CompletionActivation get_activation (CompletionContext context) {
@@ -71,10 +96,11 @@ namespace Iide {
         }
 
         public virtual async GLib.ListModel populate_async (CompletionContext context, GLib.Cancellable? cancellable) throws GLib.Error {
-            var store = new GLib.ListStore (typeof (LspCompletionProposal));
+            base_store.remove_all ();
+            current_word = context.get_word ();
 
             if (source_view == null) {
-                return store;
+                return filter_model;
             }
 
             var buffer = source_view.buffer;
@@ -89,16 +115,15 @@ namespace Iide {
             var result = yield lsp_service.request_completion (uri, line, character);
 
             if (result == null || result.items.size == 0) {
-                return store;
+                return filter_model;
             }
-
 
             foreach (var item in result.items) {
                 var proposal = new LspCompletionProposal (item);
-                store.append (proposal);
+                base_store.append (proposal);
             }
 
-            return store;
+            return filter_model;
         }
 
         public virtual void display (CompletionContext context, CompletionProposal proposal, CompletionCell cell) {
@@ -137,26 +162,11 @@ namespace Iide {
 
         // Обязательные методы-заглушки
         public virtual void refilter (CompletionContext context, GLib.ListModel model) {
-            // Когда пользователь вводит текст, GSV передает нам текущую модель (наш ListStore).
-            // Мы очищаем его и заполняем заново исходя из нового слова.
-            var list = model as GLib.ListStore;
-            if (list == null)
-                return;
+            current_word = context.get_word ();
 
-            string? word = context.get_word ();
-            if (word == null || word.length == 0) {
-                list.remove_all ();
-                return;
-            }
-
-            var store = new GLib.ListStore (typeof (LspCompletionProposal));
-            for (var i = 0; i < list.get_n_items (); i++) {
-                var proposal = (LspCompletionProposal) list.get_item (i);
-                if (proposal.get_label ().has_prefix (word)) {
-                    store.append (proposal);
-                }
-            }
-            model = store;
+            // 6. Достаем фильтр и заставляем его пересчитать список
+            var filter = filter_model.get_filter () as Gtk.CustomFilter;
+            filter.changed (Gtk.FilterChange.DIFFERENT);
 
             if (model.get_n_items () == 0) {
                 context.get_completion ().hide ();
