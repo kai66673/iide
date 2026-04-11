@@ -135,6 +135,7 @@ test_lsp_service_sources = [
 
 test_lsp_service_deps = [
     dependency('glib-2.0'),
+    dependency('gtk4'),
     dependency('gio-2.0'),
     dependency('json-glib-1.0'),
     dependency('gee-0.8'),

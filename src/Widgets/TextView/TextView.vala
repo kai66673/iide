@@ -153,9 +153,9 @@ public class Iide.TextView : Panel.Widget {
             modified = buffer.get_modified ();
         });
 
-        buffer.changed.connect (() => {
-            text_changed (buffer.text);
-        });
+        // buffer.changed.connect (() => {
+        // text_changed (buffer.text);
+        // });
     }
 
     public override void size_allocate (int width, int height, int baseline) {

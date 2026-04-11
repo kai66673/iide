@@ -1,6 +1,53 @@
 using GLib;
 using Json;
 
+
+public class Iide.PendingChange : GLib.Object {
+    public int start_offset;
+    public int end_offset;
+    public string text;
+
+    // Замороженные координаты LSP
+    public int start_line;
+    public int start_char;
+    public int end_line;
+    public int end_char;
+
+    public PendingChange (int s_off, int e_off, string t, Gtk.TextIter s_iter, Gtk.TextIter e_iter) {
+        this.start_offset = s_off;
+        this.end_offset = e_off;
+        this.text = t;
+
+        // Расчет позиций немедленно
+        this.calculate_lsp_pos (s_iter, out this.start_line, out this.start_char);
+        this.calculate_lsp_pos (e_iter, out this.end_line, out this.end_char);
+    }
+
+    private void calculate_lsp_pos (Gtk.TextIter iter, out int lsp_line, out int lsp_char) {
+        lsp_line = iter.get_line ();
+
+        // Создаем итератор начала текущей строки для расчета смещения
+        Gtk.TextIter line_start = iter;
+        line_start.set_line_offset (0);
+
+        // Получаем текст строки до итератора
+        string line_text = line_start.get_text (iter);
+
+        // Считаем UTF-16 code units
+        int utf16_count = 0;
+        int i = 0;
+        unichar c;
+        while (line_text.get_next_char (ref i, out c)) {
+            if (c <= 0xFFFF) {
+                utf16_count += 1;
+            } else {
+                utf16_count += 2;
+            }
+        }
+        lsp_char = utf16_count;
+    }
+}
+
 public class Iide.IdeLspDiagnostic : GLib.Object {
     public int severity { get; set; default = 1; }
     public string message { get; set; default = ""; }
@@ -661,7 +708,52 @@ public class Iide.IdeLspClient : GLib.Object {
         builder.end_array ();
         builder.end_object ();
 
+        message ("!LSP SEND UNREACHABLE");
+
         yield send_notification ("textDocument/didChange", builder.get_root ());
+    }
+
+    public async void send_did_change (string uri, int version, Gee.ArrayList<PendingChange> changes) {
+        var json_changes = new Json.Array ();
+
+        foreach (var c in changes) {
+            var obj = new Json.Object ();
+            var range = new Json.Object ();
+
+            var start = new Json.Object ();
+            start.set_int_member ("line", c.start_line);
+            start.set_int_member ("character", c.start_char);
+
+            var end = new Json.Object ();
+            end.set_int_member ("line", c.end_line);
+            end.set_int_member ("character", c.end_char);
+
+            range.set_object_member ("start", start);
+            range.set_object_member ("end", end);
+
+            obj.set_object_member ("range", range);
+            obj.set_string_member ("text", c.text);
+            json_changes.add_object_element (obj);
+        }
+
+        // Формируем финальный пакет didChange
+        var params = new Json.Object ();
+        var doc = new Json.Object ();
+        doc.set_string_member ("uri", uri);
+        doc.set_int_member ("version", version);
+
+        params.set_object_member ("textDocument", doc);
+        params.set_array_member ("contentChanges", json_changes);
+
+        var node = new Json.Node (Json.NodeType.OBJECT);
+        node.set_object (params);
+
+        var generator = new Json.Generator ();
+        generator.set_root (node);
+        string payload = generator.to_data (null);
+        message ("!LSP SEND didChange: %s", payload);
+
+        yield send_notification ("textDocument/didChange", node);
     }
 
     public async void text_document_did_close (string uri) {

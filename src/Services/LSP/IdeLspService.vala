@@ -151,6 +151,16 @@ public class Iide.IdeLspService : GLib.Object {
         yield client.text_document_did_change (uri, version + 1, content, change_start, change_end);
     }
 
+    public async void send_did_change (string uri, int version, Gee.ArrayList<PendingChange> changes) {
+        var server_key = uri_to_client_key.get (uri);
+        if (server_key == null || !clients.has_key (server_key)) {
+            return;
+        }
+
+        var client = clients.get (server_key);
+        yield client.send_did_change (uri, version, changes);
+    }
+
     public async void close_document (string uri) {
         var server_key = uri_to_client_key.get (uri);
         if (server_key == null || !clients.has_key (server_key)) {

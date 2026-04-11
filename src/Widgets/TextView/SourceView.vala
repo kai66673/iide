@@ -59,7 +59,6 @@ public class Iide.LspTooltipWidget : Gtk.Box {
     }
 }
 
-
 public class Iide.SourceView : GtkSource.View {
     public Window window;
     public string uri { get; private set; }
@@ -72,6 +71,11 @@ public class Iide.SourceView : GtkSource.View {
     private WordRange? last_hover_range = null;
     private LspTooltipWidget tooltip_widget;
     private string tooltip_separator = "────────────────────────────────────────";
+
+    // Incremental didChange...
+    private Gee.ArrayList<PendingChange> pending_queue = new Gee.ArrayList<PendingChange> ();
+    private uint debounce_id = 0;
+    private int document_version = 0;
 
     public SourceView (Window window, string uri, GtkSource.Buffer buffer) {
         Object (buffer : buffer);
@@ -167,7 +171,101 @@ public class Iide.SourceView : GtkSource.View {
         click_gest.pressed.connect (on_click_pressed);
         add_controller (click_gest);
 
+        setup_buffer_signals ();
+
         buffer.set_modified (false);
+    }
+
+    private void setup_buffer_signals () {
+        // В insert_text (connect_after)
+        buffer.insert_text.connect_after ((ref location, text, len) => {
+            Gtk.TextIter current_pos = location;
+            // Считаем именно символы Unicode, а не байты
+            int char_count = text.char_count ();
+
+            Gtk.TextIter start_iter = current_pos;
+            start_iter.backward_chars (char_count);
+
+            var change = new PendingChange (
+                                            current_pos.get_offset () - char_count,
+                                            current_pos.get_offset () - char_count,
+                                            text,
+                                            start_iter,
+                                            start_iter
+            );
+            this.add_change (change);
+        });
+
+        // В delete_range (connect)
+        buffer.delete_range.connect ((start, end) => {
+            var change = new PendingChange (
+                                            start.get_offset (),
+                                            end.get_offset (),
+                                            "",
+                                            start,
+                                            end
+            );
+            this.add_change (change);
+        });
+    }
+
+    private void add_change (PendingChange nc) {
+        if (!pending_queue.is_empty) {
+            var last = pending_queue.get (pending_queue.size - 1);
+
+            // Слияние последовательной печати
+            // ВАЖНО: используем char_count() для определения реального сдвига в буфере
+            if (nc.text != "" && last.text != "" && nc.start_offset == last.start_offset + last.text.char_count ()) {
+
+                last.text += nc.text;
+
+                // Обновляем только конечные координаты
+                last.end_offset = nc.end_offset;
+                last.end_line = nc.end_line;
+                last.end_char = nc.end_char;
+
+                reset_timer ();
+                return;
+            }
+
+            // Слияние удаления (Backspace)
+            // Здесь оффсеты — это просто индексы символов, они работают корректно
+            if (nc.text == "" && last.text == "" && nc.end_offset == last.start_offset) {
+                last.start_offset = nc.start_offset;
+                last.start_line = nc.start_line;
+                last.start_char = nc.start_char;
+                reset_timer ();
+                return;
+            }
+        }
+
+        pending_queue.add (nc);
+        reset_timer ();
+    }
+
+    private void reset_timer () {
+        if (debounce_id > 0)Source.remove (debounce_id);
+        debounce_id = Timeout.add (400, () => {
+            flush_changes ();
+            return Source.REMOVE;
+        });
+    }
+
+    public void flush_changes () {
+        if (pending_queue.is_empty)return;
+
+        var changes = pending_queue;
+        pending_queue = new Gee.ArrayList<PendingChange> ();
+        if (debounce_id > 0) {
+            Source.remove (debounce_id);
+            debounce_id = 0;
+        }
+
+        this.document_version++;
+
+        // Передаем в менеджер для конвертации и отправки
+        var lsp_service = IdeLspService.get_instance ();
+        lsp_service.send_did_change.begin (this.uri, this.document_version, changes);
     }
 
     public GtkSource.Language? language {
@@ -289,6 +387,7 @@ public class Iide.SourceView : GtkSource.View {
         tooltip_widget.update_text ("Loading...", true);
         last_hover_range = word_range;
 
+        flush_changes ();
         fetch_lsp_hover_async.begin (word_range.line, word_range.start_column + 1);
 
         return true;
@@ -339,6 +438,7 @@ public class Iide.SourceView : GtkSource.View {
                 get_buffer ().place_cursor (iter);
 
                 // Запускаем асинхронный переход
+                flush_changes ();
                 handle_ctrl_click_async.begin (iter.get_line (), iter.get_line_offset ());
             }
         }
