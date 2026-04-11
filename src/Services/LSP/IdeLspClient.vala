@@ -335,6 +335,75 @@ public class Iide.IdeLspClient : GLib.Object {
         return parse_completion_result (response.get_member ("result"));
     }
 
+    public async string ? request_hover (string uri, int line, int character) {
+        int id = (int) next_request_id;
+
+        // Формируем параметры по спецификации LSP
+        var builder = new Json.Builder ();
+        builder.begin_object ();
+        builder.set_member_name ("textDocument");
+        builder.begin_object ();
+        builder.set_member_name ("uri");
+        builder.add_string_value (uri);
+        builder.end_object ();
+
+        builder.set_member_name ("position");
+        builder.begin_object ();
+        builder.set_member_name ("line");
+        builder.add_int_value (line);
+        builder.set_member_name ("character");
+        builder.add_int_value (character);
+        builder.end_object ();
+
+        builder.end_object ();
+
+        var json = build_request_json ("textDocument/hover", builder.get_root ());
+
+        // Сохраняем callback текущей асинхронной функции
+        pending_callbacks.set (id, new CallbackWrapper (request_hover.callback));
+
+        // Отправляем сообщение
+        send_message_sync (json);
+
+        // ПРИОСТАНАВЛИВАЕМ выполнение до вызова callback в handle_incoming_message
+        yield;
+
+        // Когда выполнение возобновилось, забираем данные
+        var response = response_data.get (id);
+        response_data.unset (id);
+
+        if (response == null || !response.has_member ("result"))return null;
+
+        return parse_hover_result (response.get_member ("result"));
+    }
+
+    private string ? parse_hover_result (Json.Node node) {
+        if (node.get_node_type () != Json.NodeType.OBJECT)
+            return null;
+
+        var result = node.get_object ();
+
+        // Случай 1: содержимое в поле 'contents'
+        if (!result.has_member ("contents"))
+            return null;
+
+        var contents = result.get_member ("contents");
+
+        // Если это объект (MarkupContent)
+        if (contents.get_node_type () == Json.NodeType.OBJECT) {
+            var obj = contents.get_object ();
+            if (obj.has_member ("value")) {
+                return obj.get_string_member ("value");
+            }
+        }
+        // Если это просто строка или массив строк
+        else {
+            return contents.get_string ();
+        }
+
+        return null;
+    }
+
     private IdeLspCompletionResult ? parse_completion_result (Json.Node node) {
         var result = new IdeLspCompletionResult ();
         result.items = new Gee.ArrayList<IdeLspCompletionItem> ();
