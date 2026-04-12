@@ -33,14 +33,19 @@ public class Iide.PendingChange : GLib.Object {
     public int end_line;
     public int end_char;
 
-    public PendingChange (int s_off, int e_off, string t, Gtk.TextIter s_iter, Gtk.TextIter e_iter) {
-        this.start_offset = s_off;
-        this.end_offset = e_off;
+    public PendingChange (string t, Gtk.TextIter s_iter, Gtk.TextIter? e_iter = null) {
         this.text = t;
+        this.start_offset = s_iter.get_offset ();
+        this.end_offset = e_iter != null? e_iter.get_offset () : this.start_offset;
 
-        // Расчет позиций немедленно
+        // Расчет позиций
         this.calculate_lsp_pos (s_iter, out this.start_line, out this.start_char);
-        this.calculate_lsp_pos (e_iter, out this.end_line, out this.end_char);
+        if (e_iter != null) {
+            this.calculate_lsp_pos (e_iter, out this.end_line, out this.end_char);
+        } else {
+            this.end_line = this.start_line;
+            this.end_char = this.start_char;
+        }
     }
 
     private void calculate_lsp_pos (Gtk.TextIter iter, out int lsp_line, out int lsp_char) {
@@ -777,11 +782,6 @@ public class Iide.IdeLspClient : GLib.Object {
 
         var node = new Json.Node (Json.NodeType.OBJECT);
         node.set_object (params);
-
-        var generator = new Json.Generator ();
-        generator.set_root (node);
-        string payload = generator.to_data (null);
-        message ("!LSP SEND didChange: %s", payload);
 
         yield send_notification ("textDocument/didChange", node);
     }

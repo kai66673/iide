@@ -77,7 +77,7 @@ public class Iide.SourceView : GtkSource.View {
     private uint debounce_id = 0;
     private int document_version = 0;
 
-    private LoggerService logger = LoggerService.get_instance ();
+    // private LoggerService logger = LoggerService.get_instance ();
 
     public SourceView (Window window, string uri, GtkSource.Buffer buffer) {
         Object (buffer : buffer);
@@ -179,81 +179,69 @@ public class Iide.SourceView : GtkSource.View {
         buffer.set_modified (false);
     }
 
-    private void setup_buffer_signals_test () {
-        buffer.insert_text.connect ((ref location, text, len) => {
-            logger.debug ("SV", "insert_text.connect: text=%s, len=%d, location=%d".printf (text, len, location.get_offset ()));
-        });
-        buffer.insert_text.connect_after ((ref location, text, len) => {
-            logger.debug ("SV", "insert_text.connect_after: text=%s, len=%d, location=%d".printf (text, len, location.get_offset ()));
-        });
-        buffer.delete_range.connect ((start, end) => {
-            logger.debug ("SV", "delete_range.connect: start=%d, end=%d".printf (start.get_offset (), end.get_offset ()));
-        });
-    }
+    // private void setup_buffer_signals_test () {
+    // buffer.insert_text.connect ((ref location, text, len) => {
+    // logger.debug ("SV", "insert_text.connect: text=%s, len=%d, location=%d".printf (text, len, location.get_offset ()));
+    // });
+    // buffer.insert_text.connect_after ((ref location, text, len) => {
+    // logger.debug ("SV", "insert_text.connect_after: text=%s, len=%d, location=%d".printf (text, len, location.get_offset ()));
+    // });
+    // buffer.delete_range.connect ((start, end) => {
+    // logger.debug ("SV", "delete_range.connect: start=%d, end=%d".printf (start.get_offset (), end.get_offset ()));
+    // });
+    // }
 
     private void setup_buffer_signals () {
-        // В insert_text (connect_after)
-        buffer.insert_text.connect_after ((ref location, text, len) => {
-            Gtk.TextIter current_pos = location;
-            // Считаем именно символы Unicode, а не байты
-            int char_count = text.char_count ();
-
-            Gtk.TextIter start_iter = current_pos;
-            start_iter.backward_chars (char_count);
-
-            var change = new PendingChange (
-                                            current_pos.get_offset () - char_count,
-                                            current_pos.get_offset () - char_count,
-                                            text,
-                                            start_iter,
-                                            start_iter
-            );
+        buffer.insert_text.connect ((ref location, text, len) => {
+            var change = new PendingChange (text, location);
             this.add_change (change);
         });
 
-        // В delete_range (connect)
+        // repair end_offset after insert_text at last pending_queue
+        // for merge insert changes
+        // buffer.insert_text.connect_after ((ref location, text, len) => {
+        // if (!pending_queue.is_empty) {
+        // var last = pending_queue.get (pending_queue.size - 1);
+        // last.end_offset = location.get_offset ();
+        // }
+        // });
+
         buffer.delete_range.connect ((start, end) => {
-            var change = new PendingChange (
-                                            start.get_offset (),
-                                            end.get_offset (),
-                                            "",
-                                            start,
-                                            end
-            );
+            var change = new PendingChange ("", start, end);
             this.add_change (change);
         });
     }
 
     private void add_change (PendingChange nc) {
-        // TODO: merge mergeable changes...
-        // if (!pending_queue.is_empty) {
-        // var last = pending_queue.get (pending_queue.size - 1);
+        if (!pending_queue.is_empty) {
+            // var last = pending_queue.get (pending_queue.size - 1);
 
-        //// Слияние последовательной печати
-        //// ВАЖНО: используем char_count() для определения реального сдвига в буфере
-        // if (nc.text != "" && last.text != "" && nc.start_offset == last.start_offset + last.text.char_count ()) {
+            // Слияние последовательной печати
+            // ВАЖНО: используем char_count() для определения реального сдвига в буфере
+            // if (nc.text != "" && last.text != "" && nc.start_offset == last.end_offset) {
 
-        // last.text += nc.text;
+            // last.text += nc.text;
 
-        //// Обновляем только конечные координаты
-        // last.end_offset = nc.end_offset;
-        // last.end_line = nc.end_line;
-        // last.end_char = nc.end_char;
+            //// Обновляем только конечные координаты
+            // last.end_offset = nc.end_offset;
+            // last.end_line = nc.end_line;
+            // last.end_char = nc.end_char;
 
-        // reset_timer ();
-        // return;
-        // }
+            // reset_timer ();
+            // return;
+            // }
 
-        //// Слияние удаления (Backspace)
-        //// Здесь оффсеты — это просто индексы символов, они работают корректно
-        // if (nc.text == "" && last.text == "" && nc.end_offset == last.start_offset) {
-        // last.start_offset = nc.start_offset;
-        // last.start_line = nc.start_line;
-        // last.start_char = nc.start_char;
-        // reset_timer ();
-        // return;
-        // }
-        // }
+            // TODO: merge mergeable delete_range changes...
+            // Слияние удаления (Backspace)
+            // Здесь оффсеты — это просто индексы символов, они работают корректно
+            // if (nc.text == "" && last.text == "" && nc.end_offset == last.start_offset) {
+            // last.start_offset = nc.start_offset;
+            // last.start_line = nc.start_line;
+            // last.start_char = nc.start_char;
+            // reset_timer ();
+            // return;
+            // }
+        }
 
         pending_queue.add (nc);
         reset_timer ();
