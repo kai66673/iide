@@ -91,8 +91,8 @@ namespace Iide {
         public virtual CompletionActivation get_activation (CompletionContext context) {
             // Разрешаем показ при наборе текста (INTERACTIVE)
             // и принудительный показ по Ctrl+Space (USER_REQUESTED)
-            return // CompletionActivation.INTERACTIVE |
-                   CompletionActivation.USER_REQUESTED;
+            return CompletionActivation.INTERACTIVE
+                   | CompletionActivation.USER_REQUESTED;
         }
 
         public virtual async GLib.ListModel populate_async (CompletionContext context, GLib.Cancellable? cancellable) throws GLib.Error {

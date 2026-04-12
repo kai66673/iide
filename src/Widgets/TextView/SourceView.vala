@@ -210,34 +210,35 @@ public class Iide.SourceView : GtkSource.View {
     }
 
     private void add_change (PendingChange nc) {
-        if (!pending_queue.is_empty) {
-            var last = pending_queue.get (pending_queue.size - 1);
+        // TODO: merge mergeable changes...
+        // if (!pending_queue.is_empty) {
+        // var last = pending_queue.get (pending_queue.size - 1);
 
-            // Слияние последовательной печати
-            // ВАЖНО: используем char_count() для определения реального сдвига в буфере
-            if (nc.text != "" && last.text != "" && nc.start_offset == last.start_offset + last.text.char_count ()) {
+        //// Слияние последовательной печати
+        //// ВАЖНО: используем char_count() для определения реального сдвига в буфере
+        // if (nc.text != "" && last.text != "" && nc.start_offset == last.start_offset + last.text.char_count ()) {
 
-                last.text += nc.text;
+        // last.text += nc.text;
 
-                // Обновляем только конечные координаты
-                last.end_offset = nc.end_offset;
-                last.end_line = nc.end_line;
-                last.end_char = nc.end_char;
+        //// Обновляем только конечные координаты
+        // last.end_offset = nc.end_offset;
+        // last.end_line = nc.end_line;
+        // last.end_char = nc.end_char;
 
-                reset_timer ();
-                return;
-            }
+        // reset_timer ();
+        // return;
+        // }
 
-            // Слияние удаления (Backspace)
-            // Здесь оффсеты — это просто индексы символов, они работают корректно
-            if (nc.text == "" && last.text == "" && nc.end_offset == last.start_offset) {
-                last.start_offset = nc.start_offset;
-                last.start_line = nc.start_line;
-                last.start_char = nc.start_char;
-                reset_timer ();
-                return;
-            }
-        }
+        //// Слияние удаления (Backspace)
+        //// Здесь оффсеты — это просто индексы символов, они работают корректно
+        // if (nc.text == "" && last.text == "" && nc.end_offset == last.start_offset) {
+        // last.start_offset = nc.start_offset;
+        // last.start_line = nc.start_line;
+        // last.start_char = nc.start_char;
+        // reset_timer ();
+        // return;
+        // }
+        // }
 
         pending_queue.add (nc);
         reset_timer ();
