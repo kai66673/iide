@@ -3,7 +3,7 @@ using Gee;
 
 public class Iide.IdeLspService : GLib.Object {
     private static IdeLspService? _instance;
-    private Gee.HashMap<string, IdeLspClient> clients;
+    private Gee.HashMap<string, LspClient> clients;
     private Gee.HashMap<string, string> uri_to_client_key;
     private Gee.HashMap<string, int> document_versions;
     private Gee.HashMap<string, bool> client_starting;
@@ -52,7 +52,7 @@ public class Iide.IdeLspService : GLib.Object {
     }
 
     construct {
-        clients = new Gee.HashMap<string, IdeLspClient> ();
+        clients = new Gee.HashMap<string, LspClient> ();
         uri_to_client_key = new Gee.HashMap<string, string> ();
         document_versions = new Gee.HashMap<string, int> ();
         client_starting = new Gee.HashMap<string, bool> ();
@@ -100,15 +100,14 @@ public class Iide.IdeLspService : GLib.Object {
             return;
         }
 
-        var client = new IdeLspClient ();
+        var client = new LspClient ();
         client.diagnostics_received.connect ((uri, diagnostics) => {
             diagnostics_updated (uri, diagnostics);
         });
-        client.error_occurred.connect ((msg) => {
-            warning ("IdeLspService: LSP error: %s", msg);
-        });
 
-        bool started = yield client.start_server (config.command, config.args, workspace_root ?? config.workspace_root);
+        bool started = yield client.start_server_async (config.command, config.args, workspace_root ?? config.workspace_root);
+
+        logger.info ("LSP", "Started server for %s: %b (%s -- %s)".printf (server_key, started, workspace_root, config.workspace_root));
 
         if (started) {
             clients.set (server_key, client);
@@ -148,7 +147,7 @@ public class Iide.IdeLspService : GLib.Object {
         var version = document_versions.get (uri);
         document_versions.set (uri, version + 1);
 
-        yield client.text_document_did_change (uri, version + 1, content, change_start, change_end);
+        yield client.text_document_did_change (uri, version + 1, content);
     }
 
     public async void send_did_change (string uri, int version, Gee.ArrayList<PendingChange> changes) {
@@ -196,19 +195,12 @@ public class Iide.IdeLspService : GLib.Object {
         language_configs.set (language_id, new LanguageConfig (command, args, workspace_root));
     }
 
-    public IdeLspClient ? get_client_for_uri (string uri) {
+    public LspClient ? get_client_for_uri (string uri) {
         var server_key = uri_to_client_key.get (uri);
         if (server_key == null) {
             return null;
         }
         return clients.get (server_key);
-    }
-
-    public void shutdown_all () {
-        foreach (var client in clients.values) {
-            client.shutdown ();
-        }
-        clients.clear ();
     }
 
     public async IdeLspCompletionResult ? request_completion (string uri,

@@ -49,7 +49,7 @@ public class Iide.LspClient : Object {
     private OutputStream output_stream;
 
     // Сигнал для передачи диагностики в UI
-    public signal void diagnostics_received (string uri, Json.Array diagnostics);
+    public signal void diagnostics_received (string uri, Gee.ArrayList<IdeLspDiagnostic> diagnostics);
 
     // Сигнал для логирования сообщений от сервера
     public signal void log_message (int type, string message);
@@ -201,7 +201,19 @@ public class Iide.LspClient : Object {
 
         switch (method) {
         case "textDocument/publishDiagnostics" :
-            if (params != null)handle_diagnostics (params);
+            if (params != null) {
+                string uri = params.get_string_member ("uri");
+                var json_array = params.get_array_member ("diagnostics");
+
+                // Парсим JSON-массив в список ваших объектов IdeLspDiagnostic
+                var diag_list = this.parse_diagnostics (json_array);
+
+                // Передаем в главный поток для UI
+                Idle.add (() => {
+                    this.diagnostics_received (uri, diag_list);
+                    return Source.REMOVE;
+                });
+            }
             break;
 
         case "window/logMessage" :
@@ -217,17 +229,6 @@ public class Iide.LspClient : Object {
             debug ("Unhandled LSP notification: %s", method);
             break;
         }
-    }
-
-    private void handle_diagnostics (Json.Object params) {
-        string uri = params.get_string_member ("uri");
-        var diagnostics = params.get_array_member ("diagnostics");
-
-        // Пробрасываем данные через сигнал в главный поток
-        Idle.add (() => {
-            this.diagnostics_received (uri, diagnostics);
-            return Source.REMOVE;
-        });
     }
 
     private void handle_log_message (Json.Object params) {
@@ -259,7 +260,7 @@ public class Iide.LspClient : Object {
 
             // 5. Фаза INITIALIZE
             var init_params = build_init_params (workspace_root, initialization_options);
-            var response = yield this.send_request ("initialize", init_params);
+            var response = yield this.send_request ("initialize", init_params.get_object ());
 
             if (response != null && response.has_member ("result")) {
                 var result = response.get_object_member ("result");
@@ -311,18 +312,56 @@ public class Iide.LspClient : Object {
         this.capabilities.definition_provider = caps.has_member ("definitionProvider") && caps.get_boolean_member ("definitionProvider");
     }
 
-    private Json.Object build_init_params (string? root_uri, Json.Node? options) {
-        var params = new Json.Object ();
-        params.set_int_member ("processId", getpid ());
-        params.set_string_member ("rootUri", root_uri ?? "");
-
-        var client_caps = new Json.Object (); // Здесь можно объявить, что наш клиент умеет (Markdown и т.д.)
-        params.set_object_member ("capabilities", client_caps);
-
-        if (options != null && options.get_node_type () == Json.NodeType.OBJECT) {
-            params.set_object_member ("initializationOptions", options.get_object ());
+    private Json.Node build_init_params (string? workspace_root, Json.Node? initialization_options = null) {
+        var builder = new Json.Builder ();
+        builder.begin_object ();
+        builder.set_member_name ("processId");
+        builder.add_null_value ();
+        builder.set_member_name ("clientInfo");
+        builder.begin_object ();
+        builder.set_member_name ("name");
+        builder.add_string_value ("iide");
+        builder.set_member_name ("version");
+        builder.add_string_value ("0.1.0");
+        builder.end_object ();
+        builder.set_member_name ("rootUri");
+        if (workspace_root != null) {
+            builder.add_string_value (workspace_root);
+        } else {
+            builder.add_null_value ();
         }
-        return params;
+        builder.set_member_name ("workspaceFolders");
+        builder.begin_array ();
+        if (workspace_root != null) {
+            builder.begin_object ();
+            builder.set_member_name ("uri");
+            builder.add_string_value (workspace_root);
+            builder.set_member_name ("name");
+            builder.add_string_value ("workspace");
+            builder.end_object ();
+        }
+        builder.end_array ();
+        builder.set_member_name ("capabilities");
+        builder.begin_object ();
+        builder.set_member_name ("textDocument");
+        builder.begin_object ();
+        builder.set_member_name ("syncKind");
+        builder.add_int_value (1);
+        builder.end_object ();
+        builder.end_object ();
+        builder.set_member_name ("workspace");
+        builder.begin_object ();
+        builder.set_member_name ("workspaceFolders");
+        builder.add_boolean_value (true);
+        builder.end_object ();
+        builder.end_object ();
+        if (initialization_options != null) {
+            builder.set_member_name ("initializationOptions");
+            builder.add_value (initialization_options.copy ());
+        }
+        builder.end_object ();
+
+        return builder.get_root ();
     }
 
     public async void send_notification_async (string method, Json.Object params) throws Error {
@@ -333,5 +372,307 @@ public class Iide.LspClient : Object {
 
         // Вызываем наш атомарный метод записи в поток
         yield this.send_message_async (root);
+    }
+
+    private Gee.ArrayList<IdeLspDiagnostic> parse_diagnostics (Json.Array diagnostics_array) {
+        var result = new Gee.ArrayList<IdeLspDiagnostic> ();
+
+        foreach (var diag_node in diagnostics_array.get_elements ()) {
+            var diag_obj = diag_node.get_object ();
+            var d = new IdeLspDiagnostic ();
+
+            // Основные поля
+            d.message = diag_obj.get_string_member ("message");
+            if (diag_obj.has_member ("severity")) {
+                d.severity = (int) diag_obj.get_int_member ("severity");
+            }
+
+            // Координаты (Range в LSP содержит start и end объекты)
+            var range = diag_obj.get_object_member ("range");
+            var start = range.get_object_member ("start");
+            var end = range.get_object_member ("end");
+
+            d.start_line = (int) start.get_int_member ("line");
+            d.start_column = (int) start.get_int_member ("character"); // character -> start_column
+            d.end_line = (int) end.get_int_member ("line");
+            d.end_column = (int) end.get_int_member ("character"); // character -> end_column
+
+            result.add (d);
+        }
+
+        return result;
+    }
+
+    public async void text_document_did_open (string uri, string language_id, int version, string content) throws Error {
+        var params = new Json.Object ();
+
+        var doc = new Json.Object ();
+        doc.set_string_member ("uri", uri);
+        doc.set_string_member ("languageId", language_id);
+        doc.set_int_member ("version", version);
+        doc.set_string_member ("text", content);
+
+        params.set_object_member ("textDocument", doc);
+
+        // Это уведомление (notification), оно не требует ID и не ждет ответа
+        yield this.send_notification_async ("textDocument/didOpen", params);
+
+        debug ("LSP: Sent didOpen for %s", uri);
+    }
+
+    public async void text_document_did_change (string uri, int version, string content) throws Error {
+        var params = new Json.Object ();
+
+        // 1. Идентификатор документа
+        var doc = new Json.Object ();
+        doc.set_string_member ("uri", uri);
+        doc.set_int_member ("version", version);
+        params.set_object_member ("textDocument", doc);
+
+        // 2. Полное содержимое (без поля range)
+        var change = new Json.Object ();
+        change.set_string_member ("text", content);
+
+        var changes = new Json.Array ();
+        changes.add_object_element (change);
+        params.set_array_member ("contentChanges", changes);
+
+        yield this.send_notification_async ("textDocument/didChange", params);
+    }
+
+    public async void send_did_change (string uri, int version, Gee.ArrayList<PendingChange> changes) throws Error {
+        var params = new Json.Object ();
+
+        // 1. Идентификатор документа
+        var doc = new Json.Object ();
+        doc.set_string_member ("uri", uri);
+        doc.set_int_member ("version", version);
+        params.set_object_member ("textDocument", doc);
+
+        // 2. Массив инкрементальных изменений
+        var json_changes = new Json.Array ();
+        foreach (var c in changes) {
+            var obj = new Json.Object ();
+
+            // Формируем диапазон (range)
+            var range = new Json.Object ();
+
+            var start = new Json.Object ();
+            start.set_int_member ("line", c.start_line);
+            start.set_int_member ("character", c.start_char);
+
+            var end = new Json.Object ();
+            end.set_int_member ("line", c.end_line);
+            end.set_int_member ("character", c.end_char);
+
+            range.set_object_member ("start", start);
+            range.set_object_member ("end", end);
+
+            obj.set_object_member ("range", range);
+            obj.set_string_member ("text", c.text);
+
+            json_changes.add_object_element (obj);
+        }
+        params.set_array_member ("contentChanges", json_changes);
+
+        yield this.send_notification_async ("textDocument/didChange", params);
+    }
+
+    public async void text_document_did_close (string uri) throws Error {
+        var params = new Json.Object ();
+        var doc = new Json.Object ();
+        doc.set_string_member ("uri", uri);
+        params.set_object_member ("textDocument", doc);
+
+        yield this.send_notification_async ("textDocument/didClose", params);
+    }
+
+    private IdeLspCompletionResult parse_completion_result (Json.Node node) {
+        var res = new IdeLspCompletionResult ();
+        res.items = new Gee.ArrayList<IdeLspCompletionItem> ();
+
+        Json.Array? items_array = null;
+
+        // Случай 1: Сервер вернул объект CompletionList { isIncomplete, items }
+        if (node.get_node_type () == Json.NodeType.OBJECT) {
+            var obj = node.get_object ();
+            if (obj.has_member ("isIncomplete")) {
+                res.is_incomplete = obj.get_boolean_member ("isIncomplete");
+            }
+            if (obj.has_member ("items")) {
+                items_array = obj.get_array_member ("items");
+            }
+        }
+        // Случай 2: Сервер вернул просто массив CompletionItem[]
+        else if (node.get_node_type () == Json.NodeType.ARRAY) {
+            items_array = node.get_array ();
+        }
+
+        if (items_array != null) {
+            foreach (var item_node in items_array.get_elements ()) {
+                var item_obj = item_node.get_object ();
+                var item = new IdeLspCompletionItem ();
+
+                item.label = item_obj.get_string_member ("label");
+
+                // Опциональные поля
+                if (item_obj.has_member ("insertText"))
+                    item.insert_text = item_obj.get_string_member ("insertText");
+                else
+                    item.insert_text = item.label;
+
+                if (item_obj.has_member ("detail"))
+                    item.detail = item_obj.get_string_member ("detail");
+
+                if (item_obj.has_member ("kind"))
+                    item.kind = (int) item_obj.get_int_member ("kind");
+
+                // Обработка документации (может быть строкой или объектом MarkupContent)
+                if (item_obj.has_member ("documentation")) {
+                    var doc_node = item_obj.get_member ("documentation");
+                    if (doc_node.get_node_type () == Json.NodeType.OBJECT)
+                        item.documentation = doc_node.get_object ().get_string_member ("value");
+                    else
+                        item.documentation = doc_node.get_string ();
+                }
+
+                res.items.add (item);
+            }
+        }
+
+        return res;
+    }
+
+    public async IdeLspCompletionResult ? request_completion (string uri, int line, int character, string? trigger_char = null, CompletionTriggerKind trigger_kind = CompletionTriggerKind.INVOKED) throws Error {
+        var params = new Json.Object ();
+
+        var doc = new Json.Object ();
+        doc.set_string_member ("uri", uri);
+        params.set_object_member ("textDocument", doc);
+
+        var pos = new Json.Object ();
+        pos.set_int_member ("line", line);
+        pos.set_int_member ("character", character);
+        params.set_object_member ("position", pos);
+
+        var context = new Json.Object ();
+        context.set_int_member ("triggerKind", (int) trigger_kind);
+        if (trigger_char != null) {
+            context.set_string_member ("triggerCharacter", trigger_char);
+        }
+        params.set_object_member ("context", context);
+
+        var response = yield this.send_request ("textDocument/completion", params);
+
+        if (response == null || !response.has_member ("result"))return null;
+
+        var result_node = response.get_member ("result");
+        if (result_node.get_node_type () == Json.NodeType.NULL)return null;
+
+        return parse_completion_result (result_node);
+    }
+
+    private string ? parse_hover_result (Json.Node node) {
+        if (node.get_node_type () != Json.NodeType.OBJECT)
+            return null;
+
+        var result = node.get_object ();
+
+        // Случай 1: содержимое в поле 'contents'
+        if (!result.has_member ("contents"))
+            return null;
+
+        var contents = result.get_member ("contents");
+
+        // Если это объект (MarkupContent)
+        if (contents.get_node_type () == Json.NodeType.OBJECT) {
+            var obj = contents.get_object ();
+            if (obj.has_member ("value")) {
+                return obj.get_string_member ("value");
+            }
+        }
+        // Если это просто строка или массив строк
+        else {
+            return contents.get_string ();
+        }
+
+        return null;
+    }
+
+    public async string ? request_hover (string uri, int line, int character) throws Error {
+        var params = new Json.Object ();
+
+        var doc = new Json.Object ();
+        doc.set_string_member ("uri", uri);
+        params.set_object_member ("textDocument", doc);
+
+        var pos = new Json.Object ();
+        pos.set_int_member ("line", line);
+        pos.set_int_member ("character", character);
+        params.set_object_member ("position", pos);
+
+        var response = yield this.send_request ("textDocument/hover", params);
+
+        if (response == null || !response.has_member ("result"))return null;
+
+        return parse_hover_result (response.get_member ("result"));
+    }
+
+    public async Gee.ArrayList<IdeLspLocation>? request_definition (string uri, int line, int character) throws Error {
+        var params = new Json.Object ();
+
+        var doc = new Json.Object ();
+        doc.set_string_member ("uri", uri);
+        params.set_object_member ("textDocument", doc);
+
+        var pos = new Json.Object ();
+        pos.set_int_member ("line", line);
+        pos.set_int_member ("character", character);
+        params.set_object_member ("position", pos);
+
+        var response = yield this.send_request ("textDocument/definition", params);
+
+        if (response == null || !response.has_member ("result"))return null;
+
+        var result_node = response.get_member ("result");
+        if (result_node.get_node_type () == Json.NodeType.NULL)return null;
+
+        return parse_definition_result (result_node);
+    }
+
+    private Gee.ArrayList<IdeLspLocation> parse_definition_result (Json.Node node) {
+        var locations = new Gee.ArrayList<IdeLspLocation> ();
+
+        // Случай 1: Одиночный объект Location {}
+        if (node.get_node_type () == Json.NodeType.OBJECT) {
+            var loc = parse_single_location (node.get_object ());
+            if (loc != null)locations.add (loc);
+        }
+        // Случай 2: Массив объектов Location[]
+        else if (node.get_node_type () == Json.NodeType.ARRAY) {
+            var array = node.get_array ();
+            foreach (var element in array.get_elements ()) {
+                var loc = parse_single_location (element.get_object ());
+                if (loc != null)locations.add (loc);
+            }
+        }
+
+        return locations;
+    }
+
+    private IdeLspLocation ? parse_single_location (Json.Object obj) {
+        var loc = new IdeLspLocation ();
+        loc.uri = obj.get_string_member ("uri");
+
+        var range = obj.get_object_member ("range");
+        var start = range.get_object_member ("start");
+        var end = range.get_object_member ("end");
+
+        loc.start_line = (int) start.get_int_member ("line");
+        loc.start_column = (int) start.get_int_member ("character");
+        loc.end_line = (int) end.get_int_member ("line");
+        loc.end_column = (int) end.get_int_member ("character");
+
+        return loc;
     }
 }
