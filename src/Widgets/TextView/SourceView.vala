@@ -90,7 +90,9 @@ public class Iide.SourceView : GtkSource.View {
 
         // LSP-complete
         var completion = get_completion ();
-        completion.show_icons = false; // Упрощаем попап, чтобы не ломать размеры
+        completion.select_on_show = true;
+        completion.show_icons = true;
+        completion.page_size = 18;
         completion.remember_info_visibility = false;
         var provider = new LspCompletionProvider (this);
         completion.add_provider (provider);

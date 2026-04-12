@@ -65,13 +65,15 @@ namespace Iide {
             var proposal = item as LspCompletionProposal;
             if (proposal == null)return false;
 
-            // Получаем текущее слово из контекста (нужно сохранить его в провайдере перед фильтрацией)
-            string filter_text = this.current_word.down ();
+            // Используем поле filter_text из LSP, если оно есть, иначе label
+            string haystack = proposal.get_label ();
+            string needle = this.current_word;
 
-            if (filter_text == "")return true;
+            if (needle == "")return true;
 
-            // Проверяем: содержит ли заголовок предложения набранный текст
-            return proposal.get_label ().down ().contains (filter_text);
+            // Вызов статического метода из GtkSource.Completion
+            uint priority;
+            return GtkSource.Completion.fuzzy_match (haystack, needle, out priority);
         }
 
         public LspCompletionProvider (SourceView view) {
@@ -145,10 +147,54 @@ namespace Iide {
             return filter_model;
         }
 
+        private string get_icon_name_for_kind (int kind) {
+            switch (kind) {
+            case 2 : case 3: return "code-function-symbolic"; // Method, Function
+            case 4: return "code-class-symbolic"; // Constructor
+            case 5: return "code-variable-symbolic"; // Field
+            case 6: return "code-variable-symbolic"; // Variable
+            case 7: return "code-class-symbolic"; // Class
+            case 8: return "code-class-symbolic"; // Interface
+            case 9: return "code-context-menu-symbolic"; // Module
+            case 10: return "code-variable-symbolic"; // Property
+            case 11: return "code-variable-symbolic"; // Unit
+            case 12: return "code-variable-symbolic"; // Value
+            case 13: return "code-class-symbolic"; // Enum
+            case 14: return "code-variable-symbolic"; // Keyword
+            case 15: return "code-context-menu-symbolic"; // Snippet
+            case 16: return "code-variable-symbolic"; // Color
+            case 17: return "code-variable-symbolic"; // File
+            case 18: return "code-variable-symbolic"; // Reference
+            default: return "code-variable-symbolic";
+            }
+        }
+
         public virtual void display (CompletionContext context, CompletionProposal proposal, CompletionCell cell) {
             var p = (LspCompletionProposal) proposal;
-            if (cell.column == CompletionColumn.TYPED_TEXT) {
-                cell.text = p.item.label;
+
+            switch (cell.column) {
+            case CompletionColumn.ICON:
+                cell.set_icon_name (get_icon_name_for_kind (p.item.kind));
+                break;
+            case CompletionColumn.TYPED_TEXT:
+                cell.text = p.get_label ();
+                break;
+            case CompletionColumn.DETAILS: {
+                string? doc = p.item.documentation;
+                if (doc != null && doc != "") {
+                    cell.set_markup (doc);
+                }
+                break;
+            }
+            case CompletionColumn.COMMENT: {
+                string? doc = p.item.detail;
+                if (doc != null && doc != "") {
+                    cell.set_markup (doc);
+                }
+                break;
+            }
+            default:
+                break;
             }
         }
 
