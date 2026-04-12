@@ -88,11 +88,13 @@ namespace Iide {
             filter_model = new Gtk.FilterListModel (base_store, custom_filter);
         }
 
+        public virtual bool is_trigger (Gtk.TextIter iter, unichar ch) {
+            return ch == '.';
+        }
+
         public virtual CompletionActivation get_activation (CompletionContext context) {
-            // Разрешаем показ при наборе текста (INTERACTIVE)
-            // и принудительный показ по Ctrl+Space (USER_REQUESTED)
-            return CompletionActivation.INTERACTIVE
-                   | CompletionActivation.USER_REQUESTED;
+            // По умолчанию: по Ctrl+Space или при наборе обычного текста
+            return CompletionActivation.INTERACTIVE | CompletionActivation.USER_REQUESTED;
         }
 
         public virtual async GLib.ListModel populate_async (CompletionContext context, GLib.Cancellable? cancellable) throws GLib.Error {
@@ -103,6 +105,8 @@ namespace Iide {
                 return filter_model;
             }
 
+            yield source_view.flush_changes_async ();
+
             var buffer = source_view.buffer;
             var insert_mark = buffer.get_insert ();
             TextIter iter;
@@ -112,7 +116,22 @@ namespace Iide {
             int character = iter.get_line_offset ();
             string uri = source_view.uri;
 
-            var result = yield lsp_service.request_completion (uri, line, character);
+            string? trigger_char = null;
+            var trigger_kind = 1; // Invoked по умолчанию
+
+            // Проверяем, что за символ перед нами
+            TextIter prev = iter;
+            if (prev.backward_char ()) {
+                unichar ch = prev.get_char ();
+                if (ch == '.') {
+                    trigger_char = ch.to_string ();
+                    trigger_kind = 2; // TriggerCharacter
+                }
+            }
+
+            message ("request_completion: trigger_char: %s, trigger_kind: %d", trigger_char, trigger_kind);
+
+            var result = yield lsp_service.request_completion (uri, line, character, trigger_char, trigger_kind);
 
             if (result == null || result.items.size == 0) {
                 return filter_model;

@@ -211,12 +211,16 @@ public class Iide.IdeLspService : GLib.Object {
         clients.clear ();
     }
 
-    public async IdeLspCompletionResult ? request_completion (string uri, int line, int character, string? trigger_character = null) {
+    public async IdeLspCompletionResult ? request_completion (string uri,
+                                                              int line,
+                                                              int character,
+                                                              string? trigger_character = null,
+                                                              CompletionTriggerKind trigger_kind = INVOKED) {
         var client = get_client_for_uri (uri);
         if (client == null) {
             return null;
         }
-        return yield client.request_completion (uri, line, character, trigger_character);
+        return yield client.request_completion (uri, line, character, trigger_character, trigger_kind);
     }
 
     public async string ? request_hover (string uri, int line, int character) {

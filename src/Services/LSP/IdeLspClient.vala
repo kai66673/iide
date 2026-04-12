@@ -2,6 +2,26 @@ using GLib;
 using Json;
 
 
+public enum Iide.CompletionTriggerKind {
+    /**
+     * Дополнение вызвано вручную (например, Ctrl+Space)
+     * или обычным набором текста, не являющегося триггером.
+     */
+    INVOKED = 1,
+
+    /**
+     * Дополнение вызвано вводом специфического символа-триггера
+     * (например, '.', ':', '->').
+     */
+    TRIGGER_CHARACTER = 2,
+
+    /**
+     * Дополнение вызвано повторным запросом (например, когда
+     * список был помечен как 'incomplete').
+     */
+    TRIGGER_FOR_INCOMPLETE_COMPLETIONS = 3
+}
+
 public class Iide.PendingChange : GLib.Object {
     public int start_offset;
     public int end_offset;
@@ -340,7 +360,11 @@ public class Iide.IdeLspClient : GLib.Object {
         yield send_message (json);
     }
 
-    public async IdeLspCompletionResult ? request_completion (string uri, int line, int character, string? trigger_character = null) {
+    public async IdeLspCompletionResult ? request_completion (string uri,
+                                                              int line,
+                                                              int character,
+                                                              string? trigger_character = null,
+                                                              CompletionTriggerKind trigger_kind = INVOKED) {
         int id = (int) next_request_id; // Сохраняем текущий ID
 
         // Формируем параметры по спецификации LSP
@@ -350,6 +374,12 @@ public class Iide.IdeLspClient : GLib.Object {
         builder.begin_object ();
         builder.set_member_name ("uri");
         builder.add_string_value (uri);
+        builder.set_member_name ("triggerKind");
+        builder.add_int_value ((int) trigger_kind);
+        if (trigger_character != null) {
+            builder.set_member_name ("triggerCharacter");
+            builder.add_string_value (trigger_character);
+        }
         builder.end_object ();
 
         builder.set_member_name ("position");

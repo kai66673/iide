@@ -77,6 +77,8 @@ public class Iide.SourceView : GtkSource.View {
     private uint debounce_id = 0;
     private int document_version = 0;
 
+    private LoggerService logger = LoggerService.get_instance ();
+
     public SourceView (Window window, string uri, GtkSource.Buffer buffer) {
         Object (buffer : buffer);
         this.window = window;
@@ -172,8 +174,21 @@ public class Iide.SourceView : GtkSource.View {
         add_controller (click_gest);
 
         setup_buffer_signals ();
+        // setup_buffer_signals_test ();
 
         buffer.set_modified (false);
+    }
+
+    private void setup_buffer_signals_test () {
+        buffer.insert_text.connect ((ref location, text, len) => {
+            logger.debug ("SV", "insert_text.connect: text=%s, len=%d, location=%d".printf (text, len, location.get_offset ()));
+        });
+        buffer.insert_text.connect_after ((ref location, text, len) => {
+            logger.debug ("SV", "insert_text.connect_after: text=%s, len=%d, location=%d".printf (text, len, location.get_offset ()));
+        });
+        buffer.delete_range.connect ((start, end) => {
+            logger.debug ("SV", "delete_range.connect: start=%d, end=%d".printf (start.get_offset (), end.get_offset ()));
+        });
     }
 
     private void setup_buffer_signals () {
@@ -267,6 +282,23 @@ public class Iide.SourceView : GtkSource.View {
         // Передаем в менеджер для конвертации и отправки
         var lsp_service = IdeLspService.get_instance ();
         lsp_service.send_did_change.begin (this.uri, this.document_version, changes);
+    }
+
+    public async void flush_changes_async () {
+        if (pending_queue.is_empty)return;
+
+        var changes = pending_queue;
+        pending_queue = new Gee.ArrayList<PendingChange> ();
+        if (debounce_id > 0) {
+            Source.remove (debounce_id);
+            debounce_id = 0;
+        }
+
+        this.document_version++;
+
+        // Передаем в менеджер для конвертации и отправки
+        var lsp_service = IdeLspService.get_instance ();
+        yield lsp_service.send_did_change (this.uri, this.document_version, changes);
     }
 
     public GtkSource.Language? language {
