@@ -20,6 +20,7 @@ iide_sources = [
     'Services/ProjectManager.vala',
     'Services/SettingsService.vala',
     'Services/PanelLayoutHelper.vala',
+    'Services/LSP/LspClient.vala',
     'Services/LSP/IdeLspClient.vala',
     'Services/LSP/IdeLspService.vala',
     'Services/LSP/IdeLspManager.vala',
