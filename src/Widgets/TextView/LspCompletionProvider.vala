@@ -91,7 +91,21 @@ namespace Iide {
         }
 
         public virtual bool is_trigger (Gtk.TextIter iter, unichar ch) {
-            return ch == '.';
+            // 1. Получаем клиент для текущего документа
+            var client = IdeLspService.get_instance ().get_client_for_uri (this.source_view.uri);
+
+            if (client == null || !client.is_initialized) {
+                // Если сервер еще не готов, используем стандартный набор (на всякий случай)
+                return ch == '.';
+            }
+
+            // 2. Проверяем, есть ли введенный символ в списке триггеров сервера
+            string s = ch.to_string ();
+            if (client.capabilities.completion_triggers.contains (s)) {
+                return true;
+            }
+
+            return false;
         }
 
         public virtual CompletionActivation get_activation (CompletionContext context) {
@@ -119,19 +133,19 @@ namespace Iide {
             string uri = source_view.uri;
 
             string? trigger_char = null;
-            var trigger_kind = 1; // Invoked по умолчанию
+            var trigger_kind = CompletionTriggerKind.INVOKED; // Invoked по умолчанию
 
-            // Проверяем, что за символ перед нами
             TextIter prev = iter;
             if (prev.backward_char ()) {
                 unichar ch = prev.get_char ();
-                if (ch == '.') {
-                    trigger_char = ch.to_string ();
-                    trigger_kind = 2; // TriggerCharacter
+                string s = ch.to_string ();
+
+                var client = IdeLspService.get_instance ().get_client_for_uri (this.source_view.uri);
+                if (client != null && client.capabilities.completion_triggers.contains (s)) {
+                    trigger_char = s;
+                    trigger_kind = CompletionTriggerKind.TRIGGER_CHARACTER;
                 }
             }
-
-            message ("request_completion: trigger_char: %s, trigger_kind: %d", trigger_char, trigger_kind);
 
             var result = yield lsp_service.request_completion (uri, line, character, trigger_char, trigger_kind);
 
