@@ -1,6 +1,15 @@
 using Gtk;
 using GtkSource;
 
+private struct Iide.TsEdit {
+    public uint32 start_byte;
+    public uint32 old_end_byte;
+    public uint32 new_end_byte;
+    public TreeSitter.Point start_point;
+    public TreeSitter.Point old_end_point;
+    public TreeSitter.Point new_end_point;
+}
+
 public abstract class Iide.BaseTreeSitterHighlighter : Object {
     protected View view;
     protected Buffer buffer;
@@ -9,19 +18,21 @@ public abstract class Iide.BaseTreeSitterHighlighter : Object {
     private uint debounce_source = 0;
     private const int DEBOUNCE_DELAY_MS = 50;
 
-    protected abstract unowned TreeSitter.Language language();
+    protected abstract unowned TreeSitter.Language language ();
 
-    protected BaseTreeSitterHighlighter(View view) {
+    private Gee.ArrayList<TsEdit?> pending_edits = new Gee.ArrayList<TsEdit?> ();
+
+    protected BaseTreeSitterHighlighter (View view) {
         this.view = view;
-        this.buffer = (Buffer) view.get_buffer();
+        this.buffer = (Buffer) view.get_buffer ();
 
-        parser = new TreeSitter.Parser();
-        parser.set_language(language());
+        parser = new TreeSitter.Parser ();
+        parser.set_language (language ());
 
         buffer.delete_range.connect (on_delete_range);
-        buffer.insert_text.connect_after (on_insert_text);
+        buffer.insert_text.connect (on_insert_text);
 
-        buffer.notify["style-scheme"].connect_after(on_style_scheme_changed);
+        buffer.notify["style-scheme"].connect_after (on_style_scheme_changed);
 
         Idle.add (() => {
             do_reparse ();
@@ -29,15 +40,81 @@ public abstract class Iide.BaseTreeSitterHighlighter : Object {
         });
     }
 
-    private void on_style_scheme_changed() {
+    private void on_style_scheme_changed () {
         apply_highlighting_full ();
     }
 
-    private void on_delete_range (TextIter start, TextIter end) {
+    private void calculate_text_stats (string text, out uint32 lines, out uint32 last_column) {
+        lines = 0;
+        last_column = 0;
+        int i = 0;
+        unichar c;
+
+        while (text.get_next_char (ref i, out c)) {
+            if (c == '\n') {
+                lines++;
+                last_column = 0;
+            } else {
+                // Tree-sitter ожидает колонки в БАЙТАХ от начала строки
+                // Вычисляем длину текущего символа в байтах
+                last_column += (uint32) c.to_utf8 (null);
+            }
+        }
+    }
+
+    private void on_insert_text (TextIter iter, string text, int len_bytes) {
+        var edit = TsEdit ();
+
+        // Начальные координаты (фиксируем ДО вставки)
+        TextIter start_buf;
+        buffer.get_start_iter (out start_buf);
+        edit.start_byte = (uint32) buffer.get_slice (start_buf, iter, false).length;
+
+        edit.start_point = TreeSitter.Point () {
+            row = (uint32) iter.get_line (),
+            column = (uint32) iter.get_line_index ()
+        };
+
+        // Вставка в Tree-sitter — это замена диапазона нулевой длины на новый текст
+        edit.old_end_byte = edit.start_byte;
+        edit.old_end_point = edit.start_point;
+
+        // Вычисляем, где окажется конец после вставки
+        uint32 lines_added;
+        uint32 last_line_bytes;
+        calculate_text_stats (text, out lines_added, out last_line_bytes);
+
+        edit.new_end_byte = edit.start_byte + (uint32) text.length;
+
+        edit.new_end_point = TreeSitter.Point () {
+            row = edit.start_point.row + lines_added,
+            column = lines_added > 0 ? last_line_bytes : edit.start_point.column + last_line_bytes
+        };
+
+        pending_edits.add (edit);
         schedule_reparse ();
     }
 
-    private void on_insert_text (TextIter iter, string text, int length) {
+    private void on_delete_range (TextIter start, TextIter end) {
+        var edit = TsEdit ();
+
+        TextIter start_buf;
+        buffer.get_start_iter (out start_buf);
+        edit.start_byte = (uint32) buffer.get_slice (start_buf, start, false).length;
+        edit.old_end_byte = (uint32) buffer.get_slice (start_buf, end, false).length;
+        edit.new_end_byte = edit.start_byte;
+
+        edit.start_point = TreeSitter.Point () {
+            row = (uint32) start.get_line (),
+            column = (uint32) start.get_line_index ()
+        };
+        edit.old_end_point = TreeSitter.Point () {
+            row = (uint32) end.get_line (),
+            column = (uint32) end.get_line_index ()
+        };
+        edit.new_end_point = edit.start_point;
+
+        pending_edits.add (edit);
         schedule_reparse ();
     }
 
@@ -54,39 +131,43 @@ public abstract class Iide.BaseTreeSitterHighlighter : Object {
     }
 
     private void do_reparse () {
-        string text = buffer.text;
-        
+        string full_text = buffer.text;
+
         if (tree != null) {
-            int edit_start_byte = 0;
-            int edit_old_end_byte = text.length;
-            int edit_new_end_byte = text.length;
-
-            var edit = TreeSitter.InputEdit () {
-                start_byte = (uint32) edit_start_byte,
-                old_end_byte = (uint32) edit_old_end_byte,
-                new_end_byte = (uint32) edit_new_end_byte,
-                start_point = TreeSitter.Point () { row = 0, column = 0 },
-                old_end_point = TreeSitter.Point () { row = 0, column = 0 },
-                new_end_point = TreeSitter.Point () { row = 0, column = 0 }
-            };
-
-            tree.edit (edit);
+            // 1. Инвалидируем узлы в старом дереве
+            foreach (var e in pending_edits) {
+                var ts_edit = TreeSitter.InputEdit () {
+                    start_byte = e.start_byte,
+                    old_end_byte = e.old_end_byte,
+                    new_end_byte = e.new_end_byte,
+                    start_point = e.start_point,
+                    old_end_point = e.old_end_point,
+                    new_end_point = e.new_end_point
+                };
+                tree.edit (ts_edit);
+            }
         }
 
-        tree = parser.parse_string (tree, text.data);
-        
+        pending_edits.clear ();
+
+        // 2. ВАЖНО: Всегда вызываем парсер.
+        // Если tree != null, это будет быстрый инкрементальный парсинг.
+        // Если tree == null, это будет полный парсинг с нуля.
+        tree = parser.parse_string (tree, full_text.data);
+
+        // 3. Красим результат
         apply_highlighting_full ();
     }
 
     protected virtual void apply_highlighting_full () {
-        if (tree == null) return;
+        if (tree == null)return;
 
         TextIter start, end;
         buffer.get_bounds (out start, out end);
         buffer.remove_all_tags (start, end);
 
         traverse_node (tree.root_node (), 0, null);
-        
+
         view.queue_draw ();
     }
 
@@ -127,7 +208,7 @@ public abstract class Iide.BaseTreeSitterHighlighter : Object {
                                                out TextIter start_iter, out TextIter end_iter) {
         buffer.get_iter_at_line (out start_iter, (int) node.start_point ().row);
         start_iter.set_line_index ((int) node.start_point ().column);
-        
+
         buffer.get_iter_at_line (out end_iter, (int) node.end_point ().row);
         end_iter.set_line_index ((int) node.end_point ().column);
     }
