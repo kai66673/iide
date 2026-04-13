@@ -19,8 +19,8 @@ namespace Iide {
             lsp_service = IdeLspService.get_instance ();
         }
 
-        public async void open_document (string uri, string language_id, string content, string? workspace_root) {
-            yield lsp_service.open_document (uri, language_id, content, workspace_root);
+        public async void open_document (string uri, string language_id, string content, string? workspace_root, SourceView view) {
+            yield lsp_service.open_document (uri, language_id, content, workspace_root, view);
         }
 
         public async void change_document (string uri, string content, int? change_start = null, int? change_end = null) {

@@ -19,12 +19,14 @@ public class Iide.IdeLspService : GLib.Object {
         public string language_id;
         public string content;
         public string? workspace_root;
+        public SourceView view;
 
-        public PendingOpen (string uri, string language_id, string content, string? workspace_root) {
+        public PendingOpen (string uri, string language_id, string content, string? workspace_root, SourceView view) {
             this.uri = uri;
             this.language_id = language_id;
             this.content = content;
             this.workspace_root = workspace_root;
+            this.view = view;
         }
     }
 
@@ -69,7 +71,7 @@ public class Iide.IdeLspService : GLib.Object {
         return _instance;
     }
 
-    public async void open_document (string uri, string language_id, string content, string? workspace_root) {
+    public async void open_document (string uri, string language_id, string content, string? workspace_root, SourceView view) {
         var server_key = get_server_key_for_language (language_id);
         if (server_key == null) {
             debug ("IdeLspService: No LSP server configured for language: %s", language_id);
@@ -84,11 +86,16 @@ public class Iide.IdeLspService : GLib.Object {
             document_versions.set (uri, 1);
             yield client.text_document_did_open (uri, language_id, 1, content);
 
+            Idle.add (() => {
+                view.setup_lsp_sync (client);
+                return Source.REMOVE;
+            });
+
             return;
         }
 
         if (client_starting.get (server_key) == true) {
-            pending_opens.add (new PendingOpen (uri, language_id, content, workspace_root));
+            pending_opens.add (new PendingOpen (uri, language_id, content, workspace_root, view));
             return;
         }
 
@@ -115,6 +122,11 @@ public class Iide.IdeLspService : GLib.Object {
             document_versions.set (uri, 1);
             yield client.text_document_did_open (uri, language_id, 1, content);
 
+            Idle.add (() => {
+                view.setup_lsp_sync (client);
+                return Source.REMOVE;
+            });
+
             yield process_pending_opens ();
         } else {
             warning ("IdeLspService: Failed to start LSP server for %s", server_key);
@@ -131,7 +143,7 @@ public class Iide.IdeLspService : GLib.Object {
         pending_opens.clear ();
 
         foreach (var open in opens_to_process) {
-            yield open_document (open.uri, open.language_id, open.content, open.workspace_root);
+            yield open_document (open.uri, open.language_id, open.content, open.workspace_root, open.view);
         }
     }
 

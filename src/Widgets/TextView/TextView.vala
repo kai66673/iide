@@ -56,7 +56,7 @@ public class Iide.TextView : Panel.Widget {
 
     public Window window;
     public string uri { get; private set; }
-    public GtkSource.View text_view { get { return source_view; } }
+    public SourceView text_view { get { return source_view; } }
 
     public bool is_modified { get { return ((GtkSource.Buffer) source_view.buffer).get_modified (); } }
 

@@ -57,6 +57,11 @@ public class Iide.LspClient : Object {
     // Свойство возможностей сервера
     public ServerCapabilities capabilities { get; private set; }
 
+    // Сигнал, сообщающий, что возможности сервера получены и распарсены
+    public signal void initialized_with_capabilities (ServerCapabilities caps);
+
+    public bool is_initialized { get; private set; default = false; }
+
     public LspClient () {
         this.capabilities = new ServerCapabilities ();
     }
@@ -267,6 +272,13 @@ public class Iide.LspClient : Object {
                 // Извлекаем возможности сервера
                 this.parse_capabilities (result);
             }
+
+            // Используем Idle.add, чтобы оповестить подписчиков в главном потоке
+            is_initialized = true;
+            Idle.add (() => {
+                this.initialized_with_capabilities (this.capabilities);
+                return Source.REMOVE; // Выполнить один раз
+            });
 
             // 6. Фаза INITIALIZED (уведомление о готовности)
             yield this.send_notification_async ("initialized", new Json.Object ());

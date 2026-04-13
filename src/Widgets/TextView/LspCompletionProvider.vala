@@ -107,7 +107,7 @@ namespace Iide {
                 return filter_model;
             }
 
-            yield source_view.flush_changes_async ();
+            yield source_view.sync_changes_async ();
 
             var buffer = source_view.buffer;
             var insert_mark = buffer.get_insert ();

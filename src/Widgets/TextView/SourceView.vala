@@ -75,7 +75,12 @@ public class Iide.SourceView : GtkSource.View {
     // Incremental didChange...
     private Gee.ArrayList<PendingChange> pending_queue = new Gee.ArrayList<PendingChange> ();
     private uint debounce_id = 0;
+    private uint debounce_full_id = 0;
     private int document_version = 0;
+
+    private ulong insert_handler_id = 0;
+    private ulong delete_handler_id = 0;
+    private int lsp_sync_kind = 0; // 0 - не синхронизирован, 1 - incremental, 2 - full sync
 
     // private LoggerService logger = LoggerService.get_instance ();
 
@@ -175,43 +180,85 @@ public class Iide.SourceView : GtkSource.View {
         click_gest.pressed.connect (on_click_pressed);
         add_controller (click_gest);
 
-        setup_buffer_signals ();
+        // setup_buffer_signals ();
         // setup_buffer_signals_test ();
+        this.connect_incremental_signals ();
 
         buffer.set_modified (false);
     }
 
-    // private void setup_buffer_signals_test () {
-    // buffer.insert_text.connect ((ref location, text, len) => {
-    // logger.debug ("SV", "insert_text.connect: text=%s, len=%d, location=%d".printf (text, len, location.get_offset ()));
-    // });
-    // buffer.insert_text.connect_after ((ref location, text, len) => {
-    // logger.debug ("SV", "insert_text.connect_after: text=%s, len=%d, location=%d".printf (text, len, location.get_offset ()));
-    // });
-    // buffer.delete_range.connect ((start, end) => {
-    // logger.debug ("SV", "delete_range.connect: start=%d, end=%d".printf (start.get_offset (), end.get_offset ()));
-    // });
-    // }
+    // Этот метод вызывается при открытии файла
+    public void setup_lsp_sync (LspClient client) {
+        this.apply_sync_strategy (client.capabilities, client);
+    }
 
-    private void setup_buffer_signals () {
-        buffer.insert_text.connect ((ref location, text, len) => {
+    private void connect_incremental_signals () {
+        insert_handler_id = buffer.insert_text.connect ((ref location, text, len) => {
             var change = new PendingChange (text, location);
             this.add_change (change);
         });
 
-        // repair end_offset after insert_text at last pending_queue
-        // for merge insert changes
-        // buffer.insert_text.connect_after ((ref location, text, len) => {
-        // if (!pending_queue.is_empty) {
-        // var last = pending_queue.get (pending_queue.size - 1);
-        // last.end_offset = location.get_offset ();
-        // }
-        // });
-
-        buffer.delete_range.connect ((start, end) => {
+        delete_handler_id = buffer.delete_range.connect ((start, end) => {
             var change = new PendingChange ("", start, end);
             this.add_change (change);
         });
+    }
+
+    private void apply_sync_strategy (ServerCapabilities caps, LspClient client) {
+        // Если сервер НЕ умеет в инкремент (Full Sync)
+        if (caps.sync_kind != TextDocumentSyncKind.INCREMENTAL) {
+            // Отключаем 'before' сигналы
+            if (insert_handler_id > 0)buffer.disconnect (insert_handler_id);
+            if (delete_handler_id > 0)buffer.disconnect (delete_handler_id);
+
+            // Очищаем накопленные дельты (они бесполезны для Full Sync)
+            this.pending_queue.clear ();
+
+            // Переходим на Full Sync (срабатывает ПОСЛЕ вставки текста)
+            buffer.changed.connect_after (() => {
+                this.start_debounce_full_timer ();
+            });
+
+            // ПРИНУДИТЕЛЬНО выравниваем состояние сервера (шлем весь текущий текст)
+            client.text_document_did_change.begin (this.uri, this.document_version, this.buffer.text);
+            lsp_sync_kind = 1;
+        } else {
+            lsp_sync_kind = 2;
+            reset_timer ();
+        }
+    }
+
+    private void start_debounce_full_timer () {
+        // 1. Сбрасываем старый таймер, если пользователь продолжает печатать
+        if (debounce_full_id > 0) {
+            Source.remove (debounce_full_id);
+        }
+
+        // 2. Устанавливаем задержку (например, 500 мс затишья)
+        debounce_full_id = Timeout.add (500, () => {
+            this.flush_changes_full_async.begin (); // Запускаем асинхронную отправку
+            debounce_full_id = 0;
+            return Source.REMOVE;
+        });
+    }
+
+    private async void flush_changes_full_async () {
+        this.document_version++;
+
+        // Получаем текст синхронно (он уже актуален, так как мы в Main Loop после паузы)
+        string current_text = this.buffer.text;
+
+        var client = IdeLspService.get_instance ().get_client_for_uri (this.uri);
+        if (client != null) {
+            try {
+                // Вызываем метод полной синхронизации в новом асинхронном клиенте
+                yield client.text_document_did_change (this.uri, this.document_version, current_text);
+
+                debug ("LSP: Full sync sent for %s (v%d)", this.uri, this.document_version);
+            } catch (Error e) {
+                warning ("LSP: Full sync error: %s", e.message);
+            }
+        }
     }
 
     private void add_change (PendingChange nc) {
@@ -258,6 +305,7 @@ public class Iide.SourceView : GtkSource.View {
     }
 
     public void flush_changes () {
+        if (lsp_sync_kind != 2)return;
         if (pending_queue.is_empty)return;
 
         var changes = pending_queue;
@@ -274,7 +322,7 @@ public class Iide.SourceView : GtkSource.View {
         lsp_service.send_did_change.begin (this.uri, this.document_version, changes);
     }
 
-    public async void flush_changes_async () {
+    private async void flush_changes_async () {
         if (pending_queue.is_empty)return;
 
         var changes = pending_queue;
@@ -289,6 +337,19 @@ public class Iide.SourceView : GtkSource.View {
         // Передаем в менеджер для конвертации и отправки
         var lsp_service = IdeLspService.get_instance ();
         yield lsp_service.send_did_change (this.uri, this.document_version, changes);
+    }
+
+    public async void sync_changes_async () {
+        switch (lsp_sync_kind) {
+        case 1:
+            yield flush_changes_full_async ();
+
+            break;
+        case 2:
+            yield flush_changes_async ();
+
+            break;
+        }
     }
 
     public GtkSource.Language? language {

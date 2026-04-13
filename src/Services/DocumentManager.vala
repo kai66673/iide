@@ -128,7 +128,7 @@ public class Iide.DocumentManager : GLib.Object {
                     string content = buffer.text;
                     string? lang_id = lsp_manager.get_language_id_for_file (file);
                     if (lang_id != null) {
-                        lsp_manager.open_document.begin (uri, lang_id, content, current_workspace_root);
+                        lsp_manager.open_document.begin (uri, lang_id, content, current_workspace_root, panel_widget.text_view);
                     }
                 } catch (Error e) {
                     logger.error ("Doc", "Error Opening File", "Failed to read file %s: %s".printf (file.get_path (), e.message));
