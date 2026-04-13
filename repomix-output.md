@@ -65,6 +65,7 @@ src/
       IdeLspClient.vala
       IdeLspManager.vala
       IdeLspService.vala
+      LspClient.vala
       LspDiagnosticsMark.vala
     TreeSitter/
       cpp/
@@ -125,11 +126,6 @@ repomix-output.pdf
 
 # Files
 
-## File: .iide/lsp.json
-```json
-{"languages": [{"id": "cpp", "server": ["clangd", "--header-insertion=never"], "patterns": ["*.cpp", "*.hpp"]}]}
-```
-
 ## File: data/icons/meson.build
 ```
 application_id = 'org.github.kai66673.iide'
@@ -145,6 +141,1156 @@ install_data(
   symbolic_dir / ('@0@-symbolic.svg').format(application_id),
   install_dir: get_option('datadir') / 'icons' / symbolic_dir
 )
+```
+
+## File: data/meson.build
+```
+desktop_file = i18n.merge_file(
+        input: 'org.github.kai66673.iide.desktop.in',
+       output: 'org.github.kai66673.iide.desktop',
+         type: 'desktop',
+       po_dir: '../po',
+      install: true,
+  install_dir: get_option('datadir') / 'applications'
+)
+
+desktop_utils = find_program('desktop-file-validate', required: false)
+if desktop_utils.found()
+  test('Validate desktop file', desktop_utils, args: [desktop_file])
+endif
+
+appstream_file = i18n.merge_file(
+        input: 'org.github.kai66673.iide.metainfo.xml.in',
+       output: 'org.github.kai66673.iide.metainfo.xml',
+       po_dir: '../po',
+      install: true,
+  install_dir: get_option('datadir') / 'metainfo'
+)
+
+appstreamcli = find_program('appstreamcli', required: false, disabler: true)
+test('Validate appstream file', appstreamcli,
+     args: ['validate', '--no-net', '--explain', appstream_file])
+
+install_data('org.github.kai66673.iide.gschema.xml',
+  install_dir: get_option('datadir') / 'glib-2.0' / 'schemas'
+)
+
+compile_schemas = find_program('glib-compile-schemas', required: false, disabler: true)
+test('Validate schema file',
+     compile_schemas,
+     args: ['--strict', '--dry-run', meson.current_source_dir()])
+
+
+service_conf = configuration_data()
+service_conf.set('bindir', get_option('prefix') / get_option('bindir'))
+configure_file(
+  input: 'org.github.kai66673.iide.service.in',
+  output: 'org.github.kai66673.iide.service',
+  configuration: service_conf,
+  install_dir: get_option('datadir') / 'dbus-1' / 'services'
+)
+
+subdir('icons')
+```
+
+## File: data/org.github.kai66673.iide.desktop.in
+```
+[Desktop Entry]
+Name=iide
+Exec=iide
+Icon=org.github.kai66673.iide
+Terminal=false
+Type=Application
+Categories=Utility;
+Keywords=GTK;
+StartupNotify=true
+DBusActivatable=true
+```
+
+## File: data/org.github.kai66673.iide.metainfo.xml.in
+```
+<?xml version="1.0" encoding="UTF-8"?>
+<component type="desktop-application">
+  <id>org.github.kai66673.iide</id>
+  <metadata_license>CC0-1.0</metadata_license>
+  <project_license>GPL-3.0-or-later</project_license>
+
+  <name>Iide</name>
+  <summary>Keep the summary shorter, between 10 and 35 characters</summary>
+  <description>
+    <p>No description</p>
+  </description>
+
+  <developer id="tld.vendor">
+    <name>Developer name</name>
+  </developer>
+
+  <!-- Required: Should be a link to the upstream homepage for the component -->
+  <url type="homepage">https://example.org/</url>
+  <!-- Recommended: It is highly recommended for open-source projects to display the source code repository -->
+  <url type="vcs-browser">https://example.org/repository</url>
+  <!-- Should point to the software's bug tracking system, for users to report new bugs -->
+  <url type="bugtracker">https://example.org/issues</url>
+  <!-- Should link a FAQ page for this software, to answer some of the most-asked questions in detail -->
+  <!-- URLs of this type should point to a webpage where users can submit or modify translations of the upstream project -->
+  <url type="translate">https://example.org/translate</url>
+  <url type="faq">https://example.org/faq</url>
+  <!-- Should provide a web link to an online user's reference, a software manual or help page -->
+  <url type="help">https://example.org/help</url>
+  <!-- URLs of this type should point to a webpage showing information on how to donate to the described software project -->
+  <url type="donation">https://example.org/donate</url>
+  <!-- This could for example be an HTTPS URL to an online form or a page describing how to contact the developer -->
+  <url type="contact">https://example.org/contact</url>
+  <!-- URLs of this type should point to a webpage showing information on how to contribute to the described software project -->
+  <url type="contribute">https://example.org/contribute</url>
+
+  <translation type="gettext">iide</translation>
+  <!-- All graphical applications having a desktop file must have this tag in the MetaInfo.
+     If this is present, appstreamcli compose will pull icons, keywords and categories from the desktop file. -->
+  <launchable type="desktop-id">org.github.kai66673.iide.desktop</launchable>
+  <!-- Use the OARS website (https://hughsie.github.io/oars/generate.html) to generate these and make sure to use oars-1.1 -->
+  <content_rating type="oars-1.1" />
+
+  <!-- Applications should set a brand color in both light and dark variants like so -->
+  <branding>
+    <color type="primary" scheme_preference="light">#ff00ff</color>
+    <color type="primary" scheme_preference="dark">#993d3d</color>
+  </branding>
+
+  <screenshots>
+    <screenshot type="default">
+      <image>https://example.org/example1.png</image>
+      <caption>A caption</caption>
+    </screenshot>
+    <screenshot>
+      <image>https://example.org/example2.png</image>
+      <caption>A caption</caption>
+    </screenshot>
+  </screenshots>
+
+  <releases>
+    <release version="1.0.1" date="2024-01-18">
+      <url type="details">https://example.org/changelog.html#version_1.0.1</url>
+      <description translate="no">
+        <p>Release description</p>
+        <ul>
+          <li>List of changes</li>
+          <li>List of changes</li>
+        </ul>
+      </description>
+    </release>
+  </releases>
+
+</component>
+```
+
+## File: data/org.github.kai66673.iide.service.in
+```
+[D-BUS Service]
+Name=org.github.kai66673.iide
+Exec=@bindir@/iide --gapplication-service
+```
+
+## File: po/LINGUAS
+```
+# Please keep this file sorted alphabetically.
+```
+
+## File: po/meson.build
+```
+i18n.gettext('iide', preset: 'glib')
+```
+
+## File: po/POTFILES.in
+```
+# List of source files containing translatable strings.
+# Please keep this file sorted alphabetically.
+data/org.github.kai66673.iide.desktop.in
+data/org.github.kai66673.iide.metainfo.xml.in
+data/org.github.kai66673.iide.gschema.xml
+src/main.vala
+src/window.vala
+src/window.ui
+```
+
+## File: src/config.vapi
+```
+[CCode (cprefix = "", lower_case_cprefix = "", cheader_filename = "config.h")]
+namespace Config {
+    public const string GETTEXT_PACKAGE;
+    public const string LOCALEDIR;
+    public const string PACKAGE_VERSION;
+}
+```
+
+## File: src/main.vala
+```
+/* main.vala
+ *
+ * Copyright 2026 kai
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see <https://www.gnu.org/licenses/>.
+ *
+ * SPDX-License-Identifier: GPL-3.0-or-later
+ */
+
+int main (string[] args) {
+    Intl.bindtextdomain (Config.GETTEXT_PACKAGE, Config.LOCALEDIR);
+    Intl.bind_textdomain_codeset (Config.GETTEXT_PACKAGE, "UTF-8");
+    Intl.textdomain (Config.GETTEXT_PACKAGE);
+
+    // GtkSource.init ();
+
+    var app = new Iide.Application ();
+    return app.run (args);
+}
+```
+
+## File: src/shortcuts-dialog.ui
+```
+<?xml version="1.0" encoding="UTF-8"?>
+<interface>
+  <object class="AdwShortcutsDialog" id="shortcuts_dialog">
+    <child>
+      <object class="AdwShortcutsSection">
+        <property name="title" translatable="yes">Shortcuts</property>
+        <child>
+          <object class="AdwShortcutsItem">
+            <property name="title" translatable="yes" context="shortcut window">Show Shortcuts</property>
+            <property name="action-name">app.shortcuts</property>
+          </object>
+        </child>
+        <child>
+          <object class="AdwShortcutsItem">
+            <property name="title" translatable="yes" context="shortcut window">Quit</property>
+            <property name="action-name">app.quit</property>
+          </object>
+        </child>
+      </object>
+    </child>
+  </object>
+</interface>
+```
+
+## File: src/window.ui
+```
+<?xml version="1.0" encoding="UTF-8" ?>
+<interface>
+  <template class="IideWindow" parent="PanelDocumentWorkspace">
+    <child type="titlebar">
+      <object class="AdwHeaderBar">
+        <child type="title">
+          <object class="AdwWindowTitle" id="window_title">
+            <property name="title">IIDe Application</property>
+          </object>
+        </child>
+        <child type="start">
+          <object class="PanelToggleButton">
+            <property name="area">start</property>
+            <property name="dock">dock</property>
+          </object>
+        </child>
+        <child type="start">
+          <object class="GtkButton">
+            <property name="icon-name">list-add-symbolic</property>
+            <property name="action-name">workspace.add-page</property>
+            <property name="tooltip-text">Add Page</property>
+          </object>
+        </child>
+        <child type="end">
+          <object class="PanelToggleButton">
+            <property name="area">end</property>
+            <property name="dock">dock</property>
+          </object>
+        </child>
+        <child type="end">
+          <object class="GtkMenuButton">
+            <property name="icon-name">open-menu-symbolic</property>
+            <property name="menu-model">primary_menu</property>
+            <property name="tooltip-text">Primary Menu</property>
+          </object>
+        </child>
+      </object>
+    </child>
+    <child internal-child="dock">
+      <object class="PanelDock" id="dock">
+      </object>
+    </child>
+    <child internal-child="start_area">
+      <object class="PanelPaned" id="start_area">
+        <child>
+          <object class="PanelFrame">
+            <child>
+              <object class="PanelWidget">
+                <property name="title">XXX</property>
+                <property name="icon-name">folder-documents-symbolic</property>
+                <property name="vexpand">true</property>
+                <child>
+                  <object class="GtkScrolledWindow">
+                    <property name="hscrollbar-policy">never</property>
+                    <child>
+                      <object class="GtkListView">
+                      </object>
+                    </child>
+                  </object>
+                </child>
+              </object>
+            </child>
+          </object>
+        </child>
+      </object>
+      <object class="PanelPaned">
+        <child>
+          <object class="PanelFrame">
+            <child>
+              <object class="PanelWidget">
+                <property name="title">ZZZ ZZZ</property>
+                <property name="icon-name">folder-symbolic</property>
+                <property name="vexpand">true</property>
+                <child>
+                  <object class="GtkScrolledWindow">
+                    <property name="hscrollbar-policy">never</property>
+                    <child>
+                      <object class="GtkListView">
+                      </object>
+                    </child>
+                  </object>
+                </child>
+              </object>
+            </child>
+          </object>
+        </child>
+      </object>
+    </child>
+    <child internal-child="bottom_area">
+      <object class="PanelPaned">
+        <child>
+          <object class="PanelFrame">
+            <child>
+              <object class="PanelWidget">
+                <property name="title">123</property>
+                <property name="icon-name">folder-symbolic</property>
+                <property name="vexpand">true</property>
+                <child>
+                  <object class="GtkScrolledWindow">
+                    <property name="hscrollbar-policy">never</property>
+                    <child>
+                      <object class="GtkListView">
+                      </object>
+                    </child>
+                  </object>
+                </child>
+              </object>
+            </child>
+          </object>
+        </child>
+      </object>
+      <object class="PanelPaned">
+        <child>
+          <object class="PanelFrame">
+            <child>
+              <object class="PanelWidget">
+                <property name="title">OOP</property>
+                <property name="icon-name">folder-symbolic</property>
+                <property name="vexpand">true</property>
+                <child>
+                  <object class="GtkScrolledWindow">
+                    <property name="hscrollbar-policy">never</property>
+                    <child>
+                      <object class="GtkListView">
+                      </object>
+                    </child>
+                  </object>
+                </child>
+              </object>
+            </child>
+          </object>
+        </child>
+      </object>
+    </child>
+    <child internal-child="end_area">
+      <object class="PanelPaned" id="end_area">
+      </object>
+    </child>
+    <child internal-child="statusbar">
+      <object class="PanelStatusbar">
+        <child type="suffix">
+          <object class="PanelToggleButton">
+            <property name="area">bottom</property>
+            <property name="dock">dock</property>
+          </object>
+        </child>
+      </object>
+      <object class="PanelStatusbar">
+        <child type="suffix">
+          <object class="PanelToggleButton">
+            <property name="area">top</property>
+            <property name="dock">dock</property>
+          </object>
+        </child>
+      </object>
+    </child>
+  </template>
+  <menu id="primary_menu">
+    <section>
+      <item>
+        <attribute name="label">Quit</attribute>
+        <attribute name="action">app.quit</attribute>
+      </item>
+    </section>
+  </menu>
+</interface>
+```
+
+## File: COPYING
+```
+GNU GENERAL PUBLIC LICENSE
+                       Version 3, 29 June 2007
+
+ Copyright (C) 2007 Free Software Foundation, Inc. <https://fsf.org/>
+ Everyone is permitted to copy and distribute verbatim copies
+ of this license document, but changing it is not allowed.
+
+                            Preamble
+
+  The GNU General Public License is a free, copyleft license for
+software and other kinds of works.
+
+  The licenses for most software and other practical works are designed
+to take away your freedom to share and change the works.  By contrast,
+the GNU General Public License is intended to guarantee your freedom to
+share and change all versions of a program--to make sure it remains free
+software for all its users.  We, the Free Software Foundation, use the
+GNU General Public License for most of our software; it applies also to
+any other work released this way by its authors.  You can apply it to
+your programs, too.
+
+  When we speak of free software, we are referring to freedom, not
+price.  Our General Public Licenses are designed to make sure that you
+have the freedom to distribute copies of free software (and charge for
+them if you wish), that you receive source code or can get it if you
+want it, that you can change the software or use pieces of it in new
+free programs, and that you know you can do these things.
+
+  To protect your rights, we need to prevent others from denying you
+these rights or asking you to surrender the rights.  Therefore, you have
+certain responsibilities if you distribute copies of the software, or if
+you modify it: responsibilities to respect the freedom of others.
+
+  For example, if you distribute copies of such a program, whether
+gratis or for a fee, you must pass on to the recipients the same
+freedoms that you received.  You must make sure that they, too, receive
+or can get the source code.  And you must show them these terms so they
+know their rights.
+
+  Developers that use the GNU GPL protect your rights with two steps:
+(1) assert copyright on the software, and (2) offer you this License
+giving you legal permission to copy, distribute and/or modify it.
+
+  For the developers' and authors' protection, the GPL clearly explains
+that there is no warranty for this free software.  For both users' and
+authors' sake, the GPL requires that modified versions be marked as
+changed, so that their problems will not be attributed erroneously to
+authors of previous versions.
+
+  Some devices are designed to deny users access to install or run
+modified versions of the software inside them, although the manufacturer
+can do so.  This is fundamentally incompatible with the aim of
+protecting users' freedom to change the software.  The systematic
+pattern of such abuse occurs in the area of products for individuals to
+use, which is precisely where it is most unacceptable.  Therefore, we
+have designed this version of the GPL to prohibit the practice for those
+products.  If such problems arise substantially in other domains, we
+stand ready to extend this provision to those domains in future versions
+of the GPL, as needed to protect the freedom of users.
+
+  Finally, every program is threatened constantly by software patents.
+States should not allow patents to restrict development and use of
+software on general-purpose computers, but in those that do, we wish to
+avoid the special danger that patents applied to a free program could
+make it effectively proprietary.  To prevent this, the GPL assures that
+patents cannot be used to render the program non-free.
+
+  The precise terms and conditions for copying, distribution and
+modification follow.
+
+                       TERMS AND CONDITIONS
+
+  0. Definitions.
+
+  "This License" refers to version 3 of the GNU General Public License.
+
+  "Copyright" also means copyright-like laws that apply to other kinds of
+works, such as semiconductor masks.
+
+  "The Program" refers to any copyrightable work licensed under this
+License.  Each licensee is addressed as "you".  "Licensees" and
+"recipients" may be individuals or organizations.
+
+  To "modify" a work means to copy from or adapt all or part of the work
+in a fashion requiring copyright permission, other than the making of an
+exact copy.  The resulting work is called a "modified version" of the
+earlier work or a work "based on" the earlier work.
+
+  A "covered work" means either the unmodified Program or a work based
+on the Program.
+
+  To "propagate" a work means to do anything with it that, without
+permission, would make you directly or secondarily liable for
+infringement under applicable copyright law, except executing it on a
+computer or modifying a private copy.  Propagation includes copying,
+distribution (with or without modification), making available to the
+public, and in some countries other activities as well.
+
+  To "convey" a work means any kind of propagation that enables other
+parties to make or receive copies.  Mere interaction with a user through
+a computer network, with no transfer of a copy, is not conveying.
+
+  An interactive user interface displays "Appropriate Legal Notices"
+to the extent that it includes a convenient and prominently visible
+feature that (1) displays an appropriate copyright notice, and (2)
+tells the user that there is no warranty for the work (except to the
+extent that warranties are provided), that licensees may convey the
+work under this License, and how to view a copy of this License.  If
+the interface presents a list of user commands or options, such as a
+menu, a prominent item in the list meets this criterion.
+
+  1. Source Code.
+
+  The "source code" for a work means the preferred form of the work
+for making modifications to it.  "Object code" means any non-source
+form of a work.
+
+  A "Standard Interface" means an interface that either is an official
+standard defined by a recognized standards body, or, in the case of
+interfaces specified for a particular programming language, one that
+is widely used among developers working in that language.
+
+  The "System Libraries" of an executable work include anything, other
+than the work as a whole, that (a) is included in the normal form of
+packaging a Major Component, but which is not part of that Major
+Component, and (b) serves only to enable use of the work with that
+Major Component, or to implement a Standard Interface for which an
+implementation is available to the public in source code form.  A
+"Major Component", in this context, means a major essential component
+(kernel, window system, and so on) of the specific operating system
+(if any) on which the executable work runs, or a compiler used to
+produce the work, or an object code interpreter used to run it.
+
+  The "Corresponding Source" for a work in object code form means all
+the source code needed to generate, install, and (for an executable
+work) run the object code and to modify the work, including scripts to
+control those activities.  However, it does not include the work's
+System Libraries, or general-purpose tools or generally available free
+programs which are used unmodified in performing those activities but
+which are not part of the work.  For example, Corresponding Source
+includes interface definition files associated with source files for
+the work, and the source code for shared libraries and dynamically
+linked subprograms that the work is specifically designed to require,
+such as by intimate data communication or control flow between those
+subprograms and other parts of the work.
+
+  The Corresponding Source need not include anything that users
+can regenerate automatically from other parts of the Corresponding
+Source.
+
+  The Corresponding Source for a work in source code form is that
+same work.
+
+  2. Basic Permissions.
+
+  All rights granted under this License are granted for the term of
+copyright on the Program, and are irrevocable provided the stated
+conditions are met.  This License explicitly affirms your unlimited
+permission to run the unmodified Program.  The output from running a
+covered work is covered by this License only if the output, given its
+content, constitutes a covered work.  This License acknowledges your
+rights of fair use or other equivalent, as provided by copyright law.
+
+  You may make, run and propagate covered works that you do not
+convey, without conditions so long as your license otherwise remains
+in force.  You may convey covered works to others for the sole purpose
+of having them make modifications exclusively for you, or provide you
+with facilities for running those works, provided that you comply with
+the terms of this License in conveying all material for which you do
+not control copyright.  Those thus making or running the covered works
+for you must do so exclusively on your behalf, under your direction
+and control, on terms that prohibit them from making any copies of
+your copyrighted material outside their relationship with you.
+
+  Conveying under any other circumstances is permitted solely under
+the conditions stated below.  Sublicensing is not allowed; section 10
+makes it unnecessary.
+
+  3. Protecting Users' Legal Rights From Anti-Circumvention Law.
+
+  No covered work shall be deemed part of an effective technological
+measure under any applicable law fulfilling obligations under article
+11 of the WIPO copyright treaty adopted on 20 December 1996, or
+similar laws prohibiting or restricting circumvention of such
+measures.
+
+  When you convey a covered work, you waive any legal power to forbid
+circumvention of technological measures to the extent such circumvention
+is effected by exercising rights under this License with respect to
+the covered work, and you disclaim any intention to limit operation or
+modification of the work as a means of enforcing, against the work's
+users, your or third parties' legal rights to forbid circumvention of
+technological measures.
+
+  4. Conveying Verbatim Copies.
+
+  You may convey verbatim copies of the Program's source code as you
+receive it, in any medium, provided that you conspicuously and
+appropriately publish on each copy an appropriate copyright notice;
+keep intact all notices stating that this License and any
+non-permissive terms added in accord with section 7 apply to the code;
+keep intact all notices of the absence of any warranty; and give all
+recipients a copy of this License along with the Program.
+
+  You may charge any price or no price for each copy that you convey,
+and you may offer support or warranty protection for a fee.
+
+  5. Conveying Modified Source Versions.
+
+  You may convey a work based on the Program, or the modifications to
+produce it from the Program, in the form of source code under the
+terms of section 4, provided that you also meet all of these conditions:
+
+    a) The work must carry prominent notices stating that you modified
+    it, and giving a relevant date.
+
+    b) The work must carry prominent notices stating that it is
+    released under this License and any conditions added under section
+    7.  This requirement modifies the requirement in section 4 to
+    "keep intact all notices".
+
+    c) You must license the entire work, as a whole, under this
+    License to anyone who comes into possession of a copy.  This
+    License will therefore apply, along with any applicable section 7
+    additional terms, to the whole of the work, and all its parts,
+    regardless of how they are packaged.  This License gives no
+    permission to license the work in any other way, but it does not
+    invalidate such permission if you have separately received it.
+
+    d) If the work has interactive user interfaces, each must display
+    Appropriate Legal Notices; however, if the Program has interactive
+    interfaces that do not display Appropriate Legal Notices, your
+    work need not make them do so.
+
+  A compilation of a covered work with other separate and independent
+works, which are not by their nature extensions of the covered work,
+and which are not combined with it such as to form a larger program,
+in or on a volume of a storage or distribution medium, is called an
+"aggregate" if the compilation and its resulting copyright are not
+used to limit the access or legal rights of the compilation's users
+beyond what the individual works permit.  Inclusion of a covered work
+in an aggregate does not cause this License to apply to the other
+parts of the aggregate.
+
+  6. Conveying Non-Source Forms.
+
+  You may convey a covered work in object code form under the terms
+of sections 4 and 5, provided that you also convey the
+machine-readable Corresponding Source under the terms of this License,
+in one of these ways:
+
+    a) Convey the object code in, or embodied in, a physical product
+    (including a physical distribution medium), accompanied by the
+    Corresponding Source fixed on a durable physical medium
+    customarily used for software interchange.
+
+    b) Convey the object code in, or embodied in, a physical product
+    (including a physical distribution medium), accompanied by a
+    written offer, valid for at least three years and valid for as
+    long as you offer spare parts or customer support for that product
+    model, to give anyone who possesses the object code either (1) a
+    copy of the Corresponding Source for all the software in the
+    product that is covered by this License, on a durable physical
+    medium customarily used for software interchange, for a price no
+    more than your reasonable cost of physically performing this
+    conveying of source, or (2) access to copy the
+    Corresponding Source from a network server at no charge.
+
+    c) Convey individual copies of the object code with a copy of the
+    written offer to provide the Corresponding Source.  This
+    alternative is allowed only occasionally and noncommercially, and
+    only if you received the object code with such an offer, in accord
+    with subsection 6b.
+
+    d) Convey the object code by offering access from a designated
+    place (gratis or for a charge), and offer equivalent access to the
+    Corresponding Source in the same way through the same place at no
+    further charge.  You need not require recipients to copy the
+    Corresponding Source along with the object code.  If the place to
+    copy the object code is a network server, the Corresponding Source
+    may be on a different server (operated by you or a third party)
+    that supports equivalent copying facilities, provided you maintain
+    clear directions next to the object code saying where to find the
+    Corresponding Source.  Regardless of what server hosts the
+    Corresponding Source, you remain obligated to ensure that it is
+    available for as long as needed to satisfy these requirements.
+
+    e) Convey the object code using peer-to-peer transmission, provided
+    you inform other peers where the object code and Corresponding
+    Source of the work are being offered to the general public at no
+    charge under subsection 6d.
+
+  A separable portion of the object code, whose source code is excluded
+from the Corresponding Source as a System Library, need not be
+included in conveying the object code work.
+
+  A "User Product" is either (1) a "consumer product", which means any
+tangible personal property which is normally used for personal, family,
+or household purposes, or (2) anything designed or sold for incorporation
+into a dwelling.  In determining whether a product is a consumer product,
+doubtful cases shall be resolved in favor of coverage.  For a particular
+product received by a particular user, "normally used" refers to a
+typical or common use of that class of product, regardless of the status
+of the particular user or of the way in which the particular user
+actually uses, or expects or is expected to use, the product.  A product
+is a consumer product regardless of whether the product has substantial
+commercial, industrial or non-consumer uses, unless such uses represent
+the only significant mode of use of the product.
+
+  "Installation Information" for a User Product means any methods,
+procedures, authorization keys, or other information required to install
+and execute modified versions of a covered work in that User Product from
+a modified version of its Corresponding Source.  The information must
+suffice to ensure that the continued functioning of the modified object
+code is in no case prevented or interfered with solely because
+modification has been made.
+
+  If you convey an object code work under this section in, or with, or
+specifically for use in, a User Product, and the conveying occurs as
+part of a transaction in which the right of possession and use of the
+User Product is transferred to the recipient in perpetuity or for a
+fixed term (regardless of how the transaction is characterized), the
+Corresponding Source conveyed under this section must be accompanied
+by the Installation Information.  But this requirement does not apply
+if neither you nor any third party retains the ability to install
+modified object code on the User Product (for example, the work has
+been installed in ROM).
+
+  The requirement to provide Installation Information does not include a
+requirement to continue to provide support service, warranty, or updates
+for a work that has been modified or installed by the recipient, or for
+the User Product in which it has been modified or installed.  Access to a
+network may be denied when the modification itself materially and
+adversely affects the operation of the network or violates the rules and
+protocols for communication across the network.
+
+  Corresponding Source conveyed, and Installation Information provided,
+in accord with this section must be in a format that is publicly
+documented (and with an implementation available to the public in
+source code form), and must require no special password or key for
+unpacking, reading or copying.
+
+  7. Additional Terms.
+
+  "Additional permissions" are terms that supplement the terms of this
+License by making exceptions from one or more of its conditions.
+Additional permissions that are applicable to the entire Program shall
+be treated as though they were included in this License, to the extent
+that they are valid under applicable law.  If additional permissions
+apply only to part of the Program, that part may be used separately
+under those permissions, but the entire Program remains governed by
+this License without regard to the additional permissions.
+
+  When you convey a copy of a covered work, you may at your option
+remove any additional permissions from that copy, or from any part of
+it.  (Additional permissions may be written to require their own
+removal in certain cases when you modify the work.)  You may place
+additional permissions on material, added by you to a covered work,
+for which you have or can give appropriate copyright permission.
+
+  Notwithstanding any other provision of this License, for material you
+add to a covered work, you may (if authorized by the copyright holders of
+that material) supplement the terms of this License with terms:
+
+    a) Disclaiming warranty or limiting liability differently from the
+    terms of sections 15 and 16 of this License; or
+
+    b) Requiring preservation of specified reasonable legal notices or
+    author attributions in that material or in the Appropriate Legal
+    Notices displayed by works containing it; or
+
+    c) Prohibiting misrepresentation of the origin of that material, or
+    requiring that modified versions of such material be marked in
+    reasonable ways as different from the original version; or
+
+    d) Limiting the use for publicity purposes of names of licensors or
+    authors of the material; or
+
+    e) Declining to grant rights under trademark law for use of some
+    trade names, trademarks, or service marks; or
+
+    f) Requiring indemnification of licensors and authors of that
+    material by anyone who conveys the material (or modified versions of
+    it) with contractual assumptions of liability to the recipient, for
+    any liability that these contractual assumptions directly impose on
+    those licensors and authors.
+
+  All other non-permissive additional terms are considered "further
+restrictions" within the meaning of section 10.  If the Program as you
+received it, or any part of it, contains a notice stating that it is
+governed by this License along with a term that is a further
+restriction, you may remove that term.  If a license document contains
+a further restriction but permits relicensing or conveying under this
+License, you may add to a covered work material governed by the terms
+of that license document, provided that the further restriction does
+not survive such relicensing or conveying.
+
+  If you add terms to a covered work in accord with this section, you
+must place, in the relevant source files, a statement of the
+additional terms that apply to those files, or a notice indicating
+where to find the applicable terms.
+
+  Additional terms, permissive or non-permissive, may be stated in the
+form of a separately written license, or stated as exceptions;
+the above requirements apply either way.
+
+  8. Termination.
+
+  You may not propagate or modify a covered work except as expressly
+provided under this License.  Any attempt otherwise to propagate or
+modify it is void, and will automatically terminate your rights under
+this License (including any patent licenses granted under the third
+paragraph of section 11).
+
+  However, if you cease all violation of this License, then your
+license from a particular copyright holder is reinstated (a)
+provisionally, unless and until the copyright holder explicitly and
+finally terminates your license, and (b) permanently, if the copyright
+holder fails to notify you of the violation by some reasonable means
+prior to 60 days after the cessation.
+
+  Moreover, your license from a particular copyright holder is
+reinstated permanently if the copyright holder notifies you of the
+violation by some reasonable means, this is the first time you have
+received notice of violation of this License (for any work) from that
+copyright holder, and you cure the violation prior to 30 days after
+your receipt of the notice.
+
+  Termination of your rights under this section does not terminate the
+licenses of parties who have received copies or rights from you under
+this License.  If your rights have been terminated and not permanently
+reinstated, you do not qualify to receive new licenses for the same
+material under section 10.
+
+  9. Acceptance Not Required for Having Copies.
+
+  You are not required to accept this License in order to receive or
+run a copy of the Program.  Ancillary propagation of a covered work
+occurring solely as a consequence of using peer-to-peer transmission
+to receive a copy likewise does not require acceptance.  However,
+nothing other than this License grants you permission to propagate or
+modify any covered work.  These actions infringe copyright if you do
+not accept this License.  Therefore, by modifying or propagating a
+covered work, you indicate your acceptance of this License to do so.
+
+  10. Automatic Licensing of Downstream Recipients.
+
+  Each time you convey a covered work, the recipient automatically
+receives a license from the original licensors, to run, modify and
+propagate that work, subject to this License.  You are not responsible
+for enforcing compliance by third parties with this License.
+
+  An "entity transaction" is a transaction transferring control of an
+organization, or substantially all assets of one, or subdividing an
+organization, or merging organizations.  If propagation of a covered
+work results from an entity transaction, each party to that
+transaction who receives a copy of the work also receives whatever
+licenses to the work the party's predecessor in interest had or could
+give under the previous paragraph, plus a right to possession of the
+Corresponding Source of the work from the predecessor in interest, if
+the predecessor has it or can get it with reasonable efforts.
+
+  You may not impose any further restrictions on the exercise of the
+rights granted or affirmed under this License.  For example, you may
+not impose a license fee, royalty, or other charge for exercise of
+rights granted under this License, and you may not initiate litigation
+(including a cross-claim or counterclaim in a lawsuit) alleging that
+any patent claim is infringed by making, using, selling, offering for
+sale, or importing the Program or any portion of it.
+
+  11. Patents.
+
+  A "contributor" is a copyright holder who authorizes use under this
+License of the Program or a work on which the Program is based.  The
+work thus licensed is called the contributor's "contributor version".
+
+  A contributor's "essential patent claims" are all patent claims
+owned or controlled by the contributor, whether already acquired or
+hereafter acquired, that would be infringed by some manner, permitted
+by this License, of making, using, or selling its contributor version,
+but do not include claims that would be infringed only as a
+consequence of further modification of the contributor version.  For
+purposes of this definition, "control" includes the right to grant
+patent sublicenses in a manner consistent with the requirements of
+this License.
+
+  Each contributor grants you a non-exclusive, worldwide, royalty-free
+patent license under the contributor's essential patent claims, to
+make, use, sell, offer for sale, import and otherwise run, modify and
+propagate the contents of its contributor version.
+
+  In the following three paragraphs, a "patent license" is any express
+agreement or commitment, however denominated, not to enforce a patent
+(such as an express permission to practice a patent or covenant not to
+sue for patent infringement).  To "grant" such a patent license to a
+party means to make such an agreement or commitment not to enforce a
+patent against the party.
+
+  If you convey a covered work, knowingly relying on a patent license,
+and the Corresponding Source of the work is not available for anyone
+to copy, free of charge and under the terms of this License, through a
+publicly available network server or other readily accessible means,
+then you must either (1) cause the Corresponding Source to be so
+available, or (2) arrange to deprive yourself of the benefit of the
+patent license for this particular work, or (3) arrange, in a manner
+consistent with the requirements of this License, to extend the patent
+license to downstream recipients.  "Knowingly relying" means you have
+actual knowledge that, but for the patent license, your conveying the
+covered work in a country, or your recipient's use of the covered work
+in a country, would infringe one or more identifiable patents in that
+country that you have reason to believe are valid.
+
+  If, pursuant to or in connection with a single transaction or
+arrangement, you convey, or propagate by procuring conveyance of, a
+covered work, and grant a patent license to some of the parties
+receiving the covered work authorizing them to use, propagate, modify
+or convey a specific copy of the covered work, then the patent license
+you grant is automatically extended to all recipients of the covered
+work and works based on it.
+
+  A patent license is "discriminatory" if it does not include within
+the scope of its coverage, prohibits the exercise of, or is
+conditioned on the non-exercise of one or more of the rights that are
+specifically granted under this License.  You may not convey a covered
+work if you are a party to an arrangement with a third party that is
+in the business of distributing software, under which you make payment
+to the third party based on the extent of your activity of conveying
+the work, and under which the third party grants, to any of the
+parties who would receive the covered work from you, a discriminatory
+patent license (a) in connection with copies of the covered work
+conveyed by you (or copies made from those copies), or (b) primarily
+for and in connection with specific products or compilations that
+contain the covered work, unless you entered into that arrangement,
+or that patent license was granted, prior to 28 March 2007.
+
+  Nothing in this License shall be construed as excluding or limiting
+any implied license or other defenses to infringement that may
+otherwise be available to you under applicable patent law.
+
+  12. No Surrender of Others' Freedom.
+
+  If conditions are imposed on you (whether by court order, agreement or
+otherwise) that contradict the conditions of this License, they do not
+excuse you from the conditions of this License.  If you cannot convey a
+covered work so as to satisfy simultaneously your obligations under this
+License and any other pertinent obligations, then as a consequence you may
+not convey it at all.  For example, if you agree to terms that obligate you
+to collect a royalty for further conveying from those to whom you convey
+the Program, the only way you could satisfy both those terms and this
+License would be to refrain entirely from conveying the Program.
+
+  13. Use with the GNU Affero General Public License.
+
+  Notwithstanding any other provision of this License, you have
+permission to link or combine any covered work with a work licensed
+under version 3 of the GNU Affero General Public License into a single
+combined work, and to convey the resulting work.  The terms of this
+License will continue to apply to the part which is the covered work,
+but the special requirements of the GNU Affero General Public License,
+section 13, concerning interaction through a network will apply to the
+combination as such.
+
+  14. Revised Versions of this License.
+
+  The Free Software Foundation may publish revised and/or new versions of
+the GNU General Public License from time to time.  Such new versions will
+be similar in spirit to the present version, but may differ in detail to
+address new problems or concerns.
+
+  Each version is given a distinguishing version number.  If the
+Program specifies that a certain numbered version of the GNU General
+Public License "or any later version" applies to it, you have the
+option of following the terms and conditions either of that numbered
+version or of any later version published by the Free Software
+Foundation.  If the Program does not specify a version number of the
+GNU General Public License, you may choose any version ever published
+by the Free Software Foundation.
+
+  If the Program specifies that a proxy can decide which future
+versions of the GNU General Public License can be used, that proxy's
+public statement of acceptance of a version permanently authorizes you
+to choose that version for the Program.
+
+  Later license versions may give you additional or different
+permissions.  However, no additional obligations are imposed on any
+author or copyright holder as a result of your choosing to follow a
+later version.
+
+  15. Disclaimer of Warranty.
+
+  THERE IS NO WARRANTY FOR THE PROGRAM, TO THE EXTENT PERMITTED BY
+APPLICABLE LAW.  EXCEPT WHEN OTHERWISE STATED IN WRITING THE COPYRIGHT
+HOLDERS AND/OR OTHER PARTIES PROVIDE THE PROGRAM "AS IS" WITHOUT WARRANTY
+OF ANY KIND, EITHER EXPRESSED OR IMPLIED, INCLUDING, BUT NOT LIMITED TO,
+THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR
+PURPOSE.  THE ENTIRE RISK AS TO THE QUALITY AND PERFORMANCE OF THE PROGRAM
+IS WITH YOU.  SHOULD THE PROGRAM PROVE DEFECTIVE, YOU ASSUME THE COST OF
+ALL NECESSARY SERVICING, REPAIR OR CORRECTION.
+
+  16. Limitation of Liability.
+
+  IN NO EVENT UNLESS REQUIRED BY APPLICABLE LAW OR AGREED TO IN WRITING
+WILL ANY COPYRIGHT HOLDER, OR ANY OTHER PARTY WHO MODIFIES AND/OR CONVEYS
+THE PROGRAM AS PERMITTED ABOVE, BE LIABLE TO YOU FOR DAMAGES, INCLUDING ANY
+GENERAL, SPECIAL, INCIDENTAL OR CONSEQUENTIAL DAMAGES ARISING OUT OF THE
+USE OR INABILITY TO USE THE PROGRAM (INCLUDING BUT NOT LIMITED TO LOSS OF
+DATA OR DATA BEING RENDERED INACCURATE OR LOSSES SUSTAINED BY YOU OR THIRD
+PARTIES OR A FAILURE OF THE PROGRAM TO OPERATE WITH ANY OTHER PROGRAMS),
+EVEN IF SUCH HOLDER OR OTHER PARTY HAS BEEN ADVISED OF THE POSSIBILITY OF
+SUCH DAMAGES.
+
+  17. Interpretation of Sections 15 and 16.
+
+  If the disclaimer of warranty and limitation of liability provided
+above cannot be given local legal effect according to their terms,
+reviewing courts shall apply local law that most closely approximates
+an absolute waiver of all civil liability in connection with the
+Program, unless a warranty or assumption of liability accompanies a
+copy of the Program in return for a fee.
+
+                     END OF TERMS AND CONDITIONS
+
+            How to Apply These Terms to Your New Programs
+
+  If you develop a new program, and you want it to be of the greatest
+possible use to the public, the best way to achieve this is to make it
+free software which everyone can redistribute and change under these terms.
+
+  To do so, attach the following notices to the program.  It is safest
+to attach them to the start of each source file to most effectively
+state the exclusion of warranty; and each file should have at least
+the "copyright" line and a pointer to where the full notice is found.
+
+    <one line to give the program's name and a brief idea of what it does.>
+    Copyright (C) <year>  <name of author>
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program.  If not, see <https://www.gnu.org/licenses/>.
+
+Also add information on how to contact you by electronic and paper mail.
+
+  If the program does terminal interaction, make it output a short
+notice like this when it starts in an interactive mode:
+
+    <program>  Copyright (C) <year>  <name of author>
+    This program comes with ABSOLUTELY NO WARRANTY; for details type `show w'.
+    This is free software, and you are welcome to redistribute it
+    under certain conditions; type `show c' for details.
+
+The hypothetical commands `show w' and `show c' should show the appropriate
+parts of the General Public License.  Of course, your program's commands
+might be different; for a GUI interface, you would use an "about box".
+
+  You should also get your employer (if you work as a programmer) or school,
+if any, to sign a "copyright disclaimer" for the program, if necessary.
+For more information on this, and how to apply and follow the GNU GPL, see
+<https://www.gnu.org/licenses/>.
+
+  The GNU General Public License does not permit incorporating your program
+into proprietary programs.  If your program is a subroutine library, you
+may consider it more useful to permit linking proprietary applications with
+the library.  If this is what you want to do, use the GNU Lesser General
+Public License instead of this License.  But first, please read
+<https://www.gnu.org/philosophy/why-not-lgpl.html>.
+```
+
+## File: org.github.kai66673.iide.json
+```json
+{
+    "id" : "org.github.kai66673.iide",
+    "runtime" : "org.gnome.Platform",
+    "runtime-version" : "master",
+    "sdk" : "org.gnome.Sdk",
+    "sdk-extensions" : [
+        "org.freedesktop.Sdk.Extension.vala"
+    ],
+    "command" : "iide",
+    "finish-args" : [
+        "--share=network",
+        "--share=ipc",
+        "--socket=fallback-x11",
+        "--device=dri",
+        "--socket=wayland"
+    ],
+    "build-options" : {
+        "append-path" : "/usr/lib/sdk/vala/bin",
+        "prepend-ld-library-path" : "/usr/lib/sdk/vala/lib"
+    },
+    "cleanup" : [
+        "/include",
+        "/lib/pkgconfig",
+        "/man",
+        "/share/doc",
+        "/share/gtk-doc",
+        "/share/man",
+        "/share/pkgconfig",
+        "/share/vala",
+        "*.la",
+        "*.a"
+    ],
+    "modules" : [
+        {
+            "name" : "iide",
+            "builddir" : true,
+            "buildsystem" : "meson",
+            "sources" : [
+                {
+                    "type" : "git",
+                    "url" : "file:///home/kai/Projects"
+                }
+            ]
+        }
+    ]
+}
+```
+
+## File: README.md
+```markdown
+# iide
+
+A description of this project.
+```
+
+## File: .iide/lsp.json
+```json
+{"languages": [{"id": "cpp", "server": ["clangd", "--header-insertion=never"], "patterns": ["*.cpp", "*.hpp"]}]}
 ```
 
 ## File: data/Adwaita-dark.xml
@@ -695,176 +1841,6 @@ install_data(
     /></style-scheme>
 ```
 
-## File: data/meson.build
-```
-desktop_file = i18n.merge_file(
-        input: 'org.github.kai66673.iide.desktop.in',
-       output: 'org.github.kai66673.iide.desktop',
-         type: 'desktop',
-       po_dir: '../po',
-      install: true,
-  install_dir: get_option('datadir') / 'applications'
-)
-
-desktop_utils = find_program('desktop-file-validate', required: false)
-if desktop_utils.found()
-  test('Validate desktop file', desktop_utils, args: [desktop_file])
-endif
-
-appstream_file = i18n.merge_file(
-        input: 'org.github.kai66673.iide.metainfo.xml.in',
-       output: 'org.github.kai66673.iide.metainfo.xml',
-       po_dir: '../po',
-      install: true,
-  install_dir: get_option('datadir') / 'metainfo'
-)
-
-appstreamcli = find_program('appstreamcli', required: false, disabler: true)
-test('Validate appstream file', appstreamcli,
-     args: ['validate', '--no-net', '--explain', appstream_file])
-
-install_data('org.github.kai66673.iide.gschema.xml',
-  install_dir: get_option('datadir') / 'glib-2.0' / 'schemas'
-)
-
-compile_schemas = find_program('glib-compile-schemas', required: false, disabler: true)
-test('Validate schema file',
-     compile_schemas,
-     args: ['--strict', '--dry-run', meson.current_source_dir()])
-
-
-service_conf = configuration_data()
-service_conf.set('bindir', get_option('prefix') / get_option('bindir'))
-configure_file(
-  input: 'org.github.kai66673.iide.service.in',
-  output: 'org.github.kai66673.iide.service',
-  configuration: service_conf,
-  install_dir: get_option('datadir') / 'dbus-1' / 'services'
-)
-
-subdir('icons')
-```
-
-## File: data/org.github.kai66673.iide.desktop.in
-```
-[Desktop Entry]
-Name=iide
-Exec=iide
-Icon=org.github.kai66673.iide
-Terminal=false
-Type=Application
-Categories=Utility;
-Keywords=GTK;
-StartupNotify=true
-DBusActivatable=true
-```
-
-## File: data/org.github.kai66673.iide.metainfo.xml.in
-```
-<?xml version="1.0" encoding="UTF-8"?>
-<component type="desktop-application">
-  <id>org.github.kai66673.iide</id>
-  <metadata_license>CC0-1.0</metadata_license>
-  <project_license>GPL-3.0-or-later</project_license>
-
-  <name>Iide</name>
-  <summary>Keep the summary shorter, between 10 and 35 characters</summary>
-  <description>
-    <p>No description</p>
-  </description>
-
-  <developer id="tld.vendor">
-    <name>Developer name</name>
-  </developer>
-
-  <!-- Required: Should be a link to the upstream homepage for the component -->
-  <url type="homepage">https://example.org/</url>
-  <!-- Recommended: It is highly recommended for open-source projects to display the source code repository -->
-  <url type="vcs-browser">https://example.org/repository</url>
-  <!-- Should point to the software's bug tracking system, for users to report new bugs -->
-  <url type="bugtracker">https://example.org/issues</url>
-  <!-- Should link a FAQ page for this software, to answer some of the most-asked questions in detail -->
-  <!-- URLs of this type should point to a webpage where users can submit or modify translations of the upstream project -->
-  <url type="translate">https://example.org/translate</url>
-  <url type="faq">https://example.org/faq</url>
-  <!-- Should provide a web link to an online user's reference, a software manual or help page -->
-  <url type="help">https://example.org/help</url>
-  <!-- URLs of this type should point to a webpage showing information on how to donate to the described software project -->
-  <url type="donation">https://example.org/donate</url>
-  <!-- This could for example be an HTTPS URL to an online form or a page describing how to contact the developer -->
-  <url type="contact">https://example.org/contact</url>
-  <!-- URLs of this type should point to a webpage showing information on how to contribute to the described software project -->
-  <url type="contribute">https://example.org/contribute</url>
-
-  <translation type="gettext">iide</translation>
-  <!-- All graphical applications having a desktop file must have this tag in the MetaInfo.
-     If this is present, appstreamcli compose will pull icons, keywords and categories from the desktop file. -->
-  <launchable type="desktop-id">org.github.kai66673.iide.desktop</launchable>
-  <!-- Use the OARS website (https://hughsie.github.io/oars/generate.html) to generate these and make sure to use oars-1.1 -->
-  <content_rating type="oars-1.1" />
-
-  <!-- Applications should set a brand color in both light and dark variants like so -->
-  <branding>
-    <color type="primary" scheme_preference="light">#ff00ff</color>
-    <color type="primary" scheme_preference="dark">#993d3d</color>
-  </branding>
-
-  <screenshots>
-    <screenshot type="default">
-      <image>https://example.org/example1.png</image>
-      <caption>A caption</caption>
-    </screenshot>
-    <screenshot>
-      <image>https://example.org/example2.png</image>
-      <caption>A caption</caption>
-    </screenshot>
-  </screenshots>
-
-  <releases>
-    <release version="1.0.1" date="2024-01-18">
-      <url type="details">https://example.org/changelog.html#version_1.0.1</url>
-      <description translate="no">
-        <p>Release description</p>
-        <ul>
-          <li>List of changes</li>
-          <li>List of changes</li>
-        </ul>
-      </description>
-    </release>
-  </releases>
-
-</component>
-```
-
-## File: data/org.github.kai66673.iide.service.in
-```
-[D-BUS Service]
-Name=org.github.kai66673.iide
-Exec=@bindir@/iide --gapplication-service
-```
-
-## File: po/LINGUAS
-```
-# Please keep this file sorted alphabetically.
-```
-
-## File: po/meson.build
-```
-i18n.gettext('iide', preset: 'glib')
-```
-
-## File: po/POTFILES.in
-```
-# List of source files containing translatable strings.
-# Please keep this file sorted alphabetically.
-data/org.github.kai66673.iide.desktop.in
-data/org.github.kai66673.iide.metainfo.xml.in
-data/org.github.kai66673.iide.gschema.xml
-src/main.vala
-src/window.vala
-src/window.ui
-```
-
 ## File: scripts/install-local-settings.sh.in
 ```
 #!/bin/bash
@@ -1057,128 +2033,6 @@ public class Iide.ActionManager : Object {
             }
         }
     }
-}
-```
-
-## File: src/Services/LSP/IdeLspManager.vala
-```
-using GLib;
-using Gee;
-using GtkSource;
-
-namespace Iide {
-
-public class IdeLspManager : GLib.Object {
-    private static IdeLspManager? _instance;
-    private IdeLspService lsp_service;
-
-    public static unowned IdeLspManager get_instance () {
-        if (_instance == null) {
-            _instance = new IdeLspManager ();
-        }
-        return _instance;
-    }
-
-    construct {
-        lsp_service = IdeLspService.get_instance ();
-    }
-
-    public async void open_document (string uri, string language_id, string content, string? workspace_root) {
-        yield lsp_service.open_document (uri, language_id, content, workspace_root);
-    }
-
-    public async void change_document (string uri, string content, int? change_start = null, int? change_end = null) {
-        yield lsp_service.change_document (uri, content, change_start, change_end);
-    }
-
-    public async void close_document (string uri) {
-        yield lsp_service.close_document (uri);
-    }
-
-    public void set_language_config (string language_id, string command, string[] args, string? workspace_root = null) {
-        lsp_service.set_language_config (language_id, command, args, workspace_root);
-    }
-
-    public IdeLspClient? get_client_for_uri (string uri) {
-        return lsp_service.get_client_for_uri (uri);
-    }
-
-    public void connect_diagnostics (DiagnosticsCallback diagnostics_callback) {
-        lsp_service.diagnostics_updated.connect ((uri, diagnostics) => {
-            diagnostics_callback (uri, diagnostics);
-        });
-    }
-
-    public string? get_language_id_for_file (GLib.File file) {
-        string filename = file.get_basename () ?? "";
-        
-        switch (filename) {
-        case "CMakeLists.txt":
-            return "cmake";
-        case ".gitignore":
-            return "git-config";
-        case "meson.build":
-            return "meson";
-        case "PKGBUILD":
-            return "bash";
-        default:
-            break;
-        }
-
-        string path = file.get_path () ?? "";
-        int dot_pos = path.last_index_of (".");
-        if (dot_pos >= 0 && dot_pos < path.length - 1) {
-            string ext = path[dot_pos + 1:path.length].down ();
-            switch (ext) {
-            case "py":
-                return "python";
-            case "c":
-            case "h":
-                return "c";
-            case "cpp":
-            case "cc":
-            case "cxx":
-            case "hpp":
-            case "hxx":
-                return "cpp";
-            case "vala":
-            case "vapi":
-                return "vala";
-            case "rs":
-                return "rust";
-            case "go":
-                return "go";
-            case "js":
-            case "ts":
-                return "javascript";
-            case "json":
-                return "json";
-            case "xml":
-                return "xml";
-            case "html":
-            case "htm":
-                return "html";
-            case "css":
-                return "css";
-            case "md":
-            case "markdown":
-                return "markdown";
-            case "sh":
-            case "bash":
-            case "zsh":
-                return "bash";
-            case "yaml":
-            case "yml":
-                return "yaml";
-            }
-        }
-        
-        return null;
-    }
-
-    public delegate void DiagnosticsCallback (string uri, Gee.ArrayList<IdeLspDiagnostic> diagnostics);
-}
-
 }
 ```
 
@@ -2061,780 +2915,9 @@ public class Iide.ValaTreeSitterHighlighter : BaseTreeSitterHighlighter {
 }
 ```
 
-## File: src/config.vapi
-```
-[CCode (cprefix = "", lower_case_cprefix = "", cheader_filename = "config.h")]
-namespace Config {
-    public const string GETTEXT_PACKAGE;
-    public const string LOCALEDIR;
-    public const string PACKAGE_VERSION;
-}
-```
-
-## File: src/shortcuts-dialog.ui
-```
-<?xml version="1.0" encoding="UTF-8"?>
-<interface>
-  <object class="AdwShortcutsDialog" id="shortcuts_dialog">
-    <child>
-      <object class="AdwShortcutsSection">
-        <property name="title" translatable="yes">Shortcuts</property>
-        <child>
-          <object class="AdwShortcutsItem">
-            <property name="title" translatable="yes" context="shortcut window">Show Shortcuts</property>
-            <property name="action-name">app.shortcuts</property>
-          </object>
-        </child>
-        <child>
-          <object class="AdwShortcutsItem">
-            <property name="title" translatable="yes" context="shortcut window">Quit</property>
-            <property name="action-name">app.quit</property>
-          </object>
-        </child>
-      </object>
-    </child>
-  </object>
-</interface>
-```
-
 ## File: test_temp/test.c
 ```c
 int main() {
-```
-
-## File: COPYING
-```
-GNU GENERAL PUBLIC LICENSE
-                       Version 3, 29 June 2007
-
- Copyright (C) 2007 Free Software Foundation, Inc. <https://fsf.org/>
- Everyone is permitted to copy and distribute verbatim copies
- of this license document, but changing it is not allowed.
-
-                            Preamble
-
-  The GNU General Public License is a free, copyleft license for
-software and other kinds of works.
-
-  The licenses for most software and other practical works are designed
-to take away your freedom to share and change the works.  By contrast,
-the GNU General Public License is intended to guarantee your freedom to
-share and change all versions of a program--to make sure it remains free
-software for all its users.  We, the Free Software Foundation, use the
-GNU General Public License for most of our software; it applies also to
-any other work released this way by its authors.  You can apply it to
-your programs, too.
-
-  When we speak of free software, we are referring to freedom, not
-price.  Our General Public Licenses are designed to make sure that you
-have the freedom to distribute copies of free software (and charge for
-them if you wish), that you receive source code or can get it if you
-want it, that you can change the software or use pieces of it in new
-free programs, and that you know you can do these things.
-
-  To protect your rights, we need to prevent others from denying you
-these rights or asking you to surrender the rights.  Therefore, you have
-certain responsibilities if you distribute copies of the software, or if
-you modify it: responsibilities to respect the freedom of others.
-
-  For example, if you distribute copies of such a program, whether
-gratis or for a fee, you must pass on to the recipients the same
-freedoms that you received.  You must make sure that they, too, receive
-or can get the source code.  And you must show them these terms so they
-know their rights.
-
-  Developers that use the GNU GPL protect your rights with two steps:
-(1) assert copyright on the software, and (2) offer you this License
-giving you legal permission to copy, distribute and/or modify it.
-
-  For the developers' and authors' protection, the GPL clearly explains
-that there is no warranty for this free software.  For both users' and
-authors' sake, the GPL requires that modified versions be marked as
-changed, so that their problems will not be attributed erroneously to
-authors of previous versions.
-
-  Some devices are designed to deny users access to install or run
-modified versions of the software inside them, although the manufacturer
-can do so.  This is fundamentally incompatible with the aim of
-protecting users' freedom to change the software.  The systematic
-pattern of such abuse occurs in the area of products for individuals to
-use, which is precisely where it is most unacceptable.  Therefore, we
-have designed this version of the GPL to prohibit the practice for those
-products.  If such problems arise substantially in other domains, we
-stand ready to extend this provision to those domains in future versions
-of the GPL, as needed to protect the freedom of users.
-
-  Finally, every program is threatened constantly by software patents.
-States should not allow patents to restrict development and use of
-software on general-purpose computers, but in those that do, we wish to
-avoid the special danger that patents applied to a free program could
-make it effectively proprietary.  To prevent this, the GPL assures that
-patents cannot be used to render the program non-free.
-
-  The precise terms and conditions for copying, distribution and
-modification follow.
-
-                       TERMS AND CONDITIONS
-
-  0. Definitions.
-
-  "This License" refers to version 3 of the GNU General Public License.
-
-  "Copyright" also means copyright-like laws that apply to other kinds of
-works, such as semiconductor masks.
-
-  "The Program" refers to any copyrightable work licensed under this
-License.  Each licensee is addressed as "you".  "Licensees" and
-"recipients" may be individuals or organizations.
-
-  To "modify" a work means to copy from or adapt all or part of the work
-in a fashion requiring copyright permission, other than the making of an
-exact copy.  The resulting work is called a "modified version" of the
-earlier work or a work "based on" the earlier work.
-
-  A "covered work" means either the unmodified Program or a work based
-on the Program.
-
-  To "propagate" a work means to do anything with it that, without
-permission, would make you directly or secondarily liable for
-infringement under applicable copyright law, except executing it on a
-computer or modifying a private copy.  Propagation includes copying,
-distribution (with or without modification), making available to the
-public, and in some countries other activities as well.
-
-  To "convey" a work means any kind of propagation that enables other
-parties to make or receive copies.  Mere interaction with a user through
-a computer network, with no transfer of a copy, is not conveying.
-
-  An interactive user interface displays "Appropriate Legal Notices"
-to the extent that it includes a convenient and prominently visible
-feature that (1) displays an appropriate copyright notice, and (2)
-tells the user that there is no warranty for the work (except to the
-extent that warranties are provided), that licensees may convey the
-work under this License, and how to view a copy of this License.  If
-the interface presents a list of user commands or options, such as a
-menu, a prominent item in the list meets this criterion.
-
-  1. Source Code.
-
-  The "source code" for a work means the preferred form of the work
-for making modifications to it.  "Object code" means any non-source
-form of a work.
-
-  A "Standard Interface" means an interface that either is an official
-standard defined by a recognized standards body, or, in the case of
-interfaces specified for a particular programming language, one that
-is widely used among developers working in that language.
-
-  The "System Libraries" of an executable work include anything, other
-than the work as a whole, that (a) is included in the normal form of
-packaging a Major Component, but which is not part of that Major
-Component, and (b) serves only to enable use of the work with that
-Major Component, or to implement a Standard Interface for which an
-implementation is available to the public in source code form.  A
-"Major Component", in this context, means a major essential component
-(kernel, window system, and so on) of the specific operating system
-(if any) on which the executable work runs, or a compiler used to
-produce the work, or an object code interpreter used to run it.
-
-  The "Corresponding Source" for a work in object code form means all
-the source code needed to generate, install, and (for an executable
-work) run the object code and to modify the work, including scripts to
-control those activities.  However, it does not include the work's
-System Libraries, or general-purpose tools or generally available free
-programs which are used unmodified in performing those activities but
-which are not part of the work.  For example, Corresponding Source
-includes interface definition files associated with source files for
-the work, and the source code for shared libraries and dynamically
-linked subprograms that the work is specifically designed to require,
-such as by intimate data communication or control flow between those
-subprograms and other parts of the work.
-
-  The Corresponding Source need not include anything that users
-can regenerate automatically from other parts of the Corresponding
-Source.
-
-  The Corresponding Source for a work in source code form is that
-same work.
-
-  2. Basic Permissions.
-
-  All rights granted under this License are granted for the term of
-copyright on the Program, and are irrevocable provided the stated
-conditions are met.  This License explicitly affirms your unlimited
-permission to run the unmodified Program.  The output from running a
-covered work is covered by this License only if the output, given its
-content, constitutes a covered work.  This License acknowledges your
-rights of fair use or other equivalent, as provided by copyright law.
-
-  You may make, run and propagate covered works that you do not
-convey, without conditions so long as your license otherwise remains
-in force.  You may convey covered works to others for the sole purpose
-of having them make modifications exclusively for you, or provide you
-with facilities for running those works, provided that you comply with
-the terms of this License in conveying all material for which you do
-not control copyright.  Those thus making or running the covered works
-for you must do so exclusively on your behalf, under your direction
-and control, on terms that prohibit them from making any copies of
-your copyrighted material outside their relationship with you.
-
-  Conveying under any other circumstances is permitted solely under
-the conditions stated below.  Sublicensing is not allowed; section 10
-makes it unnecessary.
-
-  3. Protecting Users' Legal Rights From Anti-Circumvention Law.
-
-  No covered work shall be deemed part of an effective technological
-measure under any applicable law fulfilling obligations under article
-11 of the WIPO copyright treaty adopted on 20 December 1996, or
-similar laws prohibiting or restricting circumvention of such
-measures.
-
-  When you convey a covered work, you waive any legal power to forbid
-circumvention of technological measures to the extent such circumvention
-is effected by exercising rights under this License with respect to
-the covered work, and you disclaim any intention to limit operation or
-modification of the work as a means of enforcing, against the work's
-users, your or third parties' legal rights to forbid circumvention of
-technological measures.
-
-  4. Conveying Verbatim Copies.
-
-  You may convey verbatim copies of the Program's source code as you
-receive it, in any medium, provided that you conspicuously and
-appropriately publish on each copy an appropriate copyright notice;
-keep intact all notices stating that this License and any
-non-permissive terms added in accord with section 7 apply to the code;
-keep intact all notices of the absence of any warranty; and give all
-recipients a copy of this License along with the Program.
-
-  You may charge any price or no price for each copy that you convey,
-and you may offer support or warranty protection for a fee.
-
-  5. Conveying Modified Source Versions.
-
-  You may convey a work based on the Program, or the modifications to
-produce it from the Program, in the form of source code under the
-terms of section 4, provided that you also meet all of these conditions:
-
-    a) The work must carry prominent notices stating that you modified
-    it, and giving a relevant date.
-
-    b) The work must carry prominent notices stating that it is
-    released under this License and any conditions added under section
-    7.  This requirement modifies the requirement in section 4 to
-    "keep intact all notices".
-
-    c) You must license the entire work, as a whole, under this
-    License to anyone who comes into possession of a copy.  This
-    License will therefore apply, along with any applicable section 7
-    additional terms, to the whole of the work, and all its parts,
-    regardless of how they are packaged.  This License gives no
-    permission to license the work in any other way, but it does not
-    invalidate such permission if you have separately received it.
-
-    d) If the work has interactive user interfaces, each must display
-    Appropriate Legal Notices; however, if the Program has interactive
-    interfaces that do not display Appropriate Legal Notices, your
-    work need not make them do so.
-
-  A compilation of a covered work with other separate and independent
-works, which are not by their nature extensions of the covered work,
-and which are not combined with it such as to form a larger program,
-in or on a volume of a storage or distribution medium, is called an
-"aggregate" if the compilation and its resulting copyright are not
-used to limit the access or legal rights of the compilation's users
-beyond what the individual works permit.  Inclusion of a covered work
-in an aggregate does not cause this License to apply to the other
-parts of the aggregate.
-
-  6. Conveying Non-Source Forms.
-
-  You may convey a covered work in object code form under the terms
-of sections 4 and 5, provided that you also convey the
-machine-readable Corresponding Source under the terms of this License,
-in one of these ways:
-
-    a) Convey the object code in, or embodied in, a physical product
-    (including a physical distribution medium), accompanied by the
-    Corresponding Source fixed on a durable physical medium
-    customarily used for software interchange.
-
-    b) Convey the object code in, or embodied in, a physical product
-    (including a physical distribution medium), accompanied by a
-    written offer, valid for at least three years and valid for as
-    long as you offer spare parts or customer support for that product
-    model, to give anyone who possesses the object code either (1) a
-    copy of the Corresponding Source for all the software in the
-    product that is covered by this License, on a durable physical
-    medium customarily used for software interchange, for a price no
-    more than your reasonable cost of physically performing this
-    conveying of source, or (2) access to copy the
-    Corresponding Source from a network server at no charge.
-
-    c) Convey individual copies of the object code with a copy of the
-    written offer to provide the Corresponding Source.  This
-    alternative is allowed only occasionally and noncommercially, and
-    only if you received the object code with such an offer, in accord
-    with subsection 6b.
-
-    d) Convey the object code by offering access from a designated
-    place (gratis or for a charge), and offer equivalent access to the
-    Corresponding Source in the same way through the same place at no
-    further charge.  You need not require recipients to copy the
-    Corresponding Source along with the object code.  If the place to
-    copy the object code is a network server, the Corresponding Source
-    may be on a different server (operated by you or a third party)
-    that supports equivalent copying facilities, provided you maintain
-    clear directions next to the object code saying where to find the
-    Corresponding Source.  Regardless of what server hosts the
-    Corresponding Source, you remain obligated to ensure that it is
-    available for as long as needed to satisfy these requirements.
-
-    e) Convey the object code using peer-to-peer transmission, provided
-    you inform other peers where the object code and Corresponding
-    Source of the work are being offered to the general public at no
-    charge under subsection 6d.
-
-  A separable portion of the object code, whose source code is excluded
-from the Corresponding Source as a System Library, need not be
-included in conveying the object code work.
-
-  A "User Product" is either (1) a "consumer product", which means any
-tangible personal property which is normally used for personal, family,
-or household purposes, or (2) anything designed or sold for incorporation
-into a dwelling.  In determining whether a product is a consumer product,
-doubtful cases shall be resolved in favor of coverage.  For a particular
-product received by a particular user, "normally used" refers to a
-typical or common use of that class of product, regardless of the status
-of the particular user or of the way in which the particular user
-actually uses, or expects or is expected to use, the product.  A product
-is a consumer product regardless of whether the product has substantial
-commercial, industrial or non-consumer uses, unless such uses represent
-the only significant mode of use of the product.
-
-  "Installation Information" for a User Product means any methods,
-procedures, authorization keys, or other information required to install
-and execute modified versions of a covered work in that User Product from
-a modified version of its Corresponding Source.  The information must
-suffice to ensure that the continued functioning of the modified object
-code is in no case prevented or interfered with solely because
-modification has been made.
-
-  If you convey an object code work under this section in, or with, or
-specifically for use in, a User Product, and the conveying occurs as
-part of a transaction in which the right of possession and use of the
-User Product is transferred to the recipient in perpetuity or for a
-fixed term (regardless of how the transaction is characterized), the
-Corresponding Source conveyed under this section must be accompanied
-by the Installation Information.  But this requirement does not apply
-if neither you nor any third party retains the ability to install
-modified object code on the User Product (for example, the work has
-been installed in ROM).
-
-  The requirement to provide Installation Information does not include a
-requirement to continue to provide support service, warranty, or updates
-for a work that has been modified or installed by the recipient, or for
-the User Product in which it has been modified or installed.  Access to a
-network may be denied when the modification itself materially and
-adversely affects the operation of the network or violates the rules and
-protocols for communication across the network.
-
-  Corresponding Source conveyed, and Installation Information provided,
-in accord with this section must be in a format that is publicly
-documented (and with an implementation available to the public in
-source code form), and must require no special password or key for
-unpacking, reading or copying.
-
-  7. Additional Terms.
-
-  "Additional permissions" are terms that supplement the terms of this
-License by making exceptions from one or more of its conditions.
-Additional permissions that are applicable to the entire Program shall
-be treated as though they were included in this License, to the extent
-that they are valid under applicable law.  If additional permissions
-apply only to part of the Program, that part may be used separately
-under those permissions, but the entire Program remains governed by
-this License without regard to the additional permissions.
-
-  When you convey a copy of a covered work, you may at your option
-remove any additional permissions from that copy, or from any part of
-it.  (Additional permissions may be written to require their own
-removal in certain cases when you modify the work.)  You may place
-additional permissions on material, added by you to a covered work,
-for which you have or can give appropriate copyright permission.
-
-  Notwithstanding any other provision of this License, for material you
-add to a covered work, you may (if authorized by the copyright holders of
-that material) supplement the terms of this License with terms:
-
-    a) Disclaiming warranty or limiting liability differently from the
-    terms of sections 15 and 16 of this License; or
-
-    b) Requiring preservation of specified reasonable legal notices or
-    author attributions in that material or in the Appropriate Legal
-    Notices displayed by works containing it; or
-
-    c) Prohibiting misrepresentation of the origin of that material, or
-    requiring that modified versions of such material be marked in
-    reasonable ways as different from the original version; or
-
-    d) Limiting the use for publicity purposes of names of licensors or
-    authors of the material; or
-
-    e) Declining to grant rights under trademark law for use of some
-    trade names, trademarks, or service marks; or
-
-    f) Requiring indemnification of licensors and authors of that
-    material by anyone who conveys the material (or modified versions of
-    it) with contractual assumptions of liability to the recipient, for
-    any liability that these contractual assumptions directly impose on
-    those licensors and authors.
-
-  All other non-permissive additional terms are considered "further
-restrictions" within the meaning of section 10.  If the Program as you
-received it, or any part of it, contains a notice stating that it is
-governed by this License along with a term that is a further
-restriction, you may remove that term.  If a license document contains
-a further restriction but permits relicensing or conveying under this
-License, you may add to a covered work material governed by the terms
-of that license document, provided that the further restriction does
-not survive such relicensing or conveying.
-
-  If you add terms to a covered work in accord with this section, you
-must place, in the relevant source files, a statement of the
-additional terms that apply to those files, or a notice indicating
-where to find the applicable terms.
-
-  Additional terms, permissive or non-permissive, may be stated in the
-form of a separately written license, or stated as exceptions;
-the above requirements apply either way.
-
-  8. Termination.
-
-  You may not propagate or modify a covered work except as expressly
-provided under this License.  Any attempt otherwise to propagate or
-modify it is void, and will automatically terminate your rights under
-this License (including any patent licenses granted under the third
-paragraph of section 11).
-
-  However, if you cease all violation of this License, then your
-license from a particular copyright holder is reinstated (a)
-provisionally, unless and until the copyright holder explicitly and
-finally terminates your license, and (b) permanently, if the copyright
-holder fails to notify you of the violation by some reasonable means
-prior to 60 days after the cessation.
-
-  Moreover, your license from a particular copyright holder is
-reinstated permanently if the copyright holder notifies you of the
-violation by some reasonable means, this is the first time you have
-received notice of violation of this License (for any work) from that
-copyright holder, and you cure the violation prior to 30 days after
-your receipt of the notice.
-
-  Termination of your rights under this section does not terminate the
-licenses of parties who have received copies or rights from you under
-this License.  If your rights have been terminated and not permanently
-reinstated, you do not qualify to receive new licenses for the same
-material under section 10.
-
-  9. Acceptance Not Required for Having Copies.
-
-  You are not required to accept this License in order to receive or
-run a copy of the Program.  Ancillary propagation of a covered work
-occurring solely as a consequence of using peer-to-peer transmission
-to receive a copy likewise does not require acceptance.  However,
-nothing other than this License grants you permission to propagate or
-modify any covered work.  These actions infringe copyright if you do
-not accept this License.  Therefore, by modifying or propagating a
-covered work, you indicate your acceptance of this License to do so.
-
-  10. Automatic Licensing of Downstream Recipients.
-
-  Each time you convey a covered work, the recipient automatically
-receives a license from the original licensors, to run, modify and
-propagate that work, subject to this License.  You are not responsible
-for enforcing compliance by third parties with this License.
-
-  An "entity transaction" is a transaction transferring control of an
-organization, or substantially all assets of one, or subdividing an
-organization, or merging organizations.  If propagation of a covered
-work results from an entity transaction, each party to that
-transaction who receives a copy of the work also receives whatever
-licenses to the work the party's predecessor in interest had or could
-give under the previous paragraph, plus a right to possession of the
-Corresponding Source of the work from the predecessor in interest, if
-the predecessor has it or can get it with reasonable efforts.
-
-  You may not impose any further restrictions on the exercise of the
-rights granted or affirmed under this License.  For example, you may
-not impose a license fee, royalty, or other charge for exercise of
-rights granted under this License, and you may not initiate litigation
-(including a cross-claim or counterclaim in a lawsuit) alleging that
-any patent claim is infringed by making, using, selling, offering for
-sale, or importing the Program or any portion of it.
-
-  11. Patents.
-
-  A "contributor" is a copyright holder who authorizes use under this
-License of the Program or a work on which the Program is based.  The
-work thus licensed is called the contributor's "contributor version".
-
-  A contributor's "essential patent claims" are all patent claims
-owned or controlled by the contributor, whether already acquired or
-hereafter acquired, that would be infringed by some manner, permitted
-by this License, of making, using, or selling its contributor version,
-but do not include claims that would be infringed only as a
-consequence of further modification of the contributor version.  For
-purposes of this definition, "control" includes the right to grant
-patent sublicenses in a manner consistent with the requirements of
-this License.
-
-  Each contributor grants you a non-exclusive, worldwide, royalty-free
-patent license under the contributor's essential patent claims, to
-make, use, sell, offer for sale, import and otherwise run, modify and
-propagate the contents of its contributor version.
-
-  In the following three paragraphs, a "patent license" is any express
-agreement or commitment, however denominated, not to enforce a patent
-(such as an express permission to practice a patent or covenant not to
-sue for patent infringement).  To "grant" such a patent license to a
-party means to make such an agreement or commitment not to enforce a
-patent against the party.
-
-  If you convey a covered work, knowingly relying on a patent license,
-and the Corresponding Source of the work is not available for anyone
-to copy, free of charge and under the terms of this License, through a
-publicly available network server or other readily accessible means,
-then you must either (1) cause the Corresponding Source to be so
-available, or (2) arrange to deprive yourself of the benefit of the
-patent license for this particular work, or (3) arrange, in a manner
-consistent with the requirements of this License, to extend the patent
-license to downstream recipients.  "Knowingly relying" means you have
-actual knowledge that, but for the patent license, your conveying the
-covered work in a country, or your recipient's use of the covered work
-in a country, would infringe one or more identifiable patents in that
-country that you have reason to believe are valid.
-
-  If, pursuant to or in connection with a single transaction or
-arrangement, you convey, or propagate by procuring conveyance of, a
-covered work, and grant a patent license to some of the parties
-receiving the covered work authorizing them to use, propagate, modify
-or convey a specific copy of the covered work, then the patent license
-you grant is automatically extended to all recipients of the covered
-work and works based on it.
-
-  A patent license is "discriminatory" if it does not include within
-the scope of its coverage, prohibits the exercise of, or is
-conditioned on the non-exercise of one or more of the rights that are
-specifically granted under this License.  You may not convey a covered
-work if you are a party to an arrangement with a third party that is
-in the business of distributing software, under which you make payment
-to the third party based on the extent of your activity of conveying
-the work, and under which the third party grants, to any of the
-parties who would receive the covered work from you, a discriminatory
-patent license (a) in connection with copies of the covered work
-conveyed by you (or copies made from those copies), or (b) primarily
-for and in connection with specific products or compilations that
-contain the covered work, unless you entered into that arrangement,
-or that patent license was granted, prior to 28 March 2007.
-
-  Nothing in this License shall be construed as excluding or limiting
-any implied license or other defenses to infringement that may
-otherwise be available to you under applicable patent law.
-
-  12. No Surrender of Others' Freedom.
-
-  If conditions are imposed on you (whether by court order, agreement or
-otherwise) that contradict the conditions of this License, they do not
-excuse you from the conditions of this License.  If you cannot convey a
-covered work so as to satisfy simultaneously your obligations under this
-License and any other pertinent obligations, then as a consequence you may
-not convey it at all.  For example, if you agree to terms that obligate you
-to collect a royalty for further conveying from those to whom you convey
-the Program, the only way you could satisfy both those terms and this
-License would be to refrain entirely from conveying the Program.
-
-  13. Use with the GNU Affero General Public License.
-
-  Notwithstanding any other provision of this License, you have
-permission to link or combine any covered work with a work licensed
-under version 3 of the GNU Affero General Public License into a single
-combined work, and to convey the resulting work.  The terms of this
-License will continue to apply to the part which is the covered work,
-but the special requirements of the GNU Affero General Public License,
-section 13, concerning interaction through a network will apply to the
-combination as such.
-
-  14. Revised Versions of this License.
-
-  The Free Software Foundation may publish revised and/or new versions of
-the GNU General Public License from time to time.  Such new versions will
-be similar in spirit to the present version, but may differ in detail to
-address new problems or concerns.
-
-  Each version is given a distinguishing version number.  If the
-Program specifies that a certain numbered version of the GNU General
-Public License "or any later version" applies to it, you have the
-option of following the terms and conditions either of that numbered
-version or of any later version published by the Free Software
-Foundation.  If the Program does not specify a version number of the
-GNU General Public License, you may choose any version ever published
-by the Free Software Foundation.
-
-  If the Program specifies that a proxy can decide which future
-versions of the GNU General Public License can be used, that proxy's
-public statement of acceptance of a version permanently authorizes you
-to choose that version for the Program.
-
-  Later license versions may give you additional or different
-permissions.  However, no additional obligations are imposed on any
-author or copyright holder as a result of your choosing to follow a
-later version.
-
-  15. Disclaimer of Warranty.
-
-  THERE IS NO WARRANTY FOR THE PROGRAM, TO THE EXTENT PERMITTED BY
-APPLICABLE LAW.  EXCEPT WHEN OTHERWISE STATED IN WRITING THE COPYRIGHT
-HOLDERS AND/OR OTHER PARTIES PROVIDE THE PROGRAM "AS IS" WITHOUT WARRANTY
-OF ANY KIND, EITHER EXPRESSED OR IMPLIED, INCLUDING, BUT NOT LIMITED TO,
-THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR
-PURPOSE.  THE ENTIRE RISK AS TO THE QUALITY AND PERFORMANCE OF THE PROGRAM
-IS WITH YOU.  SHOULD THE PROGRAM PROVE DEFECTIVE, YOU ASSUME THE COST OF
-ALL NECESSARY SERVICING, REPAIR OR CORRECTION.
-
-  16. Limitation of Liability.
-
-  IN NO EVENT UNLESS REQUIRED BY APPLICABLE LAW OR AGREED TO IN WRITING
-WILL ANY COPYRIGHT HOLDER, OR ANY OTHER PARTY WHO MODIFIES AND/OR CONVEYS
-THE PROGRAM AS PERMITTED ABOVE, BE LIABLE TO YOU FOR DAMAGES, INCLUDING ANY
-GENERAL, SPECIAL, INCIDENTAL OR CONSEQUENTIAL DAMAGES ARISING OUT OF THE
-USE OR INABILITY TO USE THE PROGRAM (INCLUDING BUT NOT LIMITED TO LOSS OF
-DATA OR DATA BEING RENDERED INACCURATE OR LOSSES SUSTAINED BY YOU OR THIRD
-PARTIES OR A FAILURE OF THE PROGRAM TO OPERATE WITH ANY OTHER PROGRAMS),
-EVEN IF SUCH HOLDER OR OTHER PARTY HAS BEEN ADVISED OF THE POSSIBILITY OF
-SUCH DAMAGES.
-
-  17. Interpretation of Sections 15 and 16.
-
-  If the disclaimer of warranty and limitation of liability provided
-above cannot be given local legal effect according to their terms,
-reviewing courts shall apply local law that most closely approximates
-an absolute waiver of all civil liability in connection with the
-Program, unless a warranty or assumption of liability accompanies a
-copy of the Program in return for a fee.
-
-                     END OF TERMS AND CONDITIONS
-
-            How to Apply These Terms to Your New Programs
-
-  If you develop a new program, and you want it to be of the greatest
-possible use to the public, the best way to achieve this is to make it
-free software which everyone can redistribute and change under these terms.
-
-  To do so, attach the following notices to the program.  It is safest
-to attach them to the start of each source file to most effectively
-state the exclusion of warranty; and each file should have at least
-the "copyright" line and a pointer to where the full notice is found.
-
-    <one line to give the program's name and a brief idea of what it does.>
-    Copyright (C) <year>  <name of author>
-
-    This program is free software: you can redistribute it and/or modify
-    it under the terms of the GNU General Public License as published by
-    the Free Software Foundation, either version 3 of the License, or
-    (at your option) any later version.
-
-    This program is distributed in the hope that it will be useful,
-    but WITHOUT ANY WARRANTY; without even the implied warranty of
-    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-    GNU General Public License for more details.
-
-    You should have received a copy of the GNU General Public License
-    along with this program.  If not, see <https://www.gnu.org/licenses/>.
-
-Also add information on how to contact you by electronic and paper mail.
-
-  If the program does terminal interaction, make it output a short
-notice like this when it starts in an interactive mode:
-
-    <program>  Copyright (C) <year>  <name of author>
-    This program comes with ABSOLUTELY NO WARRANTY; for details type `show w'.
-    This is free software, and you are welcome to redistribute it
-    under certain conditions; type `show c' for details.
-
-The hypothetical commands `show w' and `show c' should show the appropriate
-parts of the General Public License.  Of course, your program's commands
-might be different; for a GUI interface, you would use an "about box".
-
-  You should also get your employer (if you work as a programmer) or school,
-if any, to sign a "copyright disclaimer" for the program, if necessary.
-For more information on this, and how to apply and follow the GNU GPL, see
-<https://www.gnu.org/licenses/>.
-
-  The GNU General Public License does not permit incorporating your program
-into proprietary programs.  If your program is a subroutine library, you
-may consider it more useful to permit linking proprietary applications with
-the library.  If this is what you want to do, use the GNU Lesser General
-Public License instead of this License.  But first, please read
-<https://www.gnu.org/philosophy/why-not-lgpl.html>.
-```
-
-## File: org.github.kai66673.iide.json
-```json
-{
-    "id" : "org.github.kai66673.iide",
-    "runtime" : "org.gnome.Platform",
-    "runtime-version" : "master",
-    "sdk" : "org.gnome.Sdk",
-    "sdk-extensions" : [
-        "org.freedesktop.Sdk.Extension.vala"
-    ],
-    "command" : "iide",
-    "finish-args" : [
-        "--share=network",
-        "--share=ipc",
-        "--socket=fallback-x11",
-        "--device=dri",
-        "--socket=wayland"
-    ],
-    "build-options" : {
-        "append-path" : "/usr/lib/sdk/vala/bin",
-        "prepend-ld-library-path" : "/usr/lib/sdk/vala/lib"
-    },
-    "cleanup" : [
-        "/include",
-        "/lib/pkgconfig",
-        "/man",
-        "/share/doc",
-        "/share/gtk-doc",
-        "/share/man",
-        "/share/pkgconfig",
-        "/share/vala",
-        "*.la",
-        "*.a"
-    ],
-    "modules" : [
-        {
-            "name" : "iide",
-            "builddir" : true,
-            "buildsystem" : "meson",
-            "sources" : [
-                {
-                    "type" : "git",
-                    "url" : "file:///home/kai/Projects"
-                }
-            ]
-        }
-    ]
-}
-```
-
-## File: README.md
-```markdown
-# iide
-
-A description of this project.
 ```
 
 ## File: src/Services/TreeSitter/python/PythonTreeSitterHighlighter.vala
@@ -2977,396 +3060,6 @@ namespace Iide {
             print ("Файл успешно скопирован в: %s\n", local_path);
         } catch (Error e) {
             stderr.printf ("Ошибка при копировании: %s\n", e.message);
-        }
-    }
-}
-```
-
-## File: src/Widgets/TextView/SourceView.vala
-```
-public class Iide.WordRange {
-    public int line;
-    public int start_column;
-    public int end_column;
-
-    public WordRange (int line, int start_column, int end_column) {
-        this.line = line;
-        this.start_column = start_column;
-        this.end_column = end_column;
-    }
-
-    public bool is_equal (WordRange? other) {
-        if (other == null) {
-            return false;
-        }
-        return line == other.line && start_column == other.start_column && end_column == other.end_column;
-    }
-}
-
-public class Iide.LspTooltipWidget : Gtk.Box {
-    private Gtk.Label label;
-    private Gtk.Spinner spinner;
-
-    public LspTooltipWidget () {
-        Object (
-                orientation: Gtk.Orientation.HORIZONTAL,
-                spacing: 6,
-                margin_top: 8,
-                margin_bottom: 8,
-                margin_start: 8,
-                margin_end: 8
-        );
-
-        spinner = new Gtk.Spinner ();
-        label = new Gtk.Label ("Загрузка...");
-        label.use_markup = true;
-        label.wrap = true;
-        label.max_width_chars = 60;
-
-        append (spinner);
-        append (label);
-        spinner.start ();
-    }
-
-    public void update_text (string? text, bool show_spinner) {
-        if (show_spinner) {
-            spinner.start ();
-            spinner.show ();
-        } else {
-            spinner.stop ();
-            spinner.hide ();
-        }
-
-        if (text != null && text != "") {
-            label.set_markup (text);
-        } else {
-            label.set_text ("Нет информации");
-        }
-    }
-}
-
-
-public class Iide.SourceView : GtkSource.View {
-    public Window window;
-    public string uri { get; private set; }
-    private Iide.TreeSitterManager ts_manager;
-    public BaseTreeSitterHighlighter? ts_highlighter;
-    public GutterMarkRenderer mark_renderer;
-    public string icon_name = "text-x-generic";
-    private Gtk.TextIter? pending_scroll_iter = null;
-
-    private WordRange? last_hover_range = null;
-    private LspTooltipWidget tooltip_widget;
-    private string tooltip_separator = "────────────────────────────────────────";
-
-    public SourceView (Window window, string uri, GtkSource.Buffer buffer) {
-        Object (buffer : buffer);
-        this.window = window;
-        this.uri = uri;
-        this.ts_manager = new TreeSitterManager ();
-        this.ts_highlighter = null;
-
-        this.tooltip_widget = new LspTooltipWidget ();
-
-        // LSP-complete
-        var completion = get_completion ();
-        completion.show_icons = false; // Упрощаем попап, чтобы не ломать размеры
-        completion.remember_info_visibility = false;
-        var provider = new LspCompletionProvider (this);
-        completion.add_provider (provider);
-
-        // Build extra menu for context menu
-        var zoom_section = new GLib.Menu ();
-        zoom_section.append (_("Zoom In"), "app.zoom_in");
-        zoom_section.append (_("Zoom Out"), "app.zoom_out");
-        zoom_section.append (_("Reset Zoom"), "app.zoom_reset");
-
-        var view_section = new GLib.Menu ();
-        view_section.append (_("Minimap"), "app.toggle_minimap");
-
-        var extra_menu = new GLib.Menu ();
-        extra_menu.append_section (null, zoom_section);
-        extra_menu.append_section (null, view_section);
-        this.extra_menu = extra_menu;
-
-        var settings = Iide.SettingsService.get_instance ();
-
-        show_line_numbers = settings.show_line_numbers;
-        highlight_current_line = settings.highlight_current_line;
-        auto_indent = settings.auto_indent;
-        indent_on_tab = true;
-
-        // Marks gutter
-        set_show_line_marks (false);
-        var left_gutter = get_gutter (Gtk.TextWindowType.LEFT);
-        left_gutter.visible = true;
-
-        mark_renderer = new GutterMarkRenderer ();
-        mark_renderer.set_icons_size (FontSizeHelper.get_size_for_zoom_level (settings.editor_font_size));
-        left_gutter.insert (mark_renderer, 0);
-
-        LspDiagnosticsMark.set_mark_attributes (this);
-
-        // Connect to settings changes to apply to all open documents
-        settings.editor_setting_changed.connect ((key) => {
-            switch (key) {
-                case "show-line-numbers" :
-                    show_line_numbers = settings.show_line_numbers;
-                    break;
-                case "highlight-current-line" :
-                    highlight_current_line = settings.highlight_current_line;
-                    break;
-                case "auto-indent":
-                    auto_indent = settings.auto_indent;
-                    break;
-            }
-        });
-
-        // SpaceDrawer
-        var space_drawer = get_space_drawer ();
-
-        // 2. Устанавливаем типы отображаемых символов
-        space_drawer.set_enable_matrix (true);
-        space_drawer.set_types_for_locations (
-                                              GtkSource.SpaceLocationFlags.ALL,
-                                              GtkSource.SpaceTypeFlags.NONE
-        );
-        space_drawer.set_types_for_locations (
-                                              GtkSource.SpaceLocationFlags.LEADING | GtkSource.SpaceLocationFlags.TRAILING,
-                                              GtkSource.SpaceTypeFlags.SPACE | GtkSource.SpaceTypeFlags.TAB
-        );
-
-        // Tree-sitter
-        detect_language ();
-        ts_highlighter = ts_manager.get_ts_highlighter (this);
-        if (ts_highlighter != null) {
-            ((GtkSource.Buffer) (buffer)).highlight_syntax = false;
-        }
-
-        // LSP-tooltips
-        has_tooltip = true;
-        query_tooltip.connect (on_query_tooltip);
-
-        // Control-click controller (goto definition)
-        var click_gest = new Gtk.GestureClick ();
-        click_gest.set_button (1);
-        click_gest.pressed.connect (on_click_pressed);
-        add_controller (click_gest);
-
-        buffer.set_modified (false);
-    }
-
-    public GtkSource.Language? language {
-        set {
-            ((GtkSource.Buffer) buffer).language = value;
-        }
-        get {
-            return ((GtkSource.Buffer) buffer).language;
-        }
-    }
-
-    public void detect_language () {
-        var manager = GtkSource.LanguageManager.get_default ();
-        var file = GLib.File.new_for_uri (uri);
-
-        string mime_type = mime_type_for_file (file);
-        message ("MIME: _ " + mime_type);
-
-        icon_name = IconProvider.get_mime_type_icon_name (mime_type);
-        language = manager.guess_language (file.get_path (), mime_type);
-
-        // Fake file type detection
-        // "Not all files are equal"
-        if (file.get_basename () == "CMakeLists.txt") {
-            language = manager.get_language ("cmake");
-            icon_name = "text-x-cmake"; // Specific icon for CMake
-        }
-    }
-
-    public WordRange ? get_word_range_under_cursor (Gtk.TextIter cursor_iter) {
-        // 2. Нюанс: Если курсор на пробеле или переносе строки, слова под ним нет
-        unichar c = cursor_iter.get_char ();
-        if (c.isspace () || c == '\0') {
-            return null;
-        }
-
-        // 3. Создаем копию для поиска конца слова
-        Gtk.TextIter end_iter = cursor_iter;
-
-        // 4. Ищем начало слова
-        // Если курсор уже в начале слова, backward_word_start вернет false или уйдет на слово назад.
-        // Поэтому проверяем, не стоим ли мы уже на начале.
-        if (!cursor_iter.starts_word ()) {
-            cursor_iter.backward_word_start ();
-        }
-
-        // 5. Ищем конец слова
-        if (!end_iter.ends_word ()) {
-            end_iter.forward_word_end ();
-        }
-
-        return new WordRange (cursor_iter.get_line (), cursor_iter.get_line_offset (), end_iter.get_line_offset ());
-    }
-
-    private bool on_lsp_diagnostics_tooltip (GLib.SList<weak GtkSource.Mark> marks, Gtk.Tooltip tooltip) {
-        var sb = new StringBuilder ();
-
-        foreach (var mark in marks) {
-            var lsp_mark = mark as LspDiagnosticsMark;
-            if (lsp_mark == null) {
-                continue;
-            }
-
-            string icon;
-            string header_color;
-
-            switch (lsp_mark.severity) {
-            case 1 :
-                icon = "❌";
-                header_color = "#F44336"; // Красный
-                break;
-            case 2 :
-                icon = "⚠️";
-                header_color = "#FF9800"; // Оранжевый
-                break;
-            case 3:
-            case 4:
-                icon = "ℹ️";
-                header_color = "#2196F3"; // Синий
-                break;
-            default:
-                icon = "❌";
-                header_color = "#F44336"; // Красный
-                break;
-            }
-
-            if (sb.len > 0) {
-                sb.append ("\n" + tooltip_separator + "\n");
-            }
-
-            // Заголовок и основное сообщение
-            sb.append_printf ("%s <span font_weight='bold' foreground='%s'>%s</span>\n",
-                              icon, header_color, lsp_mark.category.up ());
-            sb.append_printf ("<span>%s</span>", GLib.Markup.escape_text (lsp_mark.diagnostic_message));
-        }
-
-        if (sb.len > 0) {
-            tooltip_widget.update_text (sb.str, false);
-            tooltip.set_custom (tooltip_widget);
-            return true;
-        }
-
-        return false;
-    }
-
-    private bool on_lsp_hover_tooltip (Gtk.TextIter iter, Gtk.Tooltip tooltip) {
-        WordRange? word_range = get_word_range_under_cursor (iter);
-        if (word_range == null) {
-            last_hover_range = null;
-            return false;
-        }
-
-        tooltip.set_custom (tooltip_widget);
-
-        // Проверяем, не тот же ли эти 100мс назад
-        if (word_range.is_equal (last_hover_range)) {
-            return true;
-        }
-        tooltip_widget.update_text ("Loading...", true);
-        last_hover_range = word_range;
-
-        fetch_lsp_hover_async.begin (word_range.line, word_range.start_column + 1);
-
-        return true;
-    }
-
-    private bool on_query_tooltip (int x, int y, bool keyboard_mode, Gtk.Tooltip tooltip) {
-        Gtk.TextIter iter;
-
-        // Преобразуем координаты окна в координаты буфера
-        int buffer_x, buffer_y;
-        window_to_buffer_coords (Gtk.TextWindowType.WIDGET, x, y, out buffer_x, out buffer_y);
-
-        // Получаем итератор в месте курсора мыши
-        if (!get_iter_at_location (out iter, buffer_x, buffer_y)) {
-            return false;
-        }
-
-        // Ищем маркеры в этой строке (по категории "error")
-        var buffer = (GtkSource.Buffer) buffer;
-        var marks = buffer.get_source_marks_at_line (iter.get_line (), null);
-
-        if (marks.length () > 0) {
-            return on_lsp_diagnostics_tooltip (marks, tooltip);
-        }
-
-        return on_lsp_hover_tooltip (iter, tooltip);
-    }
-
-    private async void fetch_lsp_hover_async (int line, int col) {
-        var lsp_service = IdeLspService.get_instance ();
-        string? markdown = yield lsp_service.request_hover (uri, line, col);
-
-        tooltip_widget.update_text (markdown, false);
-    }
-
-    private void on_click_pressed (Gtk.GestureClick gesture, int n_press, double x, double y) {
-        // Получаем состояние модификаторов через основной контроллер
-        var modifiers = gesture.get_current_event_state ();
-
-        if ((modifiers & Gdk.ModifierType.CONTROL_MASK) != 0) {
-            Gtk.TextIter iter;
-            // В GTK4 координаты в сигнале уже относительны виджета
-            // Переводим их в координаты буфера (с учетом прокрутки)
-            int buf_x, buf_y;
-            window_to_buffer_coords (Gtk.TextWindowType.WIDGET, (int) x, (int) y, out buf_x, out buf_y);
-
-            if (get_iter_at_location (out iter, buf_x, buf_y)) {
-                get_buffer ().place_cursor (iter);
-
-                // Запускаем асинхронный переход
-                handle_ctrl_click_async.begin (iter.get_line (), iter.get_line_offset ());
-            }
-        }
-    }
-
-    private async void handle_ctrl_click_async (int line, int col) {
-        var lsp_service = IdeLspService.get_instance ();
-        var locations = yield lsp_service.goto_definition (uri, line, col);
-
-        if (locations == null || locations.size == 0) {
-            LoggerService.get_instance ().warning ("LSP", "No locations found for goto definition");
-            return;
-        }
-
-        var loc = locations.get (0);
-        window.get_document_manager ().open_document_with_selection (File.new_for_uri (loc.uri), loc.start_line, loc.start_column, loc.end_column, null);
-    }
-
-    public void select_and_scroll (int line, int start_col, int end_col, bool is_new) {
-        if (line >= buffer.get_line_count ()) {
-            return;
-        }
-
-        Gtk.TextIter start_iter;
-        buffer.get_iter_at_line_offset (out start_iter, line, start_col);
-
-        Gtk.TextIter end_iter;
-        buffer.get_iter_at_line_offset (out end_iter, line, end_col);
-
-        buffer.select_range (start_iter, end_iter);
-        scroll_to_iter (start_iter, 0.0, true, 0.5, 0.5);
-        pending_scroll_iter = null;
-        if (is_new) {
-            pending_scroll_iter = start_iter;
-        }
-    }
-
-    public override void size_allocate (int width, int height, int baseline) {
-        base.size_allocate (width, height, baseline);
-        if (pending_scroll_iter != null) {
-            scroll_to_iter (pending_scroll_iter, 0.0, true, 0.5, 0.5);
-            pending_scroll_iter = null;
         }
     }
 }
@@ -4181,210 +3874,6 @@ public class Iide.Terminal : Gtk.Box {
 }
 ```
 
-## File: src/main.vala
-```
-/* main.vala
- *
- * Copyright 2026 kai
- *
- * This program is free software: you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation, either version 3 of the License, or
- * (at your option) any later version.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program.  If not, see <https://www.gnu.org/licenses/>.
- *
- * SPDX-License-Identifier: GPL-3.0-or-later
- */
-
-int main (string[] args) {
-    Intl.bindtextdomain (Config.GETTEXT_PACKAGE, Config.LOCALEDIR);
-    Intl.bind_textdomain_codeset (Config.GETTEXT_PACKAGE, "UTF-8");
-    Intl.textdomain (Config.GETTEXT_PACKAGE);
-
-    // GtkSource.init ();
-
-    var app = new Iide.Application ();
-    return app.run (args);
-}
-```
-
-## File: src/window.ui
-```
-<?xml version="1.0" encoding="UTF-8" ?>
-<interface>
-  <template class="IideWindow" parent="PanelDocumentWorkspace">
-    <child type="titlebar">
-      <object class="AdwHeaderBar">
-        <child type="title">
-          <object class="AdwWindowTitle" id="window_title">
-            <property name="title">IIDe Application</property>
-          </object>
-        </child>
-        <child type="start">
-          <object class="PanelToggleButton">
-            <property name="area">start</property>
-            <property name="dock">dock</property>
-          </object>
-        </child>
-        <child type="start">
-          <object class="GtkButton">
-            <property name="icon-name">list-add-symbolic</property>
-            <property name="action-name">workspace.add-page</property>
-            <property name="tooltip-text">Add Page</property>
-          </object>
-        </child>
-        <child type="end">
-          <object class="PanelToggleButton">
-            <property name="area">end</property>
-            <property name="dock">dock</property>
-          </object>
-        </child>
-        <child type="end">
-          <object class="GtkMenuButton">
-            <property name="icon-name">open-menu-symbolic</property>
-            <property name="menu-model">primary_menu</property>
-            <property name="tooltip-text">Primary Menu</property>
-          </object>
-        </child>
-      </object>
-    </child>
-    <child internal-child="dock">
-      <object class="PanelDock" id="dock">
-      </object>
-    </child>
-    <child internal-child="start_area">
-      <object class="PanelPaned" id="start_area">
-        <child>
-          <object class="PanelFrame">
-            <child>
-              <object class="PanelWidget">
-                <property name="title">XXX</property>
-                <property name="icon-name">folder-documents-symbolic</property>
-                <property name="vexpand">true</property>
-                <child>
-                  <object class="GtkScrolledWindow">
-                    <property name="hscrollbar-policy">never</property>
-                    <child>
-                      <object class="GtkListView">
-                      </object>
-                    </child>
-                  </object>
-                </child>
-              </object>
-            </child>
-          </object>
-        </child>
-      </object>
-      <object class="PanelPaned">
-        <child>
-          <object class="PanelFrame">
-            <child>
-              <object class="PanelWidget">
-                <property name="title">ZZZ ZZZ</property>
-                <property name="icon-name">folder-symbolic</property>
-                <property name="vexpand">true</property>
-                <child>
-                  <object class="GtkScrolledWindow">
-                    <property name="hscrollbar-policy">never</property>
-                    <child>
-                      <object class="GtkListView">
-                      </object>
-                    </child>
-                  </object>
-                </child>
-              </object>
-            </child>
-          </object>
-        </child>
-      </object>
-    </child>
-    <child internal-child="bottom_area">
-      <object class="PanelPaned">
-        <child>
-          <object class="PanelFrame">
-            <child>
-              <object class="PanelWidget">
-                <property name="title">123</property>
-                <property name="icon-name">folder-symbolic</property>
-                <property name="vexpand">true</property>
-                <child>
-                  <object class="GtkScrolledWindow">
-                    <property name="hscrollbar-policy">never</property>
-                    <child>
-                      <object class="GtkListView">
-                      </object>
-                    </child>
-                  </object>
-                </child>
-              </object>
-            </child>
-          </object>
-        </child>
-      </object>
-      <object class="PanelPaned">
-        <child>
-          <object class="PanelFrame">
-            <child>
-              <object class="PanelWidget">
-                <property name="title">OOP</property>
-                <property name="icon-name">folder-symbolic</property>
-                <property name="vexpand">true</property>
-                <child>
-                  <object class="GtkScrolledWindow">
-                    <property name="hscrollbar-policy">never</property>
-                    <child>
-                      <object class="GtkListView">
-                      </object>
-                    </child>
-                  </object>
-                </child>
-              </object>
-            </child>
-          </object>
-        </child>
-      </object>
-    </child>
-    <child internal-child="end_area">
-      <object class="PanelPaned" id="end_area">
-      </object>
-    </child>
-    <child internal-child="statusbar">
-      <object class="PanelStatusbar">
-        <child type="suffix">
-          <object class="PanelToggleButton">
-            <property name="area">bottom</property>
-            <property name="dock">dock</property>
-          </object>
-        </child>
-      </object>
-      <object class="PanelStatusbar">
-        <child type="suffix">
-          <object class="PanelToggleButton">
-            <property name="area">top</property>
-            <property name="dock">dock</property>
-          </object>
-        </child>
-      </object>
-    </child>
-  </template>
-  <menu id="primary_menu">
-    <section>
-      <item>
-        <attribute name="label">Quit</attribute>
-        <attribute name="action">app.quit</attribute>
-      </item>
-    </section>
-  </menu>
-</interface>
-```
-
 ## File: src/Services/Actions/ShortcutSettings.vala
 ```
 public class Iide.ShortcutSettings : Object {
@@ -4506,6 +3995,821 @@ public class Iide.ShortcutSettings : Object {
 
     public void set_toggle_state (string action_id, bool state) {
         toggle_states_cache.set (action_id, state);
+    }
+}
+```
+
+## File: src/Services/LSP/IdeLspManager.vala
+```
+using GLib;
+using Gee;
+using GtkSource;
+
+namespace Iide {
+
+    public class IdeLspManager : GLib.Object {
+        private static IdeLspManager? _instance;
+        private IdeLspService lsp_service;
+
+        public static unowned IdeLspManager get_instance () {
+            if (_instance == null) {
+                _instance = new IdeLspManager ();
+            }
+            return _instance;
+        }
+
+        construct {
+            lsp_service = IdeLspService.get_instance ();
+        }
+
+        public async void open_document (string uri, string language_id, string content, string? workspace_root, SourceView view) {
+            yield lsp_service.open_document (uri, language_id, content, workspace_root, view);
+        }
+
+        public async void change_document (string uri, string content, int? change_start = null, int? change_end = null) {
+            yield lsp_service.change_document (uri, content, change_start, change_end);
+        }
+
+        public async void close_document (string uri) {
+            yield lsp_service.close_document (uri);
+        }
+
+        public void set_language_config (string language_id, string command, string[] args, string? workspace_root = null) {
+            lsp_service.set_language_config (language_id, command, args, workspace_root);
+        }
+
+        public LspClient ? get_client_for_uri (string uri) {
+            return lsp_service.get_client_for_uri (uri);
+        }
+
+        public void connect_diagnostics (DiagnosticsCallback diagnostics_callback) {
+            lsp_service.diagnostics_updated.connect ((uri, diagnostics) => {
+                diagnostics_callback (uri, diagnostics);
+            });
+        }
+
+        public string ? get_language_id_for_file (GLib.File file) {
+            string filename = file.get_basename () ?? "";
+
+            switch (filename) {
+            case "CMakeLists.txt" :
+                return "cmake";
+            case ".gitignore" :
+                return "git-config";
+            case "meson.build":
+                return "meson";
+            case "PKGBUILD":
+                return "bash";
+            default:
+                break;
+            }
+
+            string path = file.get_path () ?? "";
+            int dot_pos = path.last_index_of (".");
+            if (dot_pos >= 0 && dot_pos < path.length - 1) {
+                string ext = path[dot_pos + 1 : path.length].down ();
+                switch (ext) {
+                case "py":
+                    return "python";
+                case "c":
+                case "h":
+                    return "c";
+                case "cpp":
+                case "cc":
+                case "cxx":
+                case "hpp":
+                case "hxx":
+                    return "cpp";
+                case "vala":
+                case "vapi":
+                    return "vala";
+                case "rs":
+                    return "rust";
+                case "go":
+                    return "go";
+                case "js":
+                case "ts":
+                    return "javascript";
+                case "json":
+                    return "json";
+                case "xml":
+                    return "xml";
+                case "html":
+                case "htm":
+                    return "html";
+                case "css":
+                    return "css";
+                case "md":
+                case "markdown":
+                    return "markdown";
+                case "sh":
+                case "bash":
+                case "zsh":
+                    return "bash";
+                case "yaml":
+                case "yml":
+                    return "yaml";
+                }
+            }
+
+            return null;
+        }
+
+        public delegate void DiagnosticsCallback (string uri, Gee.ArrayList<IdeLspDiagnostic> diagnostics);
+    }
+}
+```
+
+## File: src/Services/LSP/LspClient.vala
+```
+using GLib;
+using Gee;
+
+[CCode (cheader_filename = "unistd.h")]
+extern int getpid ();
+
+public class Iide.LspPromise : Object {
+    public SourceFunc callback;
+    // Можно добавить время создания для контроля таймаутов
+    public int64 creation_time;
+
+    public LspPromise (owned SourceFunc cb) {
+        this.callback = (owned) cb;
+        this.creation_time = get_monotonic_time ();
+    }
+}
+
+public enum Iide.TextDocumentSyncKind {
+    NONE = 0,
+    FULL = 1,
+    INCREMENTAL = 2
+}
+
+public class Iide.ServerCapabilities : Object {
+    public TextDocumentSyncKind sync_kind = TextDocumentSyncKind.FULL;
+    public HashSet<string> completion_triggers = new HashSet<string> ();
+    public bool hover_provider = false;
+    public bool definition_provider = false;
+
+    // To features...
+    public bool references_provider = false;
+    public bool rename_provider = false;
+}
+
+public class Iide.LspClient : Object {
+    private int next_id = 1;
+    private Map<int, LspPromise> pending_requests = new HashMap<int, LspPromise> ();
+    private Map<int, Json.Object?> responses = new HashMap<int, Json.Object?> ();
+
+    // Процесс LSP сервера
+    private GLib.Subprocess process;
+
+    // Поток для чтения (стандартный вывод сервера)
+    private GLib.DataInputStream input_stream;
+
+    // Поток для записи (стандартный ввод сервера)
+    private bool is_writing = false;
+    private Deque<string> write_queue = new LinkedList<string> ();
+    private OutputStream output_stream;
+
+    // Сигнал для передачи диагностики в UI
+    public signal void diagnostics_received (string uri, Gee.ArrayList<IdeLspDiagnostic> diagnostics);
+
+    // Сигнал для логирования сообщений от сервера
+    public signal void log_message (int type, string message);
+
+    // Свойство возможностей сервера
+    public ServerCapabilities capabilities { get; private set; }
+
+    // Сигнал, сообщающий, что возможности сервера получены и распарсены
+    public signal void initialized_with_capabilities (ServerCapabilities caps);
+
+    public bool is_initialized { get; private set; default = false; }
+
+    public LspClient () {
+        this.capabilities = new ServerCapabilities ();
+    }
+
+    public async Json.Object? send_request (string method, Json.Object params) throws Error {
+        int id = next_id++;
+
+        // 1. Упаковываем запрос
+        var root = new Json.Object ();
+        root.set_string_member ("jsonrpc", "2.0");
+        root.set_int_member ("id", id);
+        root.set_string_member ("method", method);
+        root.set_object_member ("params", params);
+
+        // 2. Регистрируем обещание (Promise)
+        // Мы передаем send_request.callback, который Vala автоматически
+        // подготовит для возобновления после yield
+        pending_requests.set (id, new LspPromise (send_request.callback));
+
+        // 3. Отправляем (реализацию send_message_async добавим следом)
+        yield this.send_message_async (root);
+
+        // 4. Засыпаем до получения ответа
+        yield;
+
+        // 5. Просыпаемся и забираем результат
+        var response = responses.get (id);
+        responses.unset (id);
+
+        return response;
+    }
+
+    private async void send_message_async (Json.Object node) throws Error {
+        // 1. Подготовка сообщения
+        var generator = new Json.Generator ();
+        var root_node = new Json.Node (Json.NodeType.OBJECT);
+        root_node.set_object (node);
+        generator.set_root (root_node);
+
+        string body = generator.to_data (null);
+        string message = "Content-Length: %d\r\n\r\n%s".printf ((int) body.length, body);
+
+        // 2. Добавляем в очередь
+        write_queue.add (message);
+
+        // 3. Если уже пишем — просто выходим, текущий процесс записи заберет наше сообщение
+        if (is_writing)return;
+
+        is_writing = true;
+
+        try {
+            while (!write_queue.is_empty) {
+                string current_msg = write_queue.poll_head ();
+                yield output_stream.write_all_async (current_msg.data, Priority.DEFAULT, null, null);
+
+                yield output_stream.flush_async (Priority.DEFAULT, null);
+            }
+        } finally {
+            is_writing = false;
+        }
+    }
+
+    private async void run_read_loop () {
+        try {
+            while (true) {
+                // 1. Читаем заголовок Content-Length
+                string? line = yield input_stream.read_line_async (Priority.DEFAULT, null);
+
+                if (line == null)break; // Поток закрыт
+
+                if (line.has_prefix ("Content-Length: ")) {
+                    int length = int.parse (line.substring (16).strip ());
+
+                    // 2. Пропускаем все остальные заголовки до пустой строки (\r\n\r\n)
+                    while (line != "" && line != null) {
+                        line = yield input_stream.read_line_async (Priority.DEFAULT, null);
+
+                        if (line != null)line = line.strip ();
+                    }
+
+                    // 3. Читаем тело JSON строго по длине
+                    uint8[] buffer = new uint8[length + 1];
+                    size_t bytes_read;
+                    yield input_stream.read_all_async (buffer[0 : length], Priority.DEFAULT, null, out bytes_read);
+
+                    buffer[length] = '\0'; // Гарантируем конец строки для парсера
+
+                    // 4. Обрабатываем полученный пакет
+                    this.handle_payload ((string) buffer);
+                }
+            }
+        } catch (Error e) {
+            if (!(e is IOError.CANCELLED)) {
+                debug ("LSP Read Loop Error: %s", e.message);
+            }
+        }
+    }
+
+    private void handle_payload (string payload) {
+        try {
+            var parser = new Json.Parser ();
+            parser.load_from_data (payload);
+            var root = parser.get_root ().get_object ();
+
+            // Это ответ на наш запрос (есть 'id')
+            if (root.has_member ("id")) {
+                this.handle_response (root);
+            }
+            // Это уведомление или запрос от сервера (есть 'method', нет 'id')
+            else if (root.has_member ("method")) {
+                this.handle_incoming_notification (root);
+            }
+        } catch (Error e) {
+            warning ("Failed to parse LSP payload: %s", e.message);
+        }
+    }
+
+    private void handle_response (Json.Object response) {
+        int id = (int) response.get_int_member ("id");
+
+        if (pending_requests.has_key (id)) {
+            var promise = pending_requests.get (id);
+            pending_requests.unset (id);
+
+            // Сохраняем результат для проснувшегося метода
+            responses.set (id, response);
+
+            // Передаем управление обратно в асинхронный метод
+            // Используем Idle.add, чтобы вернуться в MainContext (UI поток)
+            Idle.add ((owned) promise.callback);
+        }
+    }
+
+    private void handle_incoming_notification (Json.Object root) {
+        string method = root.get_string_member ("method");
+
+        // Уведомления могут не иметь параметров (params)
+        Json.Object? params = null;
+        if (root.has_member ("params")) {
+            params = root.get_object_member ("params");
+        }
+
+        switch (method) {
+        case "textDocument/publishDiagnostics" :
+            if (params != null) {
+                string uri = params.get_string_member ("uri");
+                var json_array = params.get_array_member ("diagnostics");
+
+                // Парсим JSON-массив в список ваших объектов IdeLspDiagnostic
+                var diag_list = this.parse_diagnostics (json_array);
+
+                // Передаем в главный поток для UI
+                Idle.add (() => {
+                    this.diagnostics_received (uri, diag_list);
+                    return Source.REMOVE;
+                });
+            }
+            break;
+
+        case "window/logMessage" :
+            if (params != null)handle_log_message (params);
+            break;
+
+        case "window/showMessage":
+            // Здесь можно вызывать всплывающие уведомления в стиле GNOME
+            if (params != null)debug ("LSP Show Message: %s", params.get_string_member ("message"));
+            break;
+
+        default:
+            debug ("Unhandled LSP notification: %s", method);
+            break;
+        }
+    }
+
+    private void handle_log_message (Json.Object params) {
+        int type = (int) params.get_int_member ("type");
+        string message = params.get_string_member ("message");
+
+        Idle.add (() => {
+            this.log_message (type, message);
+            return Source.REMOVE;
+        });
+    }
+
+    public async bool start_server_async (string command, string[] args, string? workspace_root, Json.Node? initialization_options = null) {
+        try {
+            // 1. Подготовка аргументов запуска
+            string[] argv = { command };
+            foreach (var arg in args)argv += arg;
+
+            // 2. Запуск подпроцесса
+            var launcher = new SubprocessLauncher (SubprocessFlags.STDOUT_PIPE | SubprocessFlags.STDIN_PIPE);
+            this.process = launcher.spawnv (argv);
+
+            // 3. Инициализация асинхронных потоков
+            this.output_stream = this.process.get_stdin_pipe ();
+            this.input_stream = new DataInputStream (this.process.get_stdout_pipe ());
+
+            // 4. Запуск цикла чтения (он будет ждать сообщений в фоне)
+            this.run_read_loop.begin ();
+
+            // 5. Фаза INITIALIZE
+            var init_params = build_init_params (workspace_root, initialization_options);
+            var response = yield this.send_request ("initialize", init_params.get_object ());
+
+            if (response != null && response.has_member ("result")) {
+                var result = response.get_object_member ("result");
+                // Извлекаем возможности сервера
+                this.parse_capabilities (result);
+            }
+
+            // Используем Idle.add, чтобы оповестить подписчиков в главном потоке
+            is_initialized = true;
+            Idle.add (() => {
+                this.initialized_with_capabilities (this.capabilities);
+                return Source.REMOVE; // Выполнить один раз
+            });
+
+            // 6. Фаза INITIALIZED (уведомление о готовности)
+            yield this.send_notification_async ("initialized", new Json.Object ());
+
+            debug ("LSP Server started and initialized for: %s", workspace_root ?? "unknown");
+            return true;
+        } catch (Error e) {
+            warning ("Failed to start LSP server: %s", e.message);
+            return false;
+        }
+    }
+
+    private void parse_capabilities (Json.Object result) {
+        if (!result.has_member ("capabilities"))return;
+        var caps = result.get_object_member ("capabilities");
+
+        // Синхронизация документа
+        if (caps.has_member ("textDocumentSync")) {
+            var sync = caps.get_member ("textDocumentSync");
+            if (sync.get_node_type () == Json.NodeType.OBJECT) {
+                var sync_obj = sync.get_object ();
+                if (sync_obj.has_member ("change"))
+                    this.capabilities.sync_kind = (TextDocumentSyncKind) sync_obj.get_int_member ("change");
+            } else if (sync.get_node_type () == Json.NodeType.VALUE) {
+                this.capabilities.sync_kind = (TextDocumentSyncKind) sync.get_int ();
+            }
+        }
+
+        // Триггеры автодополнения
+        if (caps.has_member ("completionProvider")) {
+            var comp = caps.get_object_member ("completionProvider");
+            if (comp.has_member ("triggerCharacters")) {
+                var triggers = comp.get_array_member ("triggerCharacters");
+                this.capabilities.completion_triggers.clear ();
+                foreach (var node in triggers.get_elements ()) {
+                    this.capabilities.completion_triggers.add (node.get_string ());
+                }
+            }
+        }
+
+        // Hover & Definition
+        this.capabilities.hover_provider = caps.has_member ("hoverProvider") && caps.get_boolean_member ("hoverProvider");
+        this.capabilities.definition_provider = caps.has_member ("definitionProvider") && caps.get_boolean_member ("definitionProvider");
+    }
+
+    private Json.Node build_init_params (string? workspace_root, Json.Node? initialization_options = null) {
+        var builder = new Json.Builder ();
+        builder.begin_object ();
+        builder.set_member_name ("processId");
+        builder.add_null_value ();
+        builder.set_member_name ("clientInfo");
+        builder.begin_object ();
+        builder.set_member_name ("name");
+        builder.add_string_value ("iide");
+        builder.set_member_name ("version");
+        builder.add_string_value ("0.1.0");
+        builder.end_object ();
+        builder.set_member_name ("rootUri");
+        if (workspace_root != null) {
+            builder.add_string_value (workspace_root);
+        } else {
+            builder.add_null_value ();
+        }
+        builder.set_member_name ("workspaceFolders");
+        builder.begin_array ();
+        if (workspace_root != null) {
+            builder.begin_object ();
+            builder.set_member_name ("uri");
+            builder.add_string_value (workspace_root);
+            builder.set_member_name ("name");
+            builder.add_string_value ("workspace");
+            builder.end_object ();
+        }
+        builder.end_array ();
+        builder.set_member_name ("capabilities");
+        builder.begin_object ();
+        builder.set_member_name ("textDocument");
+        builder.begin_object ();
+        builder.set_member_name ("syncKind");
+        builder.add_int_value (1);
+        builder.end_object ();
+        builder.end_object ();
+        builder.set_member_name ("workspace");
+        builder.begin_object ();
+        builder.set_member_name ("workspaceFolders");
+        builder.add_boolean_value (true);
+        builder.end_object ();
+        builder.end_object ();
+        if (initialization_options != null) {
+            builder.set_member_name ("initializationOptions");
+            builder.add_value (initialization_options.copy ());
+        }
+        builder.end_object ();
+
+        return builder.get_root ();
+    }
+
+    public async void send_notification_async (string method, Json.Object params) throws Error {
+        var root = new Json.Object ();
+        root.set_string_member ("jsonrpc", "2.0");
+        root.set_string_member ("method", method);
+        root.set_object_member ("params", params);
+
+        // Вызываем наш атомарный метод записи в поток
+        yield this.send_message_async (root);
+    }
+
+    private Gee.ArrayList<IdeLspDiagnostic> parse_diagnostics (Json.Array diagnostics_array) {
+        var result = new Gee.ArrayList<IdeLspDiagnostic> ();
+
+        foreach (var diag_node in diagnostics_array.get_elements ()) {
+            var diag_obj = diag_node.get_object ();
+            var d = new IdeLspDiagnostic ();
+
+            // Основные поля
+            d.message = diag_obj.get_string_member ("message");
+            if (diag_obj.has_member ("severity")) {
+                d.severity = (int) diag_obj.get_int_member ("severity");
+            }
+
+            // Координаты (Range в LSP содержит start и end объекты)
+            var range = diag_obj.get_object_member ("range");
+            var start = range.get_object_member ("start");
+            var end = range.get_object_member ("end");
+
+            d.start_line = (int) start.get_int_member ("line");
+            d.start_column = (int) start.get_int_member ("character"); // character -> start_column
+            d.end_line = (int) end.get_int_member ("line");
+            d.end_column = (int) end.get_int_member ("character"); // character -> end_column
+
+            result.add (d);
+        }
+
+        return result;
+    }
+
+    public async void text_document_did_open (string uri, string language_id, int version, string content) throws Error {
+        var params = new Json.Object ();
+
+        var doc = new Json.Object ();
+        doc.set_string_member ("uri", uri);
+        doc.set_string_member ("languageId", language_id);
+        doc.set_int_member ("version", version);
+        doc.set_string_member ("text", content);
+
+        params.set_object_member ("textDocument", doc);
+
+        // Это уведомление (notification), оно не требует ID и не ждет ответа
+        yield this.send_notification_async ("textDocument/didOpen", params);
+
+        debug ("LSP: Sent didOpen for %s", uri);
+    }
+
+    public async void text_document_did_change (string uri, int version, string content) throws Error {
+        var params = new Json.Object ();
+
+        // 1. Идентификатор документа
+        var doc = new Json.Object ();
+        doc.set_string_member ("uri", uri);
+        doc.set_int_member ("version", version);
+        params.set_object_member ("textDocument", doc);
+
+        // 2. Полное содержимое (без поля range)
+        var change = new Json.Object ();
+        change.set_string_member ("text", content);
+
+        var changes = new Json.Array ();
+        changes.add_object_element (change);
+        params.set_array_member ("contentChanges", changes);
+
+        yield this.send_notification_async ("textDocument/didChange", params);
+    }
+
+    public async void send_did_change (string uri, int version, Gee.ArrayList<PendingChange> changes) throws Error {
+        var params = new Json.Object ();
+
+        // 1. Идентификатор документа
+        var doc = new Json.Object ();
+        doc.set_string_member ("uri", uri);
+        doc.set_int_member ("version", version);
+        params.set_object_member ("textDocument", doc);
+
+        // 2. Массив инкрементальных изменений
+        var json_changes = new Json.Array ();
+        foreach (var c in changes) {
+            var obj = new Json.Object ();
+
+            // Формируем диапазон (range)
+            var range = new Json.Object ();
+
+            var start = new Json.Object ();
+            start.set_int_member ("line", c.start_line);
+            start.set_int_member ("character", c.start_char);
+
+            var end = new Json.Object ();
+            end.set_int_member ("line", c.end_line);
+            end.set_int_member ("character", c.end_char);
+
+            range.set_object_member ("start", start);
+            range.set_object_member ("end", end);
+
+            obj.set_object_member ("range", range);
+            obj.set_string_member ("text", c.text);
+
+            json_changes.add_object_element (obj);
+        }
+        params.set_array_member ("contentChanges", json_changes);
+
+        yield this.send_notification_async ("textDocument/didChange", params);
+    }
+
+    public async void text_document_did_close (string uri) throws Error {
+        var params = new Json.Object ();
+        var doc = new Json.Object ();
+        doc.set_string_member ("uri", uri);
+        params.set_object_member ("textDocument", doc);
+
+        yield this.send_notification_async ("textDocument/didClose", params);
+    }
+
+    private IdeLspCompletionResult parse_completion_result (Json.Node node) {
+        var res = new IdeLspCompletionResult ();
+        res.items = new Gee.ArrayList<IdeLspCompletionItem> ();
+
+        Json.Array? items_array = null;
+
+        // Случай 1: Сервер вернул объект CompletionList { isIncomplete, items }
+        if (node.get_node_type () == Json.NodeType.OBJECT) {
+            var obj = node.get_object ();
+            if (obj.has_member ("isIncomplete")) {
+                res.is_incomplete = obj.get_boolean_member ("isIncomplete");
+            }
+            if (obj.has_member ("items")) {
+                items_array = obj.get_array_member ("items");
+            }
+        }
+        // Случай 2: Сервер вернул просто массив CompletionItem[]
+        else if (node.get_node_type () == Json.NodeType.ARRAY) {
+            items_array = node.get_array ();
+        }
+
+        if (items_array != null) {
+            foreach (var item_node in items_array.get_elements ()) {
+                var item_obj = item_node.get_object ();
+                var item = new IdeLspCompletionItem ();
+
+                item.label = item_obj.get_string_member ("label");
+
+                // Опциональные поля
+                if (item_obj.has_member ("insertText"))
+                    item.insert_text = item_obj.get_string_member ("insertText");
+                else
+                    item.insert_text = item.label;
+
+                if (item_obj.has_member ("detail"))
+                    item.detail = item_obj.get_string_member ("detail");
+
+                if (item_obj.has_member ("kind"))
+                    item.kind = (int) item_obj.get_int_member ("kind");
+
+                // Обработка документации (может быть строкой или объектом MarkupContent)
+                if (item_obj.has_member ("documentation")) {
+                    var doc_node = item_obj.get_member ("documentation");
+                    if (doc_node.get_node_type () == Json.NodeType.OBJECT)
+                        item.documentation = doc_node.get_object ().get_string_member ("value");
+                    else
+                        item.documentation = doc_node.get_string ();
+                }
+
+                res.items.add (item);
+            }
+        }
+
+        return res;
+    }
+
+    public async IdeLspCompletionResult ? request_completion (string uri, int line, int character, string? trigger_char = null, CompletionTriggerKind trigger_kind = CompletionTriggerKind.INVOKED) throws Error {
+        var params = new Json.Object ();
+
+        var doc = new Json.Object ();
+        doc.set_string_member ("uri", uri);
+        params.set_object_member ("textDocument", doc);
+
+        var pos = new Json.Object ();
+        pos.set_int_member ("line", line);
+        pos.set_int_member ("character", character);
+        params.set_object_member ("position", pos);
+
+        var context = new Json.Object ();
+        context.set_int_member ("triggerKind", (int) trigger_kind);
+        if (trigger_char != null) {
+            context.set_string_member ("triggerCharacter", trigger_char);
+        }
+        params.set_object_member ("context", context);
+
+        var response = yield this.send_request ("textDocument/completion", params);
+
+        if (response == null || !response.has_member ("result"))return null;
+
+        var result_node = response.get_member ("result");
+        if (result_node.get_node_type () == Json.NodeType.NULL)return null;
+
+        return parse_completion_result (result_node);
+    }
+
+    private string ? parse_hover_result (Json.Node node) {
+        if (node.get_node_type () != Json.NodeType.OBJECT)
+            return null;
+
+        var result = node.get_object ();
+
+        // Случай 1: содержимое в поле 'contents'
+        if (!result.has_member ("contents"))
+            return null;
+
+        var contents = result.get_member ("contents");
+
+        // Если это объект (MarkupContent)
+        if (contents.get_node_type () == Json.NodeType.OBJECT) {
+            var obj = contents.get_object ();
+            if (obj.has_member ("value")) {
+                return obj.get_string_member ("value");
+            }
+        }
+        // Если это просто строка или массив строк
+        else {
+            return contents.get_string ();
+        }
+
+        return null;
+    }
+
+    public async string ? request_hover (string uri, int line, int character) throws Error {
+        var params = new Json.Object ();
+
+        var doc = new Json.Object ();
+        doc.set_string_member ("uri", uri);
+        params.set_object_member ("textDocument", doc);
+
+        var pos = new Json.Object ();
+        pos.set_int_member ("line", line);
+        pos.set_int_member ("character", character);
+        params.set_object_member ("position", pos);
+
+        var response = yield this.send_request ("textDocument/hover", params);
+
+        if (response == null || !response.has_member ("result"))return null;
+
+        return parse_hover_result (response.get_member ("result"));
+    }
+
+    public async Gee.ArrayList<IdeLspLocation>? request_definition (string uri, int line, int character) throws Error {
+        var params = new Json.Object ();
+
+        var doc = new Json.Object ();
+        doc.set_string_member ("uri", uri);
+        params.set_object_member ("textDocument", doc);
+
+        var pos = new Json.Object ();
+        pos.set_int_member ("line", line);
+        pos.set_int_member ("character", character);
+        params.set_object_member ("position", pos);
+
+        var response = yield this.send_request ("textDocument/definition", params);
+
+        if (response == null || !response.has_member ("result"))return null;
+
+        var result_node = response.get_member ("result");
+        if (result_node.get_node_type () == Json.NodeType.NULL)return null;
+
+        return parse_definition_result (result_node);
+    }
+
+    private Gee.ArrayList<IdeLspLocation> parse_definition_result (Json.Node node) {
+        var locations = new Gee.ArrayList<IdeLspLocation> ();
+
+        // Случай 1: Одиночный объект Location {}
+        if (node.get_node_type () == Json.NodeType.OBJECT) {
+            var loc = parse_single_location (node.get_object ());
+            if (loc != null)locations.add (loc);
+        }
+        // Случай 2: Массив объектов Location[]
+        else if (node.get_node_type () == Json.NodeType.ARRAY) {
+            var array = node.get_array ();
+            foreach (var element in array.get_elements ()) {
+                var loc = parse_single_location (element.get_object ());
+                if (loc != null)locations.add (loc);
+            }
+        }
+
+        return locations;
+    }
+
+    private IdeLspLocation ? parse_single_location (Json.Object obj) {
+        var loc = new IdeLspLocation ();
+        loc.uri = obj.get_string_member ("uri");
+
+        var range = obj.get_object_member ("range");
+        var start = range.get_object_member ("start");
+        var end = range.get_object_member ("end");
+
+        loc.start_line = (int) start.get_int_member ("line");
+        loc.start_column = (int) start.get_int_member ("character");
+        loc.end_line = (int) end.get_int_member ("line");
+        loc.end_column = (int) end.get_int_member ("character");
+
+        return loc;
     }
 }
 ```
@@ -6093,258 +6397,42 @@ public class Iide.SearchInFilesDialog : Adw.Window {
 }
 ```
 
-## File: vapi/libtreesitter.vapi
-```
-[CCode (cheader_filename = "tree_sitter/api.h")]
-namespace TreeSitter {
-
-  [CCode (cname = "TREE_SITTER_LANGUAGE_VERSION")]
-  public const int LANGUAGE_VERSION;
-
-  [CCode (cname = "TREE_SITTER_MIN_COMPATIBLE_LANGUAGE_VERSION")]
-  public const int MIN_COMPATIBLE_LANGUAGE_VERSION;
-
-  [CCode (cname = "TSInputEncoding", cprefix = "TSInputEncoding", has_type_id = false)]
-  public enum InputEncoding {
-    UTF8,
-    UTF16
-  }
-
-  [CCode (cname = "TSSymbolType", cprefix = "TSSymbolType", has_type_id = false)]
-  public enum SymbolType {
-    Regular,
-    Anonymous,
-    Auxiliary
-  }
-
-  [CCode (cname = "TSLogType", cprefix = "TSLogType", has_type_id = false)]
-  public enum LogType {
-    Parse,
-    Lex
-  }
-
-  [SimpleType]
-  [CCode (cname = "TSSymbol", has_type_id = false)]
-  public struct Symbol : uint16 {
-  }
-
-  [CCode (cname = "TSLanguage")]
-  [Compact]
-  public class Language {
-    uint32 version;
-    uint32 symbol_count;
-    uint32 alias_count;
-    uint32 token_count;
-    uint32 external_token_count;
-    //const char **symbol_names;
-  //const TSSymbolMetadata *symbol_metadata;
-  //const uint16 *parse_table;
-  //const TSParseActionEntry *parse_actions;
-  //const TSLexMode *lex_modes;
-  //const TSSymbol *alias_sequences;
-  uint16 max_alias_sequence_length;
-  //bool (*lex_fn)(TSLexer *, TSStateId);
-  //bool (*keyword_lex_fn)(TSLexer *, TSStateId);
-  //Symbol keyword_capture_token;
-/*
-  struct {
-    const bool *states;
-    const TSSymbol *symbol_map;
-    void *(*create)();
-    void (*destroy)(void *);
-    bool (*scan)(void *, TSLexer *, const bool *symbol_whitelist);
-    unsigned (*serialize)(void *, char *);
-    void (*deserialize)(void *, const char *, unsigned);
-  } external_scanner;
-  */
-    [CCode (cname = "ts_language_symbol_count")]
-    public uint32 get_symbol_count ();
-
-    [CCode (cname = "ts_language_symbol_name")]
-    public unowned string get_symbol_name (Symbol symbol);
-
-    [CCode (cname = "ts_language_symbol_for_name")]
-    public Symbol symbol_for_name (string name);
-
-    [CCode (cname = "ts_language_symbol_type")]
-    public SymbolType get_symbol_type (Symbol symbol);
-
-    [CCode (cname = "ts_language_abi_version")]
-    public uint32 get_version ();
-  }
-
-  [CCode (cname = "TSParser", free_function = "ts_parser_delete")]
-  [Compact]
-  public class Parser {
-      [CCode (cname = "ts_parser_new")]
-      public Parser ();
-
-      [CCode (cname = "ts_parser_language")]
-      public unowned Language get_language ();
-
-      [CCode (cname = "ts_parser_set_language")]
-      public bool set_language (Language language);
-
-      [CCode (cname = "ts_parser_parse_string", array_length_type = "uint32_t")]
-      public Tree parse_string ([CCode (transfer = "none")] Tree? tree, uint8[] source);
-  }
-
-  [CCode (cname = "TSTree", free_function = "ts_tree_delete")]
-  [Compact]
-  public class Tree {
-      [CCode (cname = "ts_tree_root_node")]
-      public Node root_node ();
-
-      [CCode (cname = "ts_tree_edit")]
-      public void edit (InputEdit edit);
-
-      [CCode (cname = "ts_tree_get_changed_ranges")]
-      public Range[] get_changed_ranges (Tree new_tree);
-  }
-
-  [SimpleType]
-  [CCode (cname = "TSPoint", has_type_id = false)]
-  public struct Point {
-    uint32 row;
-    uint32 column;
-  }
-
-  [CCode (cname = "TSRange", has_type_id = false)]
-  public struct Range {
-    Point start_point;
-    Point end_point;
-    uint32 start_byte;
-    uint32 end_byte;
-  }
-
-  [CCode (cname = "TSInput", has_type_id = false)]
-  public struct Input {
-    void *payload;
-    //const char *(*read)(void *payload, uint32 byte_index, Point position, uint32 *bytes_read);
-    InputEncoding encoding;
-  }
-
-  [CCode (cname = "TSLogger", has_type_id = false)]
-  public struct Logger {
-    void *payload;
-    //void (*log)(void *payload, TSLogType, const char *);
-  }
-
-  [CCode (cname = "TSInputEdit", has_type_id = false)]
-  public struct InputEdit {
-    uint32 start_byte;
-    uint32 old_end_byte;
-    uint32 new_end_byte;
-    Point start_point;
-    Point old_end_point;
-    Point new_end_point;
-  }
-
-  [SimpleType]
-  [CCode (cname = "TSNode", has_type_id = false)]
-  public struct Node {
-
-    [CCode (cname = "ts_node_type")]
-    public unowned string type ();
-
-    [CCode (cname = "ts_node_string")]
-    public string to_str ();
-
-    [CCode (cname = "ts_node_start_point")]
-    public Point start_point ();
-
-    [CCode (cname = "ts_node_end_point")]
-    public Point end_point ();
-
-    [CCode (cname = "ts_node_start_byte")]
-    public uint32 start_byte ();
-
-    [CCode (cname = "ts_node_end_byte")]
-    public uint32 end_byte ();
-
-    [CCode (cname = "ts_node_child_count")]
-    public uint32 child_count();
-
-    [CCode (cname = "ts_node_child")]
-    public unowned Node child(uint32 index);
-
-  }
-
-  [CCode (cname = "TSTreeCursor", free_function = "ts_tree_cursor_delete", has_type_id = false)]
-  [Compact]
-  public class TreeCursor {
-    //const void *tree;
-    //const void *id;
-    uint32 context[2];
-
-    [CCode (cname = "ts_tree_cursor_new")]
-    public TreeCursor (Node node);
-
-    [CCode (cname = "ts_tree_cursor_goto_next_sibling")]
-    public bool goto_next_sibling ();
-
-    [CCode (cname = "ts_tree_cursor_goto_first_child")]
-    public bool goto_first_child ();
-
-    [CCode (cname = "ts_tree_cursor_current_node")]
-    public Node current_node ();
-
-    [CCode (cname = "ts_tree_cursor_goto_parent")]
-    public Node goto_parent ();
- }
-}
-
-/*
-
-TSLogger ts_parser_logger(const TSParser *);
-void ts_parser_set_logger(TSParser *, TSLogger);
-void ts_parser_print_dot_graphs(TSParser *, FILE *);
-void ts_parser_halt_on_error(TSParser *, bool);
-TSTree *ts_parser_parse(TSParser *, const TSTree *, TSInput);
-bool ts_parser_enabled(const TSParser *);
-void ts_parser_set_enabled(TSParser *, bool);
-size_t ts_parser_operation_limit(const TSParser *);
-void ts_parser_set_operation_limit(TSParser *, size_t);
-void ts_parser_reset(TSParser *);
-void ts_parser_set_included_ranges(TSParser *, const TSRange *, uint32_t);
-const TSRange *ts_parser_included_ranges(const TSParser *, uint32_t *);
-
-TSTree *ts_tree_copy(const TSTree *);
-void ts_tree_edit(TSTree *, const TSInputEdit *);
-TSRange *ts_tree_get_changed_ranges(const TSTree *, const TSTree *, uint32_t *);
-void ts_tree_print_dot_graph(const TSTree *, FILE *);
-const TSLanguage *ts_tree_language(const TSTree *);
-
-TSSymbol ts_node_symbol(TSNode);
-char *ts_node_string(TSNode);
-bool ts_node_eq(TSNode, TSNode);
-bool ts_node_is_null(TSNode);
-bool ts_node_is_named(TSNode);
-bool ts_node_is_missing(TSNode);
-bool ts_node_has_changes(TSNode);
-bool ts_node_has_error(TSNode);
-TSNode ts_node_parent(TSNode);
-TSNode ts_node_child(TSNode, uint32_t);
-TSNode ts_node_named_child(TSNode, uint32_t);
-uint32_t ts_node_child_count(TSNode);
-uint32_t ts_node_named_child_count(TSNode);
-TSNode ts_node_next_sibling(TSNode);
-TSNode ts_node_next_named_sibling(TSNode);
-TSNode ts_node_prev_sibling(TSNode);
-TSNode ts_node_prev_named_sibling(TSNode);
-TSNode ts_node_first_child_for_byte(TSNode, uint32_t);
-TSNode ts_node_first_named_child_for_byte(TSNode, uint32_t);
-TSNode ts_node_descendant_for_byte_range(TSNode, uint32_t, uint32_t);
-TSNode ts_node_named_descendant_for_byte_range(TSNode, uint32_t, uint32_t);
-TSNode ts_node_descendant_for_point_range(TSNode, TSPoint, TSPoint);
-TSNode ts_node_named_descendant_for_point_range(TSNode, TSPoint, TSPoint);
-void ts_node_edit(TSNode *, const TSInputEdit *);
-
-void ts_tree_cursor_delete(TSTreeCursor *);
-void ts_tree_cursor_reset(TSTreeCursor *, TSNode);
-int64_t ts_tree_cursor_goto_first_child_for_byte(TSTreeCursor *, uint32_t);
-
-*/
+## File: src/iide.gresource.xml
+```xml
+<?xml version="1.0" encoding="UTF-8" ?>
+<gresources>
+  <gresource prefix="/org/github/kai66673/iide">
+    <file preprocess="xml-stripblanks">window.ui</file>
+    <file preprocess="xml-stripblanks">shortcuts-dialog.ui</file>
+    <file>style.css</file>
+  </gresource>
+  <gresource prefix="/org/github/kai66673/iide/icons">
+     <file
+            compressed="true"
+            alias="scalable/mimetypes/text-x-python-symbolic.svg"
+        >icons/mimetypes/text-x-python-symbolic.svg</file>
+    <file
+            compressed="true"
+            alias="scalable/mimetypes/text-x-vala-symbolic.svg"
+        >icons/mimetypes/text-x-vala-symbolic.svg</file>
+    <file
+            compressed="true"
+            alias="scalable/mimetypes/text-x-meson-symbolic.svg"
+        >icons/mimetypes/text-x-meson-symbolic.svg</file>
+    <file
+            compressed="true"
+            alias="scalable/mimetypes/text-markdown-symbolic.svg"
+        >icons/mimetypes/text-markdown-symbolic.svg</file>
+    <file
+            compressed="true"
+            alias="scalable/mimetypes/text-x-javascript-symbolic.svg"
+        >icons/mimetypes/text-x-javascript-symbolic.svg</file>
+    <file
+            compressed="true"
+            alias="scalable/mimetypes/text-xml-symbolic.svg"
+        >icons/mimetypes/text-xml-symbolic.svg</file>
+  </gresource>
+</gresources>
 ```
 
 ## File: .gitmodules
@@ -6666,44 +6754,6 @@ public class Iide.FileItem : Object {
         );
     }
 }
-```
-
-## File: src/iide.gresource.xml
-```xml
-<?xml version="1.0" encoding="UTF-8" ?>
-<gresources>
-  <gresource prefix="/org/github/kai66673/iide">
-    <file preprocess="xml-stripblanks">window.ui</file>
-    <file preprocess="xml-stripblanks">shortcuts-dialog.ui</file>
-    <file>style.css</file>
-  </gresource>
-  <gresource prefix="/org/github/kai66673/iide/icons">
-     <file
-            compressed="true"
-            alias="scalable/mimetypes/text-x-python-symbolic.svg"
-        >icons/mimetypes/text-x-python-symbolic.svg</file>
-    <file
-            compressed="true"
-            alias="scalable/mimetypes/text-x-vala-symbolic.svg"
-        >icons/mimetypes/text-x-vala-symbolic.svg</file>
-    <file
-            compressed="true"
-            alias="scalable/mimetypes/text-x-meson-symbolic.svg"
-        >icons/mimetypes/text-x-meson-symbolic.svg</file>
-    <file
-            compressed="true"
-            alias="scalable/mimetypes/text-markdown-symbolic.svg"
-        >icons/mimetypes/text-markdown-symbolic.svg</file>
-    <file
-            compressed="true"
-            alias="scalable/mimetypes/text-x-javascript-symbolic.svg"
-        >icons/mimetypes/text-x-javascript-symbolic.svg</file>
-    <file
-            compressed="true"
-            alias="scalable/mimetypes/text-xml-symbolic.svg"
-        >icons/mimetypes/text-xml-symbolic.svg</file>
-  </gresource>
-</gresources>
 ```
 
 ## File: tests/test_lsp_service.vala
@@ -7257,6 +7307,252 @@ private string build_did_change_message (string uri, int version, string content
 }
 ```
 
+## File: vapi/libtreesitter.vapi
+```
+[CCode (cheader_filename = "tree_sitter/api.h")]
+namespace TreeSitter {
+
+    [CCode (cname = "TREE_SITTER_LANGUAGE_VERSION")]
+    public const int LANGUAGE_VERSION;
+
+    [CCode (cname = "TREE_SITTER_MIN_COMPATIBLE_LANGUAGE_VERSION")]
+    public const int MIN_COMPATIBLE_LANGUAGE_VERSION;
+
+    [CCode (cname = "TSInputEncoding", cprefix = "TSInputEncoding", has_type_id = false)]
+    public enum InputEncoding {
+        UTF8,
+        UTF16
+    }
+
+    [CCode (cname = "TSSymbolType", cprefix = "TSSymbolType", has_type_id = false)]
+    public enum SymbolType {
+        Regular,
+        Anonymous,
+        Auxiliary
+    }
+
+    [CCode (cname = "TSLogType", cprefix = "TSLogType", has_type_id = false)]
+    public enum LogType {
+        Parse,
+        Lex
+    }
+
+    [SimpleType]
+    [CCode (cname = "TSSymbol", has_type_id = false)]
+    public struct Symbol : uint16 {
+    }
+
+    [CCode (cname = "TSLanguage")]
+    [Compact]
+    public class Language {
+        uint32 version;
+        uint32 symbol_count;
+        uint32 alias_count;
+        uint32 token_count;
+        uint32 external_token_count;
+        // const char **symbol_names;
+        // const TSSymbolMetadata *symbol_metadata;
+        // const uint16 *parse_table;
+        // const TSParseActionEntry *parse_actions;
+        // const TSLexMode *lex_modes;
+        // const TSSymbol *alias_sequences;
+        uint16 max_alias_sequence_length;
+        // bool (*lex_fn)(TSLexer *, TSStateId);
+        // bool (*keyword_lex_fn)(TSLexer *, TSStateId);
+        // Symbol keyword_capture_token;
+/*
+   struct {
+    const bool *states;
+    const TSSymbol *symbol_map;
+    void *(*create)();
+    void (*destroy)(void *);
+    bool (*scan)(void *, TSLexer *, const bool *symbol_whitelist);
+    unsigned (*serialize)(void *, char *);
+    void (*deserialize)(void *, const char *, unsigned);
+   } external_scanner;
+ */
+        [CCode (cname = "ts_language_symbol_count")]
+        public uint32 get_symbol_count ();
+
+        [CCode (cname = "ts_language_symbol_name")]
+        public unowned string get_symbol_name (Symbol symbol);
+
+        [CCode (cname = "ts_language_symbol_for_name")]
+        public Symbol symbol_for_name (string name);
+
+        [CCode (cname = "ts_language_symbol_type")]
+        public SymbolType get_symbol_type (Symbol symbol);
+
+        [CCode (cname = "ts_language_abi_version")]
+        public uint32 get_version ();
+    }
+
+    [CCode (cname = "TSParser", free_function = "ts_parser_delete")]
+    [Compact]
+    public class Parser {
+        [CCode (cname = "ts_parser_new")]
+        public Parser ();
+
+        [CCode (cname = "ts_parser_language")]
+        public unowned Language get_language ();
+
+        [CCode (cname = "ts_parser_set_language")]
+        public bool set_language (Language language);
+
+        [CCode (cname = "ts_parser_parse_string", array_length_type = "uint32_t")]
+        public Tree parse_string ([CCode (transfer = "none")] Tree? tree, uint8[] source);
+    }
+
+    [CCode (cname = "TSTree", free_function = "ts_tree_delete")]
+    [Compact]
+    public class Tree {
+        [CCode (cname = "ts_tree_root_node")]
+        public Node root_node ();
+
+        [CCode (cname = "ts_tree_edit")]
+        public void edit (InputEdit edit);
+
+        [CCode (cname = "ts_tree_get_changed_ranges")]
+        public Range[] get_changed_ranges (Tree new_tree);
+    }
+
+    [SimpleType]
+    [CCode (cname = "TSPoint", has_type_id = false)]
+    public struct Point {
+        uint32 row;
+        uint32 column;
+    }
+
+    [CCode (cname = "TSRange", has_type_id = false)]
+    public struct Range {
+        Point start_point;
+        Point end_point;
+        uint32 start_byte;
+        uint32 end_byte;
+    }
+
+    [CCode (cname = "TSInput", has_type_id = false)]
+    public struct Input {
+        void* payload;
+        // const char *(*read)(void *payload, uint32 byte_index, Point position, uint32 *bytes_read);
+        InputEncoding encoding;
+    }
+
+    [CCode (cname = "TSLogger", has_type_id = false)]
+    public struct Logger {
+        void* payload;
+        // void (*log)(void *payload, TSLogType, const char *);
+    }
+
+    [CCode (cname = "TSInputEdit", has_type_id = false)]
+    public struct InputEdit {
+        uint32 start_byte;
+        uint32 old_end_byte;
+        uint32 new_end_byte;
+        Point start_point;
+        Point old_end_point;
+        Point new_end_point;
+    }
+
+    [SimpleType]
+    [CCode (cname = "TSNode", has_type_id = false)]
+    public struct Node {
+
+        [CCode (cname = "ts_node_type")]
+        public unowned string type ();
+
+        [CCode (cname = "ts_node_string")]
+        public string to_str ();
+
+        [CCode (cname = "ts_node_start_point")]
+        public Point start_point ();
+
+        [CCode (cname = "ts_node_end_point")]
+        public Point end_point ();
+
+        [CCode (cname = "ts_node_start_byte")]
+        public uint32 start_byte ();
+
+        [CCode (cname = "ts_node_end_byte")]
+        public uint32 end_byte ();
+
+        [CCode (cname = "ts_node_child_count")]
+        public uint32 child_count ();
+
+        [CCode (cname = "ts_node_child")]
+        public unowned Node child (uint32 index);
+    }
+
+    [CCode (cname = "TSTreeCursor", free_function = "ts_tree_cursor_delete", has_type_id = false)]
+    [Compact]
+    public class TreeCursor {
+        [CCode (cname = "ts_tree_cursor_goto_next_sibling")]
+        public bool goto_next_sibling ();
+
+        [CCode (cname = "ts_tree_cursor_goto_first_child")]
+        public bool goto_first_child ();
+
+        [CCode (cname = "ts_tree_cursor_current_node")]
+        public Node current_node ();
+
+        [CCode (cname = "ts_tree_cursor_goto_parent")]
+        public bool goto_parent ();
+    }
+}
+
+/*
+
+   TSLogger ts_parser_logger(const TSParser *);
+   void ts_parser_set_logger(TSParser *, TSLogger);
+   void ts_parser_print_dot_graphs(TSParser *, FILE *);
+   void ts_parser_halt_on_error(TSParser *, bool);
+   TSTree *ts_parser_parse(TSParser *, const TSTree *, TSInput);
+   bool ts_parser_enabled(const TSParser *);
+   void ts_parser_set_enabled(TSParser *, bool);
+   size_t ts_parser_operation_limit(const TSParser *);
+   void ts_parser_set_operation_limit(TSParser *, size_t);
+   void ts_parser_reset(TSParser *);
+   void ts_parser_set_included_ranges(TSParser *, const TSRange *, uint32_t);
+   const TSRange *ts_parser_included_ranges(const TSParser *, uint32_t *);
+
+   TSTree *ts_tree_copy(const TSTree *);
+   void ts_tree_edit(TSTree *, const TSInputEdit *);
+   TSRange *ts_tree_get_changed_ranges(const TSTree *, const TSTree *, uint32_t *);
+   void ts_tree_print_dot_graph(const TSTree *, FILE *);
+   const TSLanguage *ts_tree_language(const TSTree *);
+
+   TSSymbol ts_node_symbol(TSNode);
+   char *ts_node_string(TSNode);
+   bool ts_node_eq(TSNode, TSNode);
+   bool ts_node_is_null(TSNode);
+   bool ts_node_is_named(TSNode);
+   bool ts_node_is_missing(TSNode);
+   bool ts_node_has_changes(TSNode);
+   bool ts_node_has_error(TSNode);
+   TSNode ts_node_parent(TSNode);
+   TSNode ts_node_child(TSNode, uint32_t);
+   TSNode ts_node_named_child(TSNode, uint32_t);
+   uint32_t ts_node_child_count(TSNode);
+   uint32_t ts_node_named_child_count(TSNode);
+   TSNode ts_node_next_sibling(TSNode);
+   TSNode ts_node_next_named_sibling(TSNode);
+   TSNode ts_node_prev_sibling(TSNode);
+   TSNode ts_node_prev_named_sibling(TSNode);
+   TSNode ts_node_first_child_for_byte(TSNode, uint32_t);
+   TSNode ts_node_first_named_child_for_byte(TSNode, uint32_t);
+   TSNode ts_node_descendant_for_byte_range(TSNode, uint32_t, uint32_t);
+   TSNode ts_node_named_descendant_for_byte_range(TSNode, uint32_t, uint32_t);
+   TSNode ts_node_descendant_for_point_range(TSNode, TSPoint, TSPoint);
+   TSNode ts_node_named_descendant_for_point_range(TSNode, TSPoint, TSPoint);
+   void ts_node_edit(TSNode *, const TSInputEdit *);
+
+   void ts_tree_cursor_delete(TSTreeCursor *);
+   void ts_tree_cursor_reset(TSTreeCursor *, TSNode);
+   int64_t ts_tree_cursor_goto_first_child_for_byte(TSTreeCursor *, uint32_t);
+
+ */
+```
+
 ## File: src/Services/TreeSitter/TreeSitterManager.vala
 ```
 // [CCode (cname = "tree_sitter_rust")]
@@ -7359,418 +7655,156 @@ class Iide.TreeSitterManager : GLib.Object {
 }
 ```
 
-## File: src/Widgets/TextView/LspCompletionProvider.vala
-```
-/*
- * LspCompletionProvider.vala
- *
- * Copyright 2026 kai
- *
- * This program is free software: you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation, either version 3 of the License, or
- * (at your option) any later version.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program.  If not, see <https://www.gnu.org/licenses/>.
- *
- * SPDX-License-Identifier: GPL-3.0-or-later
- */
-
-using GLib;
-using Gee;
-using Gtk;
-using GtkSource;
-
-namespace Iide {
-
-    public class LspCompletionProposal : GLib.Object, CompletionProposal {
-        public IdeLspCompletionItem item { get; private set; }
-
-        public LspCompletionProposal (IdeLspCompletionItem item) {
-            this.item = item;
-        }
-
-        public string get_label () {
-            return item.label;
-        }
-
-        public string ? get_markup () {
-            return item.label;
-        }
-
-        public string get_text () {
-            return item.insert_text;
-        }
-
-        public Icon ? get_icon () {
-            return null;
-        }
-
-        public string ? get_info () {
-            return item.documentation;
-        }
-    }
-
-    public class LspCompletionProvider : GLib.Object, CompletionProvider {
-        private weak SourceView source_view;
-        private IdeLspService lsp_service;
-        private GLib.ListStore base_store;
-        private Gtk.FilterListModel filter_model;
-        private string current_word = "";
-
-        private bool filter_proposals (Object item) {
-            var proposal = item as LspCompletionProposal;
-            if (proposal == null)return false;
-
-            // Получаем текущее слово из контекста (нужно сохранить его в провайдере перед фильтрацией)
-            string filter_text = this.current_word.down ();
-
-            if (filter_text == "")return true;
-
-            // Проверяем: содержит ли заголовок предложения набранный текст
-            return proposal.get_label ().down ().contains (filter_text);
-        }
-
-        public LspCompletionProvider (SourceView view) {
-            this.source_view = view;
-            this.lsp_service = IdeLspService.get_instance ();
-
-            // 1. Создаем хранилище
-            base_store = new GLib.ListStore (typeof (LspCompletionProposal));
-
-            // 2. Создаем фильтр, который вызывает наш метод filter_proposals
-            var custom_filter = new Gtk.CustomFilter (filter_proposals);
-
-            // 3. Создаем модель-обертку
-            filter_model = new Gtk.FilterListModel (base_store, custom_filter);
-        }
-
-        public virtual CompletionActivation get_activation (CompletionContext context) {
-            // Разрешаем показ при наборе текста (INTERACTIVE)
-            // и принудительный показ по Ctrl+Space (USER_REQUESTED)
-            return // CompletionActivation.INTERACTIVE |
-                   CompletionActivation.USER_REQUESTED;
-        }
-
-        public virtual async GLib.ListModel populate_async (CompletionContext context, GLib.Cancellable? cancellable) throws GLib.Error {
-            base_store.remove_all ();
-            current_word = context.get_word ();
-
-            if (source_view == null) {
-                return filter_model;
-            }
-
-            var buffer = source_view.buffer;
-            var insert_mark = buffer.get_insert ();
-            TextIter iter;
-            buffer.get_iter_at_mark (out iter, insert_mark);
-
-            int line = iter.get_line ();
-            int character = iter.get_line_offset ();
-            string uri = source_view.uri;
-
-            var result = yield lsp_service.request_completion (uri, line, character);
-
-            if (result == null || result.items.size == 0) {
-                return filter_model;
-            }
-
-            foreach (var item in result.items) {
-                var proposal = new LspCompletionProposal (item);
-                base_store.append (proposal);
-            }
-
-            return filter_model;
-        }
-
-        public virtual void display (CompletionContext context, CompletionProposal proposal, CompletionCell cell) {
-            var p = (LspCompletionProposal) proposal;
-            if (cell.column == CompletionColumn.TYPED_TEXT) {
-                cell.text = p.item.label;
-            }
-        }
-
-        // 2. Исправляем вставку (сдвиг)
-        public virtual void activate (CompletionContext context, CompletionProposal proposal) {
-            var view = context.get_view ();
-            var buffer = view.get_buffer ();
-
-            TextIter start, end;
-
-            // Пытаемся получить границы, которые GSV уже определил как "слово под курсором"
-            if (context.get_bounds (out start, out end)) {
-                // Если границы найдены, просто удаляем этот участок
-                buffer.delete (ref start, ref end);
-            } else {
-                // Если границ нет (редкий случай), используем старый метод, но аккуратно
-                buffer.get_iter_at_mark (out start, buffer.get_insert ());
-                end = start;
-                string? word = context.get_word ();
-                if (word != null && word != "") {
-                    start.backward_chars (word.char_count ());
-                    buffer.delete (ref start, ref end);
-                }
-            }
-
-            // Вставляем слово
-            var p = (LspCompletionProposal) proposal;
-            buffer.insert (ref start, p.get_label (), -1);
-        }
-
-        // Обязательные методы-заглушки
-        public virtual void refilter (CompletionContext context, GLib.ListModel model) {
-            current_word = context.get_word ();
-
-            // 6. Достаем фильтр и заставляем его пересчитать список
-            var filter = filter_model.get_filter () as Gtk.CustomFilter;
-            filter.changed (Gtk.FilterChange.DIFFERENT);
-
-            if (model.get_n_items () == 0) {
-                context.get_completion ().hide ();
-            }
-        }
-
-        public virtual string ? get_title () { return "Simple"; }
-        public virtual int get_priority (CompletionContext context) { return 100; }
-        public virtual bool is_running (CompletionContext context) { return true; }
-    }
-}
-```
-
-## File: src/Services/LSP/IdeLspService.vala
-```
-using GLib;
-using Gee;
-
-public class Iide.IdeLspService : GLib.Object {
-    private static IdeLspService? _instance;
-    private Gee.HashMap<string, IdeLspClient> clients;
-    private Gee.HashMap<string, string> uri_to_client_key;
-    private Gee.HashMap<string, int> document_versions;
-    private Gee.HashMap<string, bool> client_starting;
-    private Gee.ArrayList<PendingOpen> pending_opens;
-    private Gee.HashMap<string, LanguageConfig> language_configs;
-
-    private LoggerService logger = LoggerService.get_instance ();
-
-    public signal void diagnostics_updated (string uri, ArrayList<IdeLspDiagnostic> diagnostics);
-
-    public class PendingOpen {
-        public string uri;
-        public string language_id;
-        public string content;
-        public string? workspace_root;
-
-        public PendingOpen (string uri, string language_id, string content, string? workspace_root) {
-            this.uri = uri;
-            this.language_id = language_id;
-            this.content = content;
-            this.workspace_root = workspace_root;
-        }
-    }
-
-    public class LanguageConfig {
-        public string command;
-        public string[] args;
-        public string? workspace_root;
-
-        public LanguageConfig (string command, string[] args, string? workspace_root = null) {
-            this.command = command;
-            this.args = args;
-            this.workspace_root = workspace_root;
-        }
-    }
-
-    private void init_language_configs () {
-        language_configs.set ("python", new LanguageConfig ("basedpyright-langserver", { "--stdio" }));
-        language_configs.set ("python3", new LanguageConfig ("basedpyright-langserver", { "--stdio" }));
-        language_configs.set ("cpp", new LanguageConfig ("clangd", new string[0]));
-        language_configs.set ("c++", new LanguageConfig ("clangd", new string[0]));
-        language_configs.set ("c", new LanguageConfig ("clangd", new string[0]));
-        language_configs.set ("vala", new LanguageConfig ("vala-language-server", new string[0]));
-        language_configs.set ("rust", new LanguageConfig ("rust-analyzer", new string[0]));
-        language_configs.set ("go", new LanguageConfig ("gopls", new string[0]));
-    }
-
-    construct {
-        clients = new Gee.HashMap<string, IdeLspClient> ();
-        uri_to_client_key = new Gee.HashMap<string, string> ();
-        document_versions = new Gee.HashMap<string, int> ();
-        client_starting = new Gee.HashMap<string, bool> ();
-        pending_opens = new Gee.ArrayList<PendingOpen> ();
-        language_configs = new Gee.HashMap<string, LanguageConfig> ();
-
-        init_language_configs ();
-    }
-
-    public static unowned IdeLspService get_instance () {
-        if (_instance == null) {
-            _instance = new IdeLspService ();
-        }
-        return _instance;
-    }
-
-    public async void open_document (string uri, string language_id, string content, string? workspace_root) {
-        var server_key = get_server_key_for_language (language_id);
-        if (server_key == null) {
-            debug ("IdeLspService: No LSP server configured for language: %s", language_id);
-            return;
-        }
-
-        debug ("IdeLspService: Opening document %s (lang=%s)", uri, language_id);
-
-        if (clients.has_key (server_key)) {
-            var client = clients.get (server_key);
-            uri_to_client_key.set (uri, server_key);
-            document_versions.set (uri, 1);
-            yield client.text_document_did_open (uri, language_id, 1, content);
-
-            return;
-        }
-
-        if (client_starting.get (server_key) == true) {
-            pending_opens.add (new PendingOpen (uri, language_id, content, workspace_root));
-            return;
-        }
-
-        client_starting.set (server_key, true);
-
-        var config = language_configs.get (server_key);
-        if (config == null) {
-            client_starting.set (server_key, false);
-            return;
-        }
-
-        var client = new IdeLspClient ();
-        client.diagnostics_received.connect ((uri, diagnostics) => {
-            diagnostics_updated (uri, diagnostics);
-        });
-        client.error_occurred.connect ((msg) => {
-            warning ("IdeLspService: LSP error: %s", msg);
-        });
-
-        bool started = yield client.start_server (config.command, config.args, workspace_root ?? config.workspace_root);
-
-        if (started) {
-            clients.set (server_key, client);
-            uri_to_client_key.set (uri, server_key);
-            document_versions.set (uri, 1);
-            yield client.text_document_did_open (uri, language_id, 1, content);
-
-            yield process_pending_opens ();
-        } else {
-            warning ("IdeLspService: Failed to start LSP server for %s", server_key);
-        }
-
-        client_starting.set (server_key, false);
-    }
-
-    private async void process_pending_opens () {
-        var opens_to_process = new ArrayList<PendingOpen> ();
-        foreach (var open in pending_opens) {
-            opens_to_process.add (open);
-        }
-        pending_opens.clear ();
-
-        foreach (var open in opens_to_process) {
-            yield open_document (open.uri, open.language_id, open.content, open.workspace_root);
-        }
-    }
-
-    public async void change_document (string uri, string content, int? change_start = null, int? change_end = null) {
-        var server_key = uri_to_client_key.get (uri);
-
-        logger.debug ("LSP", "Changed doc: " + uri + " / server_key: " + server_key);
-        if (server_key == null || !clients.has_key (server_key)) {
-            return;
-        }
-
-        var client = clients.get (server_key);
-        var version = document_versions.get (uri);
-        document_versions.set (uri, version + 1);
-
-        yield client.text_document_did_change (uri, version + 1, content, change_start, change_end);
-    }
-
-    public async void close_document (string uri) {
-        var server_key = uri_to_client_key.get (uri);
-        if (server_key == null || !clients.has_key (server_key)) {
-            return;
-        }
-
-        var client = clients.get (server_key);
-        yield client.text_document_did_close (uri);
-
-        uri_to_client_key.unset (uri);
-        document_versions.unset (uri);
-    }
-
-    private string ? get_server_key_for_language (string language_id) {
-        if (language_configs.has_key (language_id)) {
-            return language_id;
-        }
-
-        if (language_id.down ().contains ("python")) {
-            return "python";
-        }
-        if (language_id.down ().contains ("c++") || language_id.down ().contains ("cpp")) {
-            return "cpp";
-        }
-        if (language_id.down ().contains ("c")) {
-            return "c";
-        }
-
-        return null;
-    }
-
-    public void set_language_config (string language_id, string command, string[] args, string? workspace_root = null) {
-        language_configs.set (language_id, new LanguageConfig (command, args, workspace_root));
-    }
-
-    public IdeLspClient ? get_client_for_uri (string uri) {
-        var server_key = uri_to_client_key.get (uri);
-        if (server_key == null) {
-            return null;
-        }
-        return clients.get (server_key);
-    }
-
-    public void shutdown_all () {
-        foreach (var client in clients.values) {
-            client.shutdown ();
-        }
-        clients.clear ();
-    }
-
-    public async IdeLspCompletionResult ? request_completion (string uri, int line, int character, string? trigger_character = null) {
-        var client = get_client_for_uri (uri);
-        if (client == null) {
-            return null;
-        }
-        return yield client.request_completion (uri, line, character, trigger_character);
-    }
-
-    public async string ? request_hover (string uri, int line, int character) {
-        var client = get_client_for_uri (uri);
-        if (client == null) {
-            logger.debug ("HOVER", "client is null!");
-            return null;
-        }
-        return yield client.request_hover (uri, line, character);
-    }
-
-    public async Gee.ArrayList<IdeLspLocation>? goto_definition (string uri, int line, int character) {
-        var client = get_client_for_uri (uri);
-        if (client == null)return null;
-        return yield client.request_definition (uri, line, character);
-    }
-}
+## File: data/org.github.kai66673.iide.gschema.xml
+```xml
+<?xml version="1.0" encoding="UTF-8"?>
+<schemalist gettext-domain="iide">
+	<schema id="org.github.kai66673.iide" path="/org/github/kai66673/iide/">
+		<key name="color-scheme" type="s">
+			<default>"system"</default>
+			<summary>Color scheme</summary>
+			<description>Color scheme: light, dark, or system</description>
+		</key>
+
+		<key name="editor-font-size" type="d">
+			<default>6</default>
+			<summary>Editor zoom level</summary>
+			<description>Editor zoom level (1-15)</description>
+		</key>
+
+		<key name="show-minimap" type="b">
+			<default>true</default>
+			<summary>Show minimap</summary>
+			<description>Whether to show the minimap in text editors</description>
+		</key>
+
+		<key name="show-line-numbers" type="b">
+			<default>true</default>
+			<summary>Show line numbers</summary>
+			<description>Whether to show line numbers in text editors</description>
+		</key>
+
+		<key name="highlight-current-line" type="b">
+			<default>true</default>
+			<summary>Highlight current line</summary>
+			<description>Whether to highlight the current line in text editors</description>
+		</key>
+
+		<key name="auto-indent" type="b">
+			<default>true</default>
+			<summary>Auto indent</summary>
+			<description>Whether to enable auto indentation</description>
+		</key>
+
+		<key name="panel-start-width" type="d">
+			<default>250</default>
+			<summary>Start panel width</summary>
+			<description>Width of the start panel (file tree)</description>
+		</key>
+
+		<key name="panel-end-width" type="d">
+			<default>250</default>
+			<summary>End panel width</summary>
+			<description>Width of the end panel</description>
+		</key>
+
+		<key name="panel-bottom-height" type="d">
+			<default>200</default>
+			<summary>Bottom panel height</summary>
+			<description>Height of the bottom panel (terminal)</description>
+		</key>
+
+		<key name="panel-bottom-width" type="d">
+			<default>500</default>
+			<summary>Bottom panel width</summary>
+			<description>Width of the bottom panel split between terminal and log</description>
+		</key>
+
+		<key name="reveal-start-panel" type="b">
+			<default>true</default>
+			<summary>Reveal start panel</summary>
+			<description>Whether the start panel is visible</description>
+		</key>
+
+		<key name="reveal-end-panel" type="b">
+			<default>false</default>
+			<summary>Reveal end panel</summary>
+			<description>Whether the end panel is visible</description>
+		</key>
+
+		<key name="reveal-bottom-panel" type="b">
+			<default>false</default>
+			<summary>Reveal bottom panel</summary>
+			<description>Whether the bottom panel is visible</description>
+		</key>
+
+		<key name="recent-projects" type="as">
+			<default>[]</default>
+			<summary>Recent projects</summary>
+			<description>List of recently opened project paths</description>
+		</key>
+
+		<key name="max-recent-projects" type="d">
+			<default>10</default>
+			<summary>Maximum recent projects</summary>
+			<description>Maximum number of recent projects to remember</description>
+		</key>
+
+		<key name="last-open-directory" type="s">
+			<default>""</default>
+			<summary>Last open directory</summary>
+			<description>Last directory used for opening files or projects</description>
+		</key>
+
+		<key name="current-project-path" type="s">
+			<default>""</default>
+			<summary>Current project path</summary>
+			<description>Path to the currently open project</description>
+		</key>
+
+		<key name="open-documents" type="as">
+			<default>[]</default>
+			<summary>Open documents</summary>
+			<description>List of currently open document URIs</description>
+		</key>
+
+		<key name="panel-layout" type="s">
+			<default>""</default>
+			<summary>Panel layout</summary>
+			<description>JSON string describing panel dock layout</description>
+		</key>
+
+		<key name="grid-layout" type="s">
+			<default>""</default>
+			<summary>Grid layout</summary>
+			<description>JSON string describing grid layout</description>
+		</key>
+
+		<key name="window-width" type="d">
+			<default>1200</default>
+			<summary>Window width</summary>
+			<description>Width of the main window</description>
+		</key>
+
+		<key name="window-height" type="d">
+			<default>800</default>
+			<summary>Window height</summary>
+			<description>Height of the main window</description>
+		</key>
+
+		<key name="window-maximized" type="b">
+			<default>false</default>
+			<summary>Window maximized</summary>
+			<description>Whether the window is maximized</description>
+		</key>
+
+		<key name="shortcuts" type="s">
+			<default>""</default>
+			<summary>Custom shortcuts</summary>
+			<description>JSON string mapping action IDs to keyboard shortcuts</description>
+		</key>
+	</schema>
+</schemalist>
 ```
 
 ## File: src/Services/ProjectManager.vala
@@ -8385,156 +8419,49 @@ public class Iide.SettingsService : Object {
 }
 ```
 
-## File: data/org.github.kai66673.iide.gschema.xml
-```xml
-<?xml version="1.0" encoding="UTF-8"?>
-<schemalist gettext-domain="iide">
-	<schema id="org.github.kai66673.iide" path="/org/github/kai66673/iide/">
-		<key name="color-scheme" type="s">
-			<default>"system"</default>
-			<summary>Color scheme</summary>
-			<description>Color scheme: light, dark, or system</description>
-		</key>
-
-		<key name="editor-font-size" type="d">
-			<default>6</default>
-			<summary>Editor zoom level</summary>
-			<description>Editor zoom level (1-15)</description>
-		</key>
-
-		<key name="show-minimap" type="b">
-			<default>true</default>
-			<summary>Show minimap</summary>
-			<description>Whether to show the minimap in text editors</description>
-		</key>
-
-		<key name="show-line-numbers" type="b">
-			<default>true</default>
-			<summary>Show line numbers</summary>
-			<description>Whether to show line numbers in text editors</description>
-		</key>
-
-		<key name="highlight-current-line" type="b">
-			<default>true</default>
-			<summary>Highlight current line</summary>
-			<description>Whether to highlight the current line in text editors</description>
-		</key>
-
-		<key name="auto-indent" type="b">
-			<default>true</default>
-			<summary>Auto indent</summary>
-			<description>Whether to enable auto indentation</description>
-		</key>
-
-		<key name="panel-start-width" type="d">
-			<default>250</default>
-			<summary>Start panel width</summary>
-			<description>Width of the start panel (file tree)</description>
-		</key>
-
-		<key name="panel-end-width" type="d">
-			<default>250</default>
-			<summary>End panel width</summary>
-			<description>Width of the end panel</description>
-		</key>
-
-		<key name="panel-bottom-height" type="d">
-			<default>200</default>
-			<summary>Bottom panel height</summary>
-			<description>Height of the bottom panel (terminal)</description>
-		</key>
-
-		<key name="panel-bottom-width" type="d">
-			<default>500</default>
-			<summary>Bottom panel width</summary>
-			<description>Width of the bottom panel split between terminal and log</description>
-		</key>
-
-		<key name="reveal-start-panel" type="b">
-			<default>true</default>
-			<summary>Reveal start panel</summary>
-			<description>Whether the start panel is visible</description>
-		</key>
-
-		<key name="reveal-end-panel" type="b">
-			<default>false</default>
-			<summary>Reveal end panel</summary>
-			<description>Whether the end panel is visible</description>
-		</key>
-
-		<key name="reveal-bottom-panel" type="b">
-			<default>false</default>
-			<summary>Reveal bottom panel</summary>
-			<description>Whether the bottom panel is visible</description>
-		</key>
-
-		<key name="recent-projects" type="as">
-			<default>[]</default>
-			<summary>Recent projects</summary>
-			<description>List of recently opened project paths</description>
-		</key>
-
-		<key name="max-recent-projects" type="d">
-			<default>10</default>
-			<summary>Maximum recent projects</summary>
-			<description>Maximum number of recent projects to remember</description>
-		</key>
-
-		<key name="last-open-directory" type="s">
-			<default>""</default>
-			<summary>Last open directory</summary>
-			<description>Last directory used for opening files or projects</description>
-		</key>
-
-		<key name="current-project-path" type="s">
-			<default>""</default>
-			<summary>Current project path</summary>
-			<description>Path to the currently open project</description>
-		</key>
-
-		<key name="open-documents" type="as">
-			<default>[]</default>
-			<summary>Open documents</summary>
-			<description>List of currently open document URIs</description>
-		</key>
-
-		<key name="panel-layout" type="s">
-			<default>""</default>
-			<summary>Panel layout</summary>
-			<description>JSON string describing panel dock layout</description>
-		</key>
-
-		<key name="grid-layout" type="s">
-			<default>""</default>
-			<summary>Grid layout</summary>
-			<description>JSON string describing grid layout</description>
-		</key>
-
-		<key name="window-width" type="d">
-			<default>1200</default>
-			<summary>Window width</summary>
-			<description>Width of the main window</description>
-		</key>
-
-		<key name="window-height" type="d">
-			<default>800</default>
-			<summary>Window height</summary>
-			<description>Height of the main window</description>
-		</key>
-
-		<key name="window-maximized" type="b">
-			<default>false</default>
-			<summary>Window maximized</summary>
-			<description>Whether the window is maximized</description>
-		</key>
-
-		<key name="shortcuts" type="s">
-			<default>""</default>
-			<summary>Custom shortcuts</summary>
-			<description>JSON string mapping action IDs to keyboard shortcuts</description>
-		</key>
-	</schema>
-</schemalist>
+## File: src/style.css
+```css
+textview {
+⋮----
+.log-view text {
+⋮----
+.text-view.zoom-1 {
+⋮----
+.lsp_error_line {
+⋮----
+.lsp_warning_line {
+⋮----
+.lsp_info_line {
+⋮----
+.text-view.zoom-2 {
+⋮----
+.text-view.zoom-3 {
+⋮----
+.text-view.zoom-4 {
+⋮----
+.text-view.zoom-5 {
+⋮----
+.text-view.zoom-6 {
+⋮----
+.text-view.zoom-7 {
+⋮----
+.text-view.zoom-8 {
+⋮----
+.text-view.zoom-9 {
+⋮----
+.text-view.zoom-10 {
+⋮----
+.text-view.zoom-11 {
+⋮----
+.text-view.zoom-12 {
+⋮----
+.text-view.zoom-13 {
+⋮----
+.text-view.zoom-14 {
+⋮----
+.text-view.zoom-15 {
+⋮----
+.textview-map {
 ```
 
 ## File: meson.build
@@ -8554,6 +8481,7 @@ add_project_arguments('-DGETTEXT_PACKAGE="' + meson.project_name() + '"', langua
 
 tree_sitter_sources = [
     'vendor/tree-sitter/lib/src/lib.c',
+    'parsers/ts_helper.c',
     'parsers/bash/src/parser.c',
     'parsers/bash/src/scanner.c',
     'parsers/json/src/parser.c',
@@ -8676,6 +8604,7 @@ test_lsp_service_sources = [
 
 test_lsp_service_deps = [
     dependency('glib-2.0'),
+    dependency('gtk4'),
     dependency('gio-2.0'),
     dependency('json-glib-1.0'),
     dependency('gee-0.8'),
@@ -8711,55 +8640,1279 @@ local_settings_sh = configure_file(
 meson.add_install_script(local_settings_sh)
 ```
 
-## File: src/style.css
-```css
-textview {
-⋮----
-.log-view text {
-⋮----
-.text-view.zoom-1 {
-⋮----
-.lsp_error_line {
-⋮----
-.lsp_warning_line {
-⋮----
-.lsp_info_line {
-⋮----
-.text-view.zoom-2 {
-⋮----
-.text-view.zoom-3 {
-⋮----
-.text-view.zoom-4 {
-⋮----
-.text-view.zoom-5 {
-⋮----
-.text-view.zoom-6 {
-⋮----
-.text-view.zoom-7 {
-⋮----
-.text-view.zoom-8 {
-⋮----
-.text-view.zoom-9 {
-⋮----
-.text-view.zoom-10 {
-⋮----
-.text-view.zoom-11 {
-⋮----
-.text-view.zoom-12 {
-⋮----
-.text-view.zoom-13 {
-⋮----
-.text-view.zoom-14 {
-⋮----
-.text-view.zoom-15 {
-⋮----
-.textview-map {
+## File: src/Widgets/TextView/FontZoomer.vala
+```
+using Gtk;
+using GtkSource;
+using GLib;
+
+public class FontZoomer : Object {
+    private View src_view;
+    private int zoom_level;
+    private Iide.SettingsService settings;
+    public signal void zoom_changed(int level);
+
+    public FontZoomer(View src_view) {
+        this.src_view = src_view;
+        this.settings = Iide.SettingsService.get_instance();
+
+        if (!this.src_view.has_css_class("text-view")) {
+            this.src_view.add_css_class("text-view");
+        }
+
+        this.zoom_level = settings.editor_font_size;
+        if (this.zoom_level < FontSizeHelper.MIN_ZOOM_LEVEL || this.zoom_level > FontSizeHelper.MAX_ZOOM_LEVEL) {
+            this.zoom_level = FontSizeHelper.DEFAULT_ZOOM_LEVEL;
+        }
+        this.src_view.add_css_class("zoom-" + zoom_level.to_string());
+
+        var scroll_controller = new EventControllerScroll(EventControllerScrollFlags.VERTICAL);
+        scroll_controller.scroll.connect((dx, dy) => {
+            var event = scroll_controller.get_current_event();
+            if (event == null)return false;
+
+            var modifiers = event.get_modifier_state();
+            if ((modifiers & Gdk.ModifierType.CONTROL_MASK) != 0) {
+                if (dy < 0) {
+                    zoom_in();
+                } else if (dy > 0) {
+                    zoom_out();
+                }
+                return true;
+            }
+            return false;
+        });
+
+        this.src_view.add_controller(scroll_controller);
+    }
+
+    public void zoom_in() {
+        if (zoom_level < FontSizeHelper.MAX_ZOOM_LEVEL) {
+            src_view.remove_css_class("zoom-" + zoom_level.to_string());
+            zoom_level++;
+            src_view.add_css_class("zoom-" + zoom_level.to_string());
+            settings.editor_font_size = zoom_level;
+            zoom_changed(zoom_level);
+        }
+    }
+
+    public void zoom_out() {
+        if (zoom_level > FontSizeHelper.MIN_ZOOM_LEVEL) {
+            src_view.remove_css_class("zoom-" + zoom_level.to_string());
+            zoom_level--;
+            src_view.add_css_class("zoom-" + zoom_level.to_string());
+            settings.editor_font_size = zoom_level;
+            zoom_changed(zoom_level);
+        }
+    }
+
+    public void zoom_reset() {
+        src_view.remove_css_class("zoom-" + zoom_level.to_string());
+        zoom_level = FontSizeHelper.DEFAULT_ZOOM_LEVEL;
+        src_view.add_css_class("zoom-" + zoom_level.to_string());
+        settings.editor_font_size = zoom_level;
+        zoom_changed(zoom_level);
+    }
+
+    public void set_zoom_level(int level) {
+        if (level < FontSizeHelper.MIN_ZOOM_LEVEL || level > FontSizeHelper.MAX_ZOOM_LEVEL) {
+            return;
+        }
+        if (zoom_level == level) {
+            return;
+        }
+        src_view.remove_css_class("zoom-" + zoom_level.to_string());
+        zoom_level = level;
+        src_view.add_css_class("zoom-" + zoom_level.to_string());
+        zoom_changed(zoom_level);
+    }
+
+    public int get_zoom_level() {
+        return zoom_level;
+    }
+}
+```
+
+## File: src/Widgets/TextView/SourceView.vala
+```
+public class Iide.WordRange {
+    public int line;
+    public int start_column;
+    public int end_column;
+
+    public WordRange (int line, int start_column, int end_column) {
+        this.line = line;
+        this.start_column = start_column;
+        this.end_column = end_column;
+    }
+
+    public bool is_equal (WordRange? other) {
+        if (other == null) {
+            return false;
+        }
+        return line == other.line && start_column == other.start_column && end_column == other.end_column;
+    }
+}
+
+public class Iide.LspTooltipWidget : Gtk.Box {
+    private Gtk.Label label;
+    private Gtk.Spinner spinner;
+
+    public LspTooltipWidget () {
+        Object (
+                orientation: Gtk.Orientation.HORIZONTAL,
+                spacing: 6,
+                margin_top: 8,
+                margin_bottom: 8,
+                margin_start: 8,
+                margin_end: 8
+        );
+
+        spinner = new Gtk.Spinner ();
+        label = new Gtk.Label ("Загрузка...");
+        label.use_markup = true;
+        label.wrap = true;
+        label.max_width_chars = 60;
+
+        append (spinner);
+        append (label);
+        spinner.start ();
+    }
+
+    public void update_text (string? text, bool show_spinner) {
+        if (show_spinner) {
+            spinner.start ();
+            spinner.show ();
+        } else {
+            spinner.stop ();
+            spinner.hide ();
+        }
+
+        if (text != null && text != "") {
+            label.set_markup (text);
+        } else {
+            label.set_text ("Нет информации");
+        }
+    }
+}
+
+public class Iide.SourceView : GtkSource.View {
+    public Window window;
+    public string uri { get; private set; }
+    private Iide.TreeSitterManager ts_manager;
+    public BaseTreeSitterHighlighter? ts_highlighter;
+    public GutterMarkRenderer mark_renderer;
+    public string icon_name = "text-x-generic";
+    private Gtk.TextIter? pending_scroll_iter = null;
+
+    private WordRange? last_hover_range = null;
+    private LspTooltipWidget tooltip_widget;
+    private string tooltip_separator = "────────────────────────────────────────";
+
+    // Incremental didChange...
+    private Gee.ArrayList<PendingChange> pending_queue = new Gee.ArrayList<PendingChange> ();
+    private uint debounce_id = 0;
+    private uint debounce_full_id = 0;
+    private int document_version = 0;
+
+    private ulong insert_handler_id = 0;
+    private ulong delete_handler_id = 0;
+    private int lsp_sync_kind = 0; // 0 - не синхронизирован, 1 - incremental, 2 - full sync
+
+    // private LoggerService logger = LoggerService.get_instance ();
+
+    public SourceView (Window window, string uri, GtkSource.Buffer buffer) {
+        Object (buffer : buffer);
+        this.window = window;
+        this.uri = uri;
+        this.ts_manager = new TreeSitterManager ();
+        this.ts_highlighter = null;
+
+        this.tooltip_widget = new LspTooltipWidget ();
+
+        // LSP-complete
+        var completion = get_completion ();
+        completion.select_on_show = true;
+        completion.show_icons = true;
+        completion.page_size = 18;
+        completion.remember_info_visibility = false;
+        var provider = new LspCompletionProvider (this);
+        completion.add_provider (provider);
+
+        // Build extra menu for context menu
+        var zoom_section = new GLib.Menu ();
+        zoom_section.append (_("Zoom In"), "app.zoom_in");
+        zoom_section.append (_("Zoom Out"), "app.zoom_out");
+        zoom_section.append (_("Reset Zoom"), "app.zoom_reset");
+
+        var view_section = new GLib.Menu ();
+        view_section.append (_("Minimap"), "app.toggle_minimap");
+
+        var extra_menu = new GLib.Menu ();
+        extra_menu.append_section (null, zoom_section);
+        extra_menu.append_section (null, view_section);
+        this.extra_menu = extra_menu;
+
+        var settings = Iide.SettingsService.get_instance ();
+
+        show_line_numbers = settings.show_line_numbers;
+        highlight_current_line = settings.highlight_current_line;
+        auto_indent = settings.auto_indent;
+        indent_on_tab = true;
+
+        // Marks gutter
+        set_show_line_marks (false);
+        var left_gutter = get_gutter (Gtk.TextWindowType.LEFT);
+        left_gutter.visible = true;
+
+        mark_renderer = new GutterMarkRenderer ();
+        mark_renderer.set_icons_size (FontSizeHelper.get_size_for_zoom_level (settings.editor_font_size));
+        left_gutter.insert (mark_renderer, 0);
+
+        LspDiagnosticsMark.set_mark_attributes (this);
+
+        // Connect to settings changes to apply to all open documents
+        settings.editor_setting_changed.connect ((key) => {
+            switch (key) {
+                case "show-line-numbers" :
+                    show_line_numbers = settings.show_line_numbers;
+                    break;
+                case "highlight-current-line" :
+                    highlight_current_line = settings.highlight_current_line;
+                    break;
+                case "auto-indent":
+                    auto_indent = settings.auto_indent;
+                    break;
+            }
+        });
+
+        // SpaceDrawer
+        var space_drawer = get_space_drawer ();
+
+        // 2. Устанавливаем типы отображаемых символов
+        space_drawer.set_enable_matrix (true);
+        space_drawer.set_types_for_locations (
+                                              GtkSource.SpaceLocationFlags.ALL,
+                                              GtkSource.SpaceTypeFlags.NONE
+        );
+        space_drawer.set_types_for_locations (
+                                              GtkSource.SpaceLocationFlags.LEADING | GtkSource.SpaceLocationFlags.TRAILING,
+                                              GtkSource.SpaceTypeFlags.SPACE | GtkSource.SpaceTypeFlags.TAB
+        );
+
+        // Tree-sitter
+        detect_language ();
+        ts_highlighter = ts_manager.get_ts_highlighter (this);
+        if (ts_highlighter != null) {
+            ((GtkSource.Buffer) (buffer)).highlight_syntax = false;
+        }
+
+        // LSP-tooltips
+        has_tooltip = true;
+        query_tooltip.connect (on_query_tooltip);
+
+        // Control-click controller (goto definition)
+        var click_gest = new Gtk.GestureClick ();
+        click_gest.set_button (1);
+        click_gest.pressed.connect (on_click_pressed);
+        add_controller (click_gest);
+
+        // setup_buffer_signals ();
+        // setup_buffer_signals_test ();
+        this.connect_incremental_signals ();
+
+        buffer.set_modified (false);
+    }
+
+    // Этот метод вызывается при открытии файла
+    public void setup_lsp_sync (LspClient client) {
+        this.apply_sync_strategy (client.capabilities, client);
+    }
+
+    public void setup_no_lsp_sync () {
+        lsp_sync_kind = 0;
+        if (insert_handler_id > 0)buffer.disconnect (insert_handler_id);
+        if (delete_handler_id > 0)buffer.disconnect (delete_handler_id);
+
+        // Очищаем накопленные дельты (они бесполезны)
+        this.pending_queue.clear ();
+    }
+
+    private void connect_incremental_signals () {
+        insert_handler_id = buffer.insert_text.connect ((ref location, text, len) => {
+            var change = new PendingChange (text, location);
+            this.add_change (change);
+        });
+
+        delete_handler_id = buffer.delete_range.connect ((start, end) => {
+            var change = new PendingChange ("", start, end);
+            this.add_change (change);
+        });
+    }
+
+    private void apply_sync_strategy (ServerCapabilities caps, LspClient client) {
+        // Если сервер НЕ умеет в инкремент (Full Sync)
+        if (caps.sync_kind != TextDocumentSyncKind.INCREMENTAL) {
+            // Отключаем 'before' сигналы
+            if (insert_handler_id > 0)buffer.disconnect (insert_handler_id);
+            if (delete_handler_id > 0)buffer.disconnect (delete_handler_id);
+
+            // Очищаем накопленные дельты (они бесполезны для Full Sync)
+            this.pending_queue.clear ();
+
+            // Переходим на Full Sync (срабатывает ПОСЛЕ вставки текста)
+            buffer.changed.connect_after (() => {
+                this.start_debounce_full_timer ();
+            });
+
+            // ПРИНУДИТЕЛЬНО выравниваем состояние сервера (шлем весь текущий текст)
+            client.text_document_did_change.begin (this.uri, this.document_version, this.buffer.text);
+            lsp_sync_kind = 2;
+        } else {
+            lsp_sync_kind = 1;
+            reset_timer ();
+        }
+    }
+
+    private void start_debounce_full_timer () {
+        // 1. Сбрасываем старый таймер, если пользователь продолжает печатать
+        if (debounce_full_id > 0) {
+            Source.remove (debounce_full_id);
+        }
+
+        // 2. Устанавливаем задержку (например, 500 мс затишья)
+        debounce_full_id = Timeout.add (500, () => {
+            this.flush_changes_full_async.begin (); // Запускаем асинхронную отправку
+            debounce_full_id = 0;
+            return Source.REMOVE;
+        });
+    }
+
+    private async void flush_changes_full_async () {
+        this.document_version++;
+
+        // Получаем текст синхронно (он уже актуален, так как мы в Main Loop после паузы)
+        string current_text = this.buffer.text;
+
+        var client = IdeLspService.get_instance ().get_client_for_uri (this.uri);
+        if (client != null) {
+            try {
+                // Вызываем метод полной синхронизации в новом асинхронном клиенте
+                yield client.text_document_did_change (this.uri, this.document_version, current_text);
+
+                debug ("LSP: Full sync sent for %s (v%d)", this.uri, this.document_version);
+            } catch (Error e) {
+                warning ("LSP: Full sync error: %s", e.message);
+            }
+        }
+    }
+
+    private void add_change (PendingChange nc) {
+        if (!pending_queue.is_empty) {
+            // var last = pending_queue.get (pending_queue.size - 1);
+
+            // Слияние последовательной печати
+            // ВАЖНО: используем char_count() для определения реального сдвига в буфере
+            // if (nc.text != "" && last.text != "" && nc.start_offset == last.end_offset) {
+
+            // last.text += nc.text;
+
+            //// Обновляем только конечные координаты
+            // last.end_offset = nc.end_offset;
+            // last.end_line = nc.end_line;
+            // last.end_char = nc.end_char;
+
+            // reset_timer ();
+            // return;
+            // }
+
+            // TODO: merge mergeable delete_range changes...
+            // Слияние удаления (Backspace)
+            // Здесь оффсеты — это просто индексы символов, они работают корректно
+            // if (nc.text == "" && last.text == "" && nc.end_offset == last.start_offset) {
+            // last.start_offset = nc.start_offset;
+            // last.start_line = nc.start_line;
+            // last.start_char = nc.start_char;
+            // reset_timer ();
+            // return;
+            // }
+        }
+
+        pending_queue.add (nc);
+        reset_timer ();
+    }
+
+    private void reset_timer () {
+        if (debounce_id > 0)Source.remove (debounce_id);
+        debounce_id = Timeout.add (400, () => {
+            flush_changes ();
+            return Source.REMOVE;
+        });
+    }
+
+    public void flush_changes () {
+        if (lsp_sync_kind != 1)return;
+        if (pending_queue.is_empty)return;
+
+        var changes = pending_queue;
+        pending_queue = new Gee.ArrayList<PendingChange> ();
+        if (debounce_id > 0) {
+            Source.remove (debounce_id);
+            debounce_id = 0;
+        }
+
+        this.document_version++;
+
+        // Передаем в менеджер для конвертации и отправки
+        var lsp_service = IdeLspService.get_instance ();
+        lsp_service.send_did_change.begin (this.uri, this.document_version, changes);
+    }
+
+    private async void flush_changes_async () {
+        if (pending_queue.is_empty)return;
+
+        var changes = pending_queue;
+        pending_queue = new Gee.ArrayList<PendingChange> ();
+        if (debounce_id > 0) {
+            Source.remove (debounce_id);
+            debounce_id = 0;
+        }
+
+        this.document_version++;
+
+        // Передаем в менеджер для конвертации и отправки
+        var lsp_service = IdeLspService.get_instance ();
+        yield lsp_service.send_did_change (this.uri, this.document_version, changes);
+    }
+
+    public async void sync_changes_async () {
+        switch (lsp_sync_kind) {
+        case 1:
+            yield flush_changes_async ();
+
+            break;
+        case 2:
+            yield flush_changes_full_async ();
+
+            break;
+        }
+    }
+
+    public GtkSource.Language? language {
+        set {
+            ((GtkSource.Buffer) buffer).language = value;
+        }
+        get {
+            return ((GtkSource.Buffer) buffer).language;
+        }
+    }
+
+    public void detect_language () {
+        var manager = GtkSource.LanguageManager.get_default ();
+        var file = GLib.File.new_for_uri (uri);
+
+        string mime_type = mime_type_for_file (file);
+        message ("MIME: _ " + mime_type);
+
+        icon_name = IconProvider.get_mime_type_icon_name (mime_type);
+        language = manager.guess_language (file.get_path (), mime_type);
+
+        // Fake file type detection
+        // "Not all files are equal"
+        if (file.get_basename () == "CMakeLists.txt") {
+            language = manager.get_language ("cmake");
+            icon_name = "text-x-cmake"; // Specific icon for CMake
+        }
+    }
+
+    public WordRange ? get_word_range_under_cursor (Gtk.TextIter cursor_iter) {
+        // 2. Нюанс: Если курсор на пробеле или переносе строки, слова под ним нет
+        unichar c = cursor_iter.get_char ();
+        if (c.isspace () || c == '\0') {
+            return null;
+        }
+
+        // 3. Создаем копию для поиска конца слова
+        Gtk.TextIter end_iter = cursor_iter;
+
+        // 4. Ищем начало слова
+        // Если курсор уже в начале слова, backward_word_start вернет false или уйдет на слово назад.
+        // Поэтому проверяем, не стоим ли мы уже на начале.
+        if (!cursor_iter.starts_word ()) {
+            cursor_iter.backward_word_start ();
+        }
+
+        // 5. Ищем конец слова
+        if (!end_iter.ends_word ()) {
+            end_iter.forward_word_end ();
+        }
+
+        return new WordRange (cursor_iter.get_line (), cursor_iter.get_line_offset (), end_iter.get_line_offset ());
+    }
+
+    private bool on_lsp_diagnostics_tooltip (GLib.SList<weak GtkSource.Mark> marks, Gtk.Tooltip tooltip) {
+        var sb = new StringBuilder ();
+
+        foreach (var mark in marks) {
+            var lsp_mark = mark as LspDiagnosticsMark;
+            if (lsp_mark == null) {
+                continue;
+            }
+
+            string icon;
+            string header_color;
+
+            switch (lsp_mark.severity) {
+            case 1 :
+                icon = "❌";
+                header_color = "#F44336"; // Красный
+                break;
+            case 2 :
+                icon = "⚠️";
+                header_color = "#FF9800"; // Оранжевый
+                break;
+            case 3:
+            case 4:
+                icon = "ℹ️";
+                header_color = "#2196F3"; // Синий
+                break;
+            default:
+                icon = "❌";
+                header_color = "#F44336"; // Красный
+                break;
+            }
+
+            if (sb.len > 0) {
+                sb.append ("\n" + tooltip_separator + "\n");
+            }
+
+            // Заголовок и основное сообщение
+            sb.append_printf ("%s <span font_weight='bold' foreground='%s'>%s</span>\n",
+                              icon, header_color, lsp_mark.category.up ());
+            sb.append_printf ("<span>%s</span>", GLib.Markup.escape_text (lsp_mark.diagnostic_message));
+        }
+
+        if (sb.len > 0) {
+            tooltip_widget.update_text (sb.str, false);
+            tooltip.set_custom (tooltip_widget);
+            return true;
+        }
+
+        return false;
+    }
+
+    private bool on_lsp_hover_tooltip (Gtk.TextIter iter, Gtk.Tooltip tooltip) {
+        WordRange? word_range = get_word_range_under_cursor (iter);
+        if (word_range == null) {
+            last_hover_range = null;
+            return false;
+        }
+
+        tooltip.set_custom (tooltip_widget);
+
+        // Проверяем, не тот же ли эти 100мс назад
+        if (word_range.is_equal (last_hover_range)) {
+            return true;
+        }
+        tooltip_widget.update_text ("Loading...", true);
+        last_hover_range = word_range;
+
+        flush_changes ();
+        fetch_lsp_hover_async.begin (word_range.line, word_range.start_column + 1);
+
+        return true;
+    }
+
+    private bool on_query_tooltip (int x, int y, bool keyboard_mode, Gtk.Tooltip tooltip) {
+        Gtk.TextIter iter;
+
+        // Преобразуем координаты окна в координаты буфера
+        int buffer_x, buffer_y;
+        window_to_buffer_coords (Gtk.TextWindowType.WIDGET, x, y, out buffer_x, out buffer_y);
+
+        // Получаем итератор в месте курсора мыши
+        if (!get_iter_at_location (out iter, buffer_x, buffer_y)) {
+            return false;
+        }
+
+        // Ищем маркеры в этой строке (по категории "error")
+        var buffer = (GtkSource.Buffer) buffer;
+        var marks = buffer.get_source_marks_at_line (iter.get_line (), null);
+
+        if (marks.length () > 0) {
+            return on_lsp_diagnostics_tooltip (marks, tooltip);
+        }
+
+        return on_lsp_hover_tooltip (iter, tooltip);
+    }
+
+    private async void fetch_lsp_hover_async (int line, int col) {
+        var lsp_service = IdeLspService.get_instance ();
+        string? markdown = yield lsp_service.request_hover (uri, line, col);
+
+        tooltip_widget.update_text (markdown, false);
+    }
+
+    private void on_click_pressed (Gtk.GestureClick gesture, int n_press, double x, double y) {
+        // Получаем состояние модификаторов через основной контроллер
+        var modifiers = gesture.get_current_event_state ();
+
+        if ((modifiers & Gdk.ModifierType.CONTROL_MASK) != 0) {
+            Gtk.TextIter iter;
+            // В GTK4 координаты в сигнале уже относительны виджета
+            // Переводим их в координаты буфера (с учетом прокрутки)
+            int buf_x, buf_y;
+            window_to_buffer_coords (Gtk.TextWindowType.WIDGET, (int) x, (int) y, out buf_x, out buf_y);
+
+            if (get_iter_at_location (out iter, buf_x, buf_y)) {
+                get_buffer ().place_cursor (iter);
+
+                // Запускаем асинхронный переход
+                flush_changes ();
+                handle_ctrl_click_async.begin (iter.get_line (), iter.get_line_offset ());
+            }
+        }
+    }
+
+    private async void handle_ctrl_click_async (int line, int col) {
+        var lsp_service = IdeLspService.get_instance ();
+        var locations = yield lsp_service.goto_definition (uri, line, col);
+
+        if (locations == null || locations.size == 0) {
+            LoggerService.get_instance ().warning ("LSP", "No locations found for goto definition");
+            return;
+        }
+
+        var loc = locations.get (0);
+        window.get_document_manager ().open_document_with_selection (File.new_for_uri (loc.uri), loc.start_line, loc.start_column, loc.end_column, null);
+    }
+
+    public void select_and_scroll (int line, int start_col, int end_col, bool is_new) {
+        if (line >= buffer.get_line_count ()) {
+            return;
+        }
+
+        Gtk.TextIter start_iter;
+        buffer.get_iter_at_line_offset (out start_iter, line, start_col);
+
+        Gtk.TextIter end_iter;
+        buffer.get_iter_at_line_offset (out end_iter, line, end_col);
+
+        buffer.select_range (start_iter, end_iter);
+        scroll_to_iter (start_iter, 0.0, true, 0.5, 0.5);
+        pending_scroll_iter = null;
+        if (is_new) {
+            pending_scroll_iter = start_iter;
+        }
+    }
+
+    public override void size_allocate (int width, int height, int baseline) {
+        base.size_allocate (width, height, baseline);
+        if (pending_scroll_iter != null) {
+            scroll_to_iter (pending_scroll_iter, 0.0, true, 0.5, 0.5);
+            pending_scroll_iter = null;
+        }
+    }
+}
+```
+
+## File: src/Widgets/TextView/LspCompletionProvider.vala
+```
+/*
+ * LspCompletionProvider.vala
+ *
+ * Copyright 2026 kai
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see <https://www.gnu.org/licenses/>.
+ *
+ * SPDX-License-Identifier: GPL-3.0-or-later
+ */
+
+using GLib;
+using Gee;
+using Gtk;
+using GtkSource;
+
+namespace Iide {
+
+    public class LspCompletionProposal : GLib.Object, CompletionProposal {
+        public IdeLspCompletionItem item { get; private set; }
+
+        public LspCompletionProposal (IdeLspCompletionItem item) {
+            this.item = item;
+        }
+
+        public string get_label () {
+            return item.label;
+        }
+
+        public string ? get_markup () {
+            return item.label;
+        }
+
+        public string get_text () {
+            return item.insert_text;
+        }
+
+        public Icon ? get_icon () {
+            return null;
+        }
+
+        public string ? get_info () {
+            return item.documentation;
+        }
+    }
+
+    public class LspCompletionProvider : GLib.Object, CompletionProvider {
+        private weak SourceView source_view;
+        private IdeLspService lsp_service;
+        private GLib.ListStore base_store;
+        private Gtk.FilterListModel filter_model;
+        private string current_word = "";
+
+        private bool filter_proposals (Object item) {
+            var proposal = item as LspCompletionProposal;
+            if (proposal == null)return false;
+
+            // Используем поле filter_text из LSP, если оно есть, иначе label
+            string haystack = proposal.get_label ();
+            string needle = this.current_word;
+
+            if (needle == "")return true;
+
+            // Вызов статического метода из GtkSource.Completion
+            uint priority;
+            return GtkSource.Completion.fuzzy_match (haystack, needle, out priority);
+        }
+
+        public LspCompletionProvider (SourceView view) {
+            this.source_view = view;
+            this.lsp_service = IdeLspService.get_instance ();
+
+            // 1. Создаем хранилище
+            base_store = new GLib.ListStore (typeof (LspCompletionProposal));
+
+            // 2. Создаем фильтр, который вызывает наш метод filter_proposals
+            var custom_filter = new Gtk.CustomFilter (filter_proposals);
+
+            // 3. Создаем модель-обертку
+            filter_model = new Gtk.FilterListModel (base_store, custom_filter);
+        }
+
+        public virtual bool is_trigger (Gtk.TextIter iter, unichar ch) {
+            // 1. Получаем клиент для текущего документа
+            var client = IdeLspService.get_instance ().get_client_for_uri (this.source_view.uri);
+
+            if (client == null || !client.is_initialized) {
+                // Если сервер еще не готов, используем стандартный набор (на всякий случай)
+                return ch == '.';
+            }
+
+            // 2. Проверяем, есть ли введенный символ в списке триггеров сервера
+            string s = ch.to_string ();
+            if (client.capabilities.completion_triggers.contains (s)) {
+                return true;
+            }
+
+            return false;
+        }
+
+        public virtual CompletionActivation get_activation (CompletionContext context) {
+            // По умолчанию: по Ctrl+Space или при наборе обычного текста
+            return CompletionActivation.INTERACTIVE | CompletionActivation.USER_REQUESTED;
+        }
+
+        public virtual async GLib.ListModel populate_async (CompletionContext context, GLib.Cancellable? cancellable) throws GLib.Error {
+            base_store.remove_all ();
+            current_word = context.get_word ();
+
+            if (source_view == null) {
+                return filter_model;
+            }
+
+            yield source_view.sync_changes_async ();
+
+            var buffer = source_view.buffer;
+            var insert_mark = buffer.get_insert ();
+            TextIter iter;
+            buffer.get_iter_at_mark (out iter, insert_mark);
+
+            int line = iter.get_line ();
+            int character = iter.get_line_offset ();
+            string uri = source_view.uri;
+
+            string? trigger_char = null;
+            var trigger_kind = CompletionTriggerKind.INVOKED; // Invoked по умолчанию
+
+            TextIter prev = iter;
+            if (prev.backward_char ()) {
+                unichar ch = prev.get_char ();
+                string s = ch.to_string ();
+
+                var client = IdeLspService.get_instance ().get_client_for_uri (this.source_view.uri);
+                if (client != null && client.capabilities.completion_triggers.contains (s)) {
+                    trigger_char = s;
+                    trigger_kind = CompletionTriggerKind.TRIGGER_CHARACTER;
+                }
+            }
+
+            var result = yield lsp_service.request_completion (uri, line, character, trigger_char, trigger_kind);
+
+            if (result == null || result.items.size == 0) {
+                return filter_model;
+            }
+
+            foreach (var item in result.items) {
+                var proposal = new LspCompletionProposal (item);
+                base_store.append (proposal);
+            }
+
+            return filter_model;
+        }
+
+        private string get_icon_name_for_kind (int kind) {
+            switch (kind) {
+            case 2 : case 3: return "code-function-symbolic"; // Method, Function
+            case 4: return "code-class-symbolic"; // Constructor
+            case 5: return "code-variable-symbolic"; // Field
+            case 6: return "code-variable-symbolic"; // Variable
+            case 7: return "code-class-symbolic"; // Class
+            case 8: return "code-class-symbolic"; // Interface
+            case 9: return "code-context-menu-symbolic"; // Module
+            case 10: return "code-variable-symbolic"; // Property
+            case 11: return "code-variable-symbolic"; // Unit
+            case 12: return "code-variable-symbolic"; // Value
+            case 13: return "code-class-symbolic"; // Enum
+            case 14: return "code-variable-symbolic"; // Keyword
+            case 15: return "code-context-menu-symbolic"; // Snippet
+            case 16: return "code-variable-symbolic"; // Color
+            case 17: return "code-variable-symbolic"; // File
+            case 18: return "code-variable-symbolic"; // Reference
+            default: return "code-variable-symbolic";
+            }
+        }
+
+        public virtual void display (CompletionContext context, CompletionProposal proposal, CompletionCell cell) {
+            var p = (LspCompletionProposal) proposal;
+
+            switch (cell.column) {
+            case CompletionColumn.ICON:
+                cell.set_icon_name (get_icon_name_for_kind (p.item.kind));
+                break;
+            case CompletionColumn.TYPED_TEXT:
+                cell.text = p.get_label ();
+                break;
+            case CompletionColumn.DETAILS: {
+                string? doc = p.item.documentation;
+                if (doc != null && doc != "") {
+                    cell.set_markup (doc);
+                }
+                break;
+            }
+            case CompletionColumn.COMMENT: {
+                string? doc = p.item.detail;
+                if (doc != null && doc != "") {
+                    cell.set_markup (doc);
+                }
+                break;
+            }
+            default:
+                break;
+            }
+        }
+
+        // 2. Исправляем вставку (сдвиг)
+        public virtual void activate (CompletionContext context, CompletionProposal proposal) {
+            var view = context.get_view ();
+            var buffer = view.get_buffer ();
+
+            TextIter start, end;
+
+            // Пытаемся получить границы, которые GSV уже определил как "слово под курсором"
+            if (context.get_bounds (out start, out end)) {
+                // Если границы найдены, просто удаляем этот участок
+                buffer.delete (ref start, ref end);
+            } else {
+                // Если границ нет (редкий случай), используем старый метод, но аккуратно
+                buffer.get_iter_at_mark (out start, buffer.get_insert ());
+                end = start;
+                string? word = context.get_word ();
+                if (word != null && word != "") {
+                    start.backward_chars (word.char_count ());
+                    buffer.delete (ref start, ref end);
+                }
+            }
+
+            // Вставляем слово
+            var p = (LspCompletionProposal) proposal;
+            buffer.insert (ref start, p.get_label (), -1);
+        }
+
+        // Обязательные методы-заглушки
+        public virtual void refilter (CompletionContext context, GLib.ListModel model) {
+            current_word = context.get_word ();
+
+            // 6. Достаем фильтр и заставляем его пересчитать список
+            var filter = filter_model.get_filter () as Gtk.CustomFilter;
+            filter.changed (Gtk.FilterChange.DIFFERENT);
+
+            if (model.get_n_items () == 0) {
+                context.get_completion ().hide ();
+            }
+        }
+
+        public virtual string ? get_title () { return "Simple"; }
+        public virtual int get_priority (CompletionContext context) { return 100; }
+        public virtual bool is_running (CompletionContext context) { return true; }
+    }
+}
+```
+
+## File: src/Services/LSP/IdeLspService.vala
+```
+using GLib;
+using Gee;
+
+public class Iide.IdeLspService : GLib.Object {
+    private static IdeLspService? _instance;
+    private Gee.HashMap<string, LspClient> clients;
+    private Gee.HashMap<string, string> uri_to_client_key;
+    private Gee.HashMap<string, int> document_versions;
+    private Gee.HashMap<string, bool> client_starting;
+    private Gee.ArrayList<PendingOpen> pending_opens;
+    private Gee.HashMap<string, LanguageConfig> language_configs;
+
+    private LoggerService logger = LoggerService.get_instance ();
+
+    public signal void diagnostics_updated (string uri, ArrayList<IdeLspDiagnostic> diagnostics);
+
+    public class PendingOpen {
+        public string uri;
+        public string language_id;
+        public string content;
+        public string? workspace_root;
+        public SourceView view;
+
+        public PendingOpen (string uri, string language_id, string content, string? workspace_root, SourceView view) {
+            this.uri = uri;
+            this.language_id = language_id;
+            this.content = content;
+            this.workspace_root = workspace_root;
+            this.view = view;
+        }
+    }
+
+    public class LanguageConfig {
+        public string command;
+        public string[] args;
+        public string? workspace_root;
+
+        public LanguageConfig (string command, string[] args, string? workspace_root = null) {
+            this.command = command;
+            this.args = args;
+            this.workspace_root = workspace_root;
+        }
+    }
+
+    private void init_language_configs () {
+        language_configs.set ("python", new LanguageConfig ("basedpyright-langserver", { "--stdio" }));
+        language_configs.set ("python3", new LanguageConfig ("basedpyright-langserver", { "--stdio" }));
+        language_configs.set ("cpp", new LanguageConfig ("clangd", new string[0]));
+        language_configs.set ("c++", new LanguageConfig ("clangd", new string[0]));
+        language_configs.set ("c", new LanguageConfig ("clangd", new string[0]));
+        language_configs.set ("vala", new LanguageConfig ("vala-language-server", new string[0]));
+        language_configs.set ("rust", new LanguageConfig ("rust-analyzer", new string[0]));
+        language_configs.set ("go", new LanguageConfig ("gopls", new string[0]));
+    }
+
+    construct {
+        clients = new Gee.HashMap<string, LspClient> ();
+        uri_to_client_key = new Gee.HashMap<string, string> ();
+        document_versions = new Gee.HashMap<string, int> ();
+        client_starting = new Gee.HashMap<string, bool> ();
+        pending_opens = new Gee.ArrayList<PendingOpen> ();
+        language_configs = new Gee.HashMap<string, LanguageConfig> ();
+
+        init_language_configs ();
+    }
+
+    public static unowned IdeLspService get_instance () {
+        if (_instance == null) {
+            _instance = new IdeLspService ();
+        }
+        return _instance;
+    }
+
+    public async void open_document (string uri, string language_id, string content, string? workspace_root, SourceView view) {
+        var server_key = get_server_key_for_language (language_id);
+        if (server_key == null) {
+            debug ("IdeLspService: No LSP server configured for language: %s", language_id);
+            Idle.add (() => {
+                view.setup_no_lsp_sync ();
+                return Source.REMOVE;
+            });
+            return;
+        }
+
+        debug ("IdeLspService: Opening document %s (lang=%s)", uri, language_id);
+
+        if (clients.has_key (server_key)) {
+            var client = clients.get (server_key);
+            uri_to_client_key.set (uri, server_key);
+            document_versions.set (uri, 1);
+            yield client.text_document_did_open (uri, language_id, 1, content);
+
+            Idle.add (() => {
+                view.setup_lsp_sync (client);
+                return Source.REMOVE;
+            });
+
+            return;
+        }
+
+        if (client_starting.get (server_key) == true) {
+            pending_opens.add (new PendingOpen (uri, language_id, content, workspace_root, view));
+            return;
+        }
+
+        client_starting.set (server_key, true);
+
+        var config = language_configs.get (server_key);
+        if (config == null) {
+            client_starting.set (server_key, false);
+            return;
+        }
+
+        var client = new LspClient ();
+        client.diagnostics_received.connect ((uri, diagnostics) => {
+            diagnostics_updated (uri, diagnostics);
+        });
+
+        bool started = yield client.start_server_async (config.command, config.args, workspace_root ?? config.workspace_root);
+
+        logger.info ("LSP", "Started server for %s: %b (%s -- %s)".printf (server_key, started, workspace_root, config.workspace_root));
+
+        if (started) {
+            clients.set (server_key, client);
+            uri_to_client_key.set (uri, server_key);
+            document_versions.set (uri, 1);
+            yield client.text_document_did_open (uri, language_id, 1, content);
+
+            Idle.add (() => {
+                view.setup_lsp_sync (client);
+                return Source.REMOVE;
+            });
+
+            yield process_pending_opens ();
+        } else {
+            // TODO: restart logic...
+            Idle.add (() => {
+                view.setup_no_lsp_sync ();
+                return Source.REMOVE;
+            });
+
+            warning ("IdeLspService: Failed to start LSP server for %s", server_key);
+        }
+
+        client_starting.set (server_key, false);
+    }
+
+    private async void process_pending_opens () {
+        var opens_to_process = new ArrayList<PendingOpen> ();
+        foreach (var open in pending_opens) {
+            opens_to_process.add (open);
+        }
+        pending_opens.clear ();
+
+        foreach (var open in opens_to_process) {
+            yield open_document (open.uri, open.language_id, open.content, open.workspace_root, open.view);
+        }
+    }
+
+    public async void change_document (string uri, string content, int? change_start = null, int? change_end = null) {
+        var server_key = uri_to_client_key.get (uri);
+
+        logger.debug ("LSP", "Changed doc: " + uri + " / server_key: " + server_key);
+        if (server_key == null || !clients.has_key (server_key)) {
+            return;
+        }
+
+        var client = clients.get (server_key);
+        var version = document_versions.get (uri);
+        document_versions.set (uri, version + 1);
+
+        yield client.text_document_did_change (uri, version + 1, content);
+    }
+
+    public async void send_did_change (string uri, int version, Gee.ArrayList<PendingChange> changes) {
+        var server_key = uri_to_client_key.get (uri);
+        if (server_key == null || !clients.has_key (server_key)) {
+            return;
+        }
+
+        var client = clients.get (server_key);
+        yield client.send_did_change (uri, version, changes);
+    }
+
+    public async void close_document (string uri) {
+        var server_key = uri_to_client_key.get (uri);
+        if (server_key == null || !clients.has_key (server_key)) {
+            return;
+        }
+
+        var client = clients.get (server_key);
+        yield client.text_document_did_close (uri);
+
+        uri_to_client_key.unset (uri);
+        document_versions.unset (uri);
+    }
+
+    private string ? get_server_key_for_language (string language_id) {
+        if (language_configs.has_key (language_id)) {
+            return language_id;
+        }
+
+        if (language_id.down ().contains ("python")) {
+            return "python";
+        }
+        if (language_id.down ().contains ("c++") || language_id.down ().contains ("cpp")) {
+            return "cpp";
+        }
+        if (language_id.down ().contains ("c")) {
+            return "c";
+        }
+
+        return null;
+    }
+
+    public void set_language_config (string language_id, string command, string[] args, string? workspace_root = null) {
+        language_configs.set (language_id, new LanguageConfig (command, args, workspace_root));
+    }
+
+    public LspClient ? get_client_for_uri (string uri) {
+        var server_key = uri_to_client_key.get (uri);
+        if (server_key == null) {
+            return null;
+        }
+        return clients.get (server_key);
+    }
+
+    public async IdeLspCompletionResult ? request_completion (string uri,
+                                                              int line,
+                                                              int character,
+                                                              string? trigger_character = null,
+                                                              CompletionTriggerKind trigger_kind = INVOKED) {
+        var client = get_client_for_uri (uri);
+        if (client == null) {
+            return null;
+        }
+        return yield client.request_completion (uri, line, character, trigger_character, trigger_kind);
+    }
+
+    public async string ? request_hover (string uri, int line, int character) {
+        var client = get_client_for_uri (uri);
+        if (client == null) {
+            logger.debug ("HOVER", "client is null!");
+            return null;
+        }
+        return yield client.request_hover (uri, line, character);
+    }
+
+    public async Gee.ArrayList<IdeLspLocation>? goto_definition (string uri, int line, int character) {
+        var client = get_client_for_uri (uri);
+        if (client == null)return null;
+        return yield client.request_definition (uri, line, character);
+    }
+}
 ```
 
 ## File: src/Services/LSP/IdeLspClient.vala
 ```
 using GLib;
 using Json;
+
+
+public enum Iide.CompletionTriggerKind {
+    /**
+     * Дополнение вызвано вручную (например, Ctrl+Space)
+     * или обычным набором текста, не являющегося триггером.
+     */
+    INVOKED = 1,
+
+    /**
+     * Дополнение вызвано вводом специфического символа-триггера
+     * (например, '.', ':', '->').
+     */
+    TRIGGER_CHARACTER = 2,
+
+    /**
+     * Дополнение вызвано повторным запросом (например, когда
+     * список был помечен как 'incomplete').
+     */
+    TRIGGER_FOR_INCOMPLETE_COMPLETIONS = 3
+}
+
+public class Iide.PendingChange : GLib.Object {
+    public int start_offset;
+    public int end_offset;
+    public string text;
+
+    // Замороженные координаты LSP
+    public int start_line;
+    public int start_char;
+    public int end_line;
+    public int end_char;
+
+    public PendingChange (string t, Gtk.TextIter s_iter, Gtk.TextIter? e_iter = null) {
+        this.text = t;
+        this.start_offset = s_iter.get_offset ();
+        this.end_offset = e_iter != null? e_iter.get_offset () : this.start_offset;
+
+        // Расчет позиций
+        this.calculate_lsp_pos (s_iter, out this.start_line, out this.start_char);
+        if (e_iter != null) {
+            this.calculate_lsp_pos (e_iter, out this.end_line, out this.end_char);
+        } else {
+            this.end_line = this.start_line;
+            this.end_char = this.start_char;
+        }
+    }
+
+    private void calculate_lsp_pos (Gtk.TextIter iter, out int lsp_line, out int lsp_char) {
+        lsp_line = iter.get_line ();
+
+        // Создаем итератор начала текущей строки для расчета смещения
+        Gtk.TextIter line_start = iter;
+        line_start.set_line_offset (0);
+
+        // Получаем текст строки до итератора
+        string line_text = line_start.get_text (iter);
+
+        // Считаем UTF-16 code units
+        int utf16_count = 0;
+        int i = 0;
+        unichar c;
+        while (line_text.get_next_char (ref i, out c)) {
+            if (c <= 0xFFFF) {
+                utf16_count += 1;
+            } else {
+                utf16_count += 2;
+            }
+        }
+        lsp_char = utf16_count;
+    }
+}
 
 public class Iide.IdeLspDiagnostic : GLib.Object {
     public int severity { get; set; default = 1; }
@@ -9053,7 +10206,11 @@ public class Iide.IdeLspClient : GLib.Object {
         yield send_message (json);
     }
 
-    public async IdeLspCompletionResult ? request_completion (string uri, int line, int character, string? trigger_character = null) {
+    public async IdeLspCompletionResult ? request_completion (string uri,
+                                                              int line,
+                                                              int character,
+                                                              string? trigger_character = null,
+                                                              CompletionTriggerKind trigger_kind = INVOKED) {
         int id = (int) next_request_id; // Сохраняем текущий ID
 
         // Формируем параметры по спецификации LSP
@@ -9063,6 +10220,12 @@ public class Iide.IdeLspClient : GLib.Object {
         builder.begin_object ();
         builder.set_member_name ("uri");
         builder.add_string_value (uri);
+        builder.set_member_name ("triggerKind");
+        builder.add_int_value ((int) trigger_kind);
+        if (trigger_character != null) {
+            builder.set_member_name ("triggerCharacter");
+            builder.add_string_value (trigger_character);
+        }
         builder.end_object ();
 
         builder.set_member_name ("position");
@@ -9421,7 +10584,47 @@ public class Iide.IdeLspClient : GLib.Object {
         builder.end_array ();
         builder.end_object ();
 
+        message ("!LSP SEND UNREACHABLE");
+
         yield send_notification ("textDocument/didChange", builder.get_root ());
+    }
+
+    public async void send_did_change (string uri, int version, Gee.ArrayList<PendingChange> changes) {
+        var json_changes = new Json.Array ();
+
+        foreach (var c in changes) {
+            var obj = new Json.Object ();
+            var range = new Json.Object ();
+
+            var start = new Json.Object ();
+            start.set_int_member ("line", c.start_line);
+            start.set_int_member ("character", c.start_char);
+
+            var end = new Json.Object ();
+            end.set_int_member ("line", c.end_line);
+            end.set_int_member ("character", c.end_char);
+
+            range.set_object_member ("start", start);
+            range.set_object_member ("end", end);
+
+            obj.set_object_member ("range", range);
+            obj.set_string_member ("text", c.text);
+            json_changes.add_object_element (obj);
+        }
+
+        // Формируем финальный пакет didChange
+        var params = new Json.Object ();
+        var doc = new Json.Object ();
+        doc.set_string_member ("uri", uri);
+        doc.set_int_member ("version", version);
+
+        params.set_object_member ("textDocument", doc);
+        params.set_array_member ("contentChanges", json_changes);
+
+        var node = new Json.Node (Json.NodeType.OBJECT);
+        node.set_object (params);
+
+        yield send_notification ("textDocument/didChange", node);
     }
 
     public async void text_document_did_close (string uri) {
@@ -9514,125 +10717,57 @@ public class Iide.IdeLspClient : GLib.Object {
 }
 ```
 
-## File: src/Widgets/TextView/FontZoomer.vala
-```
-using Gtk;
-using GtkSource;
-using GLib;
-
-public class FontZoomer : Object {
-    private View src_view;
-    private int zoom_level;
-    private Iide.SettingsService settings;
-    public signal void zoom_changed(int level);
-
-    public FontZoomer(View src_view) {
-        this.src_view = src_view;
-        this.settings = Iide.SettingsService.get_instance();
-
-        if (!this.src_view.has_css_class("text-view")) {
-            this.src_view.add_css_class("text-view");
-        }
-
-        this.zoom_level = settings.editor_font_size;
-        if (this.zoom_level < FontSizeHelper.MIN_ZOOM_LEVEL || this.zoom_level > FontSizeHelper.MAX_ZOOM_LEVEL) {
-            this.zoom_level = FontSizeHelper.DEFAULT_ZOOM_LEVEL;
-        }
-        this.src_view.add_css_class("zoom-" + zoom_level.to_string());
-
-        var scroll_controller = new EventControllerScroll(EventControllerScrollFlags.VERTICAL);
-        scroll_controller.scroll.connect((dx, dy) => {
-            var event = scroll_controller.get_current_event();
-            if (event == null)return false;
-
-            var modifiers = event.get_modifier_state();
-            if ((modifiers & Gdk.ModifierType.CONTROL_MASK) != 0) {
-                if (dy < 0) {
-                    zoom_in();
-                } else if (dy > 0) {
-                    zoom_out();
-                }
-                return true;
-            }
-            return false;
-        });
-
-        this.src_view.add_controller(scroll_controller);
-    }
-
-    public void zoom_in() {
-        if (zoom_level < FontSizeHelper.MAX_ZOOM_LEVEL) {
-            src_view.remove_css_class("zoom-" + zoom_level.to_string());
-            zoom_level++;
-            src_view.add_css_class("zoom-" + zoom_level.to_string());
-            settings.editor_font_size = zoom_level;
-            zoom_changed(zoom_level);
-        }
-    }
-
-    public void zoom_out() {
-        if (zoom_level > FontSizeHelper.MIN_ZOOM_LEVEL) {
-            src_view.remove_css_class("zoom-" + zoom_level.to_string());
-            zoom_level--;
-            src_view.add_css_class("zoom-" + zoom_level.to_string());
-            settings.editor_font_size = zoom_level;
-            zoom_changed(zoom_level);
-        }
-    }
-
-    public void zoom_reset() {
-        src_view.remove_css_class("zoom-" + zoom_level.to_string());
-        zoom_level = FontSizeHelper.DEFAULT_ZOOM_LEVEL;
-        src_view.add_css_class("zoom-" + zoom_level.to_string());
-        settings.editor_font_size = zoom_level;
-        zoom_changed(zoom_level);
-    }
-
-    public void set_zoom_level(int level) {
-        if (level < FontSizeHelper.MIN_ZOOM_LEVEL || level > FontSizeHelper.MAX_ZOOM_LEVEL) {
-            return;
-        }
-        if (zoom_level == level) {
-            return;
-        }
-        src_view.remove_css_class("zoom-" + zoom_level.to_string());
-        zoom_level = level;
-        src_view.add_css_class("zoom-" + zoom_level.to_string());
-        zoom_changed(zoom_level);
-    }
-
-    public int get_zoom_level() {
-        return zoom_level;
-    }
-}
-```
-
 ## File: src/Services/TreeSitter/BaseTreeSitterHighlighter.vala
 ```
 using Gtk;
 using GtkSource;
 
+[CCode (cname = "ts_tree_cursor_new_as_ptr")]
+extern TreeSitter.TreeCursor ts_tree_cursor_new_as_ptr (TreeSitter.Node node);
+
+private struct Iide.TsEdit {
+    public uint32 start_byte;
+    public uint32 old_end_byte;
+    public uint32 new_end_byte;
+    public TreeSitter.Point start_point;
+    public TreeSitter.Point old_end_point;
+    public TreeSitter.Point new_end_point;
+
+    public TreeSitter.InputEdit to_ts_edit () {
+        return TreeSitter.InputEdit () {
+                   start_byte = this.start_byte,
+                   old_end_byte = this.old_end_byte,
+                   new_end_byte = this.new_end_byte,
+                   start_point = this.start_point,
+                   old_end_point = this.old_end_point,
+                   new_end_point = this.new_end_point
+        };
+    }
+}
+
 public abstract class Iide.BaseTreeSitterHighlighter : Object {
     protected View view;
     protected Buffer buffer;
     private TreeSitter.Parser parser;
-    private TreeSitter.Tree tree;
+    private TreeSitter.Tree? tree = null;
     private uint debounce_source = 0;
     private const int DEBOUNCE_DELAY_MS = 50;
 
-    protected abstract unowned TreeSitter.Language language();
+    protected abstract unowned TreeSitter.Language language ();
 
-    protected BaseTreeSitterHighlighter(View view) {
+    private Gee.ArrayList<TsEdit?> pending_edits = new Gee.ArrayList<TsEdit?> ();
+
+    protected BaseTreeSitterHighlighter (View view) {
         this.view = view;
-        this.buffer = (Buffer) view.get_buffer();
+        this.buffer = (Buffer) view.get_buffer ();
 
-        parser = new TreeSitter.Parser();
-        parser.set_language(language());
+        parser = new TreeSitter.Parser ();
+        parser.set_language (language ());
 
         buffer.delete_range.connect (on_delete_range);
-        buffer.insert_text.connect_after (on_insert_text);
+        buffer.insert_text.connect (on_insert_text);
 
-        buffer.notify["style-scheme"].connect_after(on_style_scheme_changed);
+        buffer.notify["style-scheme"].connect_after (on_style_scheme_changed);
 
         Idle.add (() => {
             do_reparse ();
@@ -9640,15 +10775,81 @@ public abstract class Iide.BaseTreeSitterHighlighter : Object {
         });
     }
 
-    private void on_style_scheme_changed() {
+    private void on_style_scheme_changed () {
         apply_highlighting_full ();
     }
 
-    private void on_delete_range (TextIter start, TextIter end) {
+    private void calculate_text_stats (string text, out uint32 lines, out uint32 last_column) {
+        lines = 0;
+        last_column = 0;
+        int i = 0;
+        unichar c;
+
+        while (text.get_next_char (ref i, out c)) {
+            if (c == '\n') {
+                lines++;
+                last_column = 0;
+            } else {
+                // Tree-sitter ожидает колонки в БАЙТАХ от начала строки
+                // Вычисляем длину текущего символа в байтах
+                last_column += (uint32) c.to_utf8 (null);
+            }
+        }
+    }
+
+    private void on_insert_text (TextIter iter, string text, int len_bytes) {
+        var edit = TsEdit ();
+
+        // Начальные координаты (фиксируем ДО вставки)
+        TextIter start_buf;
+        buffer.get_start_iter (out start_buf);
+        edit.start_byte = (uint32) buffer.get_slice (start_buf, iter, false).length;
+
+        edit.start_point = TreeSitter.Point () {
+            row = (uint32) iter.get_line (),
+            column = (uint32) iter.get_line_index ()
+        };
+
+        // Вставка в Tree-sitter — это замена диапазона нулевой длины на новый текст
+        edit.old_end_byte = edit.start_byte;
+        edit.old_end_point = edit.start_point;
+
+        // Вычисляем, где окажется конец после вставки
+        uint32 lines_added;
+        uint32 last_line_bytes;
+        calculate_text_stats (text, out lines_added, out last_line_bytes);
+
+        edit.new_end_byte = edit.start_byte + (uint32) text.length;
+
+        edit.new_end_point = TreeSitter.Point () {
+            row = edit.start_point.row + lines_added,
+            column = lines_added > 0 ? last_line_bytes : edit.start_point.column + last_line_bytes
+        };
+
+        pending_edits.add (edit);
         schedule_reparse ();
     }
 
-    private void on_insert_text (TextIter iter, string text, int length) {
+    private void on_delete_range (TextIter start, TextIter end) {
+        var edit = TsEdit ();
+
+        TextIter start_buf;
+        buffer.get_start_iter (out start_buf);
+        edit.start_byte = (uint32) buffer.get_slice (start_buf, start, false).length;
+        edit.old_end_byte = (uint32) buffer.get_slice (start_buf, end, false).length;
+        edit.new_end_byte = edit.start_byte;
+
+        edit.start_point = TreeSitter.Point () {
+            row = (uint32) start.get_line (),
+            column = (uint32) start.get_line_index ()
+        };
+        edit.old_end_point = TreeSitter.Point () {
+            row = (uint32) end.get_line (),
+            column = (uint32) end.get_line_index ()
+        };
+        edit.new_end_point = edit.start_point;
+
+        pending_edits.add (edit);
         schedule_reparse ();
     }
 
@@ -9665,39 +10866,102 @@ public abstract class Iide.BaseTreeSitterHighlighter : Object {
     }
 
     private void do_reparse () {
-        string text = buffer.text;
-        
-        if (tree != null) {
-            int edit_start_byte = 0;
-            int edit_old_end_byte = text.length;
-            int edit_new_end_byte = text.length;
+        string full_text = this.buffer.text;
 
-            var edit = TreeSitter.InputEdit () {
-                start_byte = (uint32) edit_start_byte,
-                old_end_byte = (uint32) edit_old_end_byte,
-                new_end_byte = (uint32) edit_new_end_byte,
-                start_point = TreeSitter.Point () { row = 0, column = 0 },
-                old_end_point = TreeSitter.Point () { row = 0, column = 0 },
-                new_end_point = TreeSitter.Point () { row = 0, column = 0 }
-            };
+        // 1. Берем текущее дерево. Используем unowned, чтобы не дергать счетчик/владение раньше времени
+        unowned TreeSitter.Tree? current_tree = this.tree;
+        bool need_full_reparse = true;
 
-            tree.edit (edit);
+        if (current_tree != null) {
+            // 2. Редактируем старое дерево.
+            // Важно: edit() модифицирует дерево "на месте" для инвалидации узлов
+            foreach (var e in pending_edits) {
+                current_tree.edit (e.to_ts_edit ());
+            }
+            pending_edits.clear ();
+            need_full_reparse = false;
         }
 
-        tree = parser.parse_string (tree, text.data);
-        
-        apply_highlighting_full ();
+        // 3. Создаем новое дерево.
+        // Мы передаем текущее дерево как фундамент.
+        // ВНИМАНИЕ: Мы сохраняем результат в локальную переменную, а не сразу в поле класса,
+        // чтобы старое дерево (this.tree) не уничтожилось прямо в момент вызова.
+        TreeSitter.Tree new_tree = parser.parse_string (current_tree, full_text.data);
+
+        // 4. Теперь у нас два живых объекта: current_tree (старый) и new_tree (новый).
+        if (!need_full_reparse) {
+            var ranges = current_tree.get_changed_ranges (new_tree);
+            this.tree = (owned) new_tree;
+            apply_highlighting_incremental (ranges);
+        } else {
+            this.tree = (owned) new_tree;
+            apply_highlighting_full ();
+        }
+    }
+
+    private void apply_highlighting_incremental (TreeSitter.Range[] ranges) {
+        if (ranges.length == 0)return;
+
+        buffer.begin_user_action ();
+
+        for (uint i = 0; i < ranges.length; i++) {
+            var range = ranges[i];
+
+            // 3. Превращаем байтовые границы Tree-sitter в итераторы GTK
+            TextIter start_iter, end_iter;
+            // Важно: расширяем диапазон до начала и конца строк, чтобы не ломать многострочные токены
+            buffer.get_iter_at_line (out start_iter, (int) range.start_point.row);
+            buffer.get_iter_at_line (out end_iter, (int) range.end_point.row);
+            end_iter.forward_to_line_end ();
+
+            // 4. Очищаем старые теги ТОЛЬКО в этом диапазоне
+            buffer.remove_all_tags (start_iter, end_iter);
+
+            // 5. Перекрашиваем только этот участок (используем Query или Cursor)
+            // Для простоты пока вызываем traverse для поддерева, ограниченного диапазоном
+            rehighlight_range (range);
+        }
+
+        buffer.end_user_action ();
+    }
+
+    private void rehighlight_range (TreeSitter.Range range) {
+        var cursor = ts_tree_cursor_new_as_ptr (tree.root_node ());
+
+
+        // Рекурсивный или итеративный обход с проверкой пересечения границ
+        highlight_nodes_in_range (cursor, range);
+    }
+
+    private void highlight_nodes_in_range (TreeSitter.TreeCursor cursor, TreeSitter.Range range) {
+        var node = cursor.current_node ();
+
+        // Если узел целиком за пределами измененного диапазона — пропускаем всю ветку
+        if (node.end_byte () < range.start_byte || node.start_byte () > range.end_byte) {
+            return;
+        }
+
+        // Красим текущий узел (ваша абстрактная функция)
+        highlight_node (node);
+
+        // Переходим к детям
+        if (cursor.goto_first_child ()) {
+            do {
+                highlight_nodes_in_range (cursor, range);
+            } while (cursor.goto_next_sibling ());
+            cursor.goto_parent ();
+        }
     }
 
     protected virtual void apply_highlighting_full () {
-        if (tree == null) return;
+        if (tree == null)return;
 
         TextIter start, end;
         buffer.get_bounds (out start, out end);
         buffer.remove_all_tags (start, end);
 
         traverse_node (tree.root_node (), 0, null);
-        
+
         view.queue_draw ();
     }
 
@@ -9738,7 +11002,7 @@ public abstract class Iide.BaseTreeSitterHighlighter : Object {
                                                out TextIter start_iter, out TextIter end_iter) {
         buffer.get_iter_at_line (out start_iter, (int) node.start_point ().row);
         start_iter.set_line_index ((int) node.start_point ().column);
-        
+
         buffer.get_iter_at_line (out end_iter, (int) node.end_point ().row);
         end_iter.set_line_index ((int) node.end_point ().column);
     }
@@ -9895,7 +11159,7 @@ public class Iide.DocumentManager : GLib.Object {
                     string content = buffer.text;
                     string? lang_id = lsp_manager.get_language_id_for_file (file);
                     if (lang_id != null) {
-                        lsp_manager.open_document.begin (uri, lang_id, content, current_workspace_root);
+                        lsp_manager.open_document.begin (uri, lang_id, content, current_workspace_root, panel_widget.text_view);
                     }
                 } catch (Error e) {
                     logger.error ("Doc", "Error Opening File", "Failed to read file %s: %s".printf (file.get_path (), e.message));
@@ -10340,7 +11604,7 @@ public class Iide.TextView : Panel.Widget {
 
     public Window window;
     public string uri { get; private set; }
-    public GtkSource.View text_view { get { return source_view; } }
+    public SourceView text_view { get { return source_view; } }
 
     public bool is_modified { get { return ((GtkSource.Buffer) source_view.buffer).get_modified (); } }
 
@@ -10437,9 +11701,9 @@ public class Iide.TextView : Panel.Widget {
             modified = buffer.get_modified ();
         });
 
-        buffer.changed.connect (() => {
-            text_changed (buffer.text);
-        });
+        // buffer.changed.connect (() => {
+        // text_changed (buffer.text);
+        // });
     }
 
     public override void size_allocate (int width, int height, int baseline) {
@@ -10496,70 +11760,6 @@ public class Iide.TextView : Panel.Widget {
         source_view.select_and_scroll (line, start_col, end_col, is_new);
     }
 }
-```
-
-## File: src/meson.build
-```
-iide_sources = [
-    'main.vala',
-    'application.vala',
-    'window.vala',
-    'Widgets/TextView/TextView.vala',
-    'Widgets/TextView/SourceView.vala',
-    'Widgets/TextView/FontZoomer.vala',
-    'Widgets/TextView/GutterMarkRenderer.vala',
-    'Widgets/TextView/LspCompletionProvider.vala',
-    'Widgets/ToolViews/ProjectView.vala',
-    'Widgets/ToolViews/TerminalView.vala',
-    'Widgets/ToolViews/LogView.vala',
-    'Widgets/PreferencesDialog.vala',
-    'Widgets/FuzzyFinderDialog.vala',
-    'Widgets/SearchInFilesDialog.vala',
-    'Services/Utils.vala',
-    'Services/LoggerService.vala',
-    'Services/DocumentManager.vala',
-    'Services/IconProvider.vala',
-    'Services/ProjectManager.vala',
-    'Services/SettingsService.vala',
-    'Services/PanelLayoutHelper.vala',
-    'Services/LSP/IdeLspClient.vala',
-    'Services/LSP/IdeLspService.vala',
-    'Services/LSP/IdeLspManager.vala',
-    'Services/LSP/LspDiagnosticsMark.vala',
-    'Services/TreeSitter/TreeSitterManager.vala',
-    'Services/TreeSitter/model/AstItem.vala',
-    'Services/TreeSitter/model/AstModel.vala',
-    'Services/TreeSitter/BaseTreeSitterHighlighter.vala',
-    'Services/TreeSitter/python/PythonTreeSitterHighlighter.vala',
-    'Services/TreeSitter/cpp/CppTreeSitterHighlighter.vala',
-    'Services/TreeSitter/vala/ValaTreeSitterHighlighter.vala',
-    'Services/Actions/Action.vala',
-    'Services/Actions/ActionManager.vala',
-    'Services/Actions/ShortcutSettings.vala',
-]
-
-iide_deps = [
-    config_dep,
-    dependency('gtk4'),
-    dependency('gio-2.0', version: '>= 2.50'),
-    dependency('libadwaita-1', version: '>= 1.4'),
-    dependency('libpanel-1', version: '>= 1.7'),
-    dependency('gtksourceview-5'),
-    dependency('vte-2.91-gtk4', version: '>= 0.75.0'),
-    dependency('gee-0.8'),
-    dependency('json-glib-1.0'),
-    dependency('jsonrpc-glib-1.0'),
-]
-
-iide_sources += gnome.compile_resources('iide-resources', 'iide.gresource.xml', c_name: 'iide')
-
-executable(
-    'iide',
-    iide_sources,
-    dependencies: [iide_deps, tree_sitter_dep],
-    include_directories: config_inc,
-    install: true,
-)
 ```
 
 ## File: src/window.vala
@@ -11024,4 +12224,69 @@ public class Iide.Window : Panel.DocumentWorkspace {
         return document_manager;
     }
 }
+```
+
+## File: src/meson.build
+```
+iide_sources = [
+    'main.vala',
+    'application.vala',
+    'window.vala',
+    'Widgets/TextView/TextView.vala',
+    'Widgets/TextView/SourceView.vala',
+    'Widgets/TextView/FontZoomer.vala',
+    'Widgets/TextView/GutterMarkRenderer.vala',
+    'Widgets/TextView/LspCompletionProvider.vala',
+    'Widgets/ToolViews/ProjectView.vala',
+    'Widgets/ToolViews/TerminalView.vala',
+    'Widgets/ToolViews/LogView.vala',
+    'Widgets/PreferencesDialog.vala',
+    'Widgets/FuzzyFinderDialog.vala',
+    'Widgets/SearchInFilesDialog.vala',
+    'Services/Utils.vala',
+    'Services/LoggerService.vala',
+    'Services/DocumentManager.vala',
+    'Services/IconProvider.vala',
+    'Services/ProjectManager.vala',
+    'Services/SettingsService.vala',
+    'Services/PanelLayoutHelper.vala',
+    'Services/LSP/LspClient.vala',
+    'Services/LSP/IdeLspClient.vala',
+    'Services/LSP/IdeLspService.vala',
+    'Services/LSP/IdeLspManager.vala',
+    'Services/LSP/LspDiagnosticsMark.vala',
+    'Services/TreeSitter/TreeSitterManager.vala',
+    'Services/TreeSitter/model/AstItem.vala',
+    'Services/TreeSitter/model/AstModel.vala',
+    'Services/TreeSitter/BaseTreeSitterHighlighter.vala',
+    'Services/TreeSitter/python/PythonTreeSitterHighlighter.vala',
+    'Services/TreeSitter/cpp/CppTreeSitterHighlighter.vala',
+    'Services/TreeSitter/vala/ValaTreeSitterHighlighter.vala',
+    'Services/Actions/Action.vala',
+    'Services/Actions/ActionManager.vala',
+    'Services/Actions/ShortcutSettings.vala',
+]
+
+iide_deps = [
+    config_dep,
+    dependency('gtk4'),
+    dependency('gio-2.0', version: '>= 2.50'),
+    dependency('libadwaita-1', version: '>= 1.4'),
+    dependency('libpanel-1', version: '>= 1.7'),
+    dependency('gtksourceview-5'),
+    dependency('vte-2.91-gtk4', version: '>= 0.75.0'),
+    dependency('gee-0.8'),
+    dependency('json-glib-1.0'),
+    dependency('jsonrpc-glib-1.0'),
+]
+
+iide_sources += gnome.compile_resources('iide-resources', 'iide.gresource.xml', c_name: 'iide')
+
+executable(
+    'iide',
+    iide_sources,
+    dependencies: [iide_deps, tree_sitter_dep],
+    include_directories: config_inc,
+    install: true,
+)
 ```

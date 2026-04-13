@@ -187,6 +187,64 @@ namespace TreeSitter {
         [CCode (cname = "ts_tree_cursor_goto_parent")]
         public bool goto_parent ();
     }
+
+    [CCode (cname = "TSQueryError", cprefix = "TSQueryError", has_type_id = false)]
+    public enum QueryError {
+        None,
+        Syntax,
+        NodeType,
+        Field,
+        Capture,
+        Structure,
+        Language
+    }
+
+    [CCode (cname = "TSQuery", free_function = "ts_query_delete")]
+    [Compact]
+    public class Query {
+        [CCode (cname = "ts_query_new")]
+        public Query (Language language, string source, uint32 source_len, out uint32 error_offset, out QueryError error_type);
+
+        [CCode (cname = "ts_query_capture_count")]
+        public uint32 capture_count ();
+
+        [CCode (cname = "ts_query_capture_name_for_id", array_length = false)]
+        public unowned string capture_name_for_id (uint32 id, out uint32 length);
+
+        [CCode (cname = "ts_query_string_count")]
+        public uint32 string_count ();
+    }
+
+    [CCode (cname = "TSQueryMatch", has_type_id = false, destroy_function = "")]
+    public struct QueryMatch {
+        public uint32 id;
+        public uint16 pattern_index;
+        public uint16 capture_count;
+        [CCode (array_length_cname = "capture_count")]
+        public QueryCapture[] captures;
+    }
+
+    [CCode (cname = "TSQueryCapture", has_type_id = false)]
+    public struct QueryCapture {
+        public Node node;
+        public uint32 index;
+    }
+
+    [CCode (cname = "TSQueryCursor", free_function = "ts_query_cursor_delete")]
+    [Compact]
+    public class QueryCursor {
+        [CCode (cname = "ts_query_cursor_new")]
+        public QueryCursor ();
+
+        [CCode (cname = "ts_query_cursor_exec")]
+        public void exec (Query query, Node node);
+
+        [CCode (cname = "ts_query_cursor_next_match")]
+        public bool next_match (out QueryMatch match);
+
+        [CCode (cname = "ts_query_cursor_set_byte_range")]
+        public void set_byte_range (uint32 start, uint32 end);
+    }
 }
 
 /*
