@@ -13,6 +13,7 @@ add_project_arguments('-DGETTEXT_PACKAGE="' + meson.project_name() + '"', langua
 
 tree_sitter_sources = [
     'vendor/tree-sitter/lib/src/lib.c',
+    'parsers/ts_helper.c',
     'parsers/bash/src/parser.c',
     'parsers/bash/src/scanner.c',
     'parsers/json/src/parser.c',

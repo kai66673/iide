@@ -1,6 +1,9 @@
 using Gtk;
 using GtkSource;
 
+[CCode (cname = "ts_tree_cursor_new_as_ptr")]
+extern TreeSitter.TreeCursor ts_tree_cursor_new_as_ptr (TreeSitter.Node node);
+
 private struct Iide.TsEdit {
     public uint32 start_byte;
     public uint32 old_end_byte;
@@ -8,13 +11,24 @@ private struct Iide.TsEdit {
     public TreeSitter.Point start_point;
     public TreeSitter.Point old_end_point;
     public TreeSitter.Point new_end_point;
+
+    public TreeSitter.InputEdit to_ts_edit () {
+        return TreeSitter.InputEdit () {
+                   start_byte = this.start_byte,
+                   old_end_byte = this.old_end_byte,
+                   new_end_byte = this.new_end_byte,
+                   start_point = this.start_point,
+                   old_end_point = this.old_end_point,
+                   new_end_point = this.new_end_point
+        };
+    }
 }
 
 public abstract class Iide.BaseTreeSitterHighlighter : Object {
     protected View view;
     protected Buffer buffer;
     private TreeSitter.Parser parser;
-    private TreeSitter.Tree tree;
+    private TreeSitter.Tree? tree = null;
     private uint debounce_source = 0;
     private const int DEBOUNCE_DELAY_MS = 50;
 
@@ -131,32 +145,91 @@ public abstract class Iide.BaseTreeSitterHighlighter : Object {
     }
 
     private void do_reparse () {
-        string full_text = buffer.text;
+        string full_text = this.buffer.text;
 
-        if (tree != null) {
-            // 1. Инвалидируем узлы в старом дереве
+        // 1. Берем текущее дерево. Используем unowned, чтобы не дергать счетчик/владение раньше времени
+        unowned TreeSitter.Tree? current_tree = this.tree;
+        bool need_full_reparse = true;
+
+        if (current_tree != null) {
+            // 2. Редактируем старое дерево.
+            // Важно: edit() модифицирует дерево "на месте" для инвалидации узлов
             foreach (var e in pending_edits) {
-                var ts_edit = TreeSitter.InputEdit () {
-                    start_byte = e.start_byte,
-                    old_end_byte = e.old_end_byte,
-                    new_end_byte = e.new_end_byte,
-                    start_point = e.start_point,
-                    old_end_point = e.old_end_point,
-                    new_end_point = e.new_end_point
-                };
-                tree.edit (ts_edit);
+                current_tree.edit (e.to_ts_edit ());
             }
+            pending_edits.clear ();
+            need_full_reparse = false;
         }
 
-        pending_edits.clear ();
+        // 3. Создаем новое дерево.
+        // Мы передаем текущее дерево как фундамент.
+        // ВНИМАНИЕ: Мы сохраняем результат в локальную переменную, а не сразу в поле класса,
+        // чтобы старое дерево (this.tree) не уничтожилось прямо в момент вызова.
+        TreeSitter.Tree new_tree = parser.parse_string (current_tree, full_text.data);
 
-        // 2. ВАЖНО: Всегда вызываем парсер.
-        // Если tree != null, это будет быстрый инкрементальный парсинг.
-        // Если tree == null, это будет полный парсинг с нуля.
-        tree = parser.parse_string (tree, full_text.data);
+        // 4. Теперь у нас два живых объекта: current_tree (старый) и new_tree (новый).
+        if (!need_full_reparse) {
+            var ranges = current_tree.get_changed_ranges (new_tree);
+            this.tree = (owned) new_tree;
+            apply_highlighting_incremental (ranges);
+        } else {
+            this.tree = (owned) new_tree;
+            apply_highlighting_full ();
+        }
+    }
 
-        // 3. Красим результат
-        apply_highlighting_full ();
+    private void apply_highlighting_incremental (TreeSitter.Range[] ranges) {
+        if (ranges.length == 0)return;
+
+        buffer.begin_user_action ();
+
+        for (uint i = 0; i < ranges.length; i++) {
+            var range = ranges[i];
+
+            // 3. Превращаем байтовые границы Tree-sitter в итераторы GTK
+            TextIter start_iter, end_iter;
+            // Важно: расширяем диапазон до начала и конца строк, чтобы не ломать многострочные токены
+            buffer.get_iter_at_line (out start_iter, (int) range.start_point.row);
+            buffer.get_iter_at_line (out end_iter, (int) range.end_point.row);
+            end_iter.forward_to_line_end ();
+
+            // 4. Очищаем старые теги ТОЛЬКО в этом диапазоне
+            buffer.remove_all_tags (start_iter, end_iter);
+
+            // 5. Перекрашиваем только этот участок (используем Query или Cursor)
+            // Для простоты пока вызываем traverse для поддерева, ограниченного диапазоном
+            rehighlight_range (range);
+        }
+
+        buffer.end_user_action ();
+    }
+
+    private void rehighlight_range (TreeSitter.Range range) {
+        var cursor = ts_tree_cursor_new_as_ptr (tree.root_node ());
+
+
+        // Рекурсивный или итеративный обход с проверкой пересечения границ
+        highlight_nodes_in_range (cursor, range);
+    }
+
+    private void highlight_nodes_in_range (TreeSitter.TreeCursor cursor, TreeSitter.Range range) {
+        var node = cursor.current_node ();
+
+        // Если узел целиком за пределами измененного диапазона — пропускаем всю ветку
+        if (node.end_byte () < range.start_byte || node.start_byte () > range.end_byte) {
+            return;
+        }
+
+        // Красим текущий узел (ваша абстрактная функция)
+        highlight_node (node);
+
+        // Переходим к детям
+        if (cursor.goto_first_child ()) {
+            do {
+                highlight_nodes_in_range (cursor, range);
+            } while (cursor.goto_next_sibling ());
+            cursor.goto_parent ();
+        }
     }
 
     protected virtual void apply_highlighting_full () {
