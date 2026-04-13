@@ -192,6 +192,15 @@ public class Iide.SourceView : GtkSource.View {
         this.apply_sync_strategy (client.capabilities, client);
     }
 
+    public void setup_no_lsp_sync () {
+        lsp_sync_kind = 0;
+        if (insert_handler_id > 0)buffer.disconnect (insert_handler_id);
+        if (delete_handler_id > 0)buffer.disconnect (delete_handler_id);
+
+        // Очищаем накопленные дельты (они бесполезны)
+        this.pending_queue.clear ();
+    }
+
     private void connect_incremental_signals () {
         insert_handler_id = buffer.insert_text.connect ((ref location, text, len) => {
             var change = new PendingChange (text, location);
@@ -221,9 +230,9 @@ public class Iide.SourceView : GtkSource.View {
 
             // ПРИНУДИТЕЛЬНО выравниваем состояние сервера (шлем весь текущий текст)
             client.text_document_did_change.begin (this.uri, this.document_version, this.buffer.text);
-            lsp_sync_kind = 1;
-        } else {
             lsp_sync_kind = 2;
+        } else {
+            lsp_sync_kind = 1;
             reset_timer ();
         }
     }
@@ -305,7 +314,7 @@ public class Iide.SourceView : GtkSource.View {
     }
 
     public void flush_changes () {
-        if (lsp_sync_kind != 2)return;
+        if (lsp_sync_kind != 1)return;
         if (pending_queue.is_empty)return;
 
         var changes = pending_queue;
@@ -342,11 +351,11 @@ public class Iide.SourceView : GtkSource.View {
     public async void sync_changes_async () {
         switch (lsp_sync_kind) {
         case 1:
-            yield flush_changes_full_async ();
+            yield flush_changes_async ();
 
             break;
         case 2:
-            yield flush_changes_async ();
+            yield flush_changes_full_async ();
 
             break;
         }

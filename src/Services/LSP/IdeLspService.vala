@@ -75,6 +75,10 @@ public class Iide.IdeLspService : GLib.Object {
         var server_key = get_server_key_for_language (language_id);
         if (server_key == null) {
             debug ("IdeLspService: No LSP server configured for language: %s", language_id);
+            Idle.add (() => {
+                view.setup_no_lsp_sync ();
+                return Source.REMOVE;
+            });
             return;
         }
 
@@ -129,6 +133,12 @@ public class Iide.IdeLspService : GLib.Object {
 
             yield process_pending_opens ();
         } else {
+            // TODO: restart logic...
+            Idle.add (() => {
+                view.setup_no_lsp_sync ();
+                return Source.REMOVE;
+            });
+
             warning ("IdeLspService: Failed to start LSP server for %s", server_key);
         }
 
