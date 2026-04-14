@@ -29,6 +29,10 @@ public abstract class Iide.BaseTreeSitterHighlighter : Object {
     }
 
     protected BaseTreeSitterHighlighter (SourceView view) {
+        view.set_insert_spaces_instead_of_tabs (true);
+        view.set_tab_width (4);
+        view.set_smart_backspace (true);
+
         this.view = view;
         this.buffer = (GtkSource.Buffer) view.get_buffer ();
 

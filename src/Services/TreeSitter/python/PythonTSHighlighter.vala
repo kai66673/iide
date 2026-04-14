@@ -4,9 +4,6 @@ extern unowned TreeSitter.Language ? get_lang_python ();
 public class Iide.PythonHighlighter : BaseTreeSitterHighlighter {
     public PythonHighlighter (SourceView view) {
         base (view);
-        view.set_insert_spaces_instead_of_tabs (true);
-        view.set_tab_width (4);
-        view.set_smart_backspace (true);
     }
 
     protected override unowned TreeSitter.Language? get_ts_language () {

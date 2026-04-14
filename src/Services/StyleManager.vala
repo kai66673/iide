@@ -54,6 +54,18 @@ public class Iide.StyleService : Object {
         setup_tag ("punctuation.bracket", "#241f31", "#d3d3d7", false);
         setup_tag ("punctuation.delimiter", "#241f31", "#d3d3d7", false);
 
+        // --- Препроцессор и макросы (#include, #define, макросы в C/C++) ---
+        setup_tag ("keyword.directive", "#63452c", "#c061cb", false);
+        setup_tag ("keyword.control.import", "#63452c", "#c061cb", true);
+
+        // --- Специфические для C++ (Namespace, Qualifier) ---
+        setup_tag ("namespace", "#422d5b", "#f9c06b", false);
+        setup_tag ("type.qualifier", "#a51d2d", "#ff7b72", false); // const, static, volatile
+
+        // --- Дополнительные уточнения для функций ---
+        setup_tag ("function.call", "#1c71d8", "#78aeed", false);
+        setup_tag ("function.method", "#1a5fb4", "#62a0ea", true);
+
         // Тег для сброса (если в query есть @none)
         setup_tag ("none", null, null, false);
     }

@@ -1,6 +1,9 @@
 using Gtk;
 using GtkSource;
 
+[CCode (cname = "tree_sitter_vala")]
+extern unowned TreeSitter.Language ? get_language_vala ();
+
 public class Iide.ValaTreeSitterHighlighter : OldBaseTreeSitterHighlighter {
     public ValaTreeSitterHighlighter (View view) {
         base (view);

@@ -8,10 +8,10 @@
 // extern unowned TreeSitter.Language ? get_language_python ();
 // [CCode (cname = "tree_sitter_ruby")]
 // extern unowned TreeSitter.Language ? get_language_ruby ();
-[CCode(cname = "tree_sitter_cpp")]
-extern unowned TreeSitter.Language ? get_language_cpp();
-[CCode(cname = "tree_sitter_vala")]
-extern unowned TreeSitter.Language ? get_language_vala();
+// [CCode(cname = "tree_sitter_cpp")]
+// extern unowned TreeSitter.Language ? get_language_cpp();
+// [CCode(cname = "tree_sitter_vala")]
+// extern unowned TreeSitter.Language ? get_language_vala();
 // [CCode (cname = "tree_sitter_go")]
 // extern unowned TreeSitter.Language ? get_language_go ();
 // [CCode (cname = "tree_sitter_bash")]
@@ -36,10 +36,14 @@ class Iide.TreeSitterManager : GLib.Object {
         var language_name = ((GtkSource.Buffer) view.buffer).language.name.down();
         message("LANG Detected: " + language_name);
         switch (language_name) {
-        case "python" :
+        case "cpp" :
+            return new CppHighlighter(view);
+        case "python":
             return new PythonHighlighter(view);
-        case "rust" :
+        case "rust":
             return new RustHighlighter(view);
+        case "vala":
+            return new ValaHighlighter(view);
         }
         return null;
     }

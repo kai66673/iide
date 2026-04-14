@@ -1,6 +1,9 @@
 using Gtk;
 using GtkSource;
 
+[CCode (cname = "tree_sitter_cpp")]
+extern unowned TreeSitter.Language ? get_language_cpp ();
+
 public class Iide.CppTreeSitterHighlighter : OldBaseTreeSitterHighlighter {
     public CppTreeSitterHighlighter (View view) {
         base (view);
