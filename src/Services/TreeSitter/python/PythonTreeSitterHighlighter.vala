@@ -4,7 +4,7 @@ using GtkSource;
 [CCode(cname = "tree_sitter_python")]
 extern unowned TreeSitter.Language ? get_language_python();
 
-public class Iide.PythonTreeSitterHighlighter : BaseTreeSitterHighlighter {
+public class Iide.PythonTreeSitterHighlighter : OldBaseTreeSitterHighlighter {
     public PythonTreeSitterHighlighter(View view) {
         base(view);
         view.set_insert_spaces_instead_of_tabs(true);

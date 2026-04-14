@@ -1,8 +1,8 @@
 using Gtk;
 using GtkSource;
 
-public class Iide.ValaTreeSitterHighlighter : BaseTreeSitterHighlighter {
-    public ValaTreeSitterHighlighter(View view) {
+public class Iide.ValaTreeSitterHighlighter : OldBaseTreeSitterHighlighter {
+    public ValaTreeSitterHighlighter (View view) {
         base (view);
         view.set_insert_spaces_instead_of_tabs (true);
         view.set_tab_width (4);

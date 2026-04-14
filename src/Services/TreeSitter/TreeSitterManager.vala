@@ -32,16 +32,14 @@ extern unowned TreeSitter.Language ? get_language_vala();
 
 
 class Iide.TreeSitterManager : GLib.Object {
-    public BaseTreeSitterHighlighter ? get_ts_highlighter(GtkSource.View view) {
+    public BaseTreeSitterHighlighter ? get_ts_highlighter(SourceView view) {
         var language_name = ((GtkSource.Buffer) view.buffer).language.name.down();
         message("LANG Detected: " + language_name);
         switch (language_name) {
         case "python" :
-            return new PythonTreeSitterHighlighter(view);
-        case "c++":
-            return new CppTreeSitterHighlighter(view);
-        case "vala":
-            return new ValaTreeSitterHighlighter(view);
+            return new PythonHighlighter(view);
+        case "rust" :
+            return new RustHighlighter(view);
         }
         return null;
     }

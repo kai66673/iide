@@ -85,7 +85,8 @@ public class Iide.DocumentManager : GLib.Object {
             }
             return widget;
         } else {
-            var buffer = new GtkSource.Buffer (null);
+            var shared_table = Iide.StyleService.get_instance ().shared_table;
+            var buffer = new GtkSource.Buffer (shared_table);
             var source_file = new GtkSource.File ();
             source_file.location = file;
             var file_loader = new GtkSource.FileLoader (buffer, source_file);

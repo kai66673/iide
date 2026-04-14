@@ -1,7 +1,7 @@
 using Gtk;
 using GtkSource;
 
-public class Iide.CppTreeSitterHighlighter : BaseTreeSitterHighlighter {
+public class Iide.CppTreeSitterHighlighter : OldBaseTreeSitterHighlighter {
     public CppTreeSitterHighlighter (View view) {
         base (view);
         view.set_insert_spaces_instead_of_tabs (true);

@@ -26,34 +26,34 @@ public enum ColorScheme {
 
     public static ColorScheme from_string (string value) {
         switch (value) {
-            case "light":
-                return LIGHT;
-            case "dark":
-                return DARK;
-            default:
-                return SYSTEM;
+        case "light":
+            return LIGHT;
+        case "dark":
+            return DARK;
+        default:
+            return SYSTEM;
         }
     }
 
     public string to_string () {
         switch (this) {
-            case LIGHT:
-                return "light";
-            case DARK:
-                return "dark";
-            default:
-                return "system";
+        case LIGHT:
+            return "light";
+        case DARK:
+            return "dark";
+        default:
+            return "system";
         }
     }
 
     public Adw.ColorScheme to_adw_color_scheme () {
         switch (this) {
-            case LIGHT:
-                return Adw.ColorScheme.FORCE_LIGHT;
-            case DARK:
-                return Adw.ColorScheme.FORCE_DARK;
-            default:
-                return Adw.ColorScheme.DEFAULT;
+        case LIGHT:
+            return Adw.ColorScheme.FORCE_LIGHT;
+        case DARK:
+            return Adw.ColorScheme.FORCE_DARK;
+        default:
+            return Adw.ColorScheme.DEFAULT;
         }
     }
 }
