@@ -51,6 +51,7 @@ public class Iide.Application : Adw.Application {
         action_manager.register_action (new ZoomInAction ());
         action_manager.register_action (new ZoomOutAction ());
         action_manager.register_action (new ZoomResetAction ());
+        action_manager.register_action (new ExpandSelectionAction ());
         action_manager.register_action (new QuitAction ());
     }
 
@@ -86,9 +87,9 @@ public class Iide.Application : Adw.Application {
         var css_provider = new Gtk.CssProvider ();
         css_provider.load_from_resource ("/org/github/kai66673/iide/style.css");
         Gtk.StyleContext.add_provider_for_display (
-            Gdk.Display.get_default (),
-            css_provider,
-            Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION
+                                                   Gdk.Display.get_default (),
+                                                   css_provider,
+                                                   Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION
         );
 
         var win = this.active_window ?? new Iide.Window (this);
@@ -110,11 +111,11 @@ private class SaveAllAction : Iide.Action {
     public override string? category { get { return "File"; } }
 
     public override bool can_execute () {
-        return app?.active_window is Iide.Window;
+        return app ? .active_window is Iide.Window;
     }
 
     public override void execute () {
-        var win = app?.active_window as Iide.Window;
+        var win = app ? .active_window as Iide.Window;
         win?.save_modified ();
     }
 }
@@ -137,7 +138,7 @@ private class OpenProjectAction : Iide.Action {
     }
 
     public override void execute () {
-        var win = app?.active_window as Iide.Window;
+        var win = app ? .active_window as Iide.Window;
         win?.open_project_dialog ();
     }
 }
@@ -161,7 +162,7 @@ private class PreferencesAction : Iide.Action {
 
     public override void execute () {
         var dialog = new Iide.PreferencesDialog ();
-        dialog.set_transient_for (app?.active_window);
+        dialog.set_transient_for (app ? .active_window);
         dialog.present ();
     }
 }
@@ -190,6 +191,7 @@ private class ToggleMinimapAction : Iide.Action {
         state = !state;
         settings.show_minimap = state;
         app?.minimap_changed (state);
+
         state_changed (state);
         Iide.ActionManager.get_instance ().set_toggle_state (id, state);
     }
@@ -260,6 +262,26 @@ private class ZoomResetAction : Iide.Action {
     }
 }
 
+private class ExpandSelectionAction : Iide.Action {
+    public override string id { get { return "expand_selection"; } }
+    public override string name { get { return _("Expand Selection"); } }
+    public override string? description { get { return _("Expand the current selection"); } }
+    public override string? icon_name { get { return "zoom-original-symbolic"; } }
+    public override string? category { get { return "View"; } }
+
+    public override bool can_execute () {
+        return true;
+    }
+
+    public override void execute () {
+        var app = GLib.Application.get_default () as Iide.Application;
+        var win = app ? .active_window as Iide.Window;
+        if (win != null) {
+            win.get_active_source_view () ? .ts_highlighter ? .expand_selection ();
+        }
+    }
+}
+
 private class QuitAction : Iide.Action {
     public override string id { get { return "quit"; } }
     public override string name { get { return _("Quit"); } }
@@ -291,11 +313,11 @@ private class FuzzyFinderAction : Iide.Action {
     public override string? category { get { return "File"; } }
 
     public override bool can_execute () {
-        return app?.active_window is Iide.Window;
+        return app ? .active_window is Iide.Window;
     }
 
     public override void execute () {
-        var win = app?.active_window as Iide.Window;
+        var win = app ? .active_window as Iide.Window;
         if (win != null) {
             var dialog = new Iide.FuzzyFinderDialog (win, win.get_document_manager ());
             dialog.set_transient_for (win);
@@ -318,11 +340,11 @@ private class SearchInFilesAction : Iide.Action {
     public override string? category { get { return "Edit"; } }
 
     public override bool can_execute () {
-        return app?.active_window is Iide.Window;
+        return app ? .active_window is Iide.Window;
     }
 
     public override void execute () {
-        var win = app?.active_window as Iide.Window;
+        var win = app ? .active_window as Iide.Window;
         if (win != null) {
             var dialog = new Iide.SearchInFilesDialog (win, win.get_document_manager ());
             dialog.set_transient_for (win);

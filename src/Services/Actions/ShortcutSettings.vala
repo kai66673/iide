@@ -30,6 +30,7 @@ public class Iide.ShortcutSettings : Object {
         shortcuts_cache.set ("zoom_in", "<primary>plus");
         shortcuts_cache.set ("zoom_out", "<primary>minus");
         shortcuts_cache.set ("zoom_reset", "<primary>0");
+        shortcuts_cache.set ("expand_selection", "<primary>w");
         shortcuts_cache.set ("quit", "<primary>q");
     }
 
@@ -75,7 +76,7 @@ public class Iide.ShortcutSettings : Object {
 
     public signal void shortcut_changed (string action_id, string? new_shortcut);
 
-    public string? get_shortcut (string action_id) {
+    public string ? get_shortcut (string action_id) {
         return shortcuts_cache.get (action_id);
     }
 

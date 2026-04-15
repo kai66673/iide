@@ -457,4 +457,13 @@ public class Iide.Window : Panel.DocumentWorkspace {
     public Iide.DocumentManager get_document_manager () {
         return document_manager;
     }
+
+    public SourceView ? get_active_source_view () {
+        // 1. Получаем последний сфокусированный виджет в сетке панелей
+        Panel.Widget? active_widget = this.get_grid ().get_most_recent_frame ().get_visible_child ();
+
+        if (active_widget == null)return null;
+
+        return (active_widget as TextView) ? .source_view;
+    }
 }

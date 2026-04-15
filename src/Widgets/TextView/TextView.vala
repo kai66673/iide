@@ -49,7 +49,7 @@ public class Iide.SaveDelegate : Panel.SaveDelegate {
 }
 
 public class Iide.TextView : Panel.Widget {
-    private SourceView source_view;
+    public SourceView source_view;
     private GtkSource.Map source_map;
     private FontZoomer font_zoomer;
     private Iide.SettingsService settings;

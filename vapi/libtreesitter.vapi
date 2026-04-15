@@ -170,6 +170,18 @@ namespace TreeSitter {
 
         [CCode (cname = "ts_node_child")]
         public unowned Node child (uint32 index);
+
+        [CCode (cname = "ts_node_descendant_for_byte_range")]
+        public Node descendant_for_byte_range (uint32 start, uint32 end);
+
+        [CCode (cname = "ts_node_named_descendant_for_byte_range")]
+        public Node named_descendant_for_byte_range (uint32 start, uint32 end);
+
+        [CCode (cname = "ts_node_parent")]
+        public Node parent ();
+
+        [CCode (cname = "ts_node_is_null")]
+        public bool is_null ();
     }
 
     [CCode (cname = "TSTreeCursor", free_function = "ts_tree_cursor_delete", has_type_id = false)]

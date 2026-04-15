@@ -275,6 +275,38 @@ public abstract class Iide.BaseTreeSitterHighlighter : Object {
         on_buffer_changed ();
     }
 
+    public void expand_selection () {
+        if (tree == null)return;
+
+        Gtk.TextIter start_sel, end_sel;
+        // Получаем текущее выделение
+        buffer.get_selection_bounds (out start_sel, out end_sel);
+
+        // Начало буфера для расчета смещений
+        Gtk.TextIter start_buf;
+        buffer.get_start_iter (out start_buf);
+
+        // Конвертируем итераторы в абсолютные байтовые смещения через длину среза
+        uint32 start_byte = (uint32) buffer.get_slice (start_buf, start_sel, false).length;
+        uint32 end_byte = (uint32) buffer.get_slice (start_buf, end_sel, false).length;
+
+        // Ищем узел, который охватывает текущее выделение
+        TreeSitter.Node root = tree.root_node ();
+        TreeSitter.Node node = root.named_descendant_for_byte_range (start_byte, end_byte);
+
+        if (node.is_null ())return;
+
+        if (node.start_byte () == start_byte && node.end_byte () == end_byte) {
+            var parent = node.parent ();
+            if (!parent.is_null ())node = parent;
+        }
+
+        // Устанавливаем новое выделение
+        Gtk.TextIter new_start, new_end;
+        get_iters_from_ts_node (buffer, node, out new_start, out new_end);
+        buffer.select_range (new_start, new_end);
+    }
+
     ~BaseTreeSitterHighlighter () {
         // Явное зануление для вызова free_functions из VAPI
         this.parser = null;
