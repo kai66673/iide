@@ -6,7 +6,7 @@ public class Iide.ValaHighlighter : BaseTreeSitterHighlighter {
         base (view);
     }
 
-    protected override unowned TreeSitter.Language? get_ts_language () {
+    protected override unowned TreeSitter.Language get_ts_language () {
         return get_lang_vala ();
     }
 

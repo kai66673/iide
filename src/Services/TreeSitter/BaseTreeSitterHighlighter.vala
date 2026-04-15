@@ -25,7 +25,10 @@ public abstract class Iide.BaseTreeSitterHighlighter : Object {
     private void set_color_theme () {
         var color_scheme = SettingsService.get_instance ().color_scheme;
         current_theme_index = color_scheme != ColorScheme.LIGHT ? 1 : 0;
-        run_highlighting ();
+        if (highlight_timeout_id > 0) {
+            Source.remove (highlight_timeout_id);
+        }
+        initial_rehighlight ();
     }
 
     protected BaseTreeSitterHighlighter (SourceView view) {
@@ -39,30 +42,25 @@ public abstract class Iide.BaseTreeSitterHighlighter : Object {
         this.parser = new Parser ();
         this.cursor = new QueryCursor ();
 
+        // Определяем язык
         unowned Language lang = get_ts_language ();
-        if (lang != null) {
-            this.parser.set_language (lang);
-            load_query (lang);
-            // Подготавливаем индексный мост сразу после загрузки Query
-            prepare_capture_mapping ();
-        }
+        this.parser.set_language (lang);
+        // Загружаем Query
+        load_query (lang);
+        // Подготавливаем индексный мост сразу после загрузки Query
+        prepare_capture_mapping ();
 
         // Устанавливаем тему цвета и подписываемся на изменение схемы цветов
         set_color_theme ();
         this.buffer.notify["style-scheme"].connect_after (set_color_theme);
 
-        // Подключаемся к изменениям текста
-        this.buffer.changed.connect_after (on_buffer_changed);
-
-        // Если передано View, подписываемся на скроллинг для инкрементальной покраски
-        if (view != null) {
-            view.hadjustment.value_changed.connect (on_viewport_changed);
-            view.vadjustment.value_changed.connect (on_viewport_changed);
-        }
+        // Подключаемся к низкоуровневым сигналам
+        buffer.insert_text.connect_after (on_insert_text);
+        buffer.delete_range.connect (on_delete_range);
     }
 
     // Абстрактные методы для реализации в подклассах (Vala, Cpp и т.д.)
-    protected abstract unowned Language ? get_ts_language ();
+    protected abstract unowned Language get_ts_language ();
     protected abstract string get_query_filename ();
     protected abstract string query_source ();
 
@@ -108,59 +106,61 @@ public abstract class Iide.BaseTreeSitterHighlighter : Object {
         }
 
         highlight_timeout_id = Timeout.add (DEBOUNCE_MS, () => {
-            run_highlighting ();
+            // run_highlighting ();
+            sync_and_render ();
             highlight_timeout_id = 0;
             return Source.REMOVE;
         });
     }
 
-    private void on_viewport_changed () {
-        // При скроллинге красим без большой задержки
-        run_highlighting ();
-    }
-
-    private void run_highlighting () {
+    private void initial_rehighlight () {
         Gtk.TextIter start, end;
         buffer.get_bounds (out start, out end);
+
+        // Берем актуальный контент
+        string content = buffer.get_text (start, end, false);
+        this.tree = parser.parse_string (null, content.data);
+
+        // Удаляем старые теги
+        buffer.remove_all_tags (start, end);
+
+        this.cursor = new QueryCursor ();
+        cursor.exec (query, tree.root_node ());
+        render_matches ();
+    }
+
+    private void sync_and_render () {
+        Gtk.TextIter start, end;
+        buffer.get_bounds (out start, out end);
+        // Берем актуальный контент
         string content = buffer.get_text (start, end, false);
 
-        // Инкрементальный парсинг: передаем старое дерево для ускорения
-        var new_tree = parser.parse_string (null, content.data);
-        tree = (owned) new_tree;
+        // old_tree уже содержит правки от on_insert_text / on_delete_range
+        unowned TreeSitter.Tree? old_tree = this.tree;
+        var new_tree = parser.parse_string (old_tree, content.data);
 
-        if (tree != null && query != null) {
-            apply_highlights ();
+        TreeSitter.Range[] changed_ranges = old_tree.get_changed_ranges (new_tree);
+        // uint32 length = (uint32) changed_ranges.length;
+        this.tree = (owned) new_tree;
+        this.cursor = new QueryCursor ();
+        foreach (var range in changed_ranges) {
+            Gtk.TextIter s, e;
+            // Используем твой рабочий метод для получения итераторов
+            get_iters_from_ts_node_coords (range.start_point, range.end_point, out s, out e);
+
+            // Точечная очистка и перекраска
+            buffer.remove_all_tags (s, e);
+
+            cursor.set_byte_range (range.start_byte, range.end_byte);
+            cursor.exec (query, tree.root_node ());
+            render_matches ();
         }
     }
 
-    private void apply_highlights () {
-        // if (view != null) {
-        //// Оптимизация: красим только то, что видит пользователь
-        // Gdk.Rectangle visible_rect;
-        // view.get_visible_rect (out visible_rect);
-
-        // Gtk.TextIter start_iter, end_iter;
-        // int line_top;
-        // view.get_line_at_y (out start_iter, visible_rect.y, out line_top);
-        // view.get_line_at_y (out end_iter, visible_rect.y + visible_rect.height, out line_top);
-        // end_iter.forward_to_line_end ();
-
-        // cursor.set_byte_range (
-        // (uint32) get_absolute_byte_offset (start_iter),
-        // (uint32) get_absolute_byte_offset (end_iter)
-        // );
-        // }
-
-        Gtk.TextIter start, end;
-        buffer.get_bounds (out start, out end);
-        buffer.remove_all_tags (start, end);
-
-        cursor.exec (query, tree.root_node ());
-
+    private void render_matches () {
         QueryMatch match;
         while (cursor.next_match (out match)) {
             foreach (var capture in match.captures) {
-                // Мгновенное получение тега по двум индексам без поиска в словарях
                 var tag = capture_tags[capture.index, current_theme_index];
                 if (tag != null) {
                     apply_tag_fast (capture.node, tag);
@@ -185,6 +185,94 @@ public abstract class Iide.BaseTreeSitterHighlighter : Object {
 
         buffer.get_iter_at_line (out end_iter, (int) node.end_point ().row);
         end_iter.set_line_index ((int) node.end_point ().column);
+    }
+
+    // Вспомогательный метод для работы с координатами напрямую
+    private void get_iters_from_ts_node_coords (TreeSitter.Point start_p, TreeSitter.Point end_p,
+                                                out Gtk.TextIter s, out Gtk.TextIter e) {
+        buffer.get_iter_at_line (out s, (int) start_p.row);
+        s.set_line_index ((int) start_p.column);
+
+        buffer.get_iter_at_line (out e, (int) end_p.row);
+        e.set_line_index ((int) end_p.column);
+    }
+
+    private void on_insert_text (Gtk.TextIter iter, string text, int len_bytes) {
+        InputEdit edit = {};
+
+        // Начальные координаты (фиксируем ДО вставки)
+        Gtk.TextIter start_buf;
+        buffer.get_start_iter (out start_buf);
+        edit.start_byte = (uint32) buffer.get_slice (start_buf, iter, false).length;
+
+        edit.start_point = TreeSitter.Point () {
+            row = (uint32) iter.get_line (),
+            column = (uint32) iter.get_line_index ()
+        };
+
+        // Вставка в Tree-sitter — это замена диапазона нулевой длины на новый текст
+        edit.old_end_byte = edit.start_byte;
+        edit.old_end_point = edit.start_point;
+
+        // Вычисляем, где окажется конец после вставки
+        uint32 lines_added;
+        uint32 last_line_bytes;
+        calculate_text_stats (text, out lines_added, out last_line_bytes);
+
+        edit.new_end_byte = edit.start_byte + (uint32) text.length;
+
+        edit.new_end_point = TreeSitter.Point () {
+            row = edit.start_point.row + lines_added,
+            column = lines_added > 0 ? last_line_bytes : edit.start_point.column + last_line_bytes
+        };
+
+        tree.edit (edit);
+
+        // После правки дерева запускаем отложенную перекраску (debounce)
+        on_buffer_changed ();
+    }
+
+    private void calculate_text_stats (string text, out uint32 lines, out uint32 last_column) {
+        lines = 0;
+        last_column = 0;
+        int i = 0;
+        unichar c;
+
+        while (text.get_next_char (ref i, out c)) {
+            if (c == '\n') {
+                lines++;
+                last_column = 0;
+            } else {
+                // Tree-sitter ожидает колонки в БАЙТАХ от начала строки
+                // Вычисляем длину текущего символа в байтах
+                last_column += (uint32) c.to_utf8 (null);
+            }
+        }
+    }
+
+    private void on_delete_range (Gtk.TextIter start, Gtk.TextIter end) {
+        InputEdit edit = {};
+
+        Gtk.TextIter start_buf;
+        buffer.get_start_iter (out start_buf);
+        edit.start_byte = (uint32) buffer.get_slice (start_buf, start, false).length;
+        edit.old_end_byte = (uint32) buffer.get_slice (start_buf, end, false).length;
+        edit.new_end_byte = edit.start_byte;
+
+        edit.start_point = TreeSitter.Point () {
+            row = (uint32) start.get_line (),
+            column = (uint32) start.get_line_index ()
+        };
+        edit.old_end_point = TreeSitter.Point () {
+            row = (uint32) end.get_line (),
+            column = (uint32) end.get_line_index ()
+        };
+        edit.new_end_point = edit.start_point;
+
+        tree.edit (edit);
+
+        // После правки дерева запускаем отложенную перекраску (debounce)
+        on_buffer_changed ();
     }
 
     ~BaseTreeSitterHighlighter () {
