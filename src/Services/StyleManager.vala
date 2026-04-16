@@ -66,6 +66,13 @@ public class Iide.StyleService : Object {
         setup_tag ("function.call", "#1c71d8", "#78aeed", false);
         setup_tag ("function.method", "#1a5fb4", "#62a0ea", true);
 
+        // В конструктор StyleService
+        setup_tag ("bracket.lvl1", "#3584e4", "#78aeed", false); // Синий
+        setup_tag ("bracket.lvl2", "#26a269", "#8ff0a4", false); // Зеленый
+        setup_tag ("bracket.lvl3", "#e66100", "#ffa348", false); // Оранжевый
+        setup_tag ("bracket.lvl4", "#e01b24", "#ff7b72", false); // Красный
+        setup_tag ("bracket.lvl5", "#9141ac", "#c061cb", false); // Фиолетовый
+
         // Тег для сброса (если в query есть @none)
         setup_tag ("none", null, null, false);
     }

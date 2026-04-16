@@ -172,12 +172,35 @@ public abstract class Iide.BaseTreeSitterHighlighter : Object {
         QueryMatch match;
         while (cursor.next_match (out match)) {
             foreach (var capture in match.captures) {
-                var tag = capture_tags[capture.index, current_theme_index];
-                if (tag != null) {
+                uint32 name_len;
+                string capture_name = query.capture_name_for_id (capture.index, out name_len);
+
+                Gtk.TextTag? tag = null;
+
+                if (capture_name == "punctuation.bracket") {
+                    int lvl = (get_nesting_level (capture.node) % 5) + 1; // Цикл по 5 цветам
+                    tag = StyleService.get_instance ().get_tag ("bracket.lvl" + lvl.to_string (), current_theme_index);
+                } else {
+                    tag = capture_tags[capture.index, current_theme_index];
+                }                if (tag != null) {
                     apply_tag_fast (capture.node, tag);
                 }
             }
         }
+    }
+
+    private int get_nesting_level (TreeSitter.Node node) {
+        int level = 0;
+        TreeSitter.Node? parent = node.parent ();
+        while (parent != null && !parent.is_null ()) {
+            string type = parent.type ();
+            // Считаем вложенность только по блокам, спискам аргументов и т.д.
+            if (type == "block" || type == "argument_list" || type == "parameters" || type == "tuple_pattern") {
+                level++;
+            }
+            parent = parent.parent ();
+        }
+        return level;
     }
 
     private void apply_tag_fast (TreeSitter.Node node, Gtk.TextTag tag) {

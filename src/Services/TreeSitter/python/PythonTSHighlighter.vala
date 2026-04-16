@@ -118,7 +118,9 @@ public class Iide.PythonHighlighter : BaseTreeSitterHighlighter {
           "or"
           "is not"
           "not in"
-        ] @operator
+        ] @operators
+
+        ["(" ")" "[" "]" "{" "}"] @punctuation.bracket
 
         [
           "as"
