@@ -180,46 +180,9 @@ public class Iide.RustHighlighter : BaseTreeSitterHighlighter {
         """;
     }
 
-    // protected override string map_capture_to_gtk_tag (string capture_name) {
-    // switch (capture_name) {
-    //// Макросы (println!, vec!)
-    // case "function.macro" :
-    // case "macro":
-    // return "def:preprocessor";
-
-    //// Типы и лайфтаймы ('a)
-    // case "type":
-    // case "type.builtin":
-    // case "label": // Для 'static, 'a
-    // return "def:type";
-
-    //// Ключевые слова
-    // case "keyword":
-    // case "keyword.function": // fn
-    // case "keyword.control": // match, if, loop
-    // return "def:keyword";
-
-    //// Самовызовы (self)
-    // case "variable.language":
-    // return "def:special-constant";
-
-    //// Числа и булевы значения
-    // case "number":
-    // case "boolean":
-    // return "def:constant";
-
-    //// Строки и символы
-    // case "string":
-    // case "char":
-    // return "def:string";
-
-    //// Атрибуты (#[derive(...)])
-    // case "attribute":
-    // return "def:preprocessor";
-
-    // default:
-    //// Вызываем базовый маппинг для общих случаев (comment, function и т.д.)
-    // return base.map_capture_to_gtk_tag (capture_name);
-    // }
-    // }
+    protected override bool is_container_node (string node_type) {
+        return node_type in new string[] {
+                   "function_item", "impl_item", "struct_item", "enum_item", "trait_item", "mod_item"
+        };
+    }
 }

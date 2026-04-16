@@ -95,4 +95,10 @@ public class Iide.CppHighlighter : BaseTreeSitterHighlighter {
         (raw_string_literal) @string
         """;
     }
+
+    protected override bool is_container_node (string node_type) {
+        return node_type in new string[] {
+                   "class_specifier", "struct_specifier", "function_definition", "namespace_definition"
+        };
+    }
 }

@@ -53,6 +53,7 @@ public class Iide.TextView : Panel.Widget {
     private GtkSource.Map source_map;
     private FontZoomer font_zoomer;
     private Iide.SettingsService settings;
+    private EditorStatusBar editor_status_bar;
 
     public Window window;
     public string uri { get; private set; }
@@ -141,7 +142,25 @@ public class Iide.TextView : Panel.Widget {
         source_map.set_font_map (font_map);
 
         var box = new Gtk.Box (Gtk.Orientation.VERTICAL, 0);
+
         box.append (subbox);
+
+        this.editor_status_bar = new EditorStatusBar ();
+        box.append (this.editor_status_bar);
+        if (source_view.ts_highlighter != null) {
+            source_view.ts_highlighter.breadcrumbs_changed.connect (this.editor_status_bar.update_breadcrumbs);
+        }
+        this.editor_status_bar.breadcrumb_clicked.connect ((line, column) => {
+            Gtk.TextIter iter;
+            buffer.get_iter_at_line (out iter, (int) line);
+            iter.set_line_index ((int) column);
+
+            buffer.place_cursor (iter);
+            source_view.scroll_to_iter (iter, 0.1, false, 0, 0.5);
+            source_view.grab_focus ();
+        });
+
+
         child = box;
 
         title = file.get_basename ();
@@ -151,6 +170,22 @@ public class Iide.TextView : Panel.Widget {
 
         buffer.modified_changed.connect_after (() => {
             modified = buffer.get_modified ();
+        });
+        buffer.notify["cursor-position"].connect (() => {
+            Gtk.TextIter insert, selection;
+            buffer.get_selection_bounds (out insert, out selection);
+
+            // 1. Обновляем позицию
+            int line = insert.get_line ();
+            int col = insert.get_line_index (); // Используем байтовый индекс для честности
+            int sel_len = insert.get_offset () - selection.get_offset ();
+
+            editor_status_bar.update_position (line, col, sel_len);
+        });
+
+        // Режим вставки (Insert/Overwrite)
+        source_view.notify["overwrite"].connect (() => {
+            editor_status_bar.update_mode (source_view.overwrite);
         });
 
         // buffer.changed.connect (() => {

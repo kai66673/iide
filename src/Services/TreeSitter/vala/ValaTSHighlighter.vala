@@ -180,4 +180,8 @@ public class Iide.ValaHighlighter : BaseTreeSitterHighlighter {
         ] @punctuation.bracket
         """;
     }
+
+    protected override bool is_container_node (string node_type) {
+        return node_type in new string[] { "class_definition", "function_definition" };
+    }
 }

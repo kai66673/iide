@@ -158,79 +158,9 @@ public class Iide.PythonHighlighter : BaseTreeSitterHighlighter {
         """;
     }
 
-    // protected override string map_capture_to_gtk_tag (string capture_name) {
-    //// Обработка сложных захватов из вашего highlights.scm
-    // switch (capture_name) {
-    //// Переменные и параметры
-    // case "variable" :
-    // case "variable.member":
-    // return "def:identifier";
-    // case "variable.parameter":
-    // return "def:parameter"; // если в схеме нет, откатится к дефолту
-    // case "variable.builtin": // self, cls
-    // return "def:special-constant";
-
-    //// Константы
-    // case "constant":
-    // case "constant.builtin":
-    // case "boolean":
-    // return "def:constant";
-
-    //// Функции и методы
-    // case "function":
-    // case "function.call":
-    // case "function.method":
-    // case "function.method.call":
-    // case "constructor":
-    // return "def:function";
-    // case "function.builtin":
-    // return "def:builtin";
-
-    //// Типы
-    // case "type":
-    // case "type.builtin":
-    // case "type.definition":
-    // return "def:type";
-
-    //// Ключевые слова (разделенные на группы в вашем Query)
-    // case "keyword":
-    // case "keyword.function": // def, lambda
-    // case "keyword.control": // if, else, match
-    // case "keyword.repeat": // for, while
-    // case "keyword.return": // return, yield
-    // case "keyword.import": // import, from
-    // case "keyword.exception": // try, except
-    // case "keyword.conditional":
-    // return "def:keyword";
-
-    // case "keyword.operator": // and, in, is
-    // return "def:operator";
-
-    //// Строки и документация
-    // case "string":
-    // case "string.documentation":
-    // case "string.escape":
-    // return "def:string";
-
-    //// Пунктуация и операторы
-    // case "operator":
-    // return "def:operator";
-    // case "punctuation.bracket":
-    // case "punctuation.delimiter":
-    // case "punctuation.special":
-    // return "def:bracket";
-
-    // case "comment":
-    // return "def:comment";
-
-    // default:
-    //// Если имя содержит точки (например, @variable.parameter),
-    //// пробуем найти базовую категорию (variable)
-    // if (capture_name.contains (".")) {
-    // string base_cat = capture_name.split (".")[0];
-    // return base.map_capture_to_gtk_tag (base_cat);
-    // }
-    // return base.map_capture_to_gtk_tag (capture_name);
-    // }
-    // }
+    protected override bool is_container_node (string node_type) {
+        return node_type in new string[] {
+                   "function_definition", "class_definition", "module_definition"
+        };
+    }
 }

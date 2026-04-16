@@ -182,6 +182,9 @@ namespace TreeSitter {
 
         [CCode (cname = "ts_node_is_null")]
         public bool is_null ();
+
+        [CCode (cname = "ts_node_child_by_field_name")]
+        public Node child_by_field_name (string field_name, uint32 name_len = 0);
     }
 
     [CCode (cname = "TSTreeCursor", free_function = "ts_tree_cursor_delete", has_type_id = false)]

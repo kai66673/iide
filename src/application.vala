@@ -21,6 +21,7 @@
 public class Iide.Application : Adw.Application {
     private Iide.SettingsService settings;
     private Iide.ActionManager action_manager;
+    private SimpleActionGroup simple_action_group = new SimpleActionGroup ();
 
     public signal void zoom_changed (int zoom_level);
     public signal void minimap_changed (bool visible);
@@ -54,6 +55,22 @@ public class Iide.Application : Adw.Application {
         action_manager.register_action (new ExpandSelectionAction ());
         action_manager.register_action (new ShrinkSelectionAction ());
         action_manager.register_action (new QuitAction ());
+
+        // Ins/Ovr toggle
+        // Действие переключения режима
+        var toggle_overwrite = new SimpleAction ("toggle-overwrite", null);
+        toggle_overwrite.activate.connect (() => {
+            // Переключаем встроенное свойство SourceView
+            var win = active_window as Iide.Window;
+            if (win != null) {
+                var view = win.get_active_source_view ();
+                if (view != null) {
+                    view.overwrite = !view.overwrite;
+                }
+            }
+        });
+        simple_action_group.add_action (toggle_overwrite);
+        set_accels_for_action ("editor.toggle-overwrite", { "Insert" });
     }
 
     private void apply_shortcuts () {

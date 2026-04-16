@@ -1,5 +1,10 @@
 using TreeSitter;
 
+public struct BreadcrumbItem {
+    public string name;
+    public TreeSitter.Point start_point;
+}
+
 public abstract class Iide.BaseTreeSitterHighlighter : Object {
     // Нативные структуры Tree-sitter
     protected Parser parser;
@@ -25,6 +30,9 @@ public abstract class Iide.BaseTreeSitterHighlighter : Object {
     // Список структур Range из Tree-sitter для хранения истории
     private Gee.ArrayQueue<TreeSitter.Range?> selection_stack = new Gee.ArrayQueue<TreeSitter.Range?> ();
     private bool is_internal_selection_change = false;
+
+    private Gee.List<BreadcrumbItem?> last_crumbs = null;
+    public signal void breadcrumbs_changed (Gee.List<BreadcrumbItem?> crumbs);
 
     private void set_color_theme () {
         var color_scheme = SettingsService.get_instance ().color_scheme;
@@ -68,12 +76,17 @@ public abstract class Iide.BaseTreeSitterHighlighter : Object {
                 selection_stack.clear ();
             }
         });
+
+        buffer.notify["cursor-position"].connect (update_breadcrumbs);
     }
 
     // Абстрактные методы для реализации в подклассах (Vala, Cpp и т.д.)
     protected abstract unowned Language get_ts_language ();
     protected abstract string get_query_filename ();
     protected abstract string query_source ();
+
+    // Абстрактный метод для фильтрации узлов Breadcrumbs
+    protected abstract bool is_container_node (string node_type);
 
     private void load_query (Language lang) {
         string source = query_source ();
@@ -132,6 +145,8 @@ public abstract class Iide.BaseTreeSitterHighlighter : Object {
         string content = buffer.get_text (start, end, false);
         this.tree = parser.parse_string (null, content.data);
 
+        update_breadcrumbs ();
+
         // Удаляем старые теги
         buffer.remove_all_tags (start, end);
 
@@ -149,6 +164,8 @@ public abstract class Iide.BaseTreeSitterHighlighter : Object {
         // old_tree уже содержит правки от on_insert_text / on_delete_range
         unowned TreeSitter.Tree? old_tree = this.tree;
         var new_tree = parser.parse_string (old_tree, content.data);
+
+        update_breadcrumbs ();
 
         TreeSitter.Range[] changed_ranges = old_tree.get_changed_ranges (new_tree);
         // uint32 length = (uint32) changed_ranges.length;
@@ -369,6 +386,61 @@ public abstract class Iide.BaseTreeSitterHighlighter : Object {
             is_internal_selection_change = true;
             buffer.select_range (s_iter, e_iter);
             is_internal_selection_change = false;
+        }
+    }
+
+    public Gee.List<BreadcrumbItem?> get_breadcrumbs_at_cursor () {
+        var result = new Gee.ArrayList<BreadcrumbItem?> ();
+        if (tree == null)return result;
+
+        Gtk.TextIter insert_iter;
+        buffer.get_iter_at_mark (out insert_iter, buffer.get_insert ());
+
+        // Получаем абсолютное байтовое смещение (твой проверенный способ)
+        Gtk.TextIter start_buf;
+        buffer.get_start_iter (out start_buf);
+        uint32 byte_offset = (uint32) buffer.get_slice (start_buf, insert_iter, false).length;
+
+        // Ищем именованный узел под курсором
+        TreeSitter.Node node = tree.root_node ().named_descendant_for_byte_range (byte_offset, byte_offset);
+
+        // Поднимаемся вверх к корню
+        while (!node.is_null ()) {
+            // Используем абстрактный метод для проверки типа
+            if (is_container_node (node.type ())) {
+                TreeSitter.Node? name_node = find_name_node (node);
+                if (name_node != null && !name_node.is_null ()) {
+                    Gtk.TextIter s, e;
+                    get_iters_from_ts_node (buffer, name_node, out s, out e);
+                    result.insert (0, BreadcrumbItem () {
+                        name = buffer.get_text (s, e, false),
+                        start_point = node.start_point () // Прыгаем к началу всего блока (fn/class)
+                    });
+                }
+            }
+            node = node.parent ();
+        }
+        return result;
+    }
+
+    private TreeSitter.Node? find_name_node (TreeSitter.Node node) {
+        string f_name = "name";
+        TreeSitter.Node name_node = node.child_by_field_name (f_name, (uint32) f_name.length);
+        if (!name_node.is_null ())return name_node;
+
+        // Фолбэк: ищем любой идентификатор в начале узла
+        for (uint32 i = 0; i < uint32.min (node.child_count (), 5); i++) {
+            TreeSitter.Node child = node.child (i);
+            if (child.type ().contains ("identifier"))return child;
+        }
+        return null;
+    }
+
+    private void update_breadcrumbs () {
+        var new_crumbs = get_breadcrumbs_at_cursor ();
+        if (last_crumbs != new_crumbs) {
+            last_crumbs = new_crumbs;
+            breadcrumbs_changed (last_crumbs);
         }
     }
 
