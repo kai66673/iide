@@ -228,6 +228,9 @@ public class Iide.TextView : Panel.Widget {
 
         int line_count = text_buffer.get_line_count ();
 
+        int lsp_error_count = 0;
+        int lsp_warning_count = 0;
+
         foreach (var diag in diagnostics) {
             if (diag.start_line >= line_count) {
                 continue;
@@ -238,9 +241,17 @@ public class Iide.TextView : Panel.Widget {
 
             var mark = new LspDiagnosticsMark.from_lsp_diagnostic (diag);
             text_buffer.add_mark (mark, start_iter); // Добавляем в буфер вручную
+
+            if (diag.severity == 1) {
+                lsp_error_count++;
+            } else if (diag.severity == 2) {
+                lsp_warning_count++;
+            }
         }
 
         text_buffer.end_user_action ();
+
+        this.editor_status_bar.update_diagnostics (lsp_error_count, lsp_warning_count);
     }
 
     public void select_and_scroll (int line, int start_col, int end_col, bool is_new) {

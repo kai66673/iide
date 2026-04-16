@@ -3,6 +3,10 @@ public class Iide.EditorStatusBar : Gtk.Box {
     private Gtk.Label pos_label;
     private Gtk.Label mode_label;
 
+    private Gtk.Label error_label;
+    private Gtk.Label warn_label;
+    private Gtk.Box diagnostic_box;
+
     private Gtk.CssProvider provider = new Gtk.CssProvider ();
 
     public signal void breadcrumb_clicked (uint line, uint column);
@@ -30,7 +34,37 @@ public class Iide.EditorStatusBar : Gtk.Box {
         info_box.append (pos_label);
         this.append (info_box);
 
+        diagnostic_box = new Gtk.Box (Gtk.Orientation.HORIZONTAL, 8);
+
+        // Ошибки (Красный)
+        error_label = new Gtk.Label ("0");
+        error_label.add_css_class ("error-label"); // Настроим цвет в CSS
+
+        // Предупреждения (Желтый)
+        warn_label = new Gtk.Label ("0");
+        warn_label.add_css_class ("warning-label");
+
+        diagnostic_box.append (new Gtk.Image.from_icon_name ("dialog-error-symbolic"));
+        diagnostic_box.append (error_label);
+        diagnostic_box.append (new Gtk.Image.from_icon_name ("dialog-warning-symbolic"));
+        diagnostic_box.append (warn_label);
+
+        // Добавляем в инфо-бокс перед позицией курсора
+        info_box.prepend (diagnostic_box);
+        diagnostic_box.hide (); // Скрываем, если ошибок нет
+
         provider.load_from_string ("button { max-height: 24px; min-height: 24px; padding: 0 2px 0 2px; font-size: 0.85em; }");
+    }
+
+    public void update_diagnostics (int errors, int warnings) {
+        if (errors == 0 && warnings == 0) {
+            diagnostic_box.hide ();
+            return;
+        }
+
+        diagnostic_box.show ();
+        error_label.label = errors.to_string ();
+        warn_label.label = warnings.to_string ();
     }
 
     public void update_breadcrumbs (Gee.List<BreadcrumbItem?> crumbs) {
