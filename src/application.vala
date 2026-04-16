@@ -52,6 +52,7 @@ public class Iide.Application : Adw.Application {
         action_manager.register_action (new ZoomOutAction ());
         action_manager.register_action (new ZoomResetAction ());
         action_manager.register_action (new ExpandSelectionAction ());
+        action_manager.register_action (new ShrinkSelectionAction ());
         action_manager.register_action (new QuitAction ());
     }
 
@@ -278,6 +279,26 @@ private class ExpandSelectionAction : Iide.Action {
         var win = app ? .active_window as Iide.Window;
         if (win != null) {
             win.get_active_source_view () ? .ts_highlighter ? .expand_selection ();
+        }
+    }
+}
+
+private class ShrinkSelectionAction : Iide.Action {
+    public override string id { get { return "shrink_selection"; } }
+    public override string name { get { return _("Shrink Selection"); } }
+    public override string? description { get { return _("Shrink the current selection"); } }
+    public override string? icon_name { get { return "zoom-original-symbolic"; } }
+    public override string? category { get { return "View"; } }
+
+    public override bool can_execute () {
+        return true;
+    }
+
+    public override void execute () {
+        var app = GLib.Application.get_default () as Iide.Application;
+        var win = app ? .active_window as Iide.Window;
+        if (win != null) {
+            win.get_active_source_view () ? .ts_highlighter ? .shrink_selection ();
         }
     }
 }

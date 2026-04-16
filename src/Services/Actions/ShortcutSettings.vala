@@ -31,6 +31,7 @@ public class Iide.ShortcutSettings : Object {
         shortcuts_cache.set ("zoom_out", "<primary>minus");
         shortcuts_cache.set ("zoom_reset", "<primary>0");
         shortcuts_cache.set ("expand_selection", "<primary>w");
+        shortcuts_cache.set ("shrink_selection", "<primary><shift>w");
         shortcuts_cache.set ("quit", "<primary>q");
     }
 

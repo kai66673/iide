@@ -22,6 +22,10 @@ public abstract class Iide.BaseTreeSitterHighlighter : Object {
     private uint highlight_timeout_id = 0;
     private const uint DEBOUNCE_MS = 150;
 
+    // Список структур Range из Tree-sitter для хранения истории
+    private Gee.ArrayQueue<TreeSitter.Range?> selection_stack = new Gee.ArrayQueue<TreeSitter.Range?> ();
+    private bool is_internal_selection_change = false;
+
     private void set_color_theme () {
         var color_scheme = SettingsService.get_instance ().color_scheme;
         current_theme_index = color_scheme != ColorScheme.LIGHT ? 1 : 0;
@@ -57,6 +61,13 @@ public abstract class Iide.BaseTreeSitterHighlighter : Object {
         // Подключаемся к низкоуровневым сигналам
         buffer.insert_text.connect_after (on_insert_text);
         buffer.delete_range.connect (on_delete_range);
+
+        buffer.notify["cursor-position"].connect (() => {
+            // Если позиция курсора изменилась не через наши методы expand/shrink — чистим стек
+            if (!is_internal_selection_change) {
+                selection_stack.clear ();
+            }
+        });
     }
 
     // Абстрактные методы для реализации в подклассах (Vala, Cpp и т.д.)
@@ -301,10 +312,41 @@ public abstract class Iide.BaseTreeSitterHighlighter : Object {
             if (!parent.is_null ())node = parent;
         }
 
+        // Сохраняем текущий диапазон в стек перед расширением
+        TreeSitter.Range current_range = {
+            { (uint32) start_sel.get_line (), (uint32) start_sel.get_line_index () },
+            { (uint32) end_sel.get_line (), (uint32) end_sel.get_line_index () },
+            start_byte,
+            end_byte
+        };
+
+        selection_stack.offer_head (current_range);
+
         // Устанавливаем новое выделение
         Gtk.TextIter new_start, new_end;
         get_iters_from_ts_node (buffer, node, out new_start, out new_end);
+        is_internal_selection_change = true;
         buffer.select_range (new_start, new_end);
+        is_internal_selection_change = false;
+    }
+
+    public void shrink_selection () {
+        if (selection_stack.is_empty)return;
+
+        // Достаем последний сохраненный диапазон
+        var last_range = selection_stack.poll ();
+
+        if (last_range != null) {
+            Gtk.TextIter s_iter, e_iter;
+
+            // Используем твой рабочий метод для получения итераторов
+            get_iters_from_ts_node_coords (last_range.start_point, last_range.end_point, out s_iter, out e_iter);
+
+            // Устанавливаем выделение обратно
+            is_internal_selection_change = true;
+            buffer.select_range (s_iter, e_iter);
+            is_internal_selection_change = false;
+        }
     }
 
     ~BaseTreeSitterHighlighter () {
