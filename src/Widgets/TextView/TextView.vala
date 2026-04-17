@@ -61,7 +61,6 @@ public class Iide.TextView : Panel.Widget {
 
     public bool is_modified { get { return ((GtkSource.Buffer) source_view.buffer).get_modified (); } }
 
-    public signal void text_changed (string text);
     public signal void buffer_saved ();
 
     public TextView (GLib.File file, GtkSource.Buffer buffer, Window window) {
@@ -187,10 +186,6 @@ public class Iide.TextView : Panel.Widget {
         source_view.notify["overwrite"].connect (() => {
             editor_status_bar.update_mode (source_view.overwrite);
         });
-
-        // buffer.changed.connect (() => {
-        // text_changed (buffer.text);
-        // });
     }
 
     public override void size_allocate (int width, int height, int baseline) {

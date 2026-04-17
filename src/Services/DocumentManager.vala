@@ -102,10 +102,6 @@ public class Iide.DocumentManager : GLib.Object {
                         }
                     });
 
-                    panel_widget.text_changed.connect ((text) => {
-                        lsp_manager.change_document.begin (uri, text);
-                    });
-
                     panel_widget.buffer_saved.connect (() => {
                         string content = ((GtkSource.Buffer) panel_widget.text_view.buffer).text;
                         lsp_manager.change_document.begin (uri, content);
