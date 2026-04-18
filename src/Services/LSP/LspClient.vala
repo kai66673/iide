@@ -1,9 +1,6 @@
 using GLib;
 using Gee;
 
-[CCode (cheader_filename = "unistd.h")]
-extern int getpid ();
-
 public class Iide.LspPromise : Object {
     public SourceFunc callback;
     // Можно добавить время создания для контроля таймаутов
@@ -33,9 +30,10 @@ public class Iide.ServerCapabilities : Object {
 }
 
 public class Iide.LspClient : Object {
-    private int next_id = 1;
+    private int next_id = 0;
     private Map<int, LspPromise> pending_requests = new HashMap<int, LspPromise> ();
     private Map<int, Json.Object?> responses = new HashMap<int, Json.Object?> ();
+    private LspConfig config;
 
     // Процесс LSP сервера
     private GLib.Subprocess process;
@@ -62,12 +60,13 @@ public class Iide.LspClient : Object {
 
     public bool is_initialized { get; private set; default = false; }
 
-    public LspClient () {
+    public LspClient (LspConfig config) {
         this.capabilities = new ServerCapabilities ();
+        this.config = config;
     }
 
     public async Json.Object? send_request (string method, Json.Object params) throws Error {
-        int id = next_id++;
+        int id = next_id--;
 
         // 1. Упаковываем запрос
         var root = new Json.Object ();
@@ -160,11 +159,45 @@ public class Iide.LspClient : Object {
         }
     }
 
+    public async void send_response_async (Json.Node id, Json.Node? result = null) throws Error {
+        var root = new Json.Object ();
+        root.set_string_member ("jsonrpc", "2.0");
+        root.set_member ("id", id);
+
+        // В ответах используется поле 'result' вместо 'method' и 'params'
+        if (result != null) {
+            root.set_member ("result", result);
+        } else {
+            root.set_member ("result", new Json.Node (Json.NodeType.NULL));
+        }
+
+        var generator = new Json.Generator ();
+        var root_node = new Json.Node (Json.NodeType.OBJECT);
+        root_node.set_object (root);
+        generator.set_root (root_node);
+        message ("!!!send_response_async: " + generator.to_data (null));
+
+        yield this.send_message_async (root);
+    }
+
     private void handle_payload (string payload) {
         try {
             var parser = new Json.Parser ();
             parser.load_from_data (payload);
             var root = parser.get_root ().get_object ();
+
+            if (root.has_member ("method")) {
+                message ("!!!handle_payload 01");
+                string method = root.get_string_member ("method");
+                message ("!!!handle_payload 02: " + method);
+                if (method == "window/workDoneProgress/create" && root.has_member ("id")) {
+                    // Мы просто подтверждаем, что готовы принимать прогресс с этим токеном
+                    message ("!!!handle_payload 02: window/workDoneProgress/create" + json_object_to_string (root));
+                    var node_id = root.get_member ("id");
+                    send_response_async.begin (node_id, new Json.Node (Json.NodeType.NULL));
+                    return;
+                }
+            }
 
             // Это ответ на наш запрос (есть 'id')
             if (root.has_member ("id")) {
@@ -182,6 +215,8 @@ public class Iide.LspClient : Object {
     private void handle_response (Json.Object response) {
         int id = (int) response.get_int_member ("id");
 
+        message ("!!!handle_response - id=" + id.to_string () + " - " + json_object_to_string (response));
+
         if (pending_requests.has_key (id)) {
             var promise = pending_requests.get (id);
             pending_requests.unset (id);
@@ -192,7 +227,29 @@ public class Iide.LspClient : Object {
             // Передаем управление обратно в асинхронный метод
             // Используем Idle.add, чтобы вернуться в MainContext (UI поток)
             Idle.add ((owned) promise.callback);
+            return;
         }
+
+        if (response.has_member ("method")) {
+            var node_result = config.server_response_result (response);
+            var node_id = response.get_member ("id");
+            send_response_async.begin (node_id, node_result);
+        }
+
+        // if (response.has_member ("method")) {
+        // string method = response.get_string_member ("method");
+        // switch (method) {
+        // case "client/registerCapability" : {
+        // message ("!!!handle_response - client/registerCapability - " + json_object_to_string (response));
+        // var node_id = response.get_member ("id");
+        // send_response_async.begin (node_id, new Json.Node (Json.NodeType.NULL));
+        // } return;
+        // case "workspace/configuration" : {
+        // message ("!!!handle_response - workspace/configuration - " + json_object_to_string (response));
+        // handle_response_workspace_configuration (response);
+        // } return;
+        // }
+        // }
     }
 
     private void handle_incoming_notification (Json.Object root) {
@@ -213,6 +270,8 @@ public class Iide.LspClient : Object {
                 // Парсим JSON-массив в список ваших объектов IdeLspDiagnostic
                 var diag_list = this.parse_diagnostics (json_array);
 
+                message ("!!!handle_incoming_notification - textDocument/publishDiagnostics: " + uri);
+
                 // Передаем в главный поток для UI
                 Idle.add (() => {
                     this.diagnostics_received (uri, diag_list);
@@ -221,7 +280,15 @@ public class Iide.LspClient : Object {
             }
             break;
 
-        case "window/logMessage" :
+        case "window/workDoneProgress/create" :
+            message ("!!!handle_incoming_notification - window/workDoneProgress/create" + json_object_to_string (root));
+            break;
+
+        case "$/progress" :
+            message ("!!!handle_incoming_notification - $/progress" + json_object_to_string (root));
+            break;
+
+        case "window/logMessage":
             if (params != null)handle_log_message (params);
             break;
 
@@ -246,11 +313,11 @@ public class Iide.LspClient : Object {
         });
     }
 
-    public async bool start_server_async (string command, string[] args, string? workspace_root, Json.Node? initialization_options = null) {
+    public async bool start_server_async (string? workspace_root) {
         try {
             // 1. Подготовка аргументов запуска
-            string[] argv = { command };
-            foreach (var arg in args)argv += arg;
+            string[] argv = { config.command () };
+            foreach (var arg in config.args ())argv += arg;
 
             // 2. Запуск подпроцесса
             var launcher = new SubprocessLauncher (SubprocessFlags.STDOUT_PIPE | SubprocessFlags.STDIN_PIPE);
@@ -264,13 +331,19 @@ public class Iide.LspClient : Object {
             this.run_read_loop.begin ();
 
             // 5. Фаза INITIALIZE
-            var init_params = build_init_params (workspace_root, initialization_options);
+            // var init_params = build_init_params (workspace_root, initialization_options);
+            var init_params = config.initialize_params (workspace_root, null);
+            message ("!!!initialize: " + json_object_to_string (init_params.get_object ()));
             var response = yield this.send_request ("initialize", init_params.get_object ());
+
+            message ("!!!initialized-->: " + json_object_to_string (response));
 
             if (response != null && response.has_member ("result")) {
                 var result = response.get_object_member ("result");
                 // Извлекаем возможности сервера
+                message ("-->parse_capabilities");
                 this.parse_capabilities (result);
+                message ("<--parse_capabilities");
             }
 
             // Используем Idle.add, чтобы оповестить подписчиков в главном потоке
@@ -320,60 +393,8 @@ public class Iide.LspClient : Object {
         }
 
         // Hover & Definition
-        this.capabilities.hover_provider = caps.has_member ("hoverProvider") && caps.get_boolean_member ("hoverProvider");
-        this.capabilities.definition_provider = caps.has_member ("definitionProvider") && caps.get_boolean_member ("definitionProvider");
-    }
-
-    private Json.Node build_init_params (string? workspace_root, Json.Node? initialization_options = null) {
-        var builder = new Json.Builder ();
-        builder.begin_object ();
-        builder.set_member_name ("processId");
-        builder.add_null_value ();
-        builder.set_member_name ("clientInfo");
-        builder.begin_object ();
-        builder.set_member_name ("name");
-        builder.add_string_value ("iide");
-        builder.set_member_name ("version");
-        builder.add_string_value ("0.1.0");
-        builder.end_object ();
-        builder.set_member_name ("rootUri");
-        if (workspace_root != null) {
-            builder.add_string_value (workspace_root);
-        } else {
-            builder.add_null_value ();
-        }
-        builder.set_member_name ("workspaceFolders");
-        builder.begin_array ();
-        if (workspace_root != null) {
-            builder.begin_object ();
-            builder.set_member_name ("uri");
-            builder.add_string_value (workspace_root);
-            builder.set_member_name ("name");
-            builder.add_string_value ("workspace");
-            builder.end_object ();
-        }
-        builder.end_array ();
-        builder.set_member_name ("capabilities");
-        builder.begin_object ();
-        builder.set_member_name ("textDocument");
-        builder.begin_object ();
-        builder.set_member_name ("syncKind");
-        builder.add_int_value (1);
-        builder.end_object ();
-        builder.end_object ();
-        builder.set_member_name ("workspace");
-        builder.begin_object ();
-        builder.set_member_name ("workspaceFolders");
-        builder.add_boolean_value (true);
-        builder.end_object ();
-        builder.end_object ();
-        if (initialization_options != null) {
-            builder.set_member_name ("initializationOptions");
-            builder.add_value (initialization_options.copy ());
-        }
-        builder.end_object ();
-
-        return builder.get_root ();
+        this.capabilities.hover_provider = caps.has_member ("hoverProvider");
+        this.capabilities.definition_provider = caps.has_member ("definitionProvider");
     }
 
     public async void send_notification_async (string method, Json.Object params) throws Error {
@@ -425,6 +446,8 @@ public class Iide.LspClient : Object {
         doc.set_string_member ("text", content);
 
         params.set_object_member ("textDocument", doc);
+
+        message ("!!!text_document_did_open - ");
 
         // Это уведомление (notification), оно не требует ID и не ждет ответа
         yield this.send_notification_async ("textDocument/didOpen", params);

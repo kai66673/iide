@@ -77,7 +77,7 @@ public class Iide.StyleService : Object {
         setup_tag ("none", null, null, false);
     }
 
-    private void setup_tag (string name, string light_color, string dark_color, bool bold, bool italic = false) {
+    private void setup_tag (string name, string? light_color, string? dark_color, bool bold, bool italic = false) {
         // Создаем тег для светлой темы
         var tag_light = new Gtk.TextTag (name + ":light");
         tag_light.foreground = light_color;

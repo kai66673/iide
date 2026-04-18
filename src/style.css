@@ -84,3 +84,9 @@ textview {
     font-family: Monospace;
     font-size: 2pt;
 }
+
+.breadcrumps-btn {
+    min-height: 24px;
+    padding: 0 2px 0 2px;
+    font-size: 0.85em;
+}

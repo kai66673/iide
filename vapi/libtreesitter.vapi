@@ -89,7 +89,7 @@ namespace TreeSitter {
         public bool set_language (Language language);
 
         [CCode (cname = "ts_parser_parse_string", array_length_type = "uint32_t")]
-        public Tree parse_string ([CCode (transfer = "none")] Tree? tree, uint8[] source);
+        public Tree parse_string (Tree? tree, uint8[] source);
     }
 
     [CCode (cname = "TSTree", free_function = "ts_tree_delete")]

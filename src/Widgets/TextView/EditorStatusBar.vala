@@ -7,8 +7,6 @@ public class Iide.EditorStatusBar : Gtk.Box {
     private Gtk.Label warn_label;
     private Gtk.Box diagnostic_box;
 
-    private Gtk.CssProvider provider = new Gtk.CssProvider ();
-
     public signal void breadcrumb_clicked (uint line, uint column);
 
     public EditorStatusBar () {
@@ -52,8 +50,6 @@ public class Iide.EditorStatusBar : Gtk.Box {
         // Добавляем в инфо-бокс перед позицией курсора
         info_box.prepend (diagnostic_box);
         diagnostic_box.hide (); // Скрываем, если ошибок нет
-
-        provider.load_from_string ("button { max-height: 24px; min-height: 24px; padding: 0 2px 0 2px; font-size: 0.85em; }");
     }
 
     public void update_diagnostics (int errors, int warnings) {
@@ -79,7 +75,7 @@ public class Iide.EditorStatusBar : Gtk.Box {
         foreach (var crumb in crumbs) {
             var btn = new Gtk.Button.with_label (crumb.name + " >");
             btn.add_css_class ("flat");
-            btn.get_style_context ().add_provider (provider, Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION);
+            btn.add_css_class ("breadcrumps-btn");
             btn.vexpand = false;
             btn.valign = Gtk.Align.CENTER;
             breadcrumbs_container.append (btn);

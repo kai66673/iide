@@ -18,6 +18,9 @@
  * SPDX-License-Identifier: GPL-3.0-or-later
  */
 
+[CCode (cname = "gtk_style_context_add_provider_for_display", cheader_filename = "gtk/gtk.h")]
+extern void add_provider_to_display (Gdk.Display display, Gtk.StyleProvider provider, uint priority);
+
 public class Iide.Application : Adw.Application {
     private Iide.SettingsService settings;
     private Iide.ActionManager action_manager;
@@ -104,10 +107,10 @@ public class Iide.Application : Adw.Application {
 
         var css_provider = new Gtk.CssProvider ();
         css_provider.load_from_resource ("/org/github/kai66673/iide/style.css");
-        Gtk.StyleContext.add_provider_for_display (
-                                                   Gdk.Display.get_default (),
-                                                   css_provider,
-                                                   Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION
+        add_provider_to_display (
+                                 Gdk.Display.get_default (),
+                                 css_provider,
+                                 Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION
         );
 
         var win = this.active_window ?? new Iide.Window (this);

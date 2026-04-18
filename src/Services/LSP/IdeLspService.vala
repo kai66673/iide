@@ -34,17 +34,18 @@ public class Iide.IdeLspService : GLib.Object {
         public string command;
         public string[] args;
         public string? workspace_root;
+        public Json.Node? initialization_options;
 
-        public LanguageConfig (string command, string[] args, string? workspace_root = null) {
+        public LanguageConfig (string command, string[] args, string? workspace_root = null, Json.Node? initialization_options = null) {
             this.command = command;
             this.args = args;
             this.workspace_root = workspace_root;
+            this.initialization_options = initialization_options;
         }
     }
 
     private void init_language_configs () {
-        language_configs.set ("python", new LanguageConfig ("basedpyright-langserver", { "--stdio" }));
-        language_configs.set ("python3", new LanguageConfig ("basedpyright-langserver", { "--stdio" }));
+        language_configs.set ("python", new LanguageConfig ("basedpyright-langserver", { "--stdio" }, null));
         language_configs.set ("cpp", new LanguageConfig ("clangd", new string[0]));
         language_configs.set ("c++", new LanguageConfig ("clangd", new string[0]));
         language_configs.set ("c", new LanguageConfig ("clangd", new string[0]));
@@ -72,7 +73,7 @@ public class Iide.IdeLspService : GLib.Object {
     }
 
     public async void open_document (string uri, string language_id, string content, string? workspace_root, SourceView view) {
-        var server_key = get_server_key_for_language (language_id);
+        var server_key = LspRegistry.get_lsp_id (language_id);
         if (server_key == null) {
             debug ("IdeLspService: No LSP server configured for language: %s", language_id);
             Idle.add (() => {
@@ -88,7 +89,11 @@ public class Iide.IdeLspService : GLib.Object {
             var client = clients.get (server_key);
             uri_to_client_key.set (uri, server_key);
             document_versions.set (uri, 1);
-            yield client.text_document_did_open (uri, language_id, 1, content);
+            try {
+                yield client.text_document_did_open (uri, language_id, 1, content);
+            } catch (Error e) {
+                logger.error ("LSP", "Failed to open document %s: %s".printf (uri, e.message));
+            }
 
             Idle.add (() => {
                 view.setup_lsp_sync (client);
@@ -105,26 +110,30 @@ public class Iide.IdeLspService : GLib.Object {
 
         client_starting.set (server_key, true);
 
-        var config = language_configs.get (server_key);
+        var config = LspRegistry.get_config (server_key);
         if (config == null) {
             client_starting.set (server_key, false);
             return;
         }
 
-        var client = new LspClient ();
+        var client = new LspClient (config);
         client.diagnostics_received.connect ((uri, diagnostics) => {
             diagnostics_updated (uri, diagnostics);
         });
 
-        bool started = yield client.start_server_async (config.command, config.args, workspace_root ?? config.workspace_root);
+        bool started = yield client.start_server_async (workspace_root);
 
-        logger.info ("LSP", "Started server for %s: %b (%s -- %s)".printf (server_key, started, workspace_root, config.workspace_root));
+        logger.info ("LSP", "Started server for %s: %b (%s)".printf (server_key, started, workspace_root));
 
         if (started) {
             clients.set (server_key, client);
             uri_to_client_key.set (uri, server_key);
             document_versions.set (uri, 1);
-            yield client.text_document_did_open (uri, language_id, 1, content);
+            try {
+                yield client.text_document_did_open (uri, language_id, 1, content);
+            } catch (Error e) {
+                logger.error ("LSP", "Failed to open document %s: %s".printf (uri, e.message));
+            }
 
             Idle.add (() => {
                 view.setup_lsp_sync (client);
@@ -169,7 +178,11 @@ public class Iide.IdeLspService : GLib.Object {
         var version = document_versions.get (uri);
         document_versions.set (uri, version + 1);
 
-        yield client.text_document_did_change (uri, version + 1, content);
+        try {
+            yield client.text_document_did_change (uri, version + 1, content);
+        } catch (Error e) {
+            logger.error ("LSP", "Failed to change document (FULL sync) %s: %s".printf (uri, e.message));
+        }
     }
 
     public async void send_did_change (string uri, int version, Gee.ArrayList<PendingChange> changes) {
@@ -179,7 +192,11 @@ public class Iide.IdeLspService : GLib.Object {
         }
 
         var client = clients.get (server_key);
-        yield client.send_did_change (uri, version, changes);
+        try {
+            yield client.send_did_change (uri, version, changes);
+        } catch (Error e) {
+            logger.error ("LSP", "Failed to change document (INCREMENTAL sync) %s: %s".printf (uri, e.message));
+        }
     }
 
     public async void close_document (string uri) {
@@ -189,28 +206,14 @@ public class Iide.IdeLspService : GLib.Object {
         }
 
         var client = clients.get (server_key);
-        yield client.text_document_did_close (uri);
+        try {
+            yield client.text_document_did_close (uri);
+        } catch (Error e) {
+            logger.error ("LSP", "Failed to close document %s: %s".printf (uri, e.message));
+        }
 
         uri_to_client_key.unset (uri);
         document_versions.unset (uri);
-    }
-
-    private string ? get_server_key_for_language (string language_id) {
-        if (language_configs.has_key (language_id)) {
-            return language_id;
-        }
-
-        if (language_id.down ().contains ("python")) {
-            return "python";
-        }
-        if (language_id.down ().contains ("c++") || language_id.down ().contains ("cpp")) {
-            return "cpp";
-        }
-        if (language_id.down ().contains ("c")) {
-            return "c";
-        }
-
-        return null;
     }
 
     public void set_language_config (string language_id, string command, string[] args, string? workspace_root = null) {
@@ -234,7 +237,12 @@ public class Iide.IdeLspService : GLib.Object {
         if (client == null) {
             return null;
         }
-        return yield client.request_completion (uri, line, character, trigger_character, trigger_kind);
+        try {
+            return yield client.request_completion (uri, line, character, trigger_character, trigger_kind);
+        } catch (Error e) {
+            logger.error ("LSP", "Failed to request completion for %s: %s".printf (uri, e.message));
+            return null;
+        }
     }
 
     public async string ? request_hover (string uri, int line, int character) {
@@ -243,12 +251,22 @@ public class Iide.IdeLspService : GLib.Object {
             logger.debug ("HOVER", "client is null!");
             return null;
         }
-        return yield client.request_hover (uri, line, character);
+        try {
+            return yield client.request_hover (uri, line, character);
+        } catch (Error e) {
+            logger.error ("LSP", "Failed to request hover for %s: %s".printf (uri, e.message));
+            return null;
+        }
     }
 
     public async Gee.ArrayList<IdeLspLocation>? goto_definition (string uri, int line, int character) {
         var client = get_client_for_uri (uri);
         if (client == null)return null;
-        return yield client.request_definition (uri, line, character);
+        try {
+            return yield client.request_definition (uri, line, character);
+        } catch (Error e) {
+            logger.error ("LSP", "Failed to request definition for %s: %s".printf (uri, e.message));
+            return null;
+        }
     }
 }
