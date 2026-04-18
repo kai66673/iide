@@ -90,3 +90,25 @@ textview {
     padding: 0 2px 0 2px;
     font-size: 0.85em;
 }
+
+.editor-status-bar .diagnostic-box {
+    transition:
+        background-color 200ms ease-in-out,
+        opacity 200ms;
+    border-radius: 6px;
+    padding: 2px 6px;
+    opacity: 0.8; /* В обычном состоянии чуть приглушенно */
+}
+
+.editor-status-bar .diagnostic-box.hover {
+    background-color: alpha(
+        @window_fg_color,
+        0.08
+    ); /* Легкий фон под цвет текста */
+    opacity: 1; /* Полная яркость при наведении */
+}
+
+/* Если в боксе есть иконки ошибок, можно усилить их эффект при наведении */
+.editor-status-bar .diagnostic-box.hover image {
+    filter: brightness(1.2);
+}

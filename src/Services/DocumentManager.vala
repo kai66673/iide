@@ -31,9 +31,15 @@ public class Iide.DocumentManager : GLib.Object {
     private string? current_workspace_root;
 
     private LoggerService logger = LoggerService.get_instance ();
+    private static DocumentManager? _instance;
+
+    public static DocumentManager get_instance () {
+        return _instance;
+    }
 
     public DocumentManager (Window window) {
         this.window = window;
+        DocumentManager._instance = this;
         documents = new Gee.HashMap<string, TextView> ();
         lsp_manager = Iide.IdeLspManager.get_instance ();
 
@@ -165,7 +171,7 @@ public class Iide.DocumentManager : GLib.Object {
         return uris;
     }
 
-    public void open_document_by_uri (string uri, Iide.Window window) {
+    public void open_document_by_uri (string uri) {
         var file = GLib.File.new_for_uri (uri);
         if (file.query_exists (null)) {
             open_document (file, null);

@@ -144,7 +144,7 @@ public class Iide.TextView : Panel.Widget {
 
         box.append (subbox);
 
-        this.editor_status_bar = new EditorStatusBar ();
+        this.editor_status_bar = new EditorStatusBar (source_view);
         box.append (this.editor_status_bar);
         if (source_view.ts_highlighter != null) {
             source_view.ts_highlighter.breadcrumbs_changed.connect (this.editor_status_bar.update_breadcrumbs);
@@ -225,6 +225,7 @@ public class Iide.TextView : Panel.Widget {
 
         int lsp_error_count = 0;
         int lsp_warning_count = 0;
+        int lsp_info_count = 0;
 
         foreach (var diag in diagnostics) {
             if (diag.start_line >= line_count) {
@@ -237,16 +238,23 @@ public class Iide.TextView : Panel.Widget {
             var mark = new LspDiagnosticsMark.from_lsp_diagnostic (diag);
             text_buffer.add_mark (mark, start_iter); // Добавляем в буфер вручную
 
-            if (diag.severity == 1) {
+            switch (diag.severity) {
+            case 1:
                 lsp_error_count++;
-            } else if (diag.severity == 2) {
+                break;
+            case 2:
                 lsp_warning_count++;
+                break;
+            case 3:
+            case 4:
+                lsp_info_count++;
+                break;
             }
         }
 
         text_buffer.end_user_action ();
 
-        this.editor_status_bar.update_diagnostics (lsp_error_count, lsp_warning_count);
+        this.editor_status_bar.update_diagnostics (lsp_error_count, lsp_warning_count, lsp_info_count);
     }
 
     public void select_and_scroll (int line, int start_col, int end_col, bool is_new) {

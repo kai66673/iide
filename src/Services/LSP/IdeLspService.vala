@@ -8,7 +8,6 @@ public class Iide.IdeLspService : GLib.Object {
     private Gee.HashMap<string, int> document_versions;
     private Gee.HashMap<string, bool> client_starting;
     private Gee.ArrayList<PendingOpen> pending_opens;
-    private Gee.HashMap<string, LanguageConfig> language_configs;
 
     private LoggerService logger = LoggerService.get_instance ();
 
@@ -30,29 +29,11 @@ public class Iide.IdeLspService : GLib.Object {
         }
     }
 
-    public class LanguageConfig {
-        public string command;
-        public string[] args;
-        public string? workspace_root;
-        public Json.Node? initialization_options;
+    // [ClientHash] -> [Token] -> LspTaskInfo
+    private Gee.HashMap<int, Gee.HashMap<string, LspTaskInfo?>> progress_map =
+        new Gee.HashMap<int, Gee.HashMap<string, LspTaskInfo?>> ();
 
-        public LanguageConfig (string command, string[] args, string? workspace_root = null, Json.Node? initialization_options = null) {
-            this.command = command;
-            this.args = args;
-            this.workspace_root = workspace_root;
-            this.initialization_options = initialization_options;
-        }
-    }
-
-    private void init_language_configs () {
-        language_configs.set ("python", new LanguageConfig ("basedpyright-langserver", { "--stdio" }, null));
-        language_configs.set ("cpp", new LanguageConfig ("clangd", new string[0]));
-        language_configs.set ("c++", new LanguageConfig ("clangd", new string[0]));
-        language_configs.set ("c", new LanguageConfig ("clangd", new string[0]));
-        language_configs.set ("vala", new LanguageConfig ("vala-language-server", new string[0]));
-        language_configs.set ("rust", new LanguageConfig ("rust-analyzer", new string[0]));
-        language_configs.set ("go", new LanguageConfig ("gopls", new string[0]));
-    }
+    public signal void tasks_changed (Gee.List<LspTaskInfo?> active_tasks);
 
     construct {
         clients = new Gee.HashMap<string, LspClient> ();
@@ -60,9 +41,6 @@ public class Iide.IdeLspService : GLib.Object {
         document_versions = new Gee.HashMap<string, int> ();
         client_starting = new Gee.HashMap<string, bool> ();
         pending_opens = new Gee.ArrayList<PendingOpen> ();
-        language_configs = new Gee.HashMap<string, LanguageConfig> ();
-
-        init_language_configs ();
     }
 
     public static unowned IdeLspService get_instance () {
@@ -70,6 +48,49 @@ public class Iide.IdeLspService : GLib.Object {
             _instance = new IdeLspService ();
         }
         return _instance;
+    }
+
+    public LspClient ? get_client_by_hash (int client_id) {
+        foreach (var client in clients.values) {
+            if (client.get_hash () == client_id) {
+                return client;
+            }
+        }
+        return null;
+    }
+
+    public void register_client (LspClient client) {
+        int id = client.get_hash ();
+
+        client.progress_updated.connect ((token, msg, perc, active) => {
+            if (!progress_map.has_key (id))
+                progress_map.set (id, new Gee.HashMap<string, LspTaskInfo?> ());
+
+            var client_tasks = progress_map.get (id);
+
+            if (active) {
+                var info = LspTaskInfo () {
+                    server_name = client.name (),
+                    message = msg,
+                    percentage = perc
+                };
+                client_tasks.set (token, info);
+            } else {
+                client_tasks.unset (token);
+            }
+
+            emit_tasks_changed ();
+        });
+    }
+
+    private void emit_tasks_changed () {
+        var all_tasks = new Gee.ArrayList<LspTaskInfo?> ();
+        foreach (var client_map in progress_map.values) {
+            foreach (var task in client_map.values) {
+                all_tasks.add (task);
+            }
+        }
+        tasks_changed (all_tasks);
     }
 
     public async void open_document (string uri, string language_id, string content, string? workspace_root, SourceView view) {
@@ -214,10 +235,6 @@ public class Iide.IdeLspService : GLib.Object {
 
         uri_to_client_key.unset (uri);
         document_versions.unset (uri);
-    }
-
-    public void set_language_config (string language_id, string command, string[] args, string? workspace_root = null) {
-        language_configs.set (language_id, new LanguageConfig (command, args, workspace_root));
     }
 
     public LspClient ? get_client_for_uri (string uri) {

@@ -1,4 +1,5 @@
 public class Iide.EditorStatusBar : Gtk.Box {
+    private SourceView source_view;
     private Gtk.Box breadcrumbs_container;
     private Gtk.Label pos_label;
     private Gtk.Label mode_label;
@@ -9,8 +10,11 @@ public class Iide.EditorStatusBar : Gtk.Box {
 
     public signal void breadcrumb_clicked (uint line, uint column);
 
-    public EditorStatusBar () {
+    private Iide.DiagnosticsPopover diag_popover = null;
+
+    public EditorStatusBar (SourceView source_view) {
         Object (orientation: Gtk.Orientation.HORIZONTAL, spacing: 12);
+        this.source_view = source_view;
         this.add_css_class ("editor-status-bar");
 
         // Левая часть: Breadcrumbs
@@ -50,17 +54,67 @@ public class Iide.EditorStatusBar : Gtk.Box {
         // Добавляем в инфо-бокс перед позицией курсора
         info_box.prepend (diagnostic_box);
         diagnostic_box.hide (); // Скрываем, если ошибок нет
+
+        init_diagnostics_interaction ();
+        this.diagnostic_box.add_css_class ("diagnostic-box");
     }
 
-    public void update_diagnostics (int errors, int warnings) {
-        if (errors == 0 && warnings == 0) {
+    private void init_diagnostics_interaction () {
+        // Создаем контроллер жеста клика
+        var click_gesture = new Gtk.GestureClick ();
+
+        // Подключаемся к событию нажатия (pressed)
+        click_gesture.pressed.connect ((n_press, x, y) => {
+            // Мы вызываем метод, который создаст или обновит Popover
+            show_diagnostics_popup ();
+        });
+
+        // Привязываем жест к вашему боксу
+        this.diagnostic_box.add_controller (click_gesture);
+
+        // (Опционально) Добавим визуальный отклик: смена курсора при наведении
+        this.diagnostic_box.set_cursor (new Gdk.Cursor.from_name ("pointer", null));
+
+        // --- 2. Контроллер наведения (Hover) ---
+        var motion_controller = new Gtk.EventControllerMotion ();
+
+        // Когда мышь заходит в область
+        motion_controller.enter.connect ((x, y) => {
+            this.diagnostic_box.add_css_class ("hover");
+            // Меняем курсор на "руку"
+            this.diagnostic_box.set_cursor (new Gdk.Cursor.from_name ("pointer", null));
+        });
+
+        // Когда мышь покидает область
+        motion_controller.leave.connect (() => {
+            this.diagnostic_box.remove_css_class ("hover");
+            // Возвращаем обычный курсор
+            this.diagnostic_box.set_cursor (null);
+        });
+
+        this.diagnostic_box.add_controller (motion_controller);
+    }
+
+    private void show_diagnostics_popup () {
+        if (this.diag_popover == null) {
+            // Создаем попап, привязывая его к diagnostic_box
+            this.diag_popover = new Iide.DiagnosticsPopover (this.diagnostic_box, this.source_view);
+        }
+
+        // Обновляем список ошибок из буфера перед показом
+        this.diag_popover.refresh ();
+        this.diag_popover.popup ();
+    }
+
+    public void update_diagnostics (int errors, int warnings, int infos) {
+        if (errors == 0 && warnings == 0 && infos == 0) {
             diagnostic_box.hide ();
             return;
         }
 
         diagnostic_box.show ();
         error_label.label = errors.to_string ();
-        warn_label.label = warnings.to_string ();
+        warn_label.label = (warnings + infos).to_string ();
     }
 
     public void update_breadcrumbs (Gee.List<BreadcrumbItem?> crumbs) {

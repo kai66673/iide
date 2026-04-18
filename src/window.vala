@@ -28,6 +28,12 @@ public class Iide.Window : Panel.DocumentWorkspace {
     private Iide.ProjectManager project_manager;
     private Iide.SettingsService settings;
 
+    private Gtk.Button lsp_btn;
+    private Gtk.Spinner lsp_spin;
+    private Gtk.Label lsp_count;
+    private Gtk.Popover lsp_popover;
+    private Gtk.Box lsp_list_box;
+
     public Window (Gtk.Application app) {
         Object (application: app);
         GtkSource.init ();
@@ -192,6 +198,12 @@ public class Iide.Window : Panel.DocumentWorkspace {
         panel_widget_logs.child = new Iide.LogView ();
         panel_widget_logs.can_maximize = true;
 
+        var panel_area_diagnostics = new Panel.Position ();
+        panel_area_diagnostics.area = Panel.Area.BOTTOM;
+
+        var panel_widget_diagnostics = new DiagnosticsPanel ();
+        panel_widget_diagnostics.can_maximize = true;
+
         var panel_area_right = new Panel.Position ();
         panel_area_right.area = Panel.Area.END;
 
@@ -206,18 +218,22 @@ public class Iide.Window : Panel.DocumentWorkspace {
         if (dock_layout != null && dock_layout != "") {
             restore_dock_widgets (dock_layout,
                                   panel_widget_left1, panel_widget_left2,
-                                  panel_widget_right, panel_widget_bottom, panel_widget_logs);
+                                  panel_widget_right, panel_widget_bottom,
+                                  panel_widget_logs, panel_widget_diagnostics);
         } else {
             add_widget (panel_widget_left1, panel_area_left);
             add_widget (panel_widget_left2, panel_area_left);
             add_widget (panel_widget_right, panel_area_right);
             add_widget (panel_widget_bottom, panel_area_bottom);
             add_widget (panel_widget_logs, panel_area_logs);
+            add_widget (panel_widget_diagnostics, panel_area_diagnostics);
         }
 
         // Создаём toggle button для BOTTOM после восстановления layout
         var bottom_toggle_btn = new Panel.ToggleButton (dock, Panel.Area.BOTTOM);
         statusbar.add_suffix (1, bottom_toggle_btn);
+
+        setup_lsp_status ();
 
         Timeout.add (100, () => {
             var last_project_path = settings.current_project_path;
@@ -238,7 +254,7 @@ public class Iide.Window : Panel.DocumentWorkspace {
                             restore_grid_documents (grid_data);
                         } else if (has_open_docs) {
                             foreach (var uri in open_docs) {
-                                document_manager.open_document_by_uri (uri, this);
+                                document_manager.open_document_by_uri (uri);
                             }
                         }
                     }
@@ -253,7 +269,7 @@ public class Iide.Window : Panel.DocumentWorkspace {
                             restore_grid_documents (grid_data);
                         } else if (has_open_docs) {
                             foreach (var uri in open_docs) {
-                                document_manager.open_document_by_uri (uri, this);
+                                document_manager.open_document_by_uri (uri);
                             }
                         }
                     }
@@ -264,7 +280,7 @@ public class Iide.Window : Panel.DocumentWorkspace {
                     restore_grid_documents (grid_data);
                 } else if (has_open_docs) {
                     foreach (var uri in open_docs) {
-                        document_manager.open_document_by_uri (uri, this);
+                        document_manager.open_document_by_uri (uri);
                     }
                 }
             }
@@ -350,7 +366,8 @@ public class Iide.Window : Panel.DocumentWorkspace {
                                        Panel.Widget widget_left2,
                                        Panel.Widget widget_right,
                                        Panel.Widget widget_bottom,
-                                       Panel.Widget widget_logs) {
+                                       Panel.Widget widget_logs,
+                                       Panel.Widget widget_diagnostics) {
         var widgets = Iide.PanelLayoutHelper.parse_widgets (layout_data);
 
         Gee.HashMap<string, Panel.Widget> widget_map = new Gee.HashMap<string, Panel.Widget> ();
@@ -359,6 +376,7 @@ public class Iide.Window : Panel.DocumentWorkspace {
         widget_map.set ("RIGHT", widget_right);
         widget_map.set ("Terminal", widget_bottom);
         widget_map.set ("Logs", widget_logs);
+        widget_map.set ("Diagnostics", widget_diagnostics);
         widget_map.set ("BOTTOM", widget_bottom);
 
         if (widgets.size == 0) {
@@ -465,5 +483,72 @@ public class Iide.Window : Panel.DocumentWorkspace {
         if (active_widget == null)return null;
 
         return (active_widget as TextView) ? .source_view;
+    }
+
+    private void setup_lsp_status () {
+        // 1. Создаем кнопку для Statusbar
+        var btn_content = new Gtk.Box (Gtk.Orientation.HORIZONTAL, 6);
+        lsp_spin = new Gtk.Spinner ();
+        lsp_count = new Gtk.Label ("0");
+        btn_content.append (lsp_spin);
+        btn_content.append (lsp_count);
+
+        lsp_btn = new Gtk.Button () { child = btn_content, visible = false };
+        lsp_btn.add_css_class ("flat");
+        this.statusbar.add_prefix (100, lsp_btn);
+
+        // 2. Создаем Popover
+        lsp_popover = new Gtk.Popover ();
+        lsp_popover.set_parent (lsp_btn);
+        var scroll = new Gtk.ScrolledWindow () {
+            max_content_height = 300,
+            propagate_natural_height = true,
+            width_request = 350 // Добавляем фиксированную минимальную ширину
+        };
+        lsp_list_box = new Gtk.Box (Gtk.Orientation.VERTICAL, 0);
+        lsp_list_box.add_css_class ("boxed-list"); // Стиль Adwaita для связанных строк
+
+        scroll.set_child (lsp_list_box);
+        lsp_popover.set_child (scroll);
+
+        lsp_btn.clicked.connect (() => lsp_popover.popup ());
+
+        // 3. Подписка на сервис
+        IdeLspService.get_instance ().tasks_changed.connect (update_lsp_ui);
+    }
+
+    private void update_lsp_ui (Gee.List<LspTaskInfo?> tasks) {
+        // Очистка списка
+        Gtk.Widget? child;
+        while ((child = lsp_list_box.get_first_child ()) != null)
+            lsp_list_box.remove (child);
+
+        if (tasks.size == 0) {
+            lsp_btn.hide ();
+            lsp_popover.popdown ();
+            return;
+        }
+
+        lsp_btn.show ();
+        lsp_spin.start ();
+        lsp_count.label = tasks.size.to_string ();
+
+        foreach (var task in tasks) {
+            var row = new Adw.ActionRow () {
+                title = task.server_name,
+                subtitle = task.message
+            };
+
+            if (task.percentage >= 0) {
+                var progress = new Gtk.ProgressBar () {
+                    fraction = task.percentage / 100.0,
+                    valign = Gtk.Align.CENTER
+                };
+                progress.add_css_class ("osd"); // Делает полоску тоньше и аккуратнее
+                row.add_suffix (progress);
+            }
+
+            lsp_list_box.append (row);
+        }
     }
 }

@@ -31,10 +31,6 @@ namespace Iide {
             yield lsp_service.close_document (uri);
         }
 
-        public void set_language_config (string language_id, string command, string[] args, string? workspace_root = null) {
-            lsp_service.set_language_config (language_id, command, args, workspace_root);
-        }
-
         public LspClient ? get_client_for_uri (string uri) {
             return lsp_service.get_client_for_uri (uri);
         }

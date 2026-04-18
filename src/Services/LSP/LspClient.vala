@@ -29,11 +29,19 @@ public class Iide.ServerCapabilities : Object {
     public bool rename_provider = false;
 }
 
+public struct Iide.LspTaskInfo {
+    public string server_name;
+    public string message;
+    public int percentage; // -1 если процентов нет
+}
+
 public class Iide.LspClient : Object {
     private int next_id = 0;
     private Map<int, LspPromise> pending_requests = new HashMap<int, LspPromise> ();
     private Map<int, Json.Object?> responses = new HashMap<int, Json.Object?> ();
     private LspConfig config;
+
+    private DiagnosticsService diagnostics_service;
 
     // Процесс LSP сервера
     private GLib.Subprocess process;
@@ -63,6 +71,16 @@ public class Iide.LspClient : Object {
     public LspClient (LspConfig config) {
         this.capabilities = new ServerCapabilities ();
         this.config = config;
+        this.diagnostics_service = DiagnosticsService.get_instance ();
+    }
+
+    public signal void progress_updated (string token, string message, int percentage, bool active);
+
+    public string name () { return config.command (); }
+
+    public int get_hash () {
+        // Используем адрес указателя на объект как уникальный числовой идентификатор
+        return (int) ((void*) this);
     }
 
     public async Json.Object? send_request (string method, Json.Object params) throws Error {
@@ -175,7 +193,6 @@ public class Iide.LspClient : Object {
         var root_node = new Json.Node (Json.NodeType.OBJECT);
         root_node.set_object (root);
         generator.set_root (root_node);
-        message ("!!!send_response_async: " + generator.to_data (null));
 
         yield this.send_message_async (root);
     }
@@ -187,12 +204,9 @@ public class Iide.LspClient : Object {
             var root = parser.get_root ().get_object ();
 
             if (root.has_member ("method")) {
-                message ("!!!handle_payload 01");
                 string method = root.get_string_member ("method");
-                message ("!!!handle_payload 02: " + method);
                 if (method == "window/workDoneProgress/create" && root.has_member ("id")) {
                     // Мы просто подтверждаем, что готовы принимать прогресс с этим токеном
-                    message ("!!!handle_payload 02: window/workDoneProgress/create" + json_object_to_string (root));
                     var node_id = root.get_member ("id");
                     send_response_async.begin (node_id, new Json.Node (Json.NodeType.NULL));
                     return;
@@ -214,8 +228,6 @@ public class Iide.LspClient : Object {
 
     private void handle_response (Json.Object response) {
         int id = (int) response.get_int_member ("id");
-
-        message ("!!!handle_response - id=" + id.to_string () + " - " + json_object_to_string (response));
 
         if (pending_requests.has_key (id)) {
             var promise = pending_requests.get (id);
@@ -270,10 +282,11 @@ public class Iide.LspClient : Object {
                 // Парсим JSON-массив в список ваших объектов IdeLspDiagnostic
                 var diag_list = this.parse_diagnostics (json_array);
 
-                message ("!!!handle_incoming_notification - textDocument/publishDiagnostics: " + uri);
-
                 // Передаем в главный поток для UI
                 Idle.add (() => {
+                    // Передаем данные в глобальную модель
+                    diagnostics_service.update_diagnostics (this.get_hash (), uri, diag_list);
+
                     this.diagnostics_received (uri, diag_list);
                     return Source.REMOVE;
                 });
@@ -285,9 +298,43 @@ public class Iide.LspClient : Object {
             break;
 
         case "$/progress" :
-            message ("!!!handle_incoming_notification - $/progress" + json_object_to_string (root));
-            break;
+            // message ("!!!handle_incoming_notification - $/progress" + json_object_to_string (root));
+            if (params != null) {
+                // Token может быть строкой или числом, Tree-sitter и LSP это допускают
+                string token = "";
+                var token_node = params.get_member ("token");
+                if (token_node.get_node_type () == Json.NodeType.VALUE) {
+                    token = token_node.get_string ();
+                } else {
+                    token = token_node.get_int ().to_string ();
+                }
 
+                var value = params.get_object_member ("value");
+                string kind = value.get_string_member ("kind");
+
+                // Определяем состояние
+                bool active = (kind != "end");
+
+                // Извлекаем сообщение (у BasedPyright оно часто в 'message')
+                string msg = "";
+                if (value.has_member ("title")) {
+                    msg = value.get_string_member ("title");
+                }
+                if (value.has_member ("message")) {
+                    string details = value.get_string_member ("message");
+                    msg = (msg != "") ? @"$msg: $details" : details;
+                }
+
+                // Извлекаем проценты (если есть)
+                int perc = value.has_member ("percentage") ? (int) value.get_int_member ("percentage") : -1;
+
+                // Передаем в главный поток для обновления UI
+                Idle.add (() => {
+                    this.progress_updated (token, msg, perc, active);
+                    return Source.REMOVE;
+                });
+            }
+            break;
         case "window/logMessage":
             if (params != null)handle_log_message (params);
             break;
@@ -331,25 +378,20 @@ public class Iide.LspClient : Object {
             this.run_read_loop.begin ();
 
             // 5. Фаза INITIALIZE
-            // var init_params = build_init_params (workspace_root, initialization_options);
             var init_params = config.initialize_params (workspace_root, null);
-            message ("!!!initialize: " + json_object_to_string (init_params.get_object ()));
             var response = yield this.send_request ("initialize", init_params.get_object ());
-
-            message ("!!!initialized-->: " + json_object_to_string (response));
 
             if (response != null && response.has_member ("result")) {
                 var result = response.get_object_member ("result");
                 // Извлекаем возможности сервера
-                message ("-->parse_capabilities");
                 this.parse_capabilities (result);
-                message ("<--parse_capabilities");
             }
 
             // Используем Idle.add, чтобы оповестить подписчиков в главном потоке
             is_initialized = true;
             Idle.add (() => {
                 this.initialized_with_capabilities (this.capabilities);
+                IdeLspService.get_instance ().register_client (this);
                 return Source.REMOVE; // Выполнить один раз
             });
 
@@ -446,8 +488,6 @@ public class Iide.LspClient : Object {
         doc.set_string_member ("text", content);
 
         params.set_object_member ("textDocument", doc);
-
-        message ("!!!text_document_did_open - ");
 
         // Это уведомление (notification), оно не требует ID и не ждет ответа
         yield this.send_notification_async ("textDocument/didOpen", params);
