@@ -419,8 +419,8 @@ public class Iide.Window : Panel.DocumentWorkspace {
     }
 
     public void save_modified () {
-        foreach (var uri in document_manager.documents.keys) {
-            var widget = document_manager.documents[uri];
+        foreach (var entry in document_manager.documents.entries) {
+            var widget = entry.value;
             if (widget is Iide.TextView) {
                 var tv = widget as Iide.TextView;
                 if (tv.is_modified) {

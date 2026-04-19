@@ -26,7 +26,6 @@ using Panel;
 
 public class Iide.DocumentManager : GLib.Object {
     public Window window;
-    public Gee.HashMap<string, TextView> documents;
     private Iide.IdeLspManager lsp_manager;
     private string? current_workspace_root;
 
@@ -37,10 +36,36 @@ public class Iide.DocumentManager : GLib.Object {
         return _instance;
     }
 
+    public Gee.HashMap<string, TextView> _documents;
+    public Gee.HashMap<string, TextView> documents {
+        get {
+            _documents = new Gee.HashMap<string, TextView> ();
+            window.grid.foreach_frame ((frame) => {
+                var pages = frame.get_pages ();
+
+                for (uint i = 0; i < pages.get_n_items (); i++) {
+                    var item = pages.get_item (i) as Adw.TabPage;
+                    if (item == null) {
+                        continue;
+                    }
+                    var child = item.get_child ();
+                    if (child == null) {
+                        continue;
+                    }
+                    var text_view = child as TextView;
+                    if (text_view != null) {
+                        _documents.set (text_view.uri, text_view);
+                    }
+                }
+            });
+            return _documents;
+        }
+    }
+
     public DocumentManager (Window window) {
         this.window = window;
         DocumentManager._instance = this;
-        documents = new Gee.HashMap<string, TextView> ();
+        // documents = new Gee.HashMap<string, TextView> ();
         lsp_manager = Iide.IdeLspManager.get_instance ();
 
         lsp_manager.connect_diagnostics ((uri, diagnostics) => {
@@ -71,7 +96,6 @@ public class Iide.DocumentManager : GLib.Object {
     }
 
     public signal void document_opened (TextView document);
-    public signal void document_closed (string uri);
 
     public Panel.Widget? open_document (GLib.File file, Panel.Position ? pos) {
         return open_document_with_selection (file, -1, -1, -1, pos);
@@ -80,10 +104,9 @@ public class Iide.DocumentManager : GLib.Object {
     public Panel.Widget? open_document_with_selection (GLib.File file, int line, int start_col, int end_col, Panel.Position ? pos) {
         string uri = file.get_uri ();
 
-        logger.debug ("Doc", "Open document: " + uri + " / HAS_KEY: " + (documents.has_key (uri) ? "YES" : "NO"));
-
-        if (documents.has_key (uri)) {
-            var widget = documents.get (uri);
+        var docs = documents;
+        if (docs.has_key (uri)) {
+            var widget = docs.get (uri);
             widget.raise ();
             widget.view_grab_focus ();
             if (line >= 0) {
@@ -102,18 +125,11 @@ public class Iide.DocumentManager : GLib.Object {
                     file_loader.load_async.end (res);
                     panel_widget = new Iide.TextView (file, buffer, window);
 
-                    panel_widget.notify["parent"].connect (() => {
-                        if (panel_widget.parent == null) {
-                            close_document (file);
-                        }
-                    });
-
                     panel_widget.buffer_saved.connect (() => {
                         string content = ((GtkSource.Buffer) panel_widget.text_view.buffer).text;
                         lsp_manager.change_document.begin (uri, content);
                     });
 
-                    documents.set (uri, panel_widget);
                     if (pos == null) {
                         window.grid.add (panel_widget);
                     } else {
@@ -139,19 +155,6 @@ public class Iide.DocumentManager : GLib.Object {
             });
             return panel_widget;
         }
-    }
-
-
-
-    public bool close_document (GLib.File file) {
-        string uri = file.get_uri ();
-        if (documents.has_key (uri)) {
-            documents.unset (uri);
-            lsp_manager.close_document.begin (uri);
-            document_closed (uri);
-            return true;
-        }
-        return false;
     }
 
     public Panel.Widget? get_document_for_file (GLib.File file) {
