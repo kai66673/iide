@@ -158,18 +158,10 @@ public class Iide.Window : Panel.DocumentWorkspace {
 
         // statusbar (создаётся после восстановления layout)
 
-        var panel_area_left = new Panel.Position ();
-        panel_area_left.area = Panel.Area.START;
-
-        var panel_widget_left1 = new Panel.Widget ();
-        panel_widget_left1.title = "Project Tree";
-        panel_widget_left1.icon_name = "folder-symbolic";
-
-        // Создаем FileTreeView без начального пути
-        var folder_view = new Iide.FileTreeView (null);
-        panel_widget_left1.child = folder_view;
+        var panel_widget_project = new ProjectPanel ();
 
         // Подключаем сигналы менеджера проекта
+        var folder_view = panel_widget_project.folder_view;
         project_manager.project_opened.connect ((project_root) => {
             folder_view.set_root_file (project_root);
         });
@@ -177,61 +169,26 @@ public class Iide.Window : Panel.DocumentWorkspace {
         project_manager.project_closed.connect (() => {
             folder_view.set_root_file (null);
         });
-        panel_widget_left1.can_maximize = true;
 
-        var panel_widget_left2 = new Panel.Widget ();
-        panel_widget_left2.title = "LEFT 2";
-        panel_widget_left2.icon_name = "folder-symbolic";
-        panel_widget_left2.child = new Gtk.Label ("LEFT 2");
-        panel_widget_left2.can_maximize = true;
+        var panel_widget_terminal = new TerminalPanel ();
 
-        var panel_area_bottom = new Panel.Position ();
-        panel_area_bottom.area = Panel.Area.BOTTOM;
-
-        var panel_widget_bottom = new Panel.Widget ();
-        panel_widget_bottom.title = "Terminal";
-        panel_widget_bottom.icon_name = "utilities-terminal-symbolic";
-        panel_widget_bottom.child = new Iide.Terminal ();
-        panel_widget_bottom.can_maximize = true;
-
-        var panel_area_logs = new Panel.Position ();
-        panel_area_logs.area = Panel.Area.BOTTOM;
-
-        var panel_widget_logs = new Panel.Widget ();
-        panel_widget_logs.title = "Logs";
-        panel_widget_logs.icon_name = "document-properties-symbolic";
-        panel_widget_logs.child = new Iide.LogView ();
-        panel_widget_logs.can_maximize = true;
-
-        var panel_area_diagnostics = new Panel.Position ();
-        panel_area_diagnostics.area = Panel.Area.BOTTOM;
+        var panel_widget_logs = new LogPanel ();
 
         panel_widget_diagnostics = new DiagnosticsPanel ();
-        panel_widget_diagnostics.can_maximize = true;
-
-        var panel_area_right = new Panel.Position ();
-        panel_area_right.area = Panel.Area.END;
-
-        var panel_widget_right = new Panel.Widget ();
-        panel_widget_right.title = "RIGHT";
-        panel_widget_right.icon_name = "folder-symbolic";
-        panel_widget_right.child = new Gtk.Label ("RIGHT");
-        panel_widget_right.can_maximize = true;
 
         // Восстанавливаем виджеты из сохранённого layout
         var dock_layout = settings.panel_layout;
         if (dock_layout != null && dock_layout != "") {
             restore_dock_widgets (dock_layout,
-                                  panel_widget_left1, panel_widget_left2,
-                                  panel_widget_right, panel_widget_bottom,
-                                  panel_widget_logs, panel_widget_diagnostics);
+                                  panel_widget_project,
+                                  panel_widget_terminal,
+                                  panel_widget_logs,
+                                  panel_widget_diagnostics);
         } else {
-            add_widget (panel_widget_left1, panel_area_left);
-            add_widget (panel_widget_left2, panel_area_left);
-            add_widget (panel_widget_right, panel_area_right);
-            add_widget (panel_widget_bottom, panel_area_bottom);
-            add_widget (panel_widget_logs, panel_area_logs);
-            add_widget (panel_widget_diagnostics, panel_area_diagnostics);
+            add_widget (panel_widget_project, panel_widget_project.initial_pos ());
+            add_widget (panel_widget_terminal, panel_widget_terminal.initial_pos ());
+            add_widget (panel_widget_logs, panel_widget_logs.initial_pos ());
+            add_widget (panel_widget_diagnostics, panel_widget_diagnostics.initial_pos ());
         }
 
         // Создаём toggle button для BOTTOM после восстановления layout
@@ -368,36 +325,27 @@ public class Iide.Window : Panel.DocumentWorkspace {
     }
 
     private void restore_dock_widgets (string layout_data,
-                                       Panel.Widget widget_left1,
-                                       Panel.Widget widget_left2,
-                                       Panel.Widget widget_right,
-                                       Panel.Widget widget_bottom,
+                                       Panel.Widget widget_project,
+                                       Panel.Widget widget_terminal,
                                        Panel.Widget widget_logs,
                                        Panel.Widget widget_diagnostics) {
         var widgets = Iide.PanelLayoutHelper.parse_widgets (layout_data);
 
         Gee.HashMap<string, Panel.Widget> widget_map = new Gee.HashMap<string, Panel.Widget> ();
-        widget_map.set ("Project Tree", widget_left1);
-        widget_map.set ("LEFT 2", widget_left2);
-        widget_map.set ("RIGHT", widget_right);
-        widget_map.set ("Terminal", widget_bottom);
+        widget_map.set ("Project Tree", widget_project);
+        widget_map.set ("Terminal", widget_terminal);
         widget_map.set ("Logs", widget_logs);
         widget_map.set ("Diagnostics", widget_diagnostics);
-        widget_map.set ("BOTTOM", widget_bottom);
+        widget_map.set ("BOTTOM", widget_terminal);
 
         if (widgets.size == 0) {
             var pos_left = new Panel.Position ();
             pos_left.area = Panel.Area.START;
-            add_widget (widget_left1, pos_left);
-            add_widget (widget_left2, pos_left);
-
-            var pos_right = new Panel.Position ();
-            pos_right.area = Panel.Area.END;
-            add_widget (widget_right, pos_right);
+            add_widget (widget_project, pos_left);
 
             var pos_bottom = new Panel.Position ();
             pos_bottom.area = Panel.Area.BOTTOM;
-            add_widget (widget_bottom, pos_bottom);
+            add_widget (widget_terminal, pos_bottom);
 
             var pos_logs = new Panel.Position ();
             pos_logs.area = Panel.Area.BOTTOM;

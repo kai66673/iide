@@ -67,7 +67,7 @@ public class Iide.FileRow : Adw.ExpanderRow {
     }
 }
 
-public class Iide.DiagnosticsPanel : Panel.Widget {
+public class Iide.DiagnosticsPanel : BasePanel {
     private Gtk.ScrolledWindow scrolled;
     private Gtk.ListBox main_list;
     private Adw.StatusPage empty_page;
@@ -78,7 +78,8 @@ public class Iide.DiagnosticsPanel : Panel.Widget {
     private HashMap<int, Gtk.Widget> server_headers = new HashMap<int, Gtk.Widget> ();
 
     public DiagnosticsPanel () {
-        Object (title : "Diagnostics", icon_name: "dialog-error-symbolic");
+        base ("Diagnostics", "dialog-error-symbolic");
+        can_maximize = true;
 
         main_list = new Gtk.ListBox ();
         main_list.set_selection_mode (Gtk.SelectionMode.NONE);
@@ -100,6 +101,14 @@ public class Iide.DiagnosticsPanel : Panel.Widget {
         // Подключаемся к точечному обновлению вместо глобального
         service.diagnostics_updated.connect (on_file_diagnostics_updated);
         service.total_count_changed.connect (on_total_changed);
+    }
+
+    public override Panel.Position initial_pos () {
+        return new Panel.Position () { area = Panel.Area.BOTTOM };
+    }
+
+    public override string panel_id () {
+        return "DiagnosticsPanel";
     }
 
     private void on_total_changed (int e, int w) {
