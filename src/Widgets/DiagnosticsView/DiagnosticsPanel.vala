@@ -81,7 +81,6 @@ public class Iide.DiagnosticsPanel : Panel.Widget {
         Object (title : "Diagnostics", icon_name: "dialog-error-symbolic");
 
         main_list = new Gtk.ListBox ();
-        main_list.add_css_class ("boxed-list");
         main_list.set_selection_mode (Gtk.SelectionMode.NONE);
 
         scrolled = new Gtk.ScrolledWindow () {
