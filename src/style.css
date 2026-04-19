@@ -112,3 +112,12 @@ textview {
 .editor-status-bar .diagnostic-box.hover image {
     filter: brightness(1.2);
 }
+
+button.error label {
+    color: @error_fg_color;
+    font-weight: bold;
+}
+
+button.error image {
+    color: @error_fg_color;
+}

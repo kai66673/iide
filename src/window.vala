@@ -34,6 +34,11 @@ public class Iide.Window : Panel.DocumentWorkspace {
     private Gtk.Popover lsp_popover;
     private Gtk.Box lsp_list_box;
 
+    private Gtk.Button global_diag_btn;
+    private Gtk.Label global_diag_label;
+    private Gtk.Image global_diag_icon;
+    private DiagnosticsPanel panel_widget_diagnostics;
+
     public Window (Gtk.Application app) {
         Object (application: app);
         GtkSource.init ();
@@ -201,7 +206,7 @@ public class Iide.Window : Panel.DocumentWorkspace {
         var panel_area_diagnostics = new Panel.Position ();
         panel_area_diagnostics.area = Panel.Area.BOTTOM;
 
-        var panel_widget_diagnostics = new DiagnosticsPanel ();
+        panel_widget_diagnostics = new DiagnosticsPanel ();
         panel_widget_diagnostics.can_maximize = true;
 
         var panel_area_right = new Panel.Position ();
@@ -234,6 +239,7 @@ public class Iide.Window : Panel.DocumentWorkspace {
         statusbar.add_suffix (1, bottom_toggle_btn);
 
         setup_lsp_status ();
+        setup_global_diag_widget ();
 
         Timeout.add (100, () => {
             var last_project_path = settings.current_project_path;
@@ -549,6 +555,41 @@ public class Iide.Window : Panel.DocumentWorkspace {
             }
 
             lsp_list_box.append (row);
+        }
+    }
+
+    private void setup_global_diag_widget () {
+        var content = new Gtk.Box (Gtk.Orientation.HORIZONTAL, 6);
+        global_diag_icon = new Gtk.Image.from_icon_name ("emblem-ok-symbolic");
+        global_diag_label = new Gtk.Label ("OK");
+
+        content.append (global_diag_icon);
+        content.append (global_diag_label);
+
+        global_diag_btn = new Gtk.Button ();
+        global_diag_btn.set_child (content);
+        global_diag_btn.add_css_class ("flat");
+
+        // Привязываем действие переключения панели
+        global_diag_btn.clicked.connect (() => {
+            panel_widget_diagnostics.raise ();
+        });
+
+        this.statusbar.add_prefix (50, global_diag_btn);
+
+        // Подключаемся к сервису для обновления состояния
+        DiagnosticsService.get_instance ().total_count_changed.connect (update_global_diag_status);
+    }
+
+    private void update_global_diag_status (int errors, int warns) {
+        if (errors == 0 && warns == 0) {
+            global_diag_icon.icon_name = "emblem-ok-symbolic";
+            global_diag_label.label = "OK";
+            global_diag_btn.remove_css_class ("error-state"); // Можно добавить для цвета
+        } else {
+            global_diag_icon.icon_name = "dialog-error-symbolic";
+            global_diag_label.label = @"$errors / $warns";
+            global_diag_btn.add_css_class ("error-state");
         }
     }
 }
