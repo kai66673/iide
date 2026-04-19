@@ -160,16 +160,6 @@ public class Iide.Window : Panel.DocumentWorkspace {
 
         var panel_widget_project = new ProjectPanel ();
 
-        // Подключаем сигналы менеджера проекта
-        var folder_view = panel_widget_project.folder_view;
-        project_manager.project_opened.connect ((project_root) => {
-            folder_view.set_root_file (project_root);
-        });
-
-        project_manager.project_closed.connect (() => {
-            folder_view.set_root_file (null);
-        });
-
         var panel_widget_terminal = new TerminalPanel ();
 
         var panel_widget_logs = new LogPanel ();
@@ -249,13 +239,6 @@ public class Iide.Window : Panel.DocumentWorkspace {
             }
 
             return Source.REMOVE;
-        });
-
-        // Handle file activation to open documents
-        folder_view.file_activated.connect ((item) => {
-            if (!item.is_directory) {
-                document_manager.open_document (item.file, null);
-            }
         });
 
         // Handle window close
