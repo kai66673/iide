@@ -402,6 +402,10 @@ public class Iide.Window : Panel.DocumentWorkspace {
             var pos_logs = new Panel.Position ();
             pos_logs.area = Panel.Area.BOTTOM;
             add_widget (widget_logs, pos_logs);
+
+            var pos_diags = new Panel.Position ();
+            pos_logs.area = Panel.Area.BOTTOM;
+            add_widget (widget_diagnostics, pos_diags);
             return;
         }
 
