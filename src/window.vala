@@ -39,6 +39,8 @@ public class Iide.Window : Panel.DocumentWorkspace {
     private Gtk.Image global_diag_icon;
     private DiagnosticsPanel panel_widget_diagnostics;
 
+    private BasePanel[] panel_widgets;
+
     public Window (Gtk.Application app) {
         Object (application: app);
         GtkSource.init ();
@@ -158,28 +160,11 @@ public class Iide.Window : Panel.DocumentWorkspace {
 
         // statusbar (создаётся после восстановления layout)
 
-        var panel_widget_project = new ProjectPanel ();
-
-        var panel_widget_terminal = new TerminalPanel ();
-
-        var panel_widget_logs = new LogPanel ();
-
-        panel_widget_diagnostics = new DiagnosticsPanel ();
+        // create_frames ();
+        create_panels ();
 
         // Восстанавливаем виджеты из сохранённого layout
-        var dock_layout = settings.panel_layout;
-        if (dock_layout != null && dock_layout != "") {
-            restore_dock_widgets (dock_layout,
-                                  panel_widget_project,
-                                  panel_widget_terminal,
-                                  panel_widget_logs,
-                                  panel_widget_diagnostics);
-        } else {
-            add_widget (panel_widget_project, panel_widget_project.initial_pos ());
-            add_widget (panel_widget_terminal, panel_widget_terminal.initial_pos ());
-            add_widget (panel_widget_logs, panel_widget_logs.initial_pos ());
-            add_widget (panel_widget_diagnostics, panel_widget_diagnostics.initial_pos ());
-        }
+        restore_panels_layout ();
 
         // Создаём toggle button для BOTTOM после восстановления layout
         var bottom_toggle_btn = new Panel.ToggleButton (dock, Panel.Area.BOTTOM);
@@ -283,6 +268,91 @@ public class Iide.Window : Panel.DocumentWorkspace {
             }
             return false;
         });
+
+        repair_empty_areas ();
+    }
+
+    private void repair_empty_areas () {
+        bool empty_start = true;
+        bool empty_bottom = true;
+        bool empty_end = true;
+        dock.foreach_frame ((frame) => {
+            var position = frame.get_position ();
+            switch (position.area) {
+                case Panel.Area.START:
+                    empty_start = false;
+                    break;
+                case Panel.Area.BOTTOM:
+                    empty_bottom = false;
+                    break;
+                case Panel.Area.END:
+                    empty_end = false;
+                    break;
+                default:
+                    break;
+            }
+        });
+
+        if (empty_start) {
+            var position = new Panel.Position () {
+                area = Panel.Area.START
+            };
+            var tmp_panel = new Panel.Widget ();
+            add_widget (tmp_panel, position);
+            dock.remove (tmp_panel);
+        }
+
+        if (empty_bottom) {
+            var position = new Panel.Position () {
+                area = Panel.Area.BOTTOM
+            };
+            var tmp_panel = new Panel.Widget ();
+            add_widget (tmp_panel, position);
+            dock.remove (tmp_panel);
+        }
+
+        if (empty_end) {
+            var position = new Panel.Position () {
+                area = Panel.Area.END
+            };
+            var tmp_panel = new Panel.Widget ();
+            add_widget (tmp_panel, position);
+            dock.remove (tmp_panel);
+        }
+    }
+
+    private void create_panels () {
+        panel_widget_diagnostics = new DiagnosticsPanel ();
+
+        panel_widgets = {
+            new ProjectPanel (),
+            new TerminalPanel (),
+            new LogPanel (),
+            panel_widget_diagnostics
+        };
+    }
+
+    private void initialize_panels () {
+        foreach (var panel in panel_widgets) {
+            add_widget (panel, panel.initial_pos ());
+        }
+    }
+
+    private void restore_panels_layout () {
+        var dock_layout = settings.panel_layout;
+        if (dock_layout == null || dock_layout == "") {
+            initialize_panels ();
+            return;
+        }
+
+        var widget_layouts = Iide.PanelLayoutHelper.parse_widgets (dock_layout);
+
+        foreach (var panel_widget in panel_widgets) {
+            var widget_layout = widget_layouts.get (panel_widget.panel_id ());
+            var pos = widget_layout != null? widget_layout.to_pos () : panel_widget.initial_pos ();
+
+            add_widget (panel_widget, pos);
+        }
     }
 
     private void save_window_settings () {
@@ -305,55 +375,6 @@ public class Iide.Window : Panel.DocumentWorkspace {
             settings.window_height = (int) this.get_height ();
         }
         settings.window_maximized = maximized;
-    }
-
-    private void restore_dock_widgets (string layout_data,
-                                       Panel.Widget widget_project,
-                                       Panel.Widget widget_terminal,
-                                       Panel.Widget widget_logs,
-                                       Panel.Widget widget_diagnostics) {
-        var widgets = Iide.PanelLayoutHelper.parse_widgets (layout_data);
-
-        Gee.HashMap<string, Panel.Widget> widget_map = new Gee.HashMap<string, Panel.Widget> ();
-        widget_map.set ("Project Tree", widget_project);
-        widget_map.set ("Terminal", widget_terminal);
-        widget_map.set ("Logs", widget_logs);
-        widget_map.set ("Diagnostics", widget_diagnostics);
-        widget_map.set ("BOTTOM", widget_terminal);
-
-        if (widgets.size == 0) {
-            var pos_left = new Panel.Position ();
-            pos_left.area = Panel.Area.START;
-            add_widget (widget_project, pos_left);
-
-            var pos_bottom = new Panel.Position ();
-            pos_bottom.area = Panel.Area.BOTTOM;
-            add_widget (widget_terminal, pos_bottom);
-
-            var pos_logs = new Panel.Position ();
-            pos_logs.area = Panel.Area.BOTTOM;
-            add_widget (widget_logs, pos_logs);
-
-            var pos_diags = new Panel.Position ();
-            pos_logs.area = Panel.Area.BOTTOM;
-            add_widget (widget_diagnostics, pos_diags);
-            return;
-        }
-
-        foreach (var info in widgets) {
-            var widget = widget_map.get (info.title);
-            if (widget == null) {
-                continue;
-            }
-
-            var pos = new Panel.Position ();
-            pos.area = (Panel.Area) info.area;
-            pos.column = info.column;
-            pos.row = info.row;
-            pos.depth = info.depth;
-
-            add_widget (widget, pos);
-        }
     }
 
     private async void restore_grid_documents_async (Gee.ArrayList<Iide.PanelLayoutHelper.DocumentInfo> sorted_docs) {
