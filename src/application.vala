@@ -360,8 +360,8 @@ private class FuzzyFinderAction : Iide.Action {
     public override void execute () {
         var win = app ? .active_window as Iide.Window;
         if (win != null) {
-            var dialog = new Iide.FuzzyFinderDialog (win, win.get_document_manager ());
-            dialog.set_transient_for (win);
+            var dialog = new Iide.SearchCenterDialog (win, win.get_document_manager ());
+            dialog.set_active_page (Iide.SearchPanelKind.FILES);
             dialog.present ();
         }
     }
@@ -387,8 +387,9 @@ private class SearchInFilesAction : Iide.Action {
     public override void execute () {
         var win = app ? .active_window as Iide.Window;
         if (win != null) {
-            var dialog = new Iide.SearchInFilesDialog (win, win.get_document_manager ());
-            dialog.set_transient_for (win);
+            // var dialog = new Iide.SearchInFilesDialog (win, win.get_document_manager ());
+            var dialog = new Iide.SearchCenterDialog (win, win.get_document_manager ());
+            dialog.set_active_page (Iide.SearchPanelKind.TEXT);
             dialog.present ();
         }
     }
