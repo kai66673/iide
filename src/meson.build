@@ -34,6 +34,7 @@ iide_sources = [
     'Services/LSP/config/PythonLspConfig.vala',
     'Services/LSP/config/CppLspConfig.vala',
     'Services/LSP/config/LspRegistry.vala',
+    'Services/LSP/index/ClangTidy.vala',
     'Services/LSP/LspClient.vala',
     'Services/LSP/IdeLspService.vala',
     'Services/LSP/IdeLspManager.vala',
