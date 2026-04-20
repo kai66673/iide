@@ -63,9 +63,12 @@ src/
       ShortcutSettings.vala
     LSP/
       config/
+        CppLspConfig.vala
         LspConfig.vala
         LspRegistry.vala
         PythonLspConfig.vala
+      index/
+        ClangTidy.vala
       DiagnosticsService.vala
       IdeLspManager.vala
       IdeLspService.vala
@@ -136,7 +139,6 @@ COPYING
 meson.build
 org.github.kai66673.iide.json
 README.md
-repomix-output.pdf
 ```
 
 # Files
@@ -326,6 +328,439 @@ data/org.github.kai66673.iide.gschema.xml
 src/main.vala
 src/window.vala
 src/window.ui
+```
+
+## File: src/Widgets/ToolViews/TerminalView.vala
+```
+/*
+ * SPDX-License-Identifier: LGPL-3.0-or-later
+ * SPDX-FileCopyrightText: 2022 elementary, Inc. (https://elementary.io)
+ *                         2011-2013 Mario Guerriero <mario@elementaryos.org>
+ */
+
+public class Iide.Terminal : Gtk.Box {
+    private const string ACTION_GROUP = "term";
+    private const string ACTION_PREFIX = ACTION_GROUP + ".";
+    private const string ACTION_COPY = "action-copy";
+    private const string ACTION_PASTE = "action-paste";
+    private const string ACTION_INCREASE_FONT = "increase-font";
+    private const string ACTION_DECREASE_FONT = "decrease-font";
+    private const string ACTION_RESET_FONT = "reset-font";
+
+    private const double MAX_SCALE = 5.0;
+    private const double MIN_SCALE = 0.2;
+    private const string LEGACY_SETTINGS_SCHEMA = "org.pantheon.terminal.settings";
+    private const string SETTINGS_SCHEMA = "io.elementary.terminal.settings";
+    private const string GNOME_DESKTOP_INTERFACE_SCHEMA = "org.gnome.desktop.interface";
+    private const string GNOME_DESKTOP_WM_PREFERENCES_SCHEMA = "org.gnome.desktop.wm.preferences";
+    private const string TERMINAL_FONT_KEY = "font";
+    private const string TERMINAL_BELL_KEY = "audible-bell";
+    private const string TERMINAL_CURSOR_KEY = "cursor-shape";
+    private const string TERMINAL_FOREGROUND_KEY = "foreground";
+    private const string TERMINAL_BACKGROUND_KEY = "background";
+    private const string TERMINAL_PALETTE_KEY = "palette";
+    private const string GNOME_FONT_KEY = "monospace-font-name";
+    private const string GNOME_BELL_KEY = "audible-bell";
+
+    public Vte.Terminal terminal { get; construct; }
+    private Gtk.EventControllerKey key_controller;
+    private Gtk.GestureClick gesture_click;
+    private Gtk.EventControllerScroll scroll_controller;
+    private Gdk.Clipboard current_clipboard;
+    private Gtk.ScrolledWindow scrolled_window;
+
+    private const double FONT_SCALE_STEP = 0.1;
+
+    private Settings? terminal_settings = null;
+    private Settings? gnome_interface_settings = null;
+    private Settings? gnome_wm_settings = null;
+
+    public SimpleActionGroup actions { get; construct; }
+
+    private GLib.Pid child_pid;
+    // private Gtk.Clipboard current_clipboard;
+
+    construct {
+        terminal = new Vte.Terminal () {
+            hexpand = true,
+            vexpand = true,
+            scrollback_lines = -1,
+            cursor_blink_mode = SYSTEM // There is no Terminal setting so follow Gnome
+        };
+
+        // Set font, allow-bold, audible-bell, background, foreground, and palette of pantheon-terminal
+        var schema_source = SettingsSchemaSource.get_default ();
+        var terminal_schema = schema_source.lookup (SETTINGS_SCHEMA, true);
+        if (terminal_schema == null) {
+            terminal_schema = schema_source.lookup (LEGACY_SETTINGS_SCHEMA, true);
+        }
+
+        if (terminal_schema != null) {
+            terminal_settings = new Settings.full (terminal_schema, null, null);
+            terminal_settings.changed.connect ((key) => {
+                switch (key) {
+                    case TERMINAL_FONT_KEY :
+                        update_font ();
+                        break;
+                    case TERMINAL_BELL_KEY :
+                        update_audible_bell ();
+                        break;
+                    case TERMINAL_CURSOR_KEY :
+                        update_cursor ();
+                        break;
+                    case TERMINAL_FOREGROUND_KEY:
+                    case TERMINAL_BACKGROUND_KEY:
+                    case TERMINAL_PALETTE_KEY:
+                        update_colors ();
+                        break;
+                    default:
+                        // TODO Handle other relevant terminal settings?
+                        // "theme"
+                        // "prefer-dark-style"
+                        break;
+                }
+            });
+        } else {
+            var gnome_wm_settings_schema = schema_source.lookup (GNOME_DESKTOP_WM_PREFERENCES_SCHEMA, true);
+            if (gnome_wm_settings_schema != null) {
+                gnome_wm_settings = new Settings.full (gnome_wm_settings_schema, null, null);
+                gnome_wm_settings.changed.connect ((key) => {
+                    switch (key) {
+                        case GNOME_BELL_KEY:
+                            update_audible_bell ();
+                            break;
+                        default:
+                            break;
+                    }
+                });
+            }
+            // TODO monitor changes in relevant system settings?
+            // "org.gnome.desktop.interface.color-scheme"
+        }
+
+        // Always monitor changes in default font as that is what Terminal usually follows
+        var gnome_interface_settings_schema = schema_source.lookup (GNOME_DESKTOP_INTERFACE_SCHEMA, true);
+        if (gnome_interface_settings_schema != null) {
+            gnome_interface_settings = new Settings.full (gnome_interface_settings_schema, null, null);
+            gnome_interface_settings.changed.connect ((key) => {
+                switch (key) {
+                    case GNOME_FONT_KEY:
+                        update_font ();
+                        break;
+                    default:
+                        break;
+                }
+            });
+        }
+
+        update_font ();
+        update_audible_bell ();
+        update_cursor ();
+        update_colors ();
+
+        var adw_style_manager = Adw.StyleManager.get_default ();
+        adw_style_manager.notify["color-scheme"].connect (() => {
+            update_colors ();
+        });
+
+        terminal.child_exited.connect (() => {
+            // Hide the exited terminal
+            // var win_group = get_action_group (Scratch.MainWindow.ACTION_GROUP);
+            // win_group.activate_action (Scratch.MainWindow.ACTION_TOGGLE_TERMINAL, null);
+            //// Get ready to resume at last saved location
+            // spawn_shell (Scratch.saved_state.get_string ("last-opened-path"));
+            //// Clear screen of new shell
+            terminal.feed_child ("clear -x\n".data);
+        });
+
+        var copy_action = new SimpleAction (ACTION_COPY, null);
+        copy_action.set_enabled (false);
+        copy_action.activate.connect (() => terminal.copy_clipboard ());
+
+        var paste_action = new SimpleAction (ACTION_PASTE, null);
+        paste_action.activate.connect (() => terminal.paste_clipboard ());
+
+        var increase_font_action = new SimpleAction (ACTION_INCREASE_FONT, null);
+        increase_font_action.activate.connect (() => increment_size ());
+
+        var decrease_font_action = new SimpleAction (ACTION_DECREASE_FONT, null);
+        decrease_font_action.activate.connect (() => decrement_size ());
+
+        var reset_font_action = new SimpleAction (ACTION_RESET_FONT, null);
+        reset_font_action.activate.connect (() => set_default_font_size ());
+
+        actions = new SimpleActionGroup ();
+        actions.add_action (copy_action);
+        actions.add_action (paste_action);
+        actions.add_action (increase_font_action);
+        actions.add_action (decrease_font_action);
+        actions.add_action (reset_font_action);
+
+        var menu_model = new GLib.Menu ();
+        var clipboard_section = new GLib.Menu ();
+        clipboard_section.append (_("Copy"), ACTION_PREFIX + ACTION_COPY);
+        clipboard_section.append (_("Paste"), ACTION_PREFIX + ACTION_PASTE);
+        menu_model.append_section (null, clipboard_section);
+        var zoom_section = new GLib.Menu ();
+        zoom_section.append (_("Zoom In"), ACTION_PREFIX + ACTION_INCREASE_FONT);
+        zoom_section.append (_("Zoom Out"), ACTION_PREFIX + ACTION_DECREASE_FONT);
+        zoom_section.append (_("Reset Zoom"), ACTION_PREFIX + ACTION_RESET_FONT);
+        menu_model.append_section (null, zoom_section);
+
+        scrolled_window = new Gtk.ScrolledWindow ();
+        scrolled_window.hexpand = true;
+        scrolled_window.set_child (terminal);
+
+        var popover_menu = new Gtk.PopoverMenu.from_model (menu_model);
+        popover_menu.insert_action_group (ACTION_GROUP, actions);
+        popover_menu.set_parent (scrolled_window);
+        // menu.show_all ();
+
+        key_controller = new Gtk.EventControllerKey ();
+        key_controller.propagation_phase = BUBBLE;
+        terminal.add_controller (key_controller);
+        key_controller.key_pressed.connect (key_pressed);
+
+        gesture_click = new Gtk.GestureClick ();
+        gesture_click.button = 3; // Right click
+        scrolled_window.add_controller (gesture_click);
+        gesture_click.pressed.connect ((n_press, x, y) => {
+            if (n_press == 1) {
+                paste_action.set_enabled (current_clipboard.content != null);
+                var rect = Gdk.Rectangle () { x = (int) x, y = (int) y, width = 1, height = 1 };
+                popover_menu.set_pointing_to (rect);
+                popover_menu.popup ();
+            }
+        });
+
+        scroll_controller = new Gtk.EventControllerScroll (Gtk.EventControllerScrollFlags.VERTICAL);
+        scroll_controller.propagation_phase = CAPTURE;
+        scrolled_window.add_controller (scroll_controller);
+        scroll_controller.scroll.connect ((dx, dy) => {
+            var state = scroll_controller.get_current_event_state ();
+            if (Gdk.ModifierType.CONTROL_MASK in state) {
+                if (dy > 0) {
+                    decrement_size ();
+                } else {
+                    increment_size ();
+                }
+                return Gdk.EVENT_STOP;
+            }
+            return Gdk.EVENT_PROPAGATE;
+        });
+
+        // terminal.button_press_event.connect ((event) => {
+        // if (event.button == 3) {
+        // paste_action.set_enabled (current_clipboard.wait_is_text_available ());
+        // menu.select_first (false);
+        // menu.popup_at_pointer (event);
+        // }
+        // return false;
+        // });
+
+        // realize.connect (() => {
+        // current_clipboard = terminal.get_clipboard (Gdk.SELECTION_CLIPBOARD);
+        // copy_action.set_enabled (terminal.get_has_selection ());
+        // });
+
+        spawn_shell ();
+
+        terminal.selection_changed.connect (() => {
+            copy_action.set_enabled (terminal.get_has_selection ());
+        });
+
+        realize.connect (() => {
+            current_clipboard = scrolled_window.get_clipboard ();
+            copy_action.set_enabled (terminal.get_has_selection ());
+        });
+
+        append (scrolled_window);
+    }
+
+    private void spawn_shell (string dir = GLib.Environment.get_current_dir ()) {
+        terminal.spawn_async (
+                              Vte.PtyFlags.DEFAULT,
+                              dir,
+                              { Vte.get_user_shell () },
+                              null,
+                              SpawnFlags.SEARCH_PATH,
+                              null,
+                              100,
+                              null,
+                              (source, pid, error) => {
+            if (error != null) {
+                stderr.printf ("Ошибка при запуске: %s\n", error.message);
+            } else {
+                this.child_pid = pid;
+                stdout.printf ("Терминал успешно запущен. PID: %d\n", pid);
+            }
+        });
+    }
+
+    // public void change_location (string dir) {
+    // Posix.kill (child_pid, Posix.Signal.TERM);
+    // terminal.reset (true, true);
+    // spawn_shell (dir);
+    // Scratch.saved_state.set_string ("last-opened-path", dir);
+    // }
+
+    // private string get_shell_location () {
+    // int pid = (!) (this.child_pid);
+    // try {
+    // return GLib.FileUtils.read_link ("/proc/%d/cwd".printf (pid));
+    // } catch (GLib.FileError error) {
+    // warning ("An error occurred while fetching the current dir of shell: %s", error.message);
+    // return "";
+    // }
+    // }
+
+    private void update_font () {
+        var font_name = "";
+        if (terminal_settings != null) {
+            font_name = terminal_settings.get_string (TERMINAL_FONT_KEY);
+        }
+
+        if (font_name == "" && gnome_interface_settings != null) {
+            font_name = gnome_interface_settings.get_string (GNOME_FONT_KEY);
+        }
+
+        var fd = Pango.FontDescription.from_string (font_name);
+        terminal.set_font (fd);
+    }
+
+    private void update_audible_bell () {
+        var audible_bell = false;
+        if (terminal_settings != null) {
+            audible_bell = terminal_settings.get_boolean (TERMINAL_BELL_KEY);
+        } else if (gnome_wm_settings != null) {
+            audible_bell = gnome_wm_settings.get_boolean (GNOME_BELL_KEY);
+        }
+
+        terminal.set_audible_bell (audible_bell);
+    }
+
+    private void update_cursor () {
+        if (terminal_settings != null) {
+            var cursor_shape_setting = terminal_settings.get_string (TERMINAL_CURSOR_KEY);
+            switch (cursor_shape_setting) {
+            case "Block":
+                terminal.cursor_shape = Vte.CursorShape.BLOCK;
+                break;
+            case "I-Beam":
+                terminal.cursor_shape = Vte.CursorShape.IBEAM;
+                break;
+            case "Underline":
+                terminal.cursor_shape = Vte.CursorShape.UNDERLINE;
+                break;
+            }
+        } // No corresponding system keymap
+    }
+
+    private void update_colors () {
+        if (terminal_settings != null) {
+            string background_setting = terminal_settings.get_string (TERMINAL_BACKGROUND_KEY);
+            Gdk.RGBA background_color = Gdk.RGBA ();
+            background_color.parse (background_setting);
+
+            string foreground_setting = terminal_settings.get_string (TERMINAL_FOREGROUND_KEY);
+            Gdk.RGBA foreground_color = Gdk.RGBA ();
+            foreground_color.parse (foreground_setting);
+
+            string palette_setting = terminal_settings.get_string (TERMINAL_PALETTE_KEY);
+
+            string[] hex_palette = { "#000000", "#FF6C60", "#A8FF60", "#FFFFCC", "#96CBFE",
+                                     "#FF73FE", "#C6C5FE", "#EEEEEE", "#000000", "#FF6C60",
+                                     "#A8FF60", "#FFFFB6", "#96CBFE", "#FF73FE", "#C6C5FE",
+                                     "#EEEEEE" };
+
+            string current_string = "";
+            int current_color = 0;
+            for (var i = 0; i < palette_setting.length; i++) {
+                if (palette_setting[i] == ':') {
+                    hex_palette[current_color] = current_string;
+                    current_string = "";
+                    current_color++;
+                } else {
+                    current_string += palette_setting[i].to_string ();
+                }
+            }
+
+            Gdk.RGBA[] palette = new Gdk.RGBA[16];
+
+            for (int i = 0; i < hex_palette.length; i++) {
+                Gdk.RGBA new_color = Gdk.RGBA ();
+                new_color.parse (hex_palette[i]);
+                palette[i] = new_color;
+            }
+
+            terminal.set_colors (foreground_color, background_color, palette);
+        } else {
+            update_colors_for_theme (Adw.StyleManager.get_default ().color_scheme);
+        }
+    }
+
+    private void update_colors_for_theme (Adw.ColorScheme scheme) {
+        Gdk.RGBA foreground_color;
+        Gdk.RGBA background_color;
+        string[] hex_palette = { "#000000", "#cc0000", "#4e9a06", "#c4a000", "#3465a4", "#75507b", "#06989a", "#d3d7cf", "#555753", "#ef2929", "#8ae234", "#fce94f", "#729fcf", "#ad7fa8", "#34e2e2", "#eeeeec" };
+
+        Gdk.RGBA[] palette = new Gdk.RGBA[16];
+
+        for (int i = 0; i < hex_palette.length; i++) {
+            Gdk.RGBA new_color = Gdk.RGBA ();
+            new_color.parse (hex_palette[i]);
+            palette[i] = new_color;
+        }
+
+        if (scheme == Adw.ColorScheme.FORCE_LIGHT) {
+            foreground_color = { 0.0f, 0.0f, 0.0f, 1.0f };
+            background_color = { 1.0f, 1.0f, 1.0f, 1.0f };
+        } else {
+            foreground_color = { 1.0f, 1.0f, 1.0f, 1.0f };
+            background_color = { 0.0f, 0.0f, 0.0f, 1.0f };
+        }
+
+        terminal.set_colors (foreground_color, background_color, palette);
+    }
+
+    public void save_settings () {
+        // Scratch.saved_state.set_string ("last-opened-path", get_shell_location ());
+    }
+
+    private void increment_size () {
+        terminal.font_scale = (terminal.font_scale + FONT_SCALE_STEP).clamp (MIN_SCALE, MAX_SCALE);
+    }
+
+    private void decrement_size () {
+        terminal.font_scale = (terminal.font_scale - FONT_SCALE_STEP).clamp (MIN_SCALE, MAX_SCALE);
+    }
+
+    public void set_default_font_size () {
+        terminal.font_scale = 1.0;
+    }
+
+    private bool key_pressed (uint keyval, uint keycode, Gdk.ModifierType modifiers) {
+        if (Gdk.ModifierType.CONTROL_MASK in modifiers && keyval == Gdk.Key.d) {
+            terminal.reset (true, true);
+            return Gdk.EVENT_STOP;
+        }
+
+        if (Gdk.ModifierType.CONTROL_MASK in modifiers &&
+            (Gdk.ModifierType.SHIFT_MASK in modifiers ||
+             terminal_settings != null && terminal_settings.get_boolean ("natural-copy-paste"))) {
+
+            if (keyval == Gdk.Key.c && terminal.get_has_selection ()) {
+                actions.activate_action (ACTION_COPY, null);
+                return Gdk.EVENT_STOP;
+                // } else if (keyval == Gdk.Key.v && current_clipboard.wait_is_text_available ()) {
+                // actions.activate_action (ACTION_PASTE, null);
+                // return Gdk.EVENT_STOP;
+            }
+        }
+
+        return Gdk.EVENT_PROPAGATE;
+    }
+}
 ```
 
 ## File: src/config.vapi
@@ -2103,6 +2538,143 @@ public class Iide.ActionManager : Object {
 }
 ```
 
+## File: src/Services/LSP/config/CppLspConfig.vala
+```
+public class Iide.CppLspConfig : Iide.LspConfig {
+    public override string command () {
+        return "clangd";
+    }
+
+    public override string[] args () {
+        return {
+                   "--background-index", // Индексация в фоне
+                   "--clang-tidy", // Включает мощный линтер (генерирует тонну сообщений)
+                   "--clang-tidy-checks=*", // Включит вообще все проверки, сообщений будет тысячи
+                   "--background-index-priority=low", // Чтобы не вешать систему, но делать всё
+                   "--all-scopes-completion", // Заставляет сервер глубже копать индексы
+                   "--header-insertion=never"
+        };
+    }
+
+    public override Json.Node initialize_params (string? workspace_root, string? initial_uri) {
+        message ("CPP: initialize_params: " + workspace_root);
+        var root_uri = "file:///home/kai/kaigit/ktexteditor";
+        var params = """{
+            "processId": null,
+            "clientInfo": {
+              "name": "Iide",
+              "version": "1.0.1"
+            },
+            "rootPath": "%s",
+            "rootUri": "%s",
+            "capabilities": {
+              "window": {
+                "workDoneProgress": true
+              },
+              "workspace": {
+                "applyEdit": true,
+                "diagnostic": {
+                  "refreshSupport": true
+                },
+                "workspaceEdit": {
+                  "documentChanges": true
+                },
+                "didChangeConfiguration": {
+                  "dynamicRegistration": true
+                },
+                "didChangeWatchedFiles": {
+                  "dynamicRegistration": true
+                },
+                "symbol": {
+                  "dynamicRegistration": true
+                },
+                "executeCommand": {
+                  "dynamicRegistration": true
+                }
+              },
+              "textDocument": {
+                "diagnostic": {
+                  "dynamicRegistration": true
+                },
+                "synchronization": {
+                  "dynamicRegistration": true,
+                  "willSave": true,
+                  "willSaveWaitUntil": false,
+                  "didSave": true
+                },
+                "completion": {
+                  "dynamicRegistration": true,
+                  "contextSupport": true,
+                  "completionItem": {
+                    "snippetSupport": false,
+                    "commitCharactersSupport": true,
+                    "documentationFormat": ["markdown", "plaintext"],
+                    "deprecatedSupport": true,
+                    "labelDetailsSupport": true
+                  },
+                  "completionItemKind": {
+                    "valueSet": [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25]
+                  }
+                },
+                "hover": {
+                  "dynamicRegistration": true,
+                  "contentFormat": ["markdown", "plaintext"]
+                },
+                "signatureHelp": {
+                  "dynamicRegistration": true,
+                  "signatureInformation": {
+                    "documentationFormat": ["markdown", "plaintext"],
+                    "parameterInformation": {
+                      "labelOffsetSupport": true
+                    }
+                  }
+                },
+                "definition": {
+                  "dynamicRegistration": true,
+                  "linkSupport": true
+                },
+                "references": {
+                  "dynamicRegistration": true
+                },
+                "documentSymbol": {
+                  "dynamicRegistration": true,
+                  "hierarchicalDocumentSymbolSupport": true
+                },
+                "codeAction": {
+                  "dynamicRegistration": true
+                },
+                "publishDiagnostics": {
+                  "relatedInformation": true,
+                  "tagSupport": {
+                    "valueSet": [1, 2]
+                  },
+                  "versionSupport": true
+                }
+              }
+            },
+            "initializationOptions": {
+              "clangdFileStatus": true,
+              "backgroundIndex": true,
+              "compilationDatabasePath": "build",
+              "fallbackFlags": ["-std=c++17", "-Iinclude"]
+            }
+          }
+        """.printf (root_uri.replace ("file://", ""), root_uri);
+        var parser = new Json.Parser ();
+        try {
+            parser.load_from_data (params);
+        } catch (GLib.Error e) {
+            return new Json.Node (Json.NodeType.NULL);
+        }
+        return parser.get_root ();
+    }
+
+    public override Json.Node? server_response_result (Json.Object response) {
+        return new Json.Node (Json.NodeType.NULL);
+    }
+}
+```
+
 ## File: src/Services/LSP/config/LspConfig.vala
 ```
 public abstract class Iide.LspConfig {
@@ -2113,29 +2685,6 @@ public abstract class Iide.LspConfig {
     public abstract Json.Node initialize_params (string? workspace_root, string? initial_uri);
 
     public abstract Json.Node? server_response_result (Json.Object response);
-}
-```
-
-## File: src/Services/LSP/config/LspRegistry.vala
-```
-public class Iide.LspRegistry {
-    public static string ? get_lsp_id (string language) {
-        switch (language) {
-        case "python":
-            return "basedpyright";
-        default:
-            return null;
-        }
-    }
-
-    public static LspConfig ? get_config (string lsp_id) {
-        switch (lsp_id) {
-        case "basedpyright" :
-            return new PythonLspConfig ();
-        default:
-            return null;
-        }
-    }
 }
 ```
 
@@ -2219,6 +2768,150 @@ public class Iide.PythonLspConfig : Iide.LspConfig {
         return results_node;
     }
 }
+```
+
+## File: src/Services/LSP/index/ClangTidy.vala
+```
+using GLib;
+
+public class Iide.ClangTidyRunner : Object {
+    public struct Diagnostic {
+        public string file;
+        public string line;
+        public string type; // "error", "warning", "note"
+        public string message;
+    }
+
+    // Сигналы для связи с основным потоком
+    public signal void diagnostic_found(Diagnostic diag);
+    public signal void finished(bool success, int exit_code, int total_errors, int total_warnings);
+
+    private Subprocess? current_process = null;
+    private Cancellable? cancellable = null;
+
+    // Счётчики
+    private int error_count = 0;
+    private int warning_count = 0;
+
+    public void run_async(string[] command) {
+        this.cancellable = new Cancellable();
+        this.error_count = 0;
+        this.warning_count = 0;
+
+        new Thread<int> ("clang-tidy-worker", () => {
+            bool success = false;
+            int exit_code = -1;
+
+            try {
+                this.current_process = new Subprocess.newv(
+                                                           command,
+                                                           SubprocessFlags.STDOUT_PIPE | SubprocessFlags.STDERR_MERGE
+                );
+
+                var data_stream = new DataInputStream(current_process.get_stdout_pipe());
+
+                string? line;
+                string current_file = "unknown";
+                var regex_full = new Regex(@"^([^:\n\\[]+):(\\d+):(\\d+): (warning|error|note): (.+?)(?: \\[([^\\]]+)\\])?$$");
+                var regex_short = new Regex(@"^(warning|error|note): (.+?)(?: \\[([^\\]]+)\\])?$$");
+
+                while (!cancellable.is_cancelled()) {
+                    line = data_stream.read_line(null, cancellable);
+                    if (line == null)break;
+
+                    process_line(line, regex_full, regex_short, ref current_file);
+                }
+
+                if (!cancellable.is_cancelled()) {
+                    current_process.wait(cancellable);
+                    success = current_process.get_successful();
+                    exit_code = current_process.get_exit_status();
+                }
+            } catch (Error e) {
+                if (!(e is IOError.CANCELLED))stderr.printf("Thread Error: %s\n", e.message);
+            } finally {
+                kill_process();
+                // Отправляем финальную статистику в главный поток
+                Idle.add(() => {
+                    this.finished(success, exit_code, this.error_count, this.warning_count);
+                    return Source.REMOVE;
+                });
+            }
+            return 0;
+        });
+    }
+
+    private void process_line(string line, Regex reg_f, Regex reg_s, ref string current_file) {
+        var sline = line.strip();
+        if (sline.has_prefix("["))return;
+
+        MatchInfo match;
+        Diagnostic? diag = null;
+
+        if (reg_f.match(sline, 0, out match)) {
+            diag = Diagnostic() {
+                file = match.fetch(1),
+                line = match.fetch(2),
+                type = match.fetch(4),
+                message = match.fetch(5)
+            };
+            current_file = diag.file;
+        } else if (reg_s.match(sline, 0, out match)) {
+            diag = Diagnostic() {
+                file = current_file,
+                line = "0",
+                type = match.fetch(1),
+                message = match.fetch(2)
+            };
+        }
+
+        if (diag != null) {
+            // Обновляем статистику
+            if (diag.type == "error")error_count++;
+            else if (diag.type == "warning")warning_count++;
+
+            Idle.add(() => {
+                this.diagnostic_found(diag);
+                return Source.REMOVE;
+            });
+        }
+    }
+
+    public void stop() {
+        if (cancellable != null)cancellable.cancel();
+        kill_process();
+    }
+
+    private void kill_process() {
+        if (current_process != null) {
+            current_process.force_exit();
+            current_process = null;
+        }
+    }
+}
+
+// Пример использования
+// public static int main(string[] args) {
+// var loop = new MainLoop();
+// var runner = new ClangTidyRunner();
+
+// runner.diagnostic_found.connect((d) => {
+// stdout.printf("[%s] %s:%s -> %s\n", d.type.up(), d.file, d.line, d.message);
+// });
+
+// runner.finished.connect((ok, code, errors, warnings) => {
+// stdout.printf("\n--- Итоги анализа ---\n");
+// stdout.printf("Ошибок: %d\n", errors);
+// stdout.printf("Предупреждений: %d\n", warnings);
+// stdout.printf("Статус завершения: %s (код %d)\n", ok ? "Успешно" : "Ошибка/Прервано", code);
+// loop.quit();
+// });
+
+// string[] cmd = { "run-clang-tidy", "-p", "build/", "-checks=-*,clang-diagnostic-*" };
+// runner.run_async(cmd);
+
+// return loop.run();
+// }
 ```
 
 ## File: src/Services/LSP/DiagnosticsService.vala
@@ -3482,442 +4175,36 @@ public class Iide.DiagnosticsPopover : Gtk.Popover {
 }
 ```
 
-## File: src/Widgets/ToolViews/TerminalView.vala
-```
-/*
- * SPDX-License-Identifier: LGPL-3.0-or-later
- * SPDX-FileCopyrightText: 2022 elementary, Inc. (https://elementary.io)
- *                         2011-2013 Mario Guerriero <mario@elementaryos.org>
- */
-
-public class Iide.Terminal : Gtk.Box {
-    private const string ACTION_GROUP = "term";
-    private const string ACTION_PREFIX = ACTION_GROUP + ".";
-    private const string ACTION_COPY = "action-copy";
-    private const string ACTION_PASTE = "action-paste";
-    private const string ACTION_INCREASE_FONT = "increase-font";
-    private const string ACTION_DECREASE_FONT = "decrease-font";
-    private const string ACTION_RESET_FONT = "reset-font";
-
-    private const double MAX_SCALE = 5.0;
-    private const double MIN_SCALE = 0.2;
-    private const string LEGACY_SETTINGS_SCHEMA = "org.pantheon.terminal.settings";
-    private const string SETTINGS_SCHEMA = "io.elementary.terminal.settings";
-    private const string GNOME_DESKTOP_INTERFACE_SCHEMA = "org.gnome.desktop.interface";
-    private const string GNOME_DESKTOP_WM_PREFERENCES_SCHEMA = "org.gnome.desktop.wm.preferences";
-    private const string TERMINAL_FONT_KEY = "font";
-    private const string TERMINAL_BELL_KEY = "audible-bell";
-    private const string TERMINAL_CURSOR_KEY = "cursor-shape";
-    private const string TERMINAL_FOREGROUND_KEY = "foreground";
-    private const string TERMINAL_BACKGROUND_KEY = "background";
-    private const string TERMINAL_PALETTE_KEY = "palette";
-    private const string GNOME_FONT_KEY = "monospace-font-name";
-    private const string GNOME_BELL_KEY = "audible-bell";
-
-    public Vte.Terminal terminal { get; construct; }
-    private Gtk.EventControllerKey key_controller;
-    private Gtk.GestureClick gesture_click;
-    private Gtk.EventControllerScroll scroll_controller;
-    private Gdk.Clipboard current_clipboard;
-    private Gtk.ScrolledWindow scrolled_window;
-
-    private const double FONT_SCALE_STEP = 0.1;
-
-    private Settings? terminal_settings = null;
-    private Settings? gnome_interface_settings = null;
-    private Settings? gnome_wm_settings = null;
-
-    public SimpleActionGroup actions { get; construct; }
-
-    private GLib.Pid child_pid;
-    // private Gtk.Clipboard current_clipboard;
-
-    construct {
-        terminal = new Vte.Terminal () {
-            hexpand = true,
-            vexpand = true,
-            scrollback_lines = -1,
-            cursor_blink_mode = SYSTEM // There is no Terminal setting so follow Gnome
-        };
-
-        // Set font, allow-bold, audible-bell, background, foreground, and palette of pantheon-terminal
-        var schema_source = SettingsSchemaSource.get_default ();
-        var terminal_schema = schema_source.lookup (SETTINGS_SCHEMA, true);
-        if (terminal_schema == null) {
-            terminal_schema = schema_source.lookup (LEGACY_SETTINGS_SCHEMA, true);
-        }
-
-        if (terminal_schema != null) {
-            terminal_settings = new Settings.full (terminal_schema, null, null);
-            terminal_settings.changed.connect ((key) => {
-                switch (key) {
-                    case TERMINAL_FONT_KEY :
-                        update_font ();
-                        break;
-                    case TERMINAL_BELL_KEY :
-                        update_audible_bell ();
-                        break;
-                    case TERMINAL_CURSOR_KEY :
-                        update_cursor ();
-                        break;
-                    case TERMINAL_FOREGROUND_KEY:
-                    case TERMINAL_BACKGROUND_KEY:
-                    case TERMINAL_PALETTE_KEY:
-                        update_colors ();
-                        break;
-                    default:
-                        // TODO Handle other relevant terminal settings?
-                        // "theme"
-                        // "prefer-dark-style"
-                        break;
-                }
-            });
-        } else {
-            var gnome_wm_settings_schema = schema_source.lookup (GNOME_DESKTOP_WM_PREFERENCES_SCHEMA, true);
-            if (gnome_wm_settings_schema != null) {
-                gnome_wm_settings = new Settings.full (gnome_wm_settings_schema, null, null);
-                gnome_wm_settings.changed.connect ((key) => {
-                    switch (key) {
-                        case GNOME_BELL_KEY:
-                            update_audible_bell ();
-                            break;
-                        default:
-                            break;
-                    }
-                });
-            }
-            // TODO monitor changes in relevant system settings?
-            // "org.gnome.desktop.interface.color-scheme"
-        }
-
-        // Always monitor changes in default font as that is what Terminal usually follows
-        var gnome_interface_settings_schema = schema_source.lookup (GNOME_DESKTOP_INTERFACE_SCHEMA, true);
-        if (gnome_interface_settings_schema != null) {
-            gnome_interface_settings = new Settings.full (gnome_interface_settings_schema, null, null);
-            gnome_interface_settings.changed.connect ((key) => {
-                switch (key) {
-                    case GNOME_FONT_KEY:
-                        update_font ();
-                        break;
-                    default:
-                        break;
-                }
-            });
-        }
-
-        update_font ();
-        update_audible_bell ();
-        update_cursor ();
-        update_colors ();
-
-        var adw_style_manager = Adw.StyleManager.get_default ();
-        adw_style_manager.notify["color-scheme"].connect (() => {
-            update_colors ();
-        });
-
-        terminal.child_exited.connect (() => {
-            // Hide the exited terminal
-            // var win_group = get_action_group (Scratch.MainWindow.ACTION_GROUP);
-            // win_group.activate_action (Scratch.MainWindow.ACTION_TOGGLE_TERMINAL, null);
-            //// Get ready to resume at last saved location
-            // spawn_shell (Scratch.saved_state.get_string ("last-opened-path"));
-            //// Clear screen of new shell
-            terminal.feed_child ("clear -x\n".data);
-        });
-
-        var copy_action = new SimpleAction (ACTION_COPY, null);
-        copy_action.set_enabled (false);
-        copy_action.activate.connect (() => terminal.copy_clipboard ());
-
-        var paste_action = new SimpleAction (ACTION_PASTE, null);
-        paste_action.activate.connect (() => terminal.paste_clipboard ());
-
-        var increase_font_action = new SimpleAction (ACTION_INCREASE_FONT, null);
-        increase_font_action.activate.connect (() => increment_size ());
-
-        var decrease_font_action = new SimpleAction (ACTION_DECREASE_FONT, null);
-        decrease_font_action.activate.connect (() => decrement_size ());
-
-        var reset_font_action = new SimpleAction (ACTION_RESET_FONT, null);
-        reset_font_action.activate.connect (() => set_default_font_size ());
-
-        actions = new SimpleActionGroup ();
-        actions.add_action (copy_action);
-        actions.add_action (paste_action);
-        actions.add_action (increase_font_action);
-        actions.add_action (decrease_font_action);
-        actions.add_action (reset_font_action);
-
-        var menu_model = new GLib.Menu ();
-        var clipboard_section = new GLib.Menu ();
-        clipboard_section.append (_("Copy"), ACTION_PREFIX + ACTION_COPY);
-        clipboard_section.append (_("Paste"), ACTION_PREFIX + ACTION_PASTE);
-        menu_model.append_section (null, clipboard_section);
-        var zoom_section = new GLib.Menu ();
-        zoom_section.append (_("Zoom In"), ACTION_PREFIX + ACTION_INCREASE_FONT);
-        zoom_section.append (_("Zoom Out"), ACTION_PREFIX + ACTION_DECREASE_FONT);
-        zoom_section.append (_("Reset Zoom"), ACTION_PREFIX + ACTION_RESET_FONT);
-        menu_model.append_section (null, zoom_section);
-
-        scrolled_window = new Gtk.ScrolledWindow ();
-        scrolled_window.hexpand = true;
-        scrolled_window.set_child (terminal);
-
-        var popover_menu = new Gtk.PopoverMenu.from_model (menu_model);
-        popover_menu.insert_action_group (ACTION_GROUP, actions);
-        popover_menu.set_parent (scrolled_window);
-        // menu.show_all ();
-
-        key_controller = new Gtk.EventControllerKey ();
-        key_controller.propagation_phase = BUBBLE;
-        terminal.add_controller (key_controller);
-        key_controller.key_pressed.connect (key_pressed);
-
-        gesture_click = new Gtk.GestureClick ();
-        gesture_click.button = 3; // Right click
-        scrolled_window.add_controller (gesture_click);
-        gesture_click.pressed.connect ((n_press, x, y) => {
-            if (n_press == 1) {
-                paste_action.set_enabled (current_clipboard.content != null);
-                var rect = Gdk.Rectangle () { x = (int) x, y = (int) y, width = 1, height = 1 };
-                popover_menu.set_pointing_to (rect);
-                popover_menu.popup ();
-            }
-        });
-
-        scroll_controller = new Gtk.EventControllerScroll (Gtk.EventControllerScrollFlags.VERTICAL);
-        scroll_controller.propagation_phase = CAPTURE;
-        scrolled_window.add_controller (scroll_controller);
-        scroll_controller.scroll.connect ((dx, dy) => {
-            var state = scroll_controller.get_current_event_state ();
-            if (Gdk.ModifierType.CONTROL_MASK in state) {
-                if (dy > 0) {
-                    decrement_size ();
-                } else {
-                    increment_size ();
-                }
-                return Gdk.EVENT_STOP;
-            }
-            return Gdk.EVENT_PROPAGATE;
-        });
-
-        // terminal.button_press_event.connect ((event) => {
-        // if (event.button == 3) {
-        // paste_action.set_enabled (current_clipboard.wait_is_text_available ());
-        // menu.select_first (false);
-        // menu.popup_at_pointer (event);
-        // }
-        // return false;
-        // });
-
-        // realize.connect (() => {
-        // current_clipboard = terminal.get_clipboard (Gdk.SELECTION_CLIPBOARD);
-        // copy_action.set_enabled (terminal.get_has_selection ());
-        // });
-
-        spawn_shell ();
-
-        terminal.selection_changed.connect (() => {
-            copy_action.set_enabled (terminal.get_has_selection ());
-        });
-
-        realize.connect (() => {
-            current_clipboard = scrolled_window.get_clipboard ();
-            copy_action.set_enabled (terminal.get_has_selection ());
-        });
-
-        append (scrolled_window);
-    }
-
-    private void spawn_shell (string dir = GLib.Environment.get_current_dir ()) {
-        terminal.spawn_async (
-                              Vte.PtyFlags.DEFAULT,
-                              dir,
-                              { Vte.get_user_shell () },
-                              null,
-                              SpawnFlags.SEARCH_PATH,
-                              null,
-                              100,
-                              null,
-                              (source, pid, error) => {
-            if (error != null) {
-                stderr.printf ("Ошибка при запуске: %s\n", error.message);
-            } else {
-                this.child_pid = pid;
-                stdout.printf ("Терминал успешно запущен. PID: %d\n", pid);
-            }
-        });
-    }
-
-    // public void change_location (string dir) {
-    // Posix.kill (child_pid, Posix.Signal.TERM);
-    // terminal.reset (true, true);
-    // spawn_shell (dir);
-    // Scratch.saved_state.set_string ("last-opened-path", dir);
-    // }
-
-    // private string get_shell_location () {
-    // int pid = (!) (this.child_pid);
-    // try {
-    // return GLib.FileUtils.read_link ("/proc/%d/cwd".printf (pid));
-    // } catch (GLib.FileError error) {
-    // warning ("An error occurred while fetching the current dir of shell: %s", error.message);
-    // return "";
-    // }
-    // }
-
-    private void update_font () {
-        var font_name = "";
-        if (terminal_settings != null) {
-            font_name = terminal_settings.get_string (TERMINAL_FONT_KEY);
-        }
-
-        if (font_name == "" && gnome_interface_settings != null) {
-            font_name = gnome_interface_settings.get_string (GNOME_FONT_KEY);
-        }
-
-        var fd = Pango.FontDescription.from_string (font_name);
-        terminal.set_font (fd);
-    }
-
-    private void update_audible_bell () {
-        var audible_bell = false;
-        if (terminal_settings != null) {
-            audible_bell = terminal_settings.get_boolean (TERMINAL_BELL_KEY);
-        } else if (gnome_wm_settings != null) {
-            audible_bell = gnome_wm_settings.get_boolean (GNOME_BELL_KEY);
-        }
-
-        terminal.set_audible_bell (audible_bell);
-    }
-
-    private void update_cursor () {
-        if (terminal_settings != null) {
-            var cursor_shape_setting = terminal_settings.get_string (TERMINAL_CURSOR_KEY);
-            switch (cursor_shape_setting) {
-            case "Block":
-                terminal.cursor_shape = Vte.CursorShape.BLOCK;
-                break;
-            case "I-Beam":
-                terminal.cursor_shape = Vte.CursorShape.IBEAM;
-                break;
-            case "Underline":
-                terminal.cursor_shape = Vte.CursorShape.UNDERLINE;
-                break;
-            }
-        } // No corresponding system keymap
-    }
-
-    private void update_colors () {
-        if (terminal_settings != null) {
-            string background_setting = terminal_settings.get_string (TERMINAL_BACKGROUND_KEY);
-            Gdk.RGBA background_color = Gdk.RGBA ();
-            background_color.parse (background_setting);
-
-            string foreground_setting = terminal_settings.get_string (TERMINAL_FOREGROUND_KEY);
-            Gdk.RGBA foreground_color = Gdk.RGBA ();
-            foreground_color.parse (foreground_setting);
-
-            string palette_setting = terminal_settings.get_string (TERMINAL_PALETTE_KEY);
-
-            string[] hex_palette = { "#000000", "#FF6C60", "#A8FF60", "#FFFFCC", "#96CBFE",
-                                     "#FF73FE", "#C6C5FE", "#EEEEEE", "#000000", "#FF6C60",
-                                     "#A8FF60", "#FFFFB6", "#96CBFE", "#FF73FE", "#C6C5FE",
-                                     "#EEEEEE" };
-
-            string current_string = "";
-            int current_color = 0;
-            for (var i = 0; i < palette_setting.length; i++) {
-                if (palette_setting[i] == ':') {
-                    hex_palette[current_color] = current_string;
-                    current_string = "";
-                    current_color++;
-                } else {
-                    current_string += palette_setting[i].to_string ();
-                }
-            }
-
-            Gdk.RGBA[] palette = new Gdk.RGBA[16];
-
-            for (int i = 0; i < hex_palette.length; i++) {
-                Gdk.RGBA new_color = Gdk.RGBA ();
-                new_color.parse (hex_palette[i]);
-                palette[i] = new_color;
-            }
-
-            terminal.set_colors (foreground_color, background_color, palette);
-        } else {
-            update_colors_for_theme (Adw.StyleManager.get_default ().color_scheme);
-        }
-    }
-
-    private void update_colors_for_theme (Adw.ColorScheme scheme) {
-        Gdk.RGBA foreground_color;
-        Gdk.RGBA background_color;
-        string[] hex_palette = { "#000000", "#cc0000", "#4e9a06", "#c4a000", "#3465a4", "#75507b", "#06989a", "#d3d7cf", "#555753", "#ef2929", "#8ae234", "#fce94f", "#729fcf", "#ad7fa8", "#34e2e2", "#eeeeec" };
-
-        Gdk.RGBA[] palette = new Gdk.RGBA[16];
-
-        for (int i = 0; i < hex_palette.length; i++) {
-            Gdk.RGBA new_color = Gdk.RGBA ();
-            new_color.parse (hex_palette[i]);
-            palette[i] = new_color;
-        }
-
-        if (scheme == Adw.ColorScheme.FORCE_LIGHT) {
-            foreground_color = { 0.0f, 0.0f, 0.0f, 1.0f };
-            background_color = { 1.0f, 1.0f, 1.0f, 1.0f };
-        } else {
-            foreground_color = { 1.0f, 1.0f, 1.0f, 1.0f };
-            background_color = { 0.0f, 0.0f, 0.0f, 1.0f };
-        }
-
-        terminal.set_colors (foreground_color, background_color, palette);
-    }
-
-    public void save_settings () {
-        // Scratch.saved_state.set_string ("last-opened-path", get_shell_location ());
-    }
-
-    private void increment_size () {
-        terminal.font_scale = (terminal.font_scale + FONT_SCALE_STEP).clamp (MIN_SCALE, MAX_SCALE);
-    }
-
-    private void decrement_size () {
-        terminal.font_scale = (terminal.font_scale - FONT_SCALE_STEP).clamp (MIN_SCALE, MAX_SCALE);
-    }
-
-    public void set_default_font_size () {
-        terminal.font_scale = 1.0;
-    }
-
-    private bool key_pressed (uint keyval, uint keycode, Gdk.ModifierType modifiers) {
-        if (Gdk.ModifierType.CONTROL_MASK in modifiers && keyval == Gdk.Key.d) {
-            terminal.reset (true, true);
-            return Gdk.EVENT_STOP;
-        }
-
-        if (Gdk.ModifierType.CONTROL_MASK in modifiers &&
-            (Gdk.ModifierType.SHIFT_MASK in modifiers ||
-             terminal_settings != null && terminal_settings.get_boolean ("natural-copy-paste"))) {
-
-            if (keyval == Gdk.Key.c && terminal.get_has_selection ()) {
-                actions.activate_action (ACTION_COPY, null);
-                return Gdk.EVENT_STOP;
-                // } else if (keyval == Gdk.Key.v && current_clipboard.wait_is_text_available ()) {
-                // actions.activate_action (ACTION_PASTE, null);
-                // return Gdk.EVENT_STOP;
-            }
-        }
-
-        return Gdk.EVENT_PROPAGATE;
-    }
-}
-```
-
 ## File: test_temp/test.c
 ```c
 int main() {
+```
+
+## File: src/Services/LSP/config/LspRegistry.vala
+```
+public class Iide.LspRegistry {
+    public static string ? get_lsp_id (string language) {
+        switch (language) {
+        case "python":
+            return "basedpyright";
+        case "cpp":
+            return "clangd";
+        default:
+            return null;
+        }
+    }
+
+    public static LspConfig ? get_config (string lsp_id) {
+        switch (lsp_id) {
+        case "basedpyright" :
+            return new PythonLspConfig ();
+        case "clangd":
+            return new CppLspConfig ();
+        default:
+            return null;
+        }
+    }
+}
 ```
 
 ## File: src/Widgets/Panels/ProjectPanel.vala
@@ -7268,6 +7555,328 @@ public class Iide.ShortcutSettings : Object {
 }
 ```
 
+## File: src/Services/TreeSitter/python/PythonTSHighlighter.vala
+```
+[CCode (cname = "tree_sitter_python")]
+extern unowned TreeSitter.Language ? get_lang_python ();
+
+public class Iide.PythonHighlighter : BaseTreeSitterHighlighter {
+    public PythonHighlighter (SourceView view) {
+        base (view);
+    }
+
+    protected override unowned TreeSitter.Language get_ts_language () {
+        return get_lang_python ();
+    }
+
+    protected override string get_query_filename () {
+        return "python/highlights.scm";
+    }
+
+    protected override string query_source () {
+        return """
+        ; Identifier naming conventions
+
+        (identifier) @variable
+
+        ((identifier) @constructor
+         (#match? @constructor "^[A-Z]"))
+
+        ((identifier) @constant
+         (#match? @constant "^[A-Z][A-Z_]*$"))
+
+        ; Function calls
+
+        (decorator) @function
+        (decorator
+          (identifier) @function)
+
+        (call
+          function: (attribute attribute: (identifier) @function.method))
+        (call
+          function: (identifier) @function)
+
+        ; Builtin functions
+
+        ((call
+          function: (identifier) @function.builtin)
+         (#match?
+           @function.builtin
+           "^(abs|all|any|ascii|bin|bool|breakpoint|bytearray|bytes|callable|chr|classmethod|compile|complex|delattr|dict|dir|divmod|enumerate|eval|exec|filter|float|format|frozenset|getattr|globals|hasattr|hash|help|hex|id|input|int|isinstance|issubclass|iter|len|list|locals|map|max|memoryview|min|next|object|oct|open|ord|pow|print|property|range|repr|reversed|round|set|setattr|slice|sorted|staticmethod|str|sum|super|tuple|type|vars|zip|__import__)$"))
+
+        ; Function definitions
+
+        (function_definition
+          name: (identifier) @function)
+
+        (attribute attribute: (identifier) @property)
+        (type (identifier) @type)
+
+        ; Literals
+
+        [
+          (none)
+          (true)
+          (false)
+        ] @constant.builtin
+
+        [
+          (integer)
+          (float)
+        ] @number
+
+        (comment) @comment
+        (string) @string
+        (escape_sequence) @escape
+
+        (interpolation
+          "{" @punctuation.special
+          "}" @punctuation.special) @embedded
+
+        [
+          "-"
+          "-="
+          "!="
+          "*"
+          "**"
+          "**="
+          "*="
+          "/"
+          "//"
+          "//="
+          "/="
+          "&"
+          "&="
+          "%"
+          "%="
+          "^"
+          "^="
+          "+"
+          "->"
+          "+="
+          "<"
+          "<<"
+          "<<="
+          "<="
+          "<>"
+          "="
+          ":="
+          "=="
+          ">"
+          ">="
+          ">>"
+          ">>="
+          "|"
+          "|="
+          "~"
+          "@="
+          "and"
+          "in"
+          "is"
+          "not"
+          "or"
+          "is not"
+          "not in"
+        ] @operators
+
+        ["(" ")" "[" "]" "{" "}"] @punctuation.bracket
+
+        [
+          "as"
+          "assert"
+          "async"
+          "await"
+          "break"
+          "class"
+          "continue"
+          "def"
+          "del"
+          "elif"
+          "else"
+          "except"
+          "exec"
+          "finally"
+          "for"
+          "from"
+          "global"
+          "if"
+          "import"
+          "lambda"
+          "nonlocal"
+          "pass"
+          "print"
+          "raise"
+          "return"
+          "try"
+          "while"
+          "with"
+          "yield"
+          "match"
+          "case"
+        ] @keyword
+        """;
+    }
+
+    protected override bool is_container_node (string node_type) {
+        return node_type in new string[] {
+                   "function_definition", "class_definition", "module_definition"
+        };
+    }
+}
+```
+
+## File: data/org.github.kai66673.iide.gschema.xml
+```xml
+<?xml version="1.0" encoding="UTF-8"?>
+<schemalist gettext-domain="iide">
+	<schema id="org.github.kai66673.iide" path="/org/github/kai66673/iide/">
+		<key name="color-scheme" type="s">
+			<default>"system"</default>
+			<summary>Color scheme</summary>
+			<description>Color scheme: light, dark, or system</description>
+		</key>
+
+		<key name="editor-font-size" type="d">
+			<default>6</default>
+			<summary>Editor zoom level</summary>
+			<description>Editor zoom level (1-15)</description>
+		</key>
+
+		<key name="show-minimap" type="b">
+			<default>true</default>
+			<summary>Show minimap</summary>
+			<description>Whether to show the minimap in text editors</description>
+		</key>
+
+		<key name="show-line-numbers" type="b">
+			<default>true</default>
+			<summary>Show line numbers</summary>
+			<description>Whether to show line numbers in text editors</description>
+		</key>
+
+		<key name="highlight-current-line" type="b">
+			<default>true</default>
+			<summary>Highlight current line</summary>
+			<description>Whether to highlight the current line in text editors</description>
+		</key>
+
+		<key name="auto-indent" type="b">
+			<default>true</default>
+			<summary>Auto indent</summary>
+			<description>Whether to enable auto indentation</description>
+		</key>
+
+		<key name="panel-start-width" type="d">
+			<default>250</default>
+			<summary>Start panel width</summary>
+			<description>Width of the start panel (file tree)</description>
+		</key>
+
+		<key name="panel-end-width" type="d">
+			<default>250</default>
+			<summary>End panel width</summary>
+			<description>Width of the end panel</description>
+		</key>
+
+		<key name="panel-bottom-height" type="d">
+			<default>200</default>
+			<summary>Bottom panel height</summary>
+			<description>Height of the bottom panel (terminal)</description>
+		</key>
+
+		<key name="panel-bottom-width" type="d">
+			<default>500</default>
+			<summary>Bottom panel width</summary>
+			<description>Width of the bottom panel split between terminal and log</description>
+		</key>
+
+		<key name="reveal-start-panel" type="b">
+			<default>true</default>
+			<summary>Reveal start panel</summary>
+			<description>Whether the start panel is visible</description>
+		</key>
+
+		<key name="reveal-end-panel" type="b">
+			<default>false</default>
+			<summary>Reveal end panel</summary>
+			<description>Whether the end panel is visible</description>
+		</key>
+
+		<key name="reveal-bottom-panel" type="b">
+			<default>false</default>
+			<summary>Reveal bottom panel</summary>
+			<description>Whether the bottom panel is visible</description>
+		</key>
+
+		<key name="recent-projects" type="as">
+			<default>[]</default>
+			<summary>Recent projects</summary>
+			<description>List of recently opened project paths</description>
+		</key>
+
+		<key name="max-recent-projects" type="d">
+			<default>10</default>
+			<summary>Maximum recent projects</summary>
+			<description>Maximum number of recent projects to remember</description>
+		</key>
+
+		<key name="last-open-directory" type="s">
+			<default>""</default>
+			<summary>Last open directory</summary>
+			<description>Last directory used for opening files or projects</description>
+		</key>
+
+		<key name="current-project-path" type="s">
+			<default>""</default>
+			<summary>Current project path</summary>
+			<description>Path to the currently open project</description>
+		</key>
+
+		<key name="open-documents" type="as">
+			<default>[]</default>
+			<summary>Open documents</summary>
+			<description>List of currently open document URIs</description>
+		</key>
+
+		<key name="panel-layout" type="s">
+			<default>""</default>
+			<summary>Panel layout</summary>
+			<description>JSON string describing panel dock layout</description>
+		</key>
+
+		<key name="grid-layout" type="s">
+			<default>""</default>
+			<summary>Grid layout</summary>
+			<description>JSON string describing grid layout</description>
+		</key>
+
+		<key name="window-width" type="d">
+			<default>1200</default>
+			<summary>Window width</summary>
+			<description>Width of the main window</description>
+		</key>
+
+		<key name="window-height" type="d">
+			<default>800</default>
+			<summary>Window height</summary>
+			<description>Height of the main window</description>
+		</key>
+
+		<key name="window-maximized" type="b">
+			<default>false</default>
+			<summary>Window maximized</summary>
+			<description>Whether the window is maximized</description>
+		</key>
+
+		<key name="shortcuts" type="s">
+			<default>""</default>
+			<summary>Custom shortcuts</summary>
+			<description>JSON string mapping action IDs to keyboard shortcuts</description>
+		</key>
+	</schema>
+</schemalist>
+```
+
 ## File: src/Services/LSP/LspClient.vala
 ```
 using GLib;
@@ -7483,6 +8092,12 @@ public class Iide.LspClient : Object {
                     send_response_async.begin (node_id, new Json.Node (Json.NodeType.NULL));
                     return;
                 }
+                if (method == "workspace/diagnostic/refresh" && root.has_member ("id")) {
+                    // Мы просто подтверждаем, что готовы принимать прогресс с этим токеном
+                    var node_id = root.get_member ("id");
+                    send_response_async.begin (node_id, new Json.Node (Json.NodeType.NULL));
+                    return;
+                }
             }
 
             // Это ответ на наш запрос (есть 'id')
@@ -7569,7 +8184,7 @@ public class Iide.LspClient : Object {
             message ("!!!handle_incoming_notification - window/workDoneProgress/create" + json_object_to_string (root));
             break;
 
-        case "$/progress" :
+        case "$/progress":
             // message ("!!!handle_incoming_notification - $/progress" + json_object_to_string (root));
             if (params != null) {
                 // Token может быть строкой или числом, Tree-sitter и LSP это допускают
@@ -7586,6 +8201,12 @@ public class Iide.LspClient : Object {
 
                 // Определяем состояние
                 bool active = (kind != "end");
+                if (kind == "end") {
+                    var sparams = new Json.Object ();
+                    sparams.set_string_member ("query", "");
+
+                    send_request.begin ("workspace/symbol", sparams);
+                }
 
                 // Извлекаем сообщение (у BasedPyright оно часто в 'message')
                 string msg = "";
@@ -7640,6 +8261,7 @@ public class Iide.LspClient : Object {
 
             // 2. Запуск подпроцесса
             var launcher = new SubprocessLauncher (SubprocessFlags.STDOUT_PIPE | SubprocessFlags.STDIN_PIPE);
+            launcher.set_cwd (workspace_root.replace ("file://", ""));
             this.process = launcher.spawnv (argv);
 
             // 3. Инициализация асинхронных потоков
@@ -8023,328 +8645,6 @@ public class Iide.LspClient : Object {
         return loc;
     }
 }
-```
-
-## File: src/Services/TreeSitter/python/PythonTSHighlighter.vala
-```
-[CCode (cname = "tree_sitter_python")]
-extern unowned TreeSitter.Language ? get_lang_python ();
-
-public class Iide.PythonHighlighter : BaseTreeSitterHighlighter {
-    public PythonHighlighter (SourceView view) {
-        base (view);
-    }
-
-    protected override unowned TreeSitter.Language get_ts_language () {
-        return get_lang_python ();
-    }
-
-    protected override string get_query_filename () {
-        return "python/highlights.scm";
-    }
-
-    protected override string query_source () {
-        return """
-        ; Identifier naming conventions
-
-        (identifier) @variable
-
-        ((identifier) @constructor
-         (#match? @constructor "^[A-Z]"))
-
-        ((identifier) @constant
-         (#match? @constant "^[A-Z][A-Z_]*$"))
-
-        ; Function calls
-
-        (decorator) @function
-        (decorator
-          (identifier) @function)
-
-        (call
-          function: (attribute attribute: (identifier) @function.method))
-        (call
-          function: (identifier) @function)
-
-        ; Builtin functions
-
-        ((call
-          function: (identifier) @function.builtin)
-         (#match?
-           @function.builtin
-           "^(abs|all|any|ascii|bin|bool|breakpoint|bytearray|bytes|callable|chr|classmethod|compile|complex|delattr|dict|dir|divmod|enumerate|eval|exec|filter|float|format|frozenset|getattr|globals|hasattr|hash|help|hex|id|input|int|isinstance|issubclass|iter|len|list|locals|map|max|memoryview|min|next|object|oct|open|ord|pow|print|property|range|repr|reversed|round|set|setattr|slice|sorted|staticmethod|str|sum|super|tuple|type|vars|zip|__import__)$"))
-
-        ; Function definitions
-
-        (function_definition
-          name: (identifier) @function)
-
-        (attribute attribute: (identifier) @property)
-        (type (identifier) @type)
-
-        ; Literals
-
-        [
-          (none)
-          (true)
-          (false)
-        ] @constant.builtin
-
-        [
-          (integer)
-          (float)
-        ] @number
-
-        (comment) @comment
-        (string) @string
-        (escape_sequence) @escape
-
-        (interpolation
-          "{" @punctuation.special
-          "}" @punctuation.special) @embedded
-
-        [
-          "-"
-          "-="
-          "!="
-          "*"
-          "**"
-          "**="
-          "*="
-          "/"
-          "//"
-          "//="
-          "/="
-          "&"
-          "&="
-          "%"
-          "%="
-          "^"
-          "^="
-          "+"
-          "->"
-          "+="
-          "<"
-          "<<"
-          "<<="
-          "<="
-          "<>"
-          "="
-          ":="
-          "=="
-          ">"
-          ">="
-          ">>"
-          ">>="
-          "|"
-          "|="
-          "~"
-          "@="
-          "and"
-          "in"
-          "is"
-          "not"
-          "or"
-          "is not"
-          "not in"
-        ] @operators
-
-        ["(" ")" "[" "]" "{" "}"] @punctuation.bracket
-
-        [
-          "as"
-          "assert"
-          "async"
-          "await"
-          "break"
-          "class"
-          "continue"
-          "def"
-          "del"
-          "elif"
-          "else"
-          "except"
-          "exec"
-          "finally"
-          "for"
-          "from"
-          "global"
-          "if"
-          "import"
-          "lambda"
-          "nonlocal"
-          "pass"
-          "print"
-          "raise"
-          "return"
-          "try"
-          "while"
-          "with"
-          "yield"
-          "match"
-          "case"
-        ] @keyword
-        """;
-    }
-
-    protected override bool is_container_node (string node_type) {
-        return node_type in new string[] {
-                   "function_definition", "class_definition", "module_definition"
-        };
-    }
-}
-```
-
-## File: data/org.github.kai66673.iide.gschema.xml
-```xml
-<?xml version="1.0" encoding="UTF-8"?>
-<schemalist gettext-domain="iide">
-	<schema id="org.github.kai66673.iide" path="/org/github/kai66673/iide/">
-		<key name="color-scheme" type="s">
-			<default>"system"</default>
-			<summary>Color scheme</summary>
-			<description>Color scheme: light, dark, or system</description>
-		</key>
-
-		<key name="editor-font-size" type="d">
-			<default>6</default>
-			<summary>Editor zoom level</summary>
-			<description>Editor zoom level (1-15)</description>
-		</key>
-
-		<key name="show-minimap" type="b">
-			<default>true</default>
-			<summary>Show minimap</summary>
-			<description>Whether to show the minimap in text editors</description>
-		</key>
-
-		<key name="show-line-numbers" type="b">
-			<default>true</default>
-			<summary>Show line numbers</summary>
-			<description>Whether to show line numbers in text editors</description>
-		</key>
-
-		<key name="highlight-current-line" type="b">
-			<default>true</default>
-			<summary>Highlight current line</summary>
-			<description>Whether to highlight the current line in text editors</description>
-		</key>
-
-		<key name="auto-indent" type="b">
-			<default>true</default>
-			<summary>Auto indent</summary>
-			<description>Whether to enable auto indentation</description>
-		</key>
-
-		<key name="panel-start-width" type="d">
-			<default>250</default>
-			<summary>Start panel width</summary>
-			<description>Width of the start panel (file tree)</description>
-		</key>
-
-		<key name="panel-end-width" type="d">
-			<default>250</default>
-			<summary>End panel width</summary>
-			<description>Width of the end panel</description>
-		</key>
-
-		<key name="panel-bottom-height" type="d">
-			<default>200</default>
-			<summary>Bottom panel height</summary>
-			<description>Height of the bottom panel (terminal)</description>
-		</key>
-
-		<key name="panel-bottom-width" type="d">
-			<default>500</default>
-			<summary>Bottom panel width</summary>
-			<description>Width of the bottom panel split between terminal and log</description>
-		</key>
-
-		<key name="reveal-start-panel" type="b">
-			<default>true</default>
-			<summary>Reveal start panel</summary>
-			<description>Whether the start panel is visible</description>
-		</key>
-
-		<key name="reveal-end-panel" type="b">
-			<default>false</default>
-			<summary>Reveal end panel</summary>
-			<description>Whether the end panel is visible</description>
-		</key>
-
-		<key name="reveal-bottom-panel" type="b">
-			<default>false</default>
-			<summary>Reveal bottom panel</summary>
-			<description>Whether the bottom panel is visible</description>
-		</key>
-
-		<key name="recent-projects" type="as">
-			<default>[]</default>
-			<summary>Recent projects</summary>
-			<description>List of recently opened project paths</description>
-		</key>
-
-		<key name="max-recent-projects" type="d">
-			<default>10</default>
-			<summary>Maximum recent projects</summary>
-			<description>Maximum number of recent projects to remember</description>
-		</key>
-
-		<key name="last-open-directory" type="s">
-			<default>""</default>
-			<summary>Last open directory</summary>
-			<description>Last directory used for opening files or projects</description>
-		</key>
-
-		<key name="current-project-path" type="s">
-			<default>""</default>
-			<summary>Current project path</summary>
-			<description>Path to the currently open project</description>
-		</key>
-
-		<key name="open-documents" type="as">
-			<default>[]</default>
-			<summary>Open documents</summary>
-			<description>List of currently open document URIs</description>
-		</key>
-
-		<key name="panel-layout" type="s">
-			<default>""</default>
-			<summary>Panel layout</summary>
-			<description>JSON string describing panel dock layout</description>
-		</key>
-
-		<key name="grid-layout" type="s">
-			<default>""</default>
-			<summary>Grid layout</summary>
-			<description>JSON string describing grid layout</description>
-		</key>
-
-		<key name="window-width" type="d">
-			<default>1200</default>
-			<summary>Window width</summary>
-			<description>Width of the main window</description>
-		</key>
-
-		<key name="window-height" type="d">
-			<default>800</default>
-			<summary>Window height</summary>
-			<description>Height of the main window</description>
-		</key>
-
-		<key name="window-maximized" type="b">
-			<default>false</default>
-			<summary>Window maximized</summary>
-			<description>Whether the window is maximized</description>
-		</key>
-
-		<key name="shortcuts" type="s">
-			<default>""</default>
-			<summary>Custom shortcuts</summary>
-			<description>JSON string mapping action IDs to keyboard shortcuts</description>
-		</key>
-	</schema>
-</schemalist>
 ```
 
 ## File: src/Services/ProjectManager.vala
@@ -11227,6 +11527,193 @@ private class SearchInFilesAction : Iide.Action {
 }
 ```
 
+## File: src/Services/DocumentManager.vala
+```
+/*
+ * documentmanager.vala
+ *
+ * Copyright 2026 kai
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see <https://www.gnu.org/licenses/>.
+ *
+ * SPDX-License-Identifier: GPL-3.0-or-later
+ */
+
+using Gee;
+using GLib;
+using Gtk;
+using Panel;
+
+public class Iide.DocumentManager : GLib.Object {
+    public Window window;
+    private Iide.IdeLspManager lsp_manager;
+    private string? current_workspace_root;
+
+    private LoggerService logger = LoggerService.get_instance ();
+    private static DocumentManager? _instance;
+
+    public static DocumentManager get_instance () {
+        return _instance;
+    }
+
+    public Gee.HashMap<string, TextView> _documents;
+    public Gee.HashMap<string, TextView> documents {
+        get {
+            _documents = new Gee.HashMap<string, TextView> ();
+            window.grid.foreach_frame ((frame) => {
+                var pages = frame.get_pages ();
+
+                for (uint i = 0; i < pages.get_n_items (); i++) {
+                    var item = pages.get_item (i) as Adw.TabPage;
+                    if (item == null) {
+                        continue;
+                    }
+                    var child = item.get_child ();
+                    if (child == null) {
+                        continue;
+                    }
+                    var text_view = child as TextView;
+                    if (text_view != null) {
+                        _documents.set (text_view.uri, text_view);
+                    }
+                }
+            });
+            return _documents;
+        }
+    }
+
+    public DocumentManager (Window window) {
+        this.window = window;
+        DocumentManager._instance = this;
+        // documents = new Gee.HashMap<string, TextView> ();
+        lsp_manager = Iide.IdeLspManager.get_instance ();
+
+        lsp_manager.connect_diagnostics ((uri, diagnostics) => {
+            var doc = documents.get (uri);
+            if (doc != null) {
+                var lsp_diagnostics = new Gee.ArrayList<IdeLspDiagnostic> ();
+                foreach (var diag in diagnostics) {
+                    var d = new IdeLspDiagnostic ();
+                    d.severity = diag.severity;
+                    d.message = diag.message;
+                    d.start_line = diag.start_line;
+                    d.start_column = diag.start_column;
+                    d.end_line = diag.end_line;
+                    d.end_column = diag.end_column;
+                    lsp_diagnostics.add (d);
+                }
+
+                Idle.add (() => {
+                    doc.update_diagnostics (lsp_diagnostics);
+                    return false;
+                });
+            }
+        });
+    }
+
+    public void set_workspace_root (string? root) {
+        current_workspace_root = root;
+    }
+
+    public signal void document_opened (TextView document);
+
+    public Panel.Widget? open_document (GLib.File file, Panel.Position ? pos) {
+        return open_document_with_selection (file, -1, -1, -1, pos);
+    }
+
+    public Panel.Widget? open_document_with_selection (GLib.File file, int line, int start_col, int end_col, Panel.Position ? pos) {
+        string uri = file.get_uri ();
+
+        var docs = documents;
+        if (docs.has_key (uri)) {
+            var widget = docs.get (uri);
+            widget.raise ();
+            widget.view_grab_focus ();
+            if (line >= 0) {
+                widget.select_and_scroll (line, start_col, end_col, false);
+            }
+            return widget;
+        } else {
+            var shared_table = Iide.StyleService.get_instance ().shared_table;
+            var buffer = new GtkSource.Buffer (shared_table);
+            var source_file = new GtkSource.File ();
+            source_file.location = file;
+            var file_loader = new GtkSource.FileLoader (buffer, source_file);
+            Iide.TextView? panel_widget = null;
+            file_loader.load_async.begin (Priority.DEFAULT, null, null, (obj, res) => {
+                try {
+                    file_loader.load_async.end (res);
+                    panel_widget = new Iide.TextView (file, buffer, window);
+
+                    panel_widget.buffer_saved.connect (() => {
+                        string content = ((GtkSource.Buffer) panel_widget.text_view.buffer).text;
+                        lsp_manager.change_document.begin (uri, content);
+                    });
+
+                    if (pos == null) {
+                        window.grid.add (panel_widget);
+                    } else {
+                        window.add_widget (panel_widget, pos);
+                    }
+                    panel_widget.raise ();
+                    panel_widget.view_grab_focus ();
+                    logger.debug ("Doc", "Document panel widget created: " + uri);
+
+                    if (line >= 0) {
+                        // TODO: with timeout...
+                        panel_widget.select_and_scroll (line, start_col, end_col, true);
+                    }
+
+                    string content = buffer.text;
+                    string? lang_id = lsp_manager.get_language_id_for_file (file);
+                    if (lang_id != null) {
+                        lsp_manager.open_document.begin (uri, lang_id, content, current_workspace_root, panel_widget.text_view);
+                    }
+                } catch (Error e) {
+                    logger.error ("Doc", "Error Opening File", "Failed to read file %s: %s".printf (file.get_path (), e.message));
+                }
+            });
+            return panel_widget;
+        }
+    }
+
+    public Panel.Widget? get_document_for_file (GLib.File file) {
+        string uri = file.get_uri ();
+        return documents.get (uri);
+    }
+
+    public bool is_file_open (GLib.File file) {
+        return documents.has_key (file.get_uri ());
+    }
+
+    public Gee.ArrayList<string> get_open_document_uris () {
+        var uris = new Gee.ArrayList<string> ();
+        foreach (var uri in documents.keys) {
+            uris.add (uri);
+        }
+        return uris;
+    }
+
+    public void open_document_by_uri (string uri) {
+        var file = GLib.File.new_for_uri (uri);
+        if (file.query_exists (null)) {
+            open_document (file, null);
+        }
+    }
+}
+```
+
 ## File: src/Services/TreeSitter/BaseTreeSitterHighlighter.vala
 ```
 using TreeSitter;
@@ -11681,193 +12168,6 @@ public abstract class Iide.BaseTreeSitterHighlighter : Object {
         this.tree = null;
         this.query = null;
         this.cursor = null;
-    }
-}
-```
-
-## File: src/Services/DocumentManager.vala
-```
-/*
- * documentmanager.vala
- *
- * Copyright 2026 kai
- *
- * This program is free software: you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation, either version 3 of the License, or
- * (at your option) any later version.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program.  If not, see <https://www.gnu.org/licenses/>.
- *
- * SPDX-License-Identifier: GPL-3.0-or-later
- */
-
-using Gee;
-using GLib;
-using Gtk;
-using Panel;
-
-public class Iide.DocumentManager : GLib.Object {
-    public Window window;
-    private Iide.IdeLspManager lsp_manager;
-    private string? current_workspace_root;
-
-    private LoggerService logger = LoggerService.get_instance ();
-    private static DocumentManager? _instance;
-
-    public static DocumentManager get_instance () {
-        return _instance;
-    }
-
-    public Gee.HashMap<string, TextView> _documents;
-    public Gee.HashMap<string, TextView> documents {
-        get {
-            _documents = new Gee.HashMap<string, TextView> ();
-            window.grid.foreach_frame ((frame) => {
-                var pages = frame.get_pages ();
-
-                for (uint i = 0; i < pages.get_n_items (); i++) {
-                    var item = pages.get_item (i) as Adw.TabPage;
-                    if (item == null) {
-                        continue;
-                    }
-                    var child = item.get_child ();
-                    if (child == null) {
-                        continue;
-                    }
-                    var text_view = child as TextView;
-                    if (text_view != null) {
-                        _documents.set (text_view.uri, text_view);
-                    }
-                }
-            });
-            return _documents;
-        }
-    }
-
-    public DocumentManager (Window window) {
-        this.window = window;
-        DocumentManager._instance = this;
-        // documents = new Gee.HashMap<string, TextView> ();
-        lsp_manager = Iide.IdeLspManager.get_instance ();
-
-        lsp_manager.connect_diagnostics ((uri, diagnostics) => {
-            var doc = documents.get (uri);
-            if (doc != null) {
-                var lsp_diagnostics = new Gee.ArrayList<IdeLspDiagnostic> ();
-                foreach (var diag in diagnostics) {
-                    var d = new IdeLspDiagnostic ();
-                    d.severity = diag.severity;
-                    d.message = diag.message;
-                    d.start_line = diag.start_line;
-                    d.start_column = diag.start_column;
-                    d.end_line = diag.end_line;
-                    d.end_column = diag.end_column;
-                    lsp_diagnostics.add (d);
-                }
-
-                Idle.add (() => {
-                    doc.update_diagnostics (lsp_diagnostics);
-                    return false;
-                });
-            }
-        });
-    }
-
-    public void set_workspace_root (string? root) {
-        current_workspace_root = root;
-    }
-
-    public signal void document_opened (TextView document);
-
-    public Panel.Widget? open_document (GLib.File file, Panel.Position ? pos) {
-        return open_document_with_selection (file, -1, -1, -1, pos);
-    }
-
-    public Panel.Widget? open_document_with_selection (GLib.File file, int line, int start_col, int end_col, Panel.Position ? pos) {
-        string uri = file.get_uri ();
-
-        var docs = documents;
-        if (docs.has_key (uri)) {
-            var widget = docs.get (uri);
-            widget.raise ();
-            widget.view_grab_focus ();
-            if (line >= 0) {
-                widget.select_and_scroll (line, start_col, end_col, false);
-            }
-            return widget;
-        } else {
-            var shared_table = Iide.StyleService.get_instance ().shared_table;
-            var buffer = new GtkSource.Buffer (shared_table);
-            var source_file = new GtkSource.File ();
-            source_file.location = file;
-            var file_loader = new GtkSource.FileLoader (buffer, source_file);
-            Iide.TextView? panel_widget = null;
-            file_loader.load_async.begin (Priority.DEFAULT, null, null, (obj, res) => {
-                try {
-                    file_loader.load_async.end (res);
-                    panel_widget = new Iide.TextView (file, buffer, window);
-
-                    panel_widget.buffer_saved.connect (() => {
-                        string content = ((GtkSource.Buffer) panel_widget.text_view.buffer).text;
-                        lsp_manager.change_document.begin (uri, content);
-                    });
-
-                    if (pos == null) {
-                        window.grid.add (panel_widget);
-                    } else {
-                        window.add_widget (panel_widget, pos);
-                    }
-                    panel_widget.raise ();
-                    panel_widget.view_grab_focus ();
-                    logger.debug ("Doc", "Document panel widget created: " + uri);
-
-                    if (line >= 0) {
-                        // TODO: with timeout...
-                        panel_widget.select_and_scroll (line, start_col, end_col, true);
-                    }
-
-                    string content = buffer.text;
-                    string? lang_id = lsp_manager.get_language_id_for_file (file);
-                    if (lang_id != null) {
-                        lsp_manager.open_document.begin (uri, lang_id, content, current_workspace_root, panel_widget.text_view);
-                    }
-                } catch (Error e) {
-                    logger.error ("Doc", "Error Opening File", "Failed to read file %s: %s".printf (file.get_path (), e.message));
-                }
-            });
-            return panel_widget;
-        }
-    }
-
-    public Panel.Widget? get_document_for_file (GLib.File file) {
-        string uri = file.get_uri ();
-        return documents.get (uri);
-    }
-
-    public bool is_file_open (GLib.File file) {
-        return documents.has_key (file.get_uri ());
-    }
-
-    public Gee.ArrayList<string> get_open_document_uris () {
-        var uris = new Gee.ArrayList<string> ();
-        foreach (var uri in documents.keys) {
-            uris.add (uri);
-        }
-        return uris;
-    }
-
-    public void open_document_by_uri (string uri) {
-        var file = GLib.File.new_for_uri (uri);
-        if (file.query_exists (null)) {
-            open_document (file, null);
-        }
     }
 }
 ```
@@ -12730,7 +13030,9 @@ iide_sources = [
     'Services/LSP/LspTypes.vala',
     'Services/LSP/config/LspConfig.vala',
     'Services/LSP/config/PythonLspConfig.vala',
+    'Services/LSP/config/CppLspConfig.vala',
     'Services/LSP/config/LspRegistry.vala',
+    'Services/LSP/index/ClangTidy.vala',
     'Services/LSP/LspClient.vala',
     'Services/LSP/IdeLspService.vala',
     'Services/LSP/IdeLspManager.vala',
