@@ -18,8 +18,6 @@ iide_sources = [
     'Widgets/Search/SearchInFilesPage.vala',
     'Widgets/Search/SearchSymbolPage.vala',
     'Widgets/PreferencesDialog.vala',
-    'Widgets/FuzzyFinderDialog.vala',
-    'Widgets/SearchInFilesDialog.vala',
     'Widgets/Panels/BasePanel.vala',
     'Widgets/Panels/LogPanel.vala',
     'Widgets/Panels/TerminalPanel.vala',
