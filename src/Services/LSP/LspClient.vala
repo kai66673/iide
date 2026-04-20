@@ -211,6 +211,12 @@ public class Iide.LspClient : Object {
                     send_response_async.begin (node_id, new Json.Node (Json.NodeType.NULL));
                     return;
                 }
+                if (method == "workspace/diagnostic/refresh" && root.has_member ("id")) {
+                    // Мы просто подтверждаем, что готовы принимать прогресс с этим токеном
+                    var node_id = root.get_member ("id");
+                    send_response_async.begin (node_id, new Json.Node (Json.NodeType.NULL));
+                    return;
+                }
             }
 
             // Это ответ на наш запрос (есть 'id')
@@ -297,7 +303,7 @@ public class Iide.LspClient : Object {
             message ("!!!handle_incoming_notification - window/workDoneProgress/create" + json_object_to_string (root));
             break;
 
-        case "$/progress" :
+        case "$/progress":
             // message ("!!!handle_incoming_notification - $/progress" + json_object_to_string (root));
             if (params != null) {
                 // Token может быть строкой или числом, Tree-sitter и LSP это допускают
@@ -314,6 +320,12 @@ public class Iide.LspClient : Object {
 
                 // Определяем состояние
                 bool active = (kind != "end");
+                if (kind == "end") {
+                    var sparams = new Json.Object ();
+                    sparams.set_string_member ("query", "");
+
+                    send_request.begin ("workspace/symbol", sparams);
+                }
 
                 // Извлекаем сообщение (у BasedPyright оно часто в 'message')
                 string msg = "";
@@ -368,6 +380,7 @@ public class Iide.LspClient : Object {
 
             // 2. Запуск подпроцесса
             var launcher = new SubprocessLauncher (SubprocessFlags.STDOUT_PIPE | SubprocessFlags.STDIN_PIPE);
+            launcher.set_cwd (workspace_root.replace ("file://", ""));
             this.process = launcher.spawnv (argv);
 
             // 3. Инициализация асинхронных потоков

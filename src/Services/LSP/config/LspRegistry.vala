@@ -3,6 +3,8 @@ public class Iide.LspRegistry {
         switch (language) {
         case "python":
             return "basedpyright";
+        case "cpp":
+            return "clangd";
         default:
             return null;
         }
@@ -12,6 +14,8 @@ public class Iide.LspRegistry {
         switch (lsp_id) {
         case "basedpyright" :
             return new PythonLspConfig ();
+        case "clangd":
+            return new CppLspConfig ();
         default:
             return null;
         }
