@@ -4,7 +4,6 @@ public class Iide.SearchSymbolPage : Gtk.Box, SearchPanelInterface {
     private Gtk.SingleSelection selection;
     private Gtk.StringList string_list;
     private Gtk.Stack status_stack;
-    private Adw.StatusPage empty_state;
     private Gtk.Spinner spinner;
 
     private GLib.Cancellable? search_cancellable = null;
@@ -107,11 +106,6 @@ public class Iide.SearchSymbolPage : Gtk.Box, SearchPanelInterface {
         scrolled.hexpand = true;
         scrolled.vexpand = true;
 
-        empty_state = new Adw.StatusPage ();
-        empty_state.title = _("No symbols found");
-        empty_state.icon_name = "edit-find-symbolic";
-        empty_state.description = _("Enter a name to search in the project");
-
         var loading_box = new Gtk.Box (Gtk.Orientation.VERTICAL, 12);
         loading_box.valign = Gtk.Align.CENTER;
         loading_box.halign = Gtk.Align.CENTER;
@@ -126,11 +120,10 @@ public class Iide.SearchSymbolPage : Gtk.Box, SearchPanelInterface {
         loading_box.append (loading_label);
 
         status_stack.add_named (scrolled, "results");
-        status_stack.add_named (empty_state, "empty");
         status_stack.add_named (loading_box, "loading");
 
         append (status_stack);
-        status_stack.visible_child_name = "empty";
+        status_stack.visible_child_name = "results";
 
         var key_controller = new Gtk.EventControllerKey ();
         key_controller.key_pressed.connect (on_key_pressed);
@@ -173,7 +166,7 @@ public class Iide.SearchSymbolPage : Gtk.Box, SearchPanelInterface {
         if (query.length < 3) {
             symbols.clear ();
             update_results ();
-            status_stack.visible_child_name = "empty";
+            status_stack.visible_child_name = "results";
             return;
         }
 
@@ -203,7 +196,7 @@ public class Iide.SearchSymbolPage : Gtk.Box, SearchPanelInterface {
         } catch (GLib.IOError.CANCELLED e) {
         } catch (GLib.Error e) {
             warning ("LSP Symbol Search Error: %s", e.message);
-            status_stack.visible_child_name = "empty";
+            status_stack.visible_child_name = "results";
         }
 
         spinner.stop ();
@@ -213,7 +206,7 @@ public class Iide.SearchSymbolPage : Gtk.Box, SearchPanelInterface {
         symbols.clear ();
 
         if (results == null || results.size == 0) {
-            status_stack.visible_child_name = "empty";
+            status_stack.visible_child_name = "results";
             update_results ();
             return;
         }
