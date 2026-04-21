@@ -493,7 +493,5 @@ public class Iide.SearchInFilesPage : Gtk.Box, SearchPanelInterface {
     public void handle_activated () {
         status_stack.visible_child_name = "ready";
         search_entry.grab_focus ();
-
-        perform_search_async.begin ();
     }
 }
