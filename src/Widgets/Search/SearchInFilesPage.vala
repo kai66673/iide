@@ -12,19 +12,15 @@ public class Iide.SearchInFilesPage : Gtk.Box, SearchPanelInterface {
     private Gtk.Spinner spinner;
 
     private uint debounce_id = 0;
+    private bool content_loaded = false;
 
-    private const int MAX_RESULTS = 200;
+    private const int MAX_RESULTS = 100;
 
     public void focus_search_entry () {
         search_entry.grab_focus ();
     }
 
-    private interface ListItem : Object {
-        public abstract string get_display_text ();
-        public abstract bool is_header ();
-    }
-
-    private class SearchResult : Object, ListItem {
+    private class SearchResult : Object {
         public string file_path { get; construct; }
         public string file_name { get; construct; }
         public string relative_path { get; construct; }
@@ -32,8 +28,9 @@ public class Iide.SearchInFilesPage : Gtk.Box, SearchPanelInterface {
         public string line_content { get; construct; }
         public int match_start { get; construct; }
         public int match_end { get; construct; }
+        public int score { get; construct; }
 
-        public SearchResult (string file_path, string file_name, string relative_path, int line_number, string line_content, int match_start, int match_end) {
+        public SearchResult (string file_path, string file_name, string relative_path, int line_number, string line_content, int match_start, int match_end, int score = 0) {
             Object (
                     file_path: file_path,
                     file_name: file_name,
@@ -41,53 +38,20 @@ public class Iide.SearchInFilesPage : Gtk.Box, SearchPanelInterface {
                     line_number: line_number,
                     line_content: line_content,
                     match_start: match_start,
-                    match_end: match_end
+                    match_end: match_end,
+                    score: score
             );
-        }
-
-        public string get_display_text () {
-            return "%d: %s".printf (line_number + 1, line_content);
-        }
-
-        public bool is_header () {
-            return false;
         }
     }
 
-    private class ResultGroup : Object, ListItem {
-        public string file_path { get; construct; }
-        public string file_name { get; construct; }
-        public string relative_path { get; construct; }
-        public int result_count { get; construct; }
-
-        public ResultGroup (string file_path, string file_name, string relative_path, int result_count) {
-            Object (
-                    file_path: file_path,
-                    file_name: file_name,
-                    relative_path: relative_path,
-                    result_count: result_count
-            );
-        }
-
-        public string get_display_text () {
-            return relative_path;
-        }
-
-        public bool is_header () {
-            return true;
-        }
-    }
-
-    private Gee.List<ListItem> all_items;
-    private Gee.List<ListItem> filtered_items;
+    private Gee.List<SearchResult> all_results;
     private Gtk.StringList string_list;
 
     public SearchInFilesPage (Window parent_window, Iide.DocumentManager document_manager) {
         this.parent_window = parent_window;
         this.document_manager = document_manager;
         this.project_manager = Iide.ProjectManager.get_instance ();
-        this.all_items = new Gee.ArrayList<ListItem> ();
-        this.filtered_items = new Gee.ArrayList<ListItem> ();
+        this.all_results = new Gee.ArrayList<SearchResult> ();
 
         var project_root = project_manager.get_current_project_root ();
         if (project_root != null) {
@@ -97,6 +61,14 @@ public class Iide.SearchInFilesPage : Gtk.Box, SearchPanelInterface {
         }
 
         setup_ui ();
+
+        project_manager.file_cache_updated.connect (on_file_cache_updated);
+        project_manager.file_cache_invalidated.connect (on_file_cache_invalidated);
+    }
+
+    ~SearchInFilesPage () {
+        project_manager.file_cache_updated.disconnect (on_file_cache_updated);
+        project_manager.file_cache_invalidated.disconnect (on_file_cache_invalidated);
     }
 
     private void setup_ui () {
@@ -123,29 +95,44 @@ public class Iide.SearchInFilesPage : Gtk.Box, SearchPanelInterface {
         var factory = new Gtk.SignalListItemFactory ();
         factory.setup.connect ((item) => {
             var list_item = item as Gtk.ListItem;
-            list_item.set_child (new Gtk.Label (null));
+            var item_box = new Gtk.Box (Gtk.Orientation.VERTICAL, 2);
+            item_box.margin_start = 8;
+            item_box.margin_end = 8;
+            item_box.margin_top = 4;
+            item_box.margin_bottom = 4;
+
+            var line_label = new Gtk.Label (null);
+            line_label.xalign = 0;
+            line_label.add_css_class ("monospace");
+            line_label.add_css_class ("body");
+            line_label.hexpand = true;
+            line_label.selectable = true;
+
+            var path_label = new Gtk.Label (null);
+            path_label.xalign = 0;
+            path_label.add_css_class ("dim-label");
+            path_label.add_css_class ("caption");
+            path_label.hexpand = true;
+
+            item_box.append (line_label);
+            item_box.append (path_label);
+            list_item.set_child (item_box);
         });
+
         factory.bind.connect ((item) => {
             var list_item = item as Gtk.ListItem;
-            var label = list_item.get_child () as Gtk.Label;
-            var index = list_item.get_position ();
+            var item_box = list_item.get_child () as Gtk.Box;
+            var line_label = item_box.get_first_child () as Gtk.Label;
+            var path_label = line_label.get_next_sibling () as Gtk.Label;
 
-            if (index >= 0 && index < filtered_items.size) {
-                var list_item_obj = filtered_items[(int) index];
-                if (list_item_obj.is_header ()) {
-                    var group = list_item_obj as ResultGroup;
-                    label.set_label ("%s (%d)".printf (group.relative_path, group.result_count));
-                    label.add_css_class ("title-5");
-                    label.add_css_class ("dim-label");
-                    label.xalign = 0;
-                } else {
-                    label.set_label (list_item_obj.get_display_text ());
-                    label.add_css_class ("monospace");
-                    label.add_css_class ("body");
-                    label.xalign = 0;
-                }
+            var index = list_item.get_position ();
+            if (index >= 0 && index < all_results.size) {
+                var result = all_results[(int) index];
+                line_label.set_label ("%d: %s".printf (result.line_number + 1, result.line_content));
+                path_label.set_label ("%s".printf (result.relative_path));
             }
         });
+
         results_view.factory = factory;
 
         var scrolled = new Gtk.ScrolledWindow ();
@@ -156,7 +143,6 @@ public class Iide.SearchInFilesPage : Gtk.Box, SearchPanelInterface {
         status_stack = new Gtk.Stack ();
         status_stack.transition_type = Gtk.StackTransitionType.CROSSFADE;
 
-        // --- Состояние загрузки ---
         var loading_box = new Gtk.Box (Gtk.Orientation.VERTICAL, 12);
         loading_box.valign = Gtk.Align.CENTER;
         loading_box.halign = Gtk.Align.CENTER;
@@ -164,15 +150,14 @@ public class Iide.SearchInFilesPage : Gtk.Box, SearchPanelInterface {
         spinner = new Gtk.Spinner ();
         spinner.set_size_request (32, 32);
 
-        var loading_label = new Gtk.Label ("Индексация файлов проекта...");
+        var loading_label = new Gtk.Label (_("Indexing project files..."));
         loading_label.add_css_class ("dim-label");
 
         loading_box.append (spinner);
         loading_box.append (loading_label);
 
-        // --- Добавляем в стек ---
         status_stack.add_named (loading_box, "loading");
-        status_stack.add_named (scrolled, "ready"); // Ваш основной UI
+        status_stack.add_named (scrolled, "ready");
 
         vbox.append (status_stack);
         this.append (vbox);
@@ -194,6 +179,21 @@ public class Iide.SearchInFilesPage : Gtk.Box, SearchPanelInterface {
         search_entry.focus_on_click = false;
     }
 
+    private bool is_text_file (string path) {
+        var file = File.new_for_path (path);
+        try {
+            // Запрашиваем информацию о типе контента
+            var info = file.query_info (FileAttribute.STANDARD_CONTENT_TYPE, FileQueryInfoFlags.NONE);
+            string content_type = info.get_content_type ();
+
+            // Проверяем, является ли тип производным от "text/plain"
+            return ContentType.is_a (content_type, "text/plain");
+        } catch (Error e) {
+            stderr.printf ("Ошибка: %s\n", e.message);
+            return false;
+        }
+    }
+
     private bool on_key_pressed (Gtk.EventControllerKey controller, uint keyval, uint keycode, Gdk.ModifierType modifiers) {
         if (keyval == Gdk.Key.Escape) {
             close_requested ();
@@ -202,44 +202,29 @@ public class Iide.SearchInFilesPage : Gtk.Box, SearchPanelInterface {
             open_selected ((modifiers & Gdk.ModifierType.SHIFT_MASK) == 0);
             return true;
         } else if (keyval == Gdk.Key.Up || keyval == Gdk.Key.KP_Up) {
-            navigate_up ();
+            if (selection.selected > 0) {
+                selection.selected -= 1;
+                results_view.scroll_to (selection.selected, Gtk.ListScrollFlags.NONE, null);
+            }
             return true;
         } else if (keyval == Gdk.Key.Down || keyval == Gdk.Key.KP_Down) {
-            navigate_down ();
+            if (selection.selected < (int) string_list.get_n_items () - 1) {
+                selection.selected += 1;
+                results_view.scroll_to (selection.selected, Gtk.ListScrollFlags.NONE, null);
+            }
             return true;
         }
         return false;
     }
 
-    private void navigate_up () {
-        var current = (int) selection.selected;
-        if (current <= 0)return;
-
-        for (int i = current - 1; i >= 0; i--) {
-            if (filtered_items[i] is SearchResult) {
-                selection.selected = i;
-                results_view.scroll_to (i, Gtk.ListScrollFlags.NONE, null);
-                return;
-            }
-        }
+    private void on_file_cache_updated () {
     }
 
-    private void navigate_down () {
-        var current = (int) selection.selected;
-        var max = (int) string_list.get_n_items () - 1;
-        if (current >= max)return;
-
-        for (int i = current + 1; i < filtered_items.size; i++) {
-            if (filtered_items[i] is SearchResult) {
-                selection.selected = i;
-                results_view.scroll_to (i, Gtk.ListScrollFlags.NONE, null);
-                return;
-            }
-        }
+    private void on_file_cache_invalidated () {
+        all_results.clear ();
     }
 
     private void on_search_changed () {
-        // 1. Сначала отменяем предыдущий таймер, если он был запущен
         if (debounce_id > 0) {
             Source.remove (debounce_id);
             debounce_id = 0;
@@ -247,109 +232,186 @@ public class Iide.SearchInFilesPage : Gtk.Box, SearchPanelInterface {
 
         string query = search_entry.get_text ().strip ();
 
-        // Если поле пустое, очищаем результаты мгновенно без задержки
         if (query.length == 0 || query.length == 1) {
-            filtered_items = new Gee.ArrayList<ListItem> ();
+            all_results = new Gee.ArrayList<SearchResult> ();
             update_results ();
             return;
         }
 
-        // 2. Устанавливаем новый таймер (например, на 300 мс)
-        debounce_id = Timeout.add (300, () => {
-            perform_search ();
-
-            // Возвращаем false, чтобы таймер не повторялся (однократное выполнение)
+        debounce_id = Timeout.add (200, () => {
+            perform_search_async.begin ();
             debounce_id = 0;
             return false;
         });
     }
 
+    private async void perform_search_async () {
+        yield ensure_content_loaded ();
+
+        perform_search ();
+    }
+
+    private async void ensure_content_loaded () {
+        if (content_loaded) {
+            return;
+        }
+
+        status_stack.visible_child_name = "loading";
+        spinner.start ();
+
+        yield project_manager.ensure_file_cache_async ();
+
+        content_loaded = true;
+
+        spinner.stop ();
+        status_stack.visible_child_name = "ready";
+    }
+
+    private int fuzzy_score (string target, string query) {
+        if (target.length == 0 || query.length == 0) {
+            return 0;
+        }
+
+        var target_lower = target.down ();
+        var query_lower = query.down ();
+
+        if (target_lower.contains (query_lower)) {
+            var pos = target_lower.index_of (query_lower);
+            if (pos == 0) {
+                return 1000 + (1000 - target.length);
+            }
+            return 500 + (1000 - pos);
+        }
+
+        int score = 0;
+        int consecutive = 0;
+        int last_match = -1;
+        bool prev_was_sep = true;
+        bool matched_all = true;
+
+        for (int qi = 0; qi < query_lower.length; qi++) {
+            bool found = false;
+            for (int idx = last_match + 1; idx < target_lower.length; idx++) {
+                if (target_lower[idx] == query_lower[qi]) {
+                    found = true;
+                    last_match = idx;
+                    consecutive++;
+
+                    if (idx == 0 || prev_was_sep) {
+                        score += 150;
+                    } else if (consecutive > 1) {
+                        score += consecutive * 10;
+                    } else {
+                        score += 15;
+                    }
+
+                    break;
+                } else {
+                    score -= 1;
+                }
+            }
+
+            if (!found) {
+                matched_all = false;
+                break;
+            }
+
+            unichar c = last_match >= 0 && last_match < (int) target.length ? target[last_match] : ' ';
+            prev_was_sep = !c.isalnum () && c != '_';
+        }
+
+        return matched_all ? score : 0;
+    }
+
     private void perform_search () {
         current_query = search_entry.get_text ().strip ();
-        message ("on_search_changed: " + current_query);
 
         if (current_query == "" || current_query.length < 2) {
-            filtered_items = new Gee.ArrayList<ListItem> ();
+            all_results = new Gee.ArrayList<SearchResult> ();
             update_results ();
             return;
         }
 
-        var query_lower = current_query.down ();
-        var results_by_file = new Gee.HashMap<string, Gee.List<SearchResult>> ();
+        var file_cache = project_manager.get_file_cache ();
+        if (file_cache == null) {
+            all_results = new Gee.ArrayList<SearchResult> ();
+            update_results ();
+            return;
+        }
 
-        foreach (var item in all_items) {
-            if (item is ResultGroup) {
+        var results = new Gee.ArrayList<SearchResult> ();
+        var query_lower = current_query.down ();
+
+        foreach (var file_entry in file_cache) {
+            if (!is_text_file (file_entry.path)) {
                 continue;
             }
-            var result = item as SearchResult;
-            if (result.line_content.down ().contains (query_lower)) {
-                if (!results_by_file.has_key (result.file_path)) {
-                    results_by_file[result.file_path] = new Gee.ArrayList<SearchResult> ();
+
+            try {
+                var file = GLib.File.new_for_path (file_entry.path);
+                var dis = new DataInputStream (file.read ());
+                string line;
+                int line_num = 0;
+
+                while ((line = dis.read_line ()) != null) {
+                    int score = fuzzy_score (line, current_query);
+
+                    if (score > 0) {
+                        var pos = line.down ().index_of (query_lower);
+                        var start = pos >= 0 ? pos : 0;
+                        var end = pos >= 0 ? pos + (int) current_query.length : start;
+
+                        results.add (new SearchResult (
+                                                       file_entry.path,
+                                                       file_entry.name,
+                                                       file_entry.relative_path,
+                                                       line_num,
+                                                       line.strip (),
+                                                       start,
+                                                       end,
+                                                       score
+                        ));
+                    }
+                    line_num++;
                 }
-                results_by_file[result.file_path].add (result);
+                dis.close ();
+            } catch (Error e) {
             }
         }
 
-        filtered_items = new Gee.ArrayList<ListItem> ();
-        foreach (var entry in results_by_file) {
-            if (filtered_items.size >= MAX_RESULTS)break;
+        results.sort ((a, b) => b.score - a.score);
 
-            var group = new ResultGroup (
-                                         entry.key,
-                                         entry.value[0].file_name,
-                                         entry.value[0].relative_path,
-                                         entry.value.size
-            );
-            filtered_items.add (group);
-
-            foreach (var result in entry.value) {
-                if (filtered_items.size >= MAX_RESULTS)break;
-                filtered_items.add (result);
-            }
+        all_results = new Gee.ArrayList<SearchResult> ();
+        for (int i = 0; i < results.size && i < MAX_RESULTS; i++) {
+            all_results.add (results[i]);
         }
 
         update_results ();
     }
 
     private void update_results () {
-        var strings = new string[filtered_items.size];
-        for (int i = 0; i < filtered_items.size; i++) {
-            strings[i] = filtered_items[i].get_display_text ();
+        var strings = new string[all_results.size];
+        for (int i = 0; i < all_results.size; i++) {
+            var result = all_results[i];
+            strings[i] = "%d: %s".printf (result.line_number + 1, result.line_content);
         }
 
         string_list.splice (0, string_list.get_n_items (), strings);
 
-        if (filtered_items.size > 0) {
-            select_first_result ();
-        }
-    }
-
-    private void select_first_result () {
-        for (int i = 0; i < filtered_items.size; i++) {
-            if (filtered_items[i] is SearchResult) {
-                selection.selected = i;
-                return;
-            }
+        if (all_results.size > 0) {
+            selection.selected = 0;
         }
     }
 
     private void open_selected (bool close_search = true) {
         var index = (int) selection.selected;
-        if (index >= 0 && index < filtered_items.size) {
-            var item = filtered_items[index];
-            if (item is SearchResult) {
-                var result = item as SearchResult;
-                var file = GLib.File.new_for_path (result.file_path);
+        if (index >= 0 && index < all_results.size) {
+            var result = all_results[index];
+            var file = GLib.File.new_for_path (result.file_path);
 
-                var query_lower = current_query.down ();
-                var line_lower = result.line_content.down ();
-                var pos = line_lower.index_of (query_lower);
-                var start_col = pos >= 0 ? pos : 0;
-                var end_col = pos >= 0 ? pos + (int) current_query.length : start_col;
-
-                document_manager.open_document_with_selection (file, result.line_number, start_col, end_col, null);
-                if (close_search)
-                    close_requested ();
+            document_manager.open_document_with_selection (file, result.line_number, result.match_start, result.match_end, null);
+            if (close_search) {
+                close_requested ();
             }
         }
     }
@@ -358,108 +420,10 @@ public class Iide.SearchInFilesPage : Gtk.Box, SearchPanelInterface {
         search_entry.set_text (query);
     }
 
-    private async void scan_files_for_search () {
-        // Получаем путь к корню проекта (предположим, он хранится в ProjectManager)
-        var directory = File.new_for_path (project_root_path);
-
-        try {
-            // Асинхронно получаем перечислитель файлов
-            var enumerator = yield directory.enumerate_children_async (FileAttribute.STANDARD_NAME + "," + FileAttribute.STANDARD_TYPE,
-                FileQueryInfoFlags.NONE,
-                Priority.DEFAULT,
-                null);
-
-            yield process_directory_recursive (enumerator, directory);
-        } catch (Error e) {
-            critical ("Ошибка при сканировании файлов: %s", e.message);
-        }
-    }
-
-    // Рекурсивный помощник (тоже асинхронный)
-    private async void process_directory_recursive (FileEnumerator enumerator, File dir) throws Error {
-        while (true) {
-            // Получаем файлы порциями по 100 штук, чтобы не спамить в Event Loop
-            var files = yield enumerator.next_files_async (100, Priority.DEFAULT, null);
-
-            if (files == null || files.length () == 0)break;
-
-            foreach (var info in files) {
-                var name = info.get_name ();
-                var child = dir.get_child (info.get_name ());
-
-                if (info.get_file_type () == FileType.DIRECTORY) {
-                    // Игнорируем скрытые папки типа .git
-                    if (name.has_prefix (".") || name == "node_modules"
-                        || name == "target" || name == "build" ||
-                        name == "__pycache__")
-                        continue;
-
-                    var sub_enum = yield child.enumerate_children_async (FileAttribute.STANDARD_NAME + "," + FileAttribute.STANDARD_TYPE,
-                        FileQueryInfoFlags.NONE,
-                        Priority.DEFAULT,
-                        null);
-                    yield process_directory_recursive (sub_enum, child);
-                } else {
-                    // Добавляем файл в список для поиска
-                    // Здесь логика фильтрации расширений, если нужно
-                    var path = dir.get_child (name).get_path ();
-                    if (path != null) {
-                        search_file (path);
-                    }
-                }
-            }
-        }
-    }
-
-    private void search_file (string file_path) {
-        try {
-            var file = GLib.File.new_for_path (file_path);
-            var dis = new DataInputStream (file.read ());
-            string line;
-            int line_num = 0;
-
-            string relative_path = file_path;
-            if (file_path.has_prefix (project_root_path)) {
-                relative_path = file_path.substring (project_root_path.length);
-                if (relative_path.has_prefix ("/")) {
-                    relative_path = relative_path.substring (1);
-                }
-            }
-
-            while ((line = dis.read_line ()) != null) {
-                all_items.add (new SearchResult (
-                                                 file_path,
-                                                 file.get_basename (),
-                                                 relative_path,
-                                                 line_num,
-                                                 line.strip (),
-                                                 0, 0
-                ));
-                line_num++;
-            }
-            dis.close ();
-        } catch (Error e) {
-        }
-    }
-
     public void handle_activated () {
-        if (all_items.size == 0) {
-            // Переключаемся на загрузку
-            status_stack.visible_child_name = "loading";
-            spinner.start ();
+        status_stack.visible_child_name = "ready";
+        search_entry.grab_focus ();
 
-            // Запускаем асинхронное сканирование без блокировки UI
-            scan_files_for_search.begin ((obj, res) => {
-                // Этот колбэк выполнится по завершении
-                spinner.stop ();
-                status_stack.visible_child_name = "ready";
-                search_entry.grab_focus ();
-                perform_search ();
-                debug ("Сканирование файлов завершено");
-            });
-        } else {
-            status_stack.visible_child_name = "ready";
-            search_entry.grab_focus ();
-        }
+        perform_search_async.begin ();
     }
 }

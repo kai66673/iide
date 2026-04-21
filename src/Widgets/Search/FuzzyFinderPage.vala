@@ -3,13 +3,13 @@ public class Iide.FuzzyFinderPage : Gtk.Box, SearchPanelInterface {
     private Gtk.ListView list_view;
     private Gtk.SingleSelection selection;
     private Gtk.StringList string_list;
-    private Gee.List<FileEntry> all_files;
-    private Gee.List<FileEntry> filtered_files;
+    private Gee.List<Iide.FileEntry> filtered_files;
     private Iide.ProjectManager project_manager;
     private Iide.DocumentManager document_manager;
     private Window? parent_window;
 
     private uint debounce_id = 0;
+    private bool cache_loaded = false;
 
     private const int MAX_RESULTS = 50;
 
@@ -17,26 +17,21 @@ public class Iide.FuzzyFinderPage : Gtk.Box, SearchPanelInterface {
         search_entry.grab_focus ();
     }
 
-    private class FileEntry : Object {
-        public string path { get; construct; }
-        public string name { get; construct; }
-        public string relative_path { get; construct; }
-        public string display_name { get; construct; }
-
-        public FileEntry (string path, string name, string relative_path) {
-            Object (path: path, name: name, relative_path: relative_path, display_name: "%s  →  %s".printf (name, relative_path));
-        }
-    }
-
     public FuzzyFinderPage (Window parent_window, Iide.DocumentManager document_manager) {
         this.parent_window = parent_window;
         this.document_manager = document_manager;
         this.project_manager = Iide.ProjectManager.get_instance ();
-        this.all_files = new Gee.ArrayList<FileEntry> ();
-        this.filtered_files = new Gee.ArrayList<FileEntry> ();
+        this.filtered_files = new Gee.ArrayList<Iide.FileEntry> ();
 
         setup_ui ();
-        load_project_files ();
+
+        project_manager.file_cache_updated.connect (on_file_cache_updated);
+        project_manager.file_cache_invalidated.connect (on_file_cache_invalidated);
+    }
+
+    ~FuzzyFinderPage () {
+        project_manager.file_cache_updated.disconnect (on_file_cache_updated);
+        project_manager.file_cache_invalidated.disconnect (on_file_cache_invalidated);
     }
 
     public void handle_activated () {}
@@ -49,13 +44,13 @@ public class Iide.FuzzyFinderPage : Gtk.Box, SearchPanelInterface {
             open_selected ((modifiers & Gdk.ModifierType.SHIFT_MASK) != 0);
             return true;
         } else if (keyval == Gdk.Key.Up || keyval == Gdk.Key.KP_Up) {
-            if (selection.selected > 0) {
+            if (selection.selected > 0 && string_list != null) {
                 selection.selected -= 1;
                 list_view.scroll_to (selection.selected, Gtk.ListScrollFlags.NONE, null);
             }
             return true;
         } else if (keyval == Gdk.Key.Down || keyval == Gdk.Key.KP_Down) {
-            if (selection.selected < (int) string_list.get_n_items () - 1) {
+            if (string_list != null && selection.selected < (int) string_list.get_n_items () - 1) {
                 selection.selected += 1;
                 list_view.scroll_to (selection.selected, Gtk.ListScrollFlags.NONE, null);
             }
@@ -82,13 +77,14 @@ public class Iide.FuzzyFinderPage : Gtk.Box, SearchPanelInterface {
         list_view = new Gtk.ListView (selection, null);
         list_view.hexpand = true;
         list_view.vexpand = true;
+        list_view.show_separators = true;
 
         var factory = new Gtk.SignalListItemFactory ();
         factory.setup.connect ((item) => {
             var list_item = item as Gtk.ListItem;
             var item_box = new Gtk.Box (Gtk.Orientation.VERTICAL, 2);
-            item_box.margin_start = 6;
-            item_box.margin_end = 6;
+            item_box.margin_start = 8;
+            item_box.margin_end = 8;
             item_box.margin_top = 6;
             item_box.margin_bottom = 6;
 
@@ -100,6 +96,7 @@ public class Iide.FuzzyFinderPage : Gtk.Box, SearchPanelInterface {
             var path_label = new Gtk.Label (null);
             path_label.xalign = 0;
             path_label.add_css_class ("dim-label");
+            path_label.add_css_class ("caption");
             path_label.hexpand = true;
 
             item_box.append (name_label);
@@ -144,88 +141,63 @@ public class Iide.FuzzyFinderPage : Gtk.Box, SearchPanelInterface {
         });
     }
 
-    private void load_project_files () {
-        var project_root = project_manager.get_current_project_root ();
-        if (project_root == null) {
-            return;
-        }
-
-        var root_path = project_root.get_path ();
-        if (root_path == null) {
-            return;
-        }
-
-        try {
-            scan_directory (project_root, root_path);
-        } catch (Error e) {
-            warning ("Error scanning directory: %s", e.message);
-        }
-
-        all_files.sort ((a, b) => a.name.collate (b.name));
+    private void on_file_cache_updated () {
+        cache_loaded = true;
         perform_search ();
     }
 
-    private void scan_directory (GLib.File dir, string base_path) throws Error {
-        var enumerator = dir.enumerate_children (
-                                                 "standard::name,standard::type",
-                                                 FileQueryInfoFlags.NONE,
-                                                 null
-        );
+    private void on_file_cache_invalidated () {
+        cache_loaded = false;
+        project_manager.ensure_file_cache_async.begin ();
+    }
 
-        FileInfo? info;
-        while ((info = enumerator.next_file (null)) != null) {
-            var name = info.get_name ();
-            if (name.has_prefix (".")) {
-                continue;
-            }
-
-            var file_type = info.get_file_type ();
-            if (file_type == FileType.DIRECTORY) {
-                if (name == "node_modules" || name == "target" || name == "build" || name == "__pycache__") {
-                    continue;
-                }
-                scan_directory (dir.get_child (name), base_path);
-            } else if (file_type == FileType.REGULAR) {
-                var path = dir.get_child (name).get_path ();
-                if (path != null) {
-                    var relative = path.substring (base_path.length + 1);
-                    all_files.add (new FileEntry (path, name, relative));
-                }
-            }
+    private async void ensure_cache () {
+        if (cache_loaded) {
+            return;
         }
+        yield project_manager.ensure_file_cache_async ();
+        cache_loaded = true;
     }
 
     private void on_search_changed () {
-        // 1. Сначала отменяем предыдущий таймер, если он был запущен
         if (debounce_id > 0) {
             Source.remove (debounce_id);
             debounce_id = 0;
         }
 
-        // 2. Устанавливаем новый таймер (например, на 300 мс)
-        debounce_id = Timeout.add (300, () => {
-            perform_search ();
-
-            // Возвращаем false, чтобы таймер не повторялся (однократное выполнение)
+        debounce_id = Timeout.add (100, () => {
+            perform_search_async.begin ();
             debounce_id = 0;
             return false;
         });
     }
 
+    private async void perform_search_async () {
+        yield ensure_cache ();
+        perform_search ();
+    }
+
     private void perform_search () {
+        var cache = project_manager.get_file_cache ();
+        if (cache == null) {
+            filtered_files.clear ();
+            update_results ();
+            return;
+        }
+
         var query = search_entry.get_text ().down ();
         filtered_files.clear ();
 
         if (query == "") {
-            foreach (var f in all_files) {
-                if (filtered_files.size >= MAX_RESULTS)break;
+            foreach (var f in cache) {
+                if (filtered_files.size >= MAX_RESULTS) break;
                 filtered_files.add (f);
             }
         } else {
-            foreach (var f in all_files) {
+            foreach (var f in cache) {
                 if (fuzzy_match (f.name.down (), query)) {
                     filtered_files.add (f);
-                    if (filtered_files.size >= MAX_RESULTS)break;
+                    if (filtered_files.size >= MAX_RESULTS) break;
                 }
             }
         }
@@ -262,8 +234,9 @@ public class Iide.FuzzyFinderPage : Gtk.Box, SearchPanelInterface {
             var entry = filtered_files[index];
             var file = GLib.File.new_for_path (entry.path);
             document_manager.open_document (file, null);
-            if (close_search)
+            if (close_search) {
                 close_requested ();
+            }
         }
     }
 

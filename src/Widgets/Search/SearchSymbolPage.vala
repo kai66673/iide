@@ -60,6 +60,9 @@ public class Iide.SearchSymbolPage : Gtk.Box, SearchPanelInterface {
             var icon = new Gtk.Image ();
             icon.set_size_request (20, 20);
 
+            var text_box = new Gtk.Box (Gtk.Orientation.VERTICAL, 2);
+            text_box.hexpand = true;
+
             var name_label = new Gtk.Label (null);
             name_label.xalign = 0;
             name_label.add_css_class ("title-5");
@@ -67,13 +70,16 @@ public class Iide.SearchSymbolPage : Gtk.Box, SearchPanelInterface {
 
             var path_label = new Gtk.Label (null);
             path_label.add_css_class ("dim-label");
+            path_label.add_css_class ("caption");
+            path_label.xalign = 0;
             path_label.ellipsize = Pango.EllipsizeMode.START;
-            path_label.max_width_chars = 120;
-            path_label.halign = Gtk.Align.END;
+            path_label.hexpand = true;
+
+            text_box.append (name_label);
+            text_box.append (path_label);
 
             item_box.append (icon);
-            item_box.append (name_label);
-            item_box.append (path_label);
+            item_box.append (text_box);
             list_item.set_child (item_box);
         });
 
@@ -81,7 +87,8 @@ public class Iide.SearchSymbolPage : Gtk.Box, SearchPanelInterface {
             var list_item = item as Gtk.ListItem;
             var item_box = list_item.get_child () as Gtk.Box;
             var icon = item_box.get_first_child () as Gtk.Image;
-            var name_label = icon.get_next_sibling () as Gtk.Label;
+            var text_box = icon.get_next_sibling () as Gtk.Box;
+            var name_label = text_box.get_first_child () as Gtk.Label;
             var path_label = name_label.get_next_sibling () as Gtk.Label;
 
             var index = list_item.get_position ();

@@ -2,6 +2,22 @@ using Gtk;
 using GLib;
 using Gee;
 
+public class Iide.FileEntry : Object {
+    public string path { get; construct; }
+    public string name { get; construct; }
+    public string relative_path { get; construct; }
+    public string display_name { get; construct; }
+
+    public FileEntry (string path, string name, string relative_path) {
+        Object (
+            path: path,
+            name: name,
+            relative_path: relative_path,
+            display_name: "%s  →  %s".printf (name, relative_path)
+        );
+    }
+}
+
 public class Iide.LanguageConfig : GLib.Object {
     public string language_id { get; construct set; }
     public string[] server_command { get; construct set; }
@@ -23,8 +39,21 @@ public class Iide.ProjectManager : Object {
     private Iide.SettingsService settings;
     private Gee.HashMap<string, LanguageConfig> language_configs;
 
+    private Gee.List<Iide.FileEntry> file_cache;
+    private bool cache_valid = false;
+    private bool cache_loading = false;
+    private FileMonitor? directory_monitor;
+
+    private const string[] EXCLUDED_DIRS = {
+        "node_modules", "target", "build", "__pycache__",
+        ".git", ".svn", ".hg", "vendor", ".cargo",
+        ".cache", ".local", ".config"
+    };
+
     public signal void project_opened (GLib.File project_root);
     public signal void project_closed ();
+    public signal void file_cache_updated ();
+    public signal void file_cache_invalidated ();
 
     public static unowned ProjectManager get_instance () {
         if (_instance == null) {
@@ -38,6 +67,7 @@ public class Iide.ProjectManager : Object {
         current_project_name = null;
         settings = Iide.SettingsService.get_instance ();
         language_configs = new Gee.HashMap<string, LanguageConfig> ();
+        file_cache = new Gee.ArrayList<Iide.FileEntry> ();
         init_default_language_configs ();
     }
 
@@ -176,16 +206,131 @@ public class Iide.ProjectManager : Object {
 
         load_lsp_config (project_root);
 
+        yield rebuild_file_cache_async ();
+
+        setup_directory_monitor (project_root);
+
         project_opened (project_root);
     }
 
+    private void setup_directory_monitor (GLib.File dir) {
+        if (directory_monitor != null) {
+            directory_monitor.cancel ();
+        }
+
+        try {
+            directory_monitor = dir.monitor_directory (FileMonitorFlags.NONE, null);
+            directory_monitor.changed.connect ((src, dst, event) => {
+                if (event == FileMonitorEvent.CHANGES_DONE_HINT) {
+                    invalidate_file_cache ();
+                }
+            });
+        } catch (Error e) {
+            warning ("Failed to setup directory monitor: %s", e.message);
+        }
+    }
+
     public void close_project () {
+        if (directory_monitor != null) {
+            directory_monitor.cancel ();
+            directory_monitor = null;
+        }
+
         if (current_project_root != null) {
             current_project_root = null;
             current_project_name = null;
+            cache_valid = false;
+            file_cache.clear ();
             settings.current_project_path = "";
             project_closed ();
         }
+    }
+
+    public async void rebuild_file_cache_async () {
+        if (current_project_root == null) {
+            return;
+        }
+
+        if (cache_loading) {
+            return;
+        }
+
+        cache_loading = true;
+        file_cache.clear ();
+
+        try {
+            yield scan_directory_async (current_project_root, current_project_root.get_path ());
+            file_cache.sort ((a, b) => a.name.collate (b.name));
+            cache_valid = true;
+            file_cache_updated ();
+        } catch (Error e) {
+            warning ("Error rebuilding file cache: %s", e.message);
+        }
+
+        cache_loading = false;
+    }
+
+    private async void scan_directory_async (GLib.File dir, string base_path) throws Error {
+        var enumerator = yield dir.enumerate_children_async (
+            "standard::name,standard::type",
+            FileQueryInfoFlags.NONE,
+            Priority.DEFAULT,
+            null
+        );
+
+        while (true) {
+            var files = yield enumerator.next_files_async (100, Priority.DEFAULT, null);
+            if (files == null || files.length () == 0) {
+                break;
+            }
+
+            foreach (var info in files) {
+                var name = info.get_name ();
+                if (name.has_prefix (".")) {
+                    continue;
+                }
+
+                var file_type = info.get_file_type ();
+                if (file_type == FileType.DIRECTORY) {
+                    bool excluded = false;
+                    foreach (var excluded_name in EXCLUDED_DIRS) {
+                        if (name == excluded_name) {
+                            excluded = true;
+                            break;
+                        }
+                    }
+                    if (!excluded) {
+                        var child = dir.get_child (name);
+                        yield scan_directory_async (child, base_path);
+                    }
+                } else if (file_type == FileType.REGULAR) {
+                    var path = dir.get_child (name).get_path ();
+                    if (path != null) {
+                        var relative = path.substring (base_path.length + 1);
+                        file_cache.add (new Iide.FileEntry (path, name, relative));
+                    }
+                }
+            }
+        }
+    }
+
+    public Gee.List<Iide.FileEntry>? get_file_cache () {
+        if (!cache_valid) {
+            return null;
+        }
+        return file_cache;
+    }
+
+    public async void ensure_file_cache_async () {
+        if (cache_valid || cache_loading) {
+            return;
+        }
+        yield rebuild_file_cache_async ();
+    }
+
+    public void invalidate_file_cache () {
+        cache_valid = false;
+        file_cache_invalidated ();
     }
 
     public string? get_workspace_root_path () {
