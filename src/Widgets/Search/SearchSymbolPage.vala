@@ -1,51 +1,28 @@
-public class Iide.SearchSymbolRow : Gtk.ListBoxRow {
-    public LspSymbol symbol { get; private set; }
-
-    public SearchSymbolRow (LspSymbol symbol) {
-        this.symbol = symbol;
-
-        var box = new Gtk.Box (Gtk.Orientation.HORIZONTAL, 12);
-        box.margin_start = 8;
-        box.margin_end = 8;
-        box.margin_bottom = 8;
-        box.margin_top = 8;
-
-        // Иконка типа символа (Class, Function и т.д.)
-        var icon = new Gtk.Image.from_icon_name (symbol.kind.to_icon_name ());
-
-        // Название символа
-        var label_name = new Gtk.Label (symbol.name);
-        label_name.add_css_class ("bold");
-
-        // Путь к файлу (обрезаем длинные пути слева)
-        string display_path = symbol.uri.replace ("file://", "");
-        var label_path = new Gtk.Label (display_path);
-        label_path.add_css_class ("dim-label");
-        label_path.ellipsize = Pango.EllipsizeMode.START;
-        label_path.hexpand = true;
-        label_path.halign = Gtk.Align.END;
-        label_path.max_width_chars = 30;
-
-        box.append (icon);
-        box.append (label_name);
-        box.append (label_path);
-        set_child (box);
-    }
-}
-
 public class Iide.SearchSymbolPage : Gtk.Box, SearchPanelInterface {
     private Gtk.SearchEntry search_entry;
-    private Gtk.ListBox results_list;
-    private Gtk.Stack status_stack; // Заменили простую переменную на поле класса
+    private Gtk.ListView list_view;
+    private Gtk.SingleSelection selection;
+    private Gtk.StringList string_list;
+    private Gtk.Stack status_stack;
     private Adw.StatusPage empty_state;
+    private Gtk.Spinner spinner;
 
     private GLib.Cancellable? search_cancellable = null;
     private uint debounce_id = 0;
 
-    public SearchSymbolPage () {
-        Object (orientation : Gtk.Orientation.VERTICAL, spacing: 0);
+    private Iide.DocumentManager document_manager;
+    private Gee.List<LspSymbol> symbols;
+    private const int MAX_RESULTS = 50;
 
-        // Поле поиска
+    public SearchSymbolPage (Iide.DocumentManager document_manager) {
+        Object (orientation : Gtk.Orientation.VERTICAL, spacing: 0);
+        this.document_manager = document_manager;
+        this.symbols = new Gee.ArrayList<LspSymbol> ();
+
+        setup_ui ();
+    }
+
+    private void setup_ui () {
         var search_bar_box = new Gtk.Box (Gtk.Orientation.HORIZONTAL, 0);
         search_bar_box.add_css_class ("view");
 
@@ -55,7 +32,7 @@ public class Iide.SearchSymbolPage : Gtk.Box, SearchPanelInterface {
         search_entry.margin_bottom = 12;
         search_entry.margin_top = 12;
         search_entry.hexpand = true;
-        search_entry.placeholder_text = "Поиск функций, классов, переменных (мин. 3 символа)...";
+        search_entry.placeholder_text = _("Search functions, classes, variables (min 3 chars)...");
         search_entry.search_changed.connect (on_search_changed);
 
         search_bar_box.append (search_entry);
@@ -64,31 +41,84 @@ public class Iide.SearchSymbolPage : Gtk.Box, SearchPanelInterface {
         status_stack = new Gtk.Stack ();
         status_stack.transition_type = Gtk.StackTransitionType.CROSSFADE;
 
-        // Список результатов
-        results_list = new Gtk.ListBox ();
-        results_list.selection_mode = Gtk.SelectionMode.SINGLE;
-        results_list.add_css_class ("navigation-sidebar");
-        results_list.row_activated.connect (on_row_activated);
+        string_list = new Gtk.StringList (new string[0]);
+        selection = new Gtk.SingleSelection (string_list);
+        list_view = new Gtk.ListView (selection, null);
+        list_view.hexpand = true;
+        list_view.vexpand = true;
+        list_view.show_separators = true;
 
-        var scrolled_window = new Gtk.ScrolledWindow ();
-        scrolled_window.set_child (results_list);
-        scrolled_window.vexpand = true;
+        var factory = new Gtk.SignalListItemFactory ();
+        factory.setup.connect ((item) => {
+            var list_item = item as Gtk.ListItem;
+            var item_box = new Gtk.Box (Gtk.Orientation.HORIZONTAL, 12);
+            item_box.margin_start = 8;
+            item_box.margin_end = 8;
+            item_box.margin_top = 6;
+            item_box.margin_bottom = 6;
 
-        // Состояние "Ничего не найдено" / Инструкция
+            var icon = new Gtk.Image ();
+            icon.set_size_request (20, 20);
+
+            var name_label = new Gtk.Label (null);
+            name_label.xalign = 0;
+            name_label.add_css_class ("title-5");
+            name_label.hexpand = true;
+
+            var path_label = new Gtk.Label (null);
+            path_label.add_css_class ("dim-label");
+            path_label.ellipsize = Pango.EllipsizeMode.START;
+            path_label.max_width_chars = 120;
+            path_label.halign = Gtk.Align.END;
+
+            item_box.append (icon);
+            item_box.append (name_label);
+            item_box.append (path_label);
+            list_item.set_child (item_box);
+        });
+
+        factory.bind.connect ((item) => {
+            var list_item = item as Gtk.ListItem;
+            var item_box = list_item.get_child () as Gtk.Box;
+            var icon = item_box.get_first_child () as Gtk.Image;
+            var name_label = icon.get_next_sibling () as Gtk.Label;
+            var path_label = name_label.get_next_sibling () as Gtk.Label;
+
+            var index = list_item.get_position ();
+            if (index >= 0 && index < symbols.size) {
+                var sym = symbols[(int) index];
+                icon.set_from_icon_name (sym.kind.to_icon_name ());
+                name_label.set_label (sym.name);
+                path_label.set_label (sym.uri.replace ("file://", ""));
+            }
+        });
+
+        list_view.factory = factory;
+
+        var scrolled = new Gtk.ScrolledWindow ();
+        scrolled.child = list_view;
+        scrolled.hexpand = true;
+        scrolled.vexpand = true;
+
         empty_state = new Adw.StatusPage ();
-        empty_state.title = "Символы не найдены";
+        empty_state.title = _("No symbols found");
         empty_state.icon_name = "edit-find-symbolic";
-        empty_state.description = "Введите название для поиска в проекте";
+        empty_state.description = _("Enter a name to search in the project");
 
-        // Состояние "Загрузка"
         var loading_box = new Gtk.Box (Gtk.Orientation.VERTICAL, 12);
         loading_box.valign = Gtk.Align.CENTER;
-        var spinner = new Gtk.Spinner ();
-        spinner.start ();
-        spinner.set_size_request (32, 32);
-        loading_box.append (spinner);
+        loading_box.halign = Gtk.Align.CENTER;
 
-        status_stack.add_named (scrolled_window, "results");
+        spinner = new Gtk.Spinner ();
+        spinner.set_size_request (32, 32);
+
+        var loading_label = new Gtk.Label (_("Searching symbols..."));
+        loading_label.add_css_class ("dim-label");
+
+        loading_box.append (spinner);
+        loading_box.append (loading_label);
+
+        status_stack.add_named (scrolled, "results");
         status_stack.add_named (empty_state, "empty");
         status_stack.add_named (loading_box, "loading");
 
@@ -98,46 +128,9 @@ public class Iide.SearchSymbolPage : Gtk.Box, SearchPanelInterface {
         var key_controller = new Gtk.EventControllerKey ();
         key_controller.key_pressed.connect (on_key_pressed);
         search_entry.add_controller (key_controller);
-    }
 
-    private void select_next_item () {
-        // 1. Получаем текущую выделенную строку
-        var selected_row = results_list.get_selected_row ();
-
-        int next_index = 0;
-
-        if (selected_row != null) {
-            // 2. Если что-то выделено, берем индекс следующего элемента
-            next_index = selected_row.get_index () + 1;
-        }
-
-        // 3. Получаем строку по новому индексу
-        var next_row = results_list.get_row_at_index (next_index);
-
-        // 4. Если строка существует (мы не вышли за пределы списка), выделяем её
-        if (next_row != null) {
-            results_list.select_row (next_row);
-        }
-    }
-
-    private void select_prev_item () {
-        // 1. Получаем текущую выделенную строку
-        var selected_row = results_list.get_selected_row ();
-
-        int prev_index = 0;
-
-        if (selected_row != null) {
-            // 2. Если что-то выделено, берем индекс следующего элемента
-            prev_index = selected_row.get_index () - 1;
-        }
-
-        // 3. Получаем строку по новому индексу
-        var prev_row = results_list.get_row_at_index (prev_index);
-
-        // 4. Если строка существует (мы не вышли за пределы списка), выделяем её
-        if (prev_row != null) {
-            results_list.select_row (prev_row);
-        }
+        list_view.activate.connect (on_list_activated);
+        search_entry.activate.connect (on_entry_activated);
     }
 
     private bool on_key_pressed (Gtk.EventControllerKey controller, uint keyval, uint keycode, Gdk.ModifierType modifiers) {
@@ -145,20 +138,25 @@ public class Iide.SearchSymbolPage : Gtk.Box, SearchPanelInterface {
             close_requested ();
             return true;
         } else if (keyval == Gdk.Key.Return || keyval == Gdk.Key.KP_Enter) {
-            // open_selected ((modifiers & Gdk.ModifierType.SHIFT_MASK) != 0);
+            open_selected ((modifiers & Gdk.ModifierType.SHIFT_MASK) == 0);
             return true;
         } else if (keyval == Gdk.Key.Up || keyval == Gdk.Key.KP_Up) {
-            select_prev_item ();
+            if (string_list != null && selection.selected > 0) {
+                selection.selected -= 1;
+                list_view.scroll_to (selection.selected, Gtk.ListScrollFlags.NONE, null);
+            }
             return true;
         } else if (keyval == Gdk.Key.Down || keyval == Gdk.Key.KP_Down) {
-            select_next_item ();
+            if (string_list != null && selection.selected < (int) string_list.get_n_items () - 1) {
+                selection.selected += 1;
+                list_view.scroll_to (selection.selected, Gtk.ListScrollFlags.NONE, null);
+            }
             return true;
         }
         return false;
     }
 
     private void on_search_changed () {
-        // 1. Сброс debounce таймера
         if (debounce_id > 0) {
             GLib.Source.remove (debounce_id);
             debounce_id = 0;
@@ -166,12 +164,12 @@ public class Iide.SearchSymbolPage : Gtk.Box, SearchPanelInterface {
 
         string query = search_entry.get_text ().strip ();
         if (query.length < 3) {
-            clear_results ();
+            symbols.clear ();
+            update_results ();
             status_stack.visible_child_name = "empty";
             return;
         }
 
-        // 2. Установка задержки 300мс
         debounce_id = GLib.Timeout.add (300, () => {
             query_lsp_symbols.begin (query);
             debounce_id = 0;
@@ -180,62 +178,97 @@ public class Iide.SearchSymbolPage : Gtk.Box, SearchPanelInterface {
     }
 
     private async void query_lsp_symbols (string query) {
-        // Отменяем предыдущий запрос
         if (search_cancellable != null) {
             search_cancellable.cancel ();
         }
         search_cancellable = new GLib.Cancellable ();
 
         status_stack.visible_child_name = "loading";
+        spinner.start ();
 
         try {
-            // Получаем клиент из вашего сервиса (проверьте имя синглтона)
             var client = IdeLspService.get_instance ().get_client ();
             if (client != null) {
-                var symbols = yield client.workspace_symbols (query, search_cancellable);
+                var results = yield client.workspace_symbols (query, search_cancellable);
 
-                update_results (symbols);
+                update_results_list (results);
             }
         } catch (GLib.IOError.CANCELLED e) {
-            // Игнорируем
         } catch (GLib.Error e) {
             warning ("LSP Symbol Search Error: %s", e.message);
             status_stack.visible_child_name = "empty";
         }
+
+        spinner.stop ();
     }
 
-    private void update_results (Gee.List<LspSymbol>? symbols) {
-        clear_results ();
+    private void update_results_list (Gee.List<LspSymbol>? results) {
+        symbols.clear ();
 
-        if (symbols == null || symbols.size == 0) {
+        if (results == null || results.size == 0) {
             status_stack.visible_child_name = "empty";
+            update_results ();
             return;
         }
 
-        foreach (var sym in symbols) {
-            var row = new SearchSymbolRow (sym);
-            results_list.append (row);
+        var count = 0;
+        foreach (var sym in results) {
+            if (count >= MAX_RESULTS)break;
+            symbols.add (sym);
+            count++;
         }
 
         status_stack.visible_child_name = "results";
+        update_results ();
     }
 
-    private void clear_results () {
-        while (results_list.get_first_child () != null) {
-            results_list.remove (results_list.get_first_child ());
+    private void update_results () {
+        var strings = new string[symbols.size];
+        for (int i = 0; i < symbols.size; i++) {
+            var sym = symbols[i];
+            strings[i] = "%s  →  %s".printf (sym.name, sym.uri.replace ("file://", ""));
+        }
+
+        string_list.splice (0, string_list.get_n_items (), strings);
+
+        if (symbols.size > 0) {
+            selection.selected = 0;
         }
     }
 
-    private void on_row_activated (Gtk.ListBoxRow row) {
-        var symbol_row = row as SearchSymbolRow;
-        if (symbol_row != null) {
-            var sym = symbol_row.symbol;
-            // Вызываем открытие файла в редакторе
-            // ProjectManager.get_instance ().open_file (sym.uri, sym.start_line, sym.start_char);
+    private void on_list_activated () {
+        open_selected ();
+    }
 
-            // Закрываем диалог (SearchCenterDialog)
-            var root = this.get_root () as Gtk.Window;
-            if (root != null)root.close ();
+    private void on_entry_activated () {
+        open_selected ();
+    }
+
+    private void open_selected (bool close_search = true) {
+        if (document_manager == null || symbols == null || symbols.size == 0) {
+            if (close_search) {
+                close_requested ();
+            }
+            return;
+        }
+
+        var index = (int) selection.selected;
+        if (index < 0 || index >= symbols.size) {
+            if (close_search) {
+                close_requested ();
+            }
+            return;
+        }
+
+        var sym = symbols[index];
+        var file = GLib.File.new_for_path (sym.uri.replace ("file://", ""));
+
+        if (file.get_path () != null) {
+            document_manager.open_document_with_selection (file, sym.start_line, sym.start_char, sym.start_char, null);
+        }
+
+        if (close_search) {
+            close_requested ();
         }
     }
 
@@ -244,8 +277,6 @@ public class Iide.SearchSymbolPage : Gtk.Box, SearchPanelInterface {
     }
 
     public void handle_activated () {
-        // Вызывается, если нажали Enter в пустом поле или на вкладке
-        var selected = results_list.get_selected_row ();
-        if (selected != null)on_row_activated (selected);
+        search_entry.grab_focus ();
     }
 }

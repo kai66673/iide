@@ -43,7 +43,7 @@ public class Iide.SearchCenterDialog : Adw.Window {
     private void setup_pages () {
         search_pages = {
             new FuzzyFinderPage (parent_window, document_manager),
-            new SearchSymbolPage (),
+            new SearchSymbolPage (document_manager),
             new SearchInFilesPage (parent_window, document_manager),
         };
 
