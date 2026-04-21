@@ -200,9 +200,9 @@ public class Iide.SearchInFilesPage : Gtk.Box, SearchPanelInterface {
 
     private string escape_pango (string text) {
         return text
-            .replace ("&", "&amp;")
-            .replace ("<", "&lt;")
-            .replace (">", "&gt;");
+                .replace ("&", "&amp;")
+                .replace ("<", "&lt;")
+                .replace (">", "&gt;");
     }
 
     private string highlight_matches (string text, Gee.List<MatchRange> matches) {
@@ -287,6 +287,7 @@ public class Iide.SearchInFilesPage : Gtk.Box, SearchPanelInterface {
 
     private async void perform_search_async () {
         yield ensure_content_loaded ();
+
         perform_search ();
     }
 
@@ -299,6 +300,7 @@ public class Iide.SearchInFilesPage : Gtk.Box, SearchPanelInterface {
         spinner.start ();
 
         yield project_manager.ensure_file_cache_async ();
+
         content_loaded = true;
 
         spinner.stop ();
@@ -381,62 +383,6 @@ public class Iide.SearchInFilesPage : Gtk.Box, SearchPanelInterface {
         return score;
     }
 
-    private int fuzzy_score (string target, string query) {
-        if (target.length == 0 || query.length == 0) {
-            return 0;
-        }
-
-        var target_lower = target.down ();
-        var query_lower = query.down ();
-
-        if (target_lower.contains (query_lower)) {
-            var pos = target_lower.index_of (query_lower);
-            if (pos == 0) {
-                return 1000 + (1000 - target.length);
-            }
-            return 500 + (1000 - pos);
-        }
-
-        int score = 0;
-        int consecutive = 0;
-        int last_match = -1;
-        bool prev_was_sep = true;
-        bool matched_all = true;
-
-        for (int qi = 0; qi < query_lower.length; qi++) {
-            bool found = false;
-            for (int idx = last_match + 1; idx < target_lower.length; idx++) {
-                if (target_lower[idx] == query_lower[qi]) {
-                    found = true;
-                    last_match = idx;
-                    consecutive++;
-
-                    if (idx == 0 || prev_was_sep) {
-                        score += 150;
-                    } else if (consecutive > 1) {
-                        score += consecutive * 10;
-                    } else {
-                        score += 15;
-                    }
-
-                    break;
-                } else {
-                    score -= 1;
-                }
-            }
-
-            if (!found) {
-                matched_all = false;
-                break;
-            }
-
-            unichar c = last_match >= 0 && last_match < (int) target.length ? target[last_match] : ' ';
-            prev_was_sep = !c.isalnum () && c != '_';
-        }
-
-        return matched_all ? score : 0;
-    }
-
     private void perform_search () {
         current_query = search_entry.get_text ().strip ();
 
@@ -454,7 +400,6 @@ public class Iide.SearchInFilesPage : Gtk.Box, SearchPanelInterface {
         }
 
         var results = new Gee.ArrayList<SearchResult> ();
-        var query_lower = current_query.down ();
 
         foreach (var file_entry in file_cache) {
             if (!is_text_file (file_entry.path)) {
@@ -481,13 +426,13 @@ public class Iide.SearchInFilesPage : Gtk.Box, SearchPanelInterface {
                         }
 
                         results.add (new SearchResult (
-                            file_entry.path,
-                            file_entry.name,
-                            file_entry.relative_path,
-                            line_num,
-                            stripped,
-                            adjusted_matches,
-                            score
+                                                       file_entry.path,
+                                                       file_entry.name,
+                                                       file_entry.relative_path,
+                                                       line_num,
+                                                       stripped,
+                                                       adjusted_matches,
+                                                       score
                         ));
                     }
                     line_num++;

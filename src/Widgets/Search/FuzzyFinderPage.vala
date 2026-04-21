@@ -30,9 +30,9 @@ public class Iide.FuzzyFinderPage : Gtk.Box, SearchPanelInterface {
 
     private string escape_pango (string text) {
         return text
-            .replace ("&", "&amp;")
-            .replace ("<", "&lt;")
-            .replace (">", "&gt;");
+                .replace ("&", "&amp;")
+                .replace ("<", "&lt;")
+                .replace (">", "&gt;");
     }
 
     private string highlight_matches (string text, Gee.List<MatchRange> matches) {
@@ -282,6 +282,7 @@ public class Iide.FuzzyFinderPage : Gtk.Box, SearchPanelInterface {
             return;
         }
         yield project_manager.ensure_file_cache_async ();
+
         cache_loaded = true;
     }
 
@@ -300,6 +301,7 @@ public class Iide.FuzzyFinderPage : Gtk.Box, SearchPanelInterface {
 
     private async void perform_search_async () {
         yield ensure_cache ();
+
         perform_search ();
     }
 
@@ -314,13 +316,12 @@ public class Iide.FuzzyFinderPage : Gtk.Box, SearchPanelInterface {
 
         current_query = search_entry.get_text ();
         var query = current_query.down ();
-        var query_lower = current_query == null ? "" : current_query.down ();
         filtered_files.clear ();
         filtered_matches.clear ();
 
         if (query == "") {
             foreach (var f in cache) {
-                if (filtered_files.size >= MAX_RESULTS) break;
+                if (filtered_files.size >= MAX_RESULTS)break;
                 filtered_files.add (f);
                 filtered_matches.add (new Gee.ArrayList<MatchRange> ());
             }
@@ -332,7 +333,7 @@ public class Iide.FuzzyFinderPage : Gtk.Box, SearchPanelInterface {
                 if (score > 0) {
                     filtered_files.add (f);
                     filtered_matches.add (matches);
-                    if (filtered_files.size >= MAX_RESULTS) break;
+                    if (filtered_files.size >= MAX_RESULTS)break;
                 }
             }
         }
