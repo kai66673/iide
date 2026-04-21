@@ -303,7 +303,7 @@ public class Iide.LspClient : Object {
             message ("!!!handle_incoming_notification - window/workDoneProgress/create" + json_object_to_string (root));
             break;
 
-        case "$/progress":
+        case "$/progress" :
             // message ("!!!handle_incoming_notification - $/progress" + json_object_to_string (root));
             if (params != null) {
                 // Token может быть строкой или числом, Tree-sitter и LSP это допускают
@@ -704,6 +704,55 @@ public class Iide.LspClient : Object {
         if (response == null || !response.has_member ("result"))return null;
 
         return parse_hover_result (response.get_member ("result"));
+    }
+
+    public async Gee.List<LspSymbol>? workspace_symbols (string query) throws Error {
+        var params = new Json.Object ();
+        params.set_string_member ("query", query);
+
+        // Предполагаем, что у вас есть базовый метод для запросов call_method_async
+        // который возвращает Json.Node
+        var response = yield this.send_request ("workspace/symbol", params);
+
+        if (response == null || !response.has_member ("result"))return null;
+
+        // Используем парсер, который мы обсуждали ранее
+        return parse_lsp_symbols (response.get_member ("result"));
+    }
+
+    public Gee.List<LspSymbol> parse_lsp_symbols (Json.Node root_node) {
+        var result = new Gee.ArrayList<LspSymbol> ();
+
+        // Проверяем, что корень — это массив
+        if (root_node.get_node_type () != Json.NodeType.ARRAY)return result;
+
+        var array = root_node.get_array ();
+
+        foreach (var element in array.get_elements ()) {
+            var obj = element.get_object ();
+            var symbol = new LspSymbol ();
+
+            symbol.name = obj.get_string_member ("name");
+            symbol.kind = (SymbolKind) obj.get_int_member ("kind");
+
+            if (obj.has_member ("containerName")) {
+                symbol.container_name = obj.get_string_member ("containerName");
+            }
+
+            // Парсим Location (URI и Range)
+            var location = obj.get_object_member ("location");
+            symbol.uri = location.get_string_member ("uri");
+
+            var range = location.get_object_member ("range");
+            var start = range.get_object_member ("start");
+
+            symbol.start_line = (int) start.get_int_member ("line");
+            symbol.start_char = (int) start.get_int_member ("character");
+
+            result.add (symbol);
+        }
+
+        return result;
     }
 
     public async Gee.ArrayList<IdeLspLocation>? request_definition (string uri, int line, int character) throws Error {

@@ -137,3 +137,33 @@ public class Iide.IdeLspCompletionResult : GLib.Object {
     public Gee.ArrayList<IdeLspCompletionItem> items { get; set; }
     public bool is_incomplete { get; set; default = false; }
 }
+
+public enum Iide.SymbolKind {
+    FILE = 1, MODULE = 2, NAMESPACE = 3, PACKAGE = 4,
+    CLASS = 5, METHOD = 6, PROPERTY = 7, FIELD = 8,
+    CONSTRUCTOR = 9, ENUM = 10, INTERFACE = 11,
+    FUNCTION = 12, VARIABLE = 13, CONSTANT = 14,
+    STRING = 15, NUMBER = 16, BOOLEAN = 17,
+    ARRAY = 18, OBJECT = 19, KEY = 20, NULL = 21,
+    ENUM_MEMBER = 22, STRUCT = 23, EVENT = 24,
+    OPERATOR = 25, TYPE_PARAMETER = 26;
+
+    public string to_icon_name () {
+        switch (this) {
+        case CLASS: return "code-class-symbolic";
+        case METHOD: case FUNCTION: return "code-function-symbolic";
+        case VARIABLE: return "code-variable-symbolic";
+        // Добавьте другие маппинги иконок GNOME
+        default: return "obj-symbolic";
+        }
+    }
+}
+
+public class Iide.LspSymbol : Object {
+    public string name { get; set; }
+    public SymbolKind kind { get; set; }
+    public string uri { get; set; }
+    public int start_line { get; set; }
+    public int start_char { get; set; }
+    public string? container_name { get; set; }
+}
