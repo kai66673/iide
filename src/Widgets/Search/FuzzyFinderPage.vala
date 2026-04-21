@@ -46,7 +46,7 @@ public class Iide.FuzzyFinderPage : Gtk.Box, SearchPanelInterface {
             close_requested ();
             return true;
         } else if (keyval == Gdk.Key.Return || keyval == Gdk.Key.KP_Enter) {
-            open_selected ((modifiers & Gdk.ModifierType.SHIFT_MASK) == 0);
+            open_selected ((modifiers & Gdk.ModifierType.SHIFT_MASK) != 0);
             return true;
         } else if (keyval == Gdk.Key.Up || keyval == Gdk.Key.KP_Up) {
             if (selection.selected > 0) {

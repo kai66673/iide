@@ -83,36 +83,57 @@ public class Iide.LspClient : Object {
         return (int) ((void*) this);
     }
 
-    public async Json.Object? send_request (string method, Json.Object params) throws Error {
+    public async Json.Object? send_request (string method, Json.Object params, Cancellable ? cancellable = null) throws Error {
         int id = next_id--;
 
-        // 1. Упаковываем запрос
         var root = new Json.Object ();
         root.set_string_member ("jsonrpc", "2.0");
         root.set_int_member ("id", id);
         root.set_string_member ("method", method);
         root.set_object_member ("params", params);
 
-        // 2. Регистрируем обещание (Promise)
-        // Мы передаем send_request.callback, который Vala автоматически
-        // подготовит для возобновления после yield
-        pending_requests.set (id, new LspPromise (send_request.callback));
+        // Регистрируем обещание
+        var promise = new LspPromise (send_request.callback);
+        pending_requests.set (id, promise);
 
-        // 3. Отправляем (реализацию send_message_async добавим следом)
-        yield this.send_message_async (root);
+        // Обработка отмены: если произойдет отмена, пока мы спим, нужно "разбудить" метод
+        ulong handler_id = 0;
+        if (cancellable != null) {
+            handler_id = cancellable.connect (() => {
+                // Если мы всё еще ждем этот запрос, выбиваем его из очереди
+                if (pending_requests.has_key (id)) {
+                    pending_requests.unset (id);
+                    // Пробуждаем метод. Idle.add важен для возврата в UI поток.
+                    Idle.add ((owned) promise.callback);
+                }
+            });
+        }
 
-        // 4. Засыпаем до получения ответа
-        yield;
+        try {
+            // Передаем cancellable в процесс записи
+            yield this.send_message_async (root, cancellable);
 
-        // 5. Просыпаемся и забираем результат
-        var response = responses.get (id);
-        responses.unset (id);
+            // Засыпаем до получения ответа ИЛИ до вызова колбэка через сигнал отмены
+            yield;
 
-        return response;
+            // После пробуждения проверяем, не была ли это отмена
+            if (cancellable != null && cancellable.is_cancelled ()) {
+                throw new IOError.CANCELLED ("Запрос %s (id: %d) был отменен".printf (method, id));
+            }
+
+            // Если не отмена, забираем результат
+            var response = responses.get (id);
+            responses.unset (id);
+            return response;
+        } finally {
+            // Обязательно отключаем обработчик, чтобы не плодить утечки памяти
+            if (handler_id > 0) {
+                cancellable.disconnect (handler_id);
+            }
+        }
     }
 
-    private async void send_message_async (Json.Object node) throws Error {
-        // 1. Подготовка сообщения
+    private async void send_message_async (Json.Object node, Cancellable? cancellable = null) throws Error {
         var generator = new Json.Generator ();
         var root_node = new Json.Node (Json.NodeType.OBJECT);
         root_node.set_object (node);
@@ -121,20 +142,21 @@ public class Iide.LspClient : Object {
         string body = generator.to_data (null);
         string message = "Content-Length: %d\r\n\r\n%s".printf ((int) body.length, body);
 
-        // 2. Добавляем в очередь
         write_queue.add (message);
 
-        // 3. Если уже пишем — просто выходим, текущий процесс записи заберет наше сообщение
         if (is_writing)return;
-
         is_writing = true;
 
         try {
             while (!write_queue.is_empty) {
-                string current_msg = write_queue.poll_head ();
-                yield output_stream.write_all_async (current_msg.data, Priority.DEFAULT, null, null);
+                // Проверка на отмену перед началом записи следующего сообщения в очереди
+                if (cancellable != null && cancellable.is_cancelled ())break;
 
-                yield output_stream.flush_async (Priority.DEFAULT, null);
+                string current_msg = write_queue.poll_head ();
+                // Передаем токен в системные асинхронные функции
+                yield output_stream.write_all_async (current_msg.data, Priority.DEFAULT, cancellable, null);
+
+                yield output_stream.flush_async (Priority.DEFAULT, cancellable);
             }
         } finally {
             is_writing = false;
@@ -347,11 +369,11 @@ public class Iide.LspClient : Object {
                 });
             }
             break;
-        case "window/logMessage":
+        case "window/logMessage" :
             if (params != null)handle_log_message (params);
             break;
 
-        case "window/showMessage":
+        case "window/showMessage" :
             // Здесь можно вызывать всплывающие уведомления в стиле GNOME
             if (params != null)debug ("LSP Show Message: %s", params.get_string_member ("message"));
             break;
@@ -706,13 +728,13 @@ public class Iide.LspClient : Object {
         return parse_hover_result (response.get_member ("result"));
     }
 
-    public async Gee.List<LspSymbol>? workspace_symbols (string query) throws Error {
+    public async Gee.List<LspSymbol>? workspace_symbols (string query, Cancellable ? cancellable = null) throws Error {
         var params = new Json.Object ();
         params.set_string_member ("query", query);
 
         // Предполагаем, что у вас есть базовый метод для запросов call_method_async
         // который возвращает Json.Node
-        var response = yield this.send_request ("workspace/symbol", params);
+        var response = yield this.send_request ("workspace/symbol", params, cancellable);
 
         if (response == null || !response.has_member ("result"))return null;
 
