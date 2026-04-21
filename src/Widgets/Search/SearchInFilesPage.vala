@@ -279,16 +279,15 @@ public class Iide.SearchInFilesPage : Gtk.Box, SearchPanelInterface {
         }
 
         debounce_id = Timeout.add (200, () => {
-            perform_search_async.begin ();
+            perform_search_wrapper.begin ();
             debounce_id = 0;
             return false;
         });
     }
 
-    private async void perform_search_async () {
+    private async void perform_search_wrapper () {
         yield ensure_content_loaded ();
-
-        perform_search ();
+        yield perform_search_async ();
     }
 
     private async void ensure_content_loaded () {
@@ -383,7 +382,19 @@ public class Iide.SearchInFilesPage : Gtk.Box, SearchPanelInterface {
         return score;
     }
 
-    private void perform_search () {
+    private class SearchTask {
+        public Gee.List<Iide.FileEntry> files;
+        public string query;
+        public Gee.List<SearchResult> results;
+
+        public SearchTask (Gee.List<Iide.FileEntry> files, string query) {
+            this.files = files;
+            this.query = query;
+            this.results = new Gee.ArrayList<SearchResult> ();
+        }
+    }
+
+    private async void perform_search_async () {
         current_query = search_entry.get_text ().strip ();
 
         if (current_query == "" || current_query.length < 2) {
@@ -399,13 +410,65 @@ public class Iide.SearchInFilesPage : Gtk.Box, SearchPanelInterface {
             return;
         }
 
-        var results = new Gee.ArrayList<SearchResult> ();
-
-        foreach (var file_entry in file_cache) {
-            if (!is_text_file (file_entry.path)) {
-                continue;
+        var text_files = new Gee.ArrayList<Iide.FileEntry> ();
+        foreach (var f in file_cache) {
+            if (is_text_file (f.path)) {
+                text_files.add (f);
             }
+        }
 
+        if (text_files.size == 0) {
+            all_results = new Gee.ArrayList<SearchResult> ();
+            update_results ();
+            return;
+        }
+
+        int num_threads = (int) GLib.get_num_processors ();
+
+        int files_per_thread = (text_files.size + num_threads - 1) / num_threads;
+
+        var tasks = new Gee.ArrayList<SearchTask> ();
+        var threads = new Gee.ArrayList<Thread<void*>> ();
+
+        for (int t = 0; t < num_threads; t++) {
+            int start = t * files_per_thread;
+            int end = start + files_per_thread;
+            if (end > text_files.size)end = text_files.size;
+            if (start >= text_files.size)break;
+
+            var sublist = text_files.slice (start, end);
+            var task = new SearchTask (sublist, current_query);
+            tasks.add (task);
+
+            threads.add (new Thread<void*> ("srch", () => {
+                search_files_in_task (task);
+                return null;
+            }));
+        }
+
+        foreach (var thread in threads) {
+            thread.join ();
+        }
+
+        var all_task_results = new Gee.ArrayList<SearchResult> ();
+        foreach (var task in tasks) {
+            foreach (var r in task.results) {
+                all_task_results.add (r);
+            }
+        }
+
+        all_task_results.sort ((a, b) => b.score - a.score);
+
+        all_results = new Gee.ArrayList<SearchResult> ();
+        for (int i = 0; i < all_task_results.size && i < MAX_RESULTS; i++) {
+            all_results.add (all_task_results[i]);
+        }
+
+        update_results ();
+    }
+
+private void search_files_in_task (SearchTask task) {
+        foreach (var file_entry in task.files) {
             try {
                 var file = GLib.File.new_for_path (file_entry.path);
                 var dis = new DataInputStream (file.read ());
@@ -414,7 +477,7 @@ public class Iide.SearchInFilesPage : Gtk.Box, SearchPanelInterface {
 
                 while ((line = dis.read_line ()) != null) {
                     var matches = new Gee.ArrayList<MatchRange> ();
-                    int score = fuzzy_match_with_positions (line, current_query, matches);
+                    int score = fuzzy_match_with_positions (line, task.query, matches);
 
                     if (score > 0) {
                         var stripped = line.strip ();
@@ -425,14 +488,14 @@ public class Iide.SearchInFilesPage : Gtk.Box, SearchPanelInterface {
                             adjusted_matches.add (new MatchRange (m.start - offset, m.end - offset));
                         }
 
-                        results.add (new SearchResult (
-                                                       file_entry.path,
-                                                       file_entry.name,
-                                                       file_entry.relative_path,
-                                                       line_num,
-                                                       stripped,
-                                                       adjusted_matches,
-                                                       score
+                        task.results.add (new SearchResult (
+                            file_entry.path,
+                            file_entry.name,
+                            file_entry.relative_path,
+                            line_num,
+                            stripped,
+                            adjusted_matches,
+                            score
                         ));
                     }
                     line_num++;
@@ -441,15 +504,10 @@ public class Iide.SearchInFilesPage : Gtk.Box, SearchPanelInterface {
             } catch (Error e) {
             }
         }
+    }
 
-        results.sort ((a, b) => b.score - a.score);
-
-        all_results = new Gee.ArrayList<SearchResult> ();
-        for (int i = 0; i < results.size && i < MAX_RESULTS; i++) {
-            all_results.add (results[i]);
-        }
-
-        update_results ();
+    private void perform_search () {
+        perform_search_wrapper.begin ();
     }
 
     private void update_results () {
