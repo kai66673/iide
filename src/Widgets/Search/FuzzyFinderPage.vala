@@ -10,11 +10,134 @@ public class Iide.FuzzyFinderPage : Gtk.Box, SearchPanelInterface {
 
     private uint debounce_id = 0;
     private bool cache_loaded = false;
+    private string current_query = "";
+    private Gee.List<Gee.List<MatchRange>> filtered_matches;
 
     private const int MAX_RESULTS = 50;
 
+    private class MatchRange : Object {
+        public int start { get; construct; }
+        public int end { get; construct; }
+
+        public MatchRange (int start, int end) {
+            Object (start: start, end: end);
+        }
+    }
+
     public void focus_search_entry () {
         search_entry.grab_focus ();
+    }
+
+    private string escape_pango (string text) {
+        return text
+            .replace ("&", "&amp;")
+            .replace ("<", "&lt;")
+            .replace (">", "&gt;");
+    }
+
+    private string highlight_matches (string text, Gee.List<MatchRange> matches) {
+        var escaped = escape_pango (text);
+
+        if (matches == null || matches.size == 0) {
+            return escaped;
+        }
+
+        var sb = new StringBuilder ();
+        int pos = 0;
+
+        foreach (var m in matches) {
+            if (m.start > pos) {
+                sb.append (escaped.substring (pos, m.start - pos));
+            }
+            if (m.end > m.start && m.end <= (int) escaped.length) {
+                sb.append ("<span weight=\"bold\" background=\"#ffd700\" color=\"#000000\">");
+                sb.append (escaped.substring (m.start, m.end - m.start));
+                sb.append ("</span>");
+            }
+            pos = m.end;
+        }
+
+        if (pos < (int) escaped.length) {
+            sb.append (escaped.substring (pos));
+        }
+
+        return sb.str;
+    }
+
+    private int fuzzy_match_with_positions (string text, string query, Gee.List<MatchRange> matches) {
+        if (text.length == 0 || query.length == 0) {
+            return 0;
+        }
+
+        var text_lower = text.down ();
+        var query_lower = query.down ();
+
+        if (text_lower.contains (query_lower)) {
+            var pos = text_lower.index_of (query_lower);
+            matches.add (new MatchRange (pos, pos + (int) query_lower.length));
+            if (pos == 0) {
+                return 1000 + (1000 - text.length);
+            }
+            return 500 + (1000 - pos);
+        }
+
+        int score = 0;
+        int consecutive = 0;
+        int last_match = -1;
+        bool prev_was_sep = true;
+        bool matched_all = true;
+        var match_positions = new Gee.ArrayList<int> ();
+
+        for (int qi = 0; qi < query_lower.length; qi++) {
+            bool found = false;
+            for (int idx = last_match + 1; idx < text_lower.length; idx++) {
+                if (text_lower[idx] == query_lower[qi]) {
+                    found = true;
+                    match_positions.add (idx);
+                    last_match = idx;
+                    consecutive++;
+
+                    if (idx == 0 || prev_was_sep) {
+                        score += 150;
+                    } else if (consecutive > 1) {
+                        score += consecutive * 10;
+                    } else {
+                        score += 15;
+                    }
+                    break;
+                } else {
+                    score -= 1;
+                }
+            }
+
+            if (!found) {
+                matched_all = false;
+                break;
+            }
+
+            unichar c = last_match >= 0 && last_match < (int) text.length ? text[last_match] : ' ';
+            prev_was_sep = !c.isalnum () && c != '_';
+        }
+
+        if (!matched_all) {
+            return 0;
+        }
+
+        int i = 0;
+        while (i < match_positions.size) {
+            int start = match_positions[i];
+            int end = start + 1;
+
+            while (i + 1 < match_positions.size && match_positions[i + 1] == match_positions[i] + 1) {
+                end = match_positions[i + 1] + 1;
+                i++;
+            }
+
+            matches.add (new MatchRange (start, end));
+            i++;
+        }
+
+        return score;
     }
 
     public FuzzyFinderPage (Window parent_window, Iide.DocumentManager document_manager) {
@@ -22,6 +145,7 @@ public class Iide.FuzzyFinderPage : Gtk.Box, SearchPanelInterface {
         this.document_manager = document_manager;
         this.project_manager = Iide.ProjectManager.get_instance ();
         this.filtered_files = new Gee.ArrayList<Iide.FileEntry> ();
+        this.filtered_matches = new Gee.ArrayList<Gee.List<MatchRange>> ();
 
         setup_ui ();
 
@@ -112,7 +236,9 @@ public class Iide.FuzzyFinderPage : Gtk.Box, SearchPanelInterface {
             var index = list_item.get_position ();
             if (index >= 0 && index < filtered_files.size) {
                 var entry = filtered_files[(int) index];
-                name_label.set_label (entry.name);
+                var matches = filtered_matches.size > index ? filtered_matches[(int) index] : null;
+                var highlighted_name = highlight_matches (entry.name, matches);
+                name_label.set_markup (highlighted_name);
                 path_label.set_label (entry.relative_path);
             }
         });
@@ -181,38 +307,37 @@ public class Iide.FuzzyFinderPage : Gtk.Box, SearchPanelInterface {
         var cache = project_manager.get_file_cache ();
         if (cache == null) {
             filtered_files.clear ();
+            filtered_matches.clear ();
             update_results ();
             return;
         }
 
-        var query = search_entry.get_text ().down ();
+        current_query = search_entry.get_text ();
+        var query = current_query.down ();
+        var query_lower = current_query == null ? "" : current_query.down ();
         filtered_files.clear ();
+        filtered_matches.clear ();
 
         if (query == "") {
             foreach (var f in cache) {
                 if (filtered_files.size >= MAX_RESULTS) break;
                 filtered_files.add (f);
+                filtered_matches.add (new Gee.ArrayList<MatchRange> ());
             }
         } else {
             foreach (var f in cache) {
-                if (fuzzy_match (f.name.down (), query)) {
+                var matches = new Gee.ArrayList<MatchRange> ();
+                int score = fuzzy_match_with_positions (f.name.down (), query, matches);
+
+                if (score > 0) {
                     filtered_files.add (f);
+                    filtered_matches.add (matches);
                     if (filtered_files.size >= MAX_RESULTS) break;
                 }
             }
         }
 
         update_results ();
-    }
-
-    private bool fuzzy_match (string text, string query) {
-        int qi = 0;
-        for (int i = 0; i < text.length && qi < query.length; i++) {
-            if (text[i] == query[qi]) {
-                qi++;
-            }
-        }
-        return qi == query.length;
     }
 
     private void update_results () {

@@ -20,25 +20,32 @@ public class Iide.SearchInFilesPage : Gtk.Box, SearchPanelInterface {
         search_entry.grab_focus ();
     }
 
+    private class MatchRange : Object {
+        public int start { get; construct; }
+        public int end { get; construct; }
+
+        public MatchRange (int start, int end) {
+            Object (start: start, end: end);
+        }
+    }
+
     private class SearchResult : Object {
         public string file_path { get; construct; }
         public string file_name { get; construct; }
         public string relative_path { get; construct; }
         public int line_number { get; construct; }
         public string line_content { get; construct; }
-        public int match_start { get; construct; }
-        public int match_end { get; construct; }
+        public Gee.List<MatchRange> matches { get; construct; }
         public int score { get; construct; }
 
-        public SearchResult (string file_path, string file_name, string relative_path, int line_number, string line_content, int match_start, int match_end, int score = 0) {
+        public SearchResult (string file_path, string file_name, string relative_path, int line_number, string line_content, Gee.List<MatchRange> matches, int score = 0) {
             Object (
                     file_path: file_path,
                     file_name: file_name,
                     relative_path: relative_path,
                     line_number: line_number,
                     line_content: line_content,
-                    match_start: match_start,
-                    match_end: match_end,
+                    matches: matches,
                     score: score
             );
         }
@@ -128,7 +135,8 @@ public class Iide.SearchInFilesPage : Gtk.Box, SearchPanelInterface {
             var index = list_item.get_position ();
             if (index >= 0 && index < all_results.size) {
                 var result = all_results[(int) index];
-                line_label.set_label ("%d: %s".printf (result.line_number + 1, result.line_content));
+                var highlighted = highlight_matches (result.line_content, result.matches);
+                line_label.set_markup ("%d: %s".printf (result.line_number + 1, highlighted));
                 path_label.set_label ("%s".printf (result.relative_path));
             }
         });
@@ -180,18 +188,50 @@ public class Iide.SearchInFilesPage : Gtk.Box, SearchPanelInterface {
     }
 
     private bool is_text_file (string path) {
-        var file = File.new_for_path (path);
+        var file = GLib.File.new_for_path (path);
         try {
-            // Запрашиваем информацию о типе контента
             var info = file.query_info (FileAttribute.STANDARD_CONTENT_TYPE, FileQueryInfoFlags.NONE);
             string content_type = info.get_content_type ();
-
-            // Проверяем, является ли тип производным от "text/plain"
             return ContentType.is_a (content_type, "text/plain");
         } catch (Error e) {
-            stderr.printf ("Ошибка: %s\n", e.message);
             return false;
         }
+    }
+
+    private string escape_pango (string text) {
+        return text
+            .replace ("&", "&amp;")
+            .replace ("<", "&lt;")
+            .replace (">", "&gt;");
+    }
+
+    private string highlight_matches (string text, Gee.List<MatchRange> matches) {
+        var escaped = escape_pango (text);
+
+        if (matches == null || matches.size == 0) {
+            return escaped;
+        }
+
+        var sb = new StringBuilder ();
+        int pos = 0;
+
+        foreach (var m in matches) {
+            if (m.start > pos) {
+                sb.append (escaped.substring (pos, m.start - pos));
+            }
+            if (m.end > m.start && m.end <= (int) escaped.length) {
+                sb.append ("<span weight=\"bold\" background=\"#ffd700\" color=\"#000000\">");
+                sb.append (escaped.substring (m.start, m.end - m.start));
+                sb.append ("</span>");
+            }
+            pos = m.end;
+        }
+
+        if (pos < (int) escaped.length) {
+            sb.append (escaped.substring (pos));
+        }
+
+        return sb.str;
     }
 
     private bool on_key_pressed (Gtk.EventControllerKey controller, uint keyval, uint keycode, Gdk.ModifierType modifiers) {
@@ -247,7 +287,6 @@ public class Iide.SearchInFilesPage : Gtk.Box, SearchPanelInterface {
 
     private async void perform_search_async () {
         yield ensure_content_loaded ();
-
         perform_search ();
     }
 
@@ -260,11 +299,86 @@ public class Iide.SearchInFilesPage : Gtk.Box, SearchPanelInterface {
         spinner.start ();
 
         yield project_manager.ensure_file_cache_async ();
-
         content_loaded = true;
 
         spinner.stop ();
         status_stack.visible_child_name = "ready";
+    }
+
+    private int fuzzy_match_with_positions (string text, string query, Gee.List<MatchRange> matches) {
+        if (text.length == 0 || query.length == 0) {
+            return 0;
+        }
+
+        var text_lower = text.down ();
+        var query_lower = query.down ();
+
+        if (text_lower.contains (query_lower)) {
+            var pos = text_lower.index_of (query_lower);
+            matches.add (new MatchRange (pos, pos + (int) query_lower.length));
+            if (pos == 0) {
+                return 1000 + (1000 - text.length);
+            }
+            return 500 + (1000 - pos);
+        }
+
+        int score = 0;
+        int consecutive = 0;
+        int last_match = -1;
+        bool prev_was_sep = true;
+        bool matched_all = true;
+        var match_positions = new Gee.ArrayList<int> ();
+
+        for (int qi = 0; qi < query_lower.length; qi++) {
+            bool found = false;
+            for (int idx = last_match + 1; idx < text_lower.length; idx++) {
+                if (text_lower[idx] == query_lower[qi]) {
+                    found = true;
+                    match_positions.add (idx);
+                    last_match = idx;
+                    consecutive++;
+
+                    if (idx == 0 || prev_was_sep) {
+                        score += 150;
+                    } else if (consecutive > 1) {
+                        score += consecutive * 10;
+                    } else {
+                        score += 15;
+                    }
+                    break;
+                } else {
+                    score -= 1;
+                }
+            }
+
+            if (!found) {
+                matched_all = false;
+                break;
+            }
+
+            unichar c = last_match >= 0 && last_match < (int) text.length ? text[last_match] : ' ';
+            prev_was_sep = !c.isalnum () && c != '_';
+        }
+
+        if (!matched_all) {
+            return 0;
+        }
+
+        int i = 0;
+        while (i < match_positions.size) {
+            int start = match_positions[i];
+            int end = start + 1;
+
+            while (i + 1 < match_positions.size && match_positions[i + 1] == match_positions[i] + 1) {
+                end = match_positions[i + 1] + 1;
+                i++;
+            }
+
+            matches.add (new MatchRange (start, end));
+            i++;
+        }
+
+        return score;
     }
 
     private int fuzzy_score (string target, string query) {
@@ -354,22 +468,26 @@ public class Iide.SearchInFilesPage : Gtk.Box, SearchPanelInterface {
                 int line_num = 0;
 
                 while ((line = dis.read_line ()) != null) {
-                    int score = fuzzy_score (line, current_query);
+                    var matches = new Gee.ArrayList<MatchRange> ();
+                    int score = fuzzy_match_with_positions (line, current_query, matches);
 
                     if (score > 0) {
-                        var pos = line.down ().index_of (query_lower);
-                        var start = pos >= 0 ? pos : 0;
-                        var end = pos >= 0 ? pos + (int) current_query.length : start;
+                        var stripped = line.strip ();
+                        int offset = line.index_of (stripped);
+
+                        var adjusted_matches = new Gee.ArrayList<MatchRange> ();
+                        foreach (var m in matches) {
+                            adjusted_matches.add (new MatchRange (m.start - offset, m.end - offset));
+                        }
 
                         results.add (new SearchResult (
-                                                       file_entry.path,
-                                                       file_entry.name,
-                                                       file_entry.relative_path,
-                                                       line_num,
-                                                       line.strip (),
-                                                       start,
-                                                       end,
-                                                       score
+                            file_entry.path,
+                            file_entry.name,
+                            file_entry.relative_path,
+                            line_num,
+                            stripped,
+                            adjusted_matches,
+                            score
                         ));
                     }
                     line_num++;
@@ -409,7 +527,14 @@ public class Iide.SearchInFilesPage : Gtk.Box, SearchPanelInterface {
             var result = all_results[index];
             var file = GLib.File.new_for_path (result.file_path);
 
-            document_manager.open_document_with_selection (file, result.line_number, result.match_start, result.match_end, null);
+            int start_col = 0;
+            int end_col = 0;
+            if (result.matches != null && result.matches.size > 0) {
+                start_col = result.matches[0].start;
+                end_col = result.matches[0].end;
+            }
+
+            document_manager.open_document_with_selection (file, result.line_number, start_col, end_col, null);
             if (close_search) {
                 close_requested ();
             }
