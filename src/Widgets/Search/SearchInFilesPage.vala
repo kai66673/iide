@@ -467,7 +467,7 @@ public class Iide.SearchInFilesPage : Gtk.Box, SearchPanelInterface {
         update_results ();
     }
 
-private void search_files_in_task (SearchTask task) {
+    private void search_files_in_task (SearchTask task) {
         foreach (var file_entry in task.files) {
             try {
                 var file = GLib.File.new_for_path (file_entry.path);
@@ -489,13 +489,13 @@ private void search_files_in_task (SearchTask task) {
                         }
 
                         task.results.add (new SearchResult (
-                            file_entry.path,
-                            file_entry.name,
-                            file_entry.relative_path,
-                            line_num,
-                            stripped,
-                            adjusted_matches,
-                            score
+                                                            file_entry.path,
+                                                            file_entry.name,
+                                                            file_entry.relative_path,
+                                                            line_num,
+                                                            stripped,
+                                                            adjusted_matches,
+                                                            score
                         ));
                     }
                     line_num++;
@@ -504,10 +504,6 @@ private void search_files_in_task (SearchTask task) {
             } catch (Error e) {
             }
         }
-    }
-
-    private void perform_search () {
-        perform_search_wrapper.begin ();
     }
 
     private void update_results () {
