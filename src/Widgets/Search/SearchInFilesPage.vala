@@ -6,7 +6,6 @@ public class Iide.SearchInFilesPage : Gtk.Box, SearchPanelInterface {
     private Iide.DocumentManager document_manager;
     private Window? parent_window;
     private string project_root_path;
-    private string current_query;
 
     private Gtk.Stack status_stack;
     private Gtk.Spinner spinner;
@@ -19,6 +18,8 @@ public class Iide.SearchInFilesPage : Gtk.Box, SearchPanelInterface {
     private ThreadPool<SearchTask> thread_pool;
     private Cancellable? search_cancellable = null;
     private Gee.List<SearchResult> all_results;
+    private string cache_query = "";
+    private Gee.List<SearchResult> search_cache = new Gee.ArrayList<SearchResult> ();
 
     public void focus_search_entry () {
         search_entry.grab_focus ();
@@ -284,9 +285,8 @@ public class Iide.SearchInFilesPage : Gtk.Box, SearchPanelInterface {
 
         string query = search_entry.get_text ().strip ();
 
-        if (query.length == 0 || query.length == 1) {
-            all_results = new Gee.ArrayList<SearchResult> ();
-            update_results ();
+        if (query.length < 3) {
+            clear_results ();
             return;
         }
 
@@ -412,26 +412,73 @@ public class Iide.SearchInFilesPage : Gtk.Box, SearchPanelInterface {
         all_results = new Gee.ArrayList<SearchResult> ();
         update_results ();
 
-        // ВЫКЛЮЧАЕМ ИНДИКАТОР ЗАГРУЗКИ
-        spinner.stop ();
-        status_stack.visible_child_name = "ready";
+        // Очищаем кэш
+        cache_query = "";
+        search_cache = new Gee.ArrayList<SearchResult> ();
     }
 
     private async void perform_search_async () {
-        // Отменяем предыдущую операцию, если она была
-        if (search_cancellable != null) {
-            search_cancellable.cancel ();
-        }
-        search_cancellable = new Cancellable ();
-        var current_run_cancellable = search_cancellable;
+        string new_query = search_entry.get_text ().strip ();
 
-        current_query = search_entry.get_text ().strip ();
-
-        if (current_query == "" || current_query.length < 2) {
-            clear_results ();
+        // Проверка на минимальную длину
+        if (new_query.length < 3) {
+            clear_results (); // Очистка ListView и сброс кэша
             return;
         }
 
+        // Проверка: можем ли использовать кэш?
+        // Условие: кэш не пуст И новый запрос является продолжением того, что в кэше
+        bool can_use_cache = search_cache.size > 0 &&
+            cache_query.length > 0 &&
+            new_query.has_prefix (cache_query);
+
+        if (can_use_cache) {
+            // УТОЧНЯЮЩИЙ ПОИСК (Мгновенно)
+            LoggerService.get_instance ().debug ("TEXT SEARCH", "УТОЧНЯЮЩИЙ ПОИСК: " + new_query);
+            filter_cache_to_ui (new_query);
+        } else {
+            // ПОЛНЫЙ ПОИСК (Диск + Потоки)
+            LoggerService.get_instance ().debug ("TEXT SEARCH", "ПОЛНЫЙ ПОИСК: " + new_query);
+            clear_results ();
+            status_stack.visible_child_name = "loading";
+            spinner.start ();
+
+            if (search_cancellable != null)search_cancellable.cancel ();
+            search_cancellable = new Cancellable ();
+            var current_run_cancellable = search_cancellable;
+
+            // Выполняем тяжелую работу
+            yield perform_full_disk_search_async (new_query, current_run_cancellable);
+        }
+
+        spinner.stop ();
+        status_stack.set_visible_child_name ("results");
+    }
+
+    private void filter_cache_to_ui (string query) {
+        var filtered_results = new Gee.ArrayList<SearchResult> ();
+
+        foreach (var res in search_cache) {
+            var matches = new Gee.ArrayList<MatchRange> ();
+            // Пересчитываем score для НОВОГО (более длинного) запроса
+            int score = fuzzy_match_with_positions (res.line_content, query, matches);
+
+            // В UI пускаем только качественные совпадения
+            if (score > 50) {
+                filtered_results.add (new SearchResult (
+                                                        res.file_path, res.file_name, res.relative_path,
+                                                        res.line_number, res.line_content, matches, score
+                ));
+            }
+        }
+
+        // Сортируем и отображаем топ-200
+        filtered_results.sort ((a, b) => b.score - a.score);
+        all_results = filtered_results;
+        update_results ();
+    }
+
+    private async void perform_full_disk_search_async (string current_query, Cancellable current_run_cancellable) {
         var file_cache = project_manager.get_file_cache ();
         if (file_cache == null) {
             clear_results ();
@@ -479,7 +526,7 @@ public class Iide.SearchInFilesPage : Gtk.Box, SearchPanelInterface {
                 return;
 
             // Уступаем управление главному циклу на 50мс
-            Timeout.add (50, perform_search_async.callback);
+            Timeout.add (50, perform_full_disk_search_async.callback);
             yield;
         }
 
@@ -487,10 +534,15 @@ public class Iide.SearchInFilesPage : Gtk.Box, SearchPanelInterface {
         if (current_run_cancellable.is_cancelled ())
             return;
 
-        // 3. Сбор результатов (код остается прежним)
-        var all_task_results = new Gee.ArrayList<SearchResult> ();
+        var search_cache_tmp = new Gee.ArrayList<SearchResult> ();
         foreach (var task in tasks) {
-            all_task_results.add_all (task.results);
+            search_cache_tmp.add_all (task.results);
+        }
+
+        // 2. Отбираем для текущего отображения (>50)
+        var all_task_results = new Gee.ArrayList<SearchResult> ();
+        foreach (var res in search_cache_tmp) {
+            if (res.score > 50)all_task_results.add (res);
         }
 
         LoggerService.get_instance ().debug ("SEARCH TEXT", "results count=" + all_task_results.size.to_string ());
@@ -514,7 +566,7 @@ public class Iide.SearchInFilesPage : Gtk.Box, SearchPanelInterface {
                     top_results.add (match);
 
                     // Если перешагнули лимит — удаляем самый «слабый» (последний) элемент
-                    if (top_results.size > 200) {
+                    if (top_results.size > MAX_RESULTS) {
                         top_results.remove (top_results.last ());
                     }
                 }
@@ -532,16 +584,15 @@ public class Iide.SearchInFilesPage : Gtk.Box, SearchPanelInterface {
             }
         }
 
+        // 1. Наполняем кэш всеми результатами (>20)
+        search_cache = search_cache_tmp;
+        cache_query = current_query;
+
         update_results ();
-        // ВЫКЛЮЧАЕМ ИНДИКАТОР ЗАГРУЗКИ
-        spinner.stop ();
-        status_stack.visible_child_name = "ready";
     }
 
     private void search_files_in_task (SearchTask task) {
         // Лимит на количество находок в одном конкретном файле
-        const int MAX_MATCHES_PER_FILE = 15;
-        const int MIN_SCORE = 50;
 
         foreach (var file_entry in task.files) {
             if (task.cancellable.is_cancelled ())
@@ -561,9 +612,9 @@ public class Iide.SearchInFilesPage : Gtk.Box, SearchPanelInterface {
                     var matches = new Gee.ArrayList<MatchRange> ();
                     int score = fuzzy_match_with_positions (line, task.query, matches);
 
-                    if (score > MIN_SCORE) {
+                    if (score > 20) {
                         // Если уже нашли достаточно в этом файле — переходим к следующему
-                        if (matches_in_this_file >= MAX_MATCHES_PER_FILE) {
+                        if (matches_in_this_file >= 50) {
                             break;
                         }
                         matches_in_this_file++;
@@ -605,6 +656,10 @@ public class Iide.SearchInFilesPage : Gtk.Box, SearchPanelInterface {
         if (all_results.size > 0) {
             selection.selected = 0;
         }
+
+        // ВЫКЛЮЧАЕМ ИНДИКАТОР ЗАГРУЗКИ
+        spinner.stop ();
+        status_stack.visible_child_name = "ready";
     }
 
     private void open_selected (bool close_search = true) {
