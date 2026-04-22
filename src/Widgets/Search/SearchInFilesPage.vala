@@ -105,7 +105,7 @@ public class Iide.SearchInFilesPage : Gtk.Box, SearchPanelInterface {
         vbox.append (search_entry);
 
         var list_model = new Gtk.StringList (new string[0]);
-        string_list = list_model;
+        // string_list = list_model;
         selection = new Gtk.SingleSelection (list_model);
         results_view = new Gtk.ListView (selection, null);
         results_view.hexpand = true;
@@ -618,21 +618,14 @@ public class Iide.SearchInFilesPage : Gtk.Box, SearchPanelInterface {
                             break;
                         }
                         matches_in_this_file++;
-                        var stripped = line.strip ();
-                        int offset = line.index_of (stripped);
-
-                        var adjusted_matches = new Gee.ArrayList<MatchRange> ();
-                        foreach (var m in matches) {
-                            adjusted_matches.add (new MatchRange (m.start - offset, m.end - offset));
-                        }
 
                         task.results.add (new SearchResult (
                                                             file_entry.path,
                                                             file_entry.name,
                                                             file_entry.relative_path,
                                                             line_num,
-                                                            stripped,
-                                                            adjusted_matches,
+                                                            line,
+                                                            matches,
                                                             score
                         ));
                     }
