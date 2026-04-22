@@ -105,7 +105,7 @@ public class Iide.SearchInFilesPage : Gtk.Box, SearchPanelInterface {
         vbox.append (search_entry);
 
         var list_model = new Gtk.StringList (new string[0]);
-        // string_list = list_model;
+        string_list = list_model;
         selection = new Gtk.SingleSelection (list_model);
         results_view = new Gtk.ListView (selection, null);
         results_view.hexpand = true;
