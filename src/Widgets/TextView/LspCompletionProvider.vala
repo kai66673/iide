@@ -161,34 +161,12 @@ namespace Iide {
             return filter_model;
         }
 
-        private string get_icon_name_for_kind (int kind) {
-            switch (kind) {
-            case 2 : case 3: return "code-function-symbolic"; // Method, Function
-            case 4: return "code-class-symbolic"; // Constructor
-            case 5: return "code-variable-symbolic"; // Field
-            case 6: return "code-variable-symbolic"; // Variable
-            case 7: return "code-class-symbolic"; // Class
-            case 8: return "code-class-symbolic"; // Interface
-            case 9: return "code-context-menu-symbolic"; // Module
-            case 10: return "code-variable-symbolic"; // Property
-            case 11: return "code-variable-symbolic"; // Unit
-            case 12: return "code-variable-symbolic"; // Value
-            case 13: return "code-class-symbolic"; // Enum
-            case 14: return "code-variable-symbolic"; // Keyword
-            case 15: return "code-context-menu-symbolic"; // Snippet
-            case 16: return "code-variable-symbolic"; // Color
-            case 17: return "code-variable-symbolic"; // File
-            case 18: return "code-variable-symbolic"; // Reference
-            default: return "code-variable-symbolic";
-            }
-        }
-
         public virtual void display (CompletionContext context, CompletionProposal proposal, CompletionCell cell) {
             var p = (LspCompletionProposal) proposal;
 
             switch (cell.column) {
-            case CompletionColumn.ICON:
-                cell.set_icon_name (get_icon_name_for_kind (p.item.kind));
+            case CompletionColumn.ICON :
+                cell.set_icon_name (p.item.kind.to_icon_name ());
                 break;
             case CompletionColumn.TYPED_TEXT:
                 cell.text = p.get_label ();

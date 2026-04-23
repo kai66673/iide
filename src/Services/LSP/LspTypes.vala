@@ -43,7 +43,29 @@ public enum Iide.IdeLspCompletionKind {
     STRUCT = 22,
     EVENT = 23,
     OPERATOR = 24,
-    TYPE_PARAMETER = 25
+    TYPE_PARAMETER = 25;
+
+    public string to_icon_name () {
+        switch ((int) this) {
+        case 2: case 3: return "code-function-symbolic"; // Method, Function
+        case 4: return "code-class-symbolic"; // Constructor
+        case 5: return "code-variable-symbolic"; // Field
+        case 6: return "code-variable-symbolic"; // Variable
+        case 7: return "code-class-symbolic"; // Class
+        case 8: return "code-class-symbolic"; // Interface
+        case 9: return "code-context-menu-symbolic"; // Module
+        case 10: return "code-variable-symbolic"; // Property
+        case 11: return "code-variable-symbolic"; // Unit
+        case 12: return "code-variable-symbolic"; // Value
+        case 13: return "code-class-symbolic"; // Enum
+        case 14: return "code-variable-symbolic"; // Keyword
+        case 15: return "code-context-menu-symbolic"; // Snippet
+        case 16: return "code-variable-symbolic"; // Color
+        case 17: return "code-variable-symbolic"; // File
+        case 18: return "code-variable-symbolic"; // Reference
+        default: return "code-variable-symbolic";
+        }
+    }
 }
 
 public class Iide.PendingChange : GLib.Object {
@@ -149,12 +171,12 @@ public enum Iide.SymbolKind {
     OPERATOR = 25, TYPE_PARAMETER = 26;
 
     public string to_icon_name () {
-        switch (this) {
-        case CLASS: return "code-class-symbolic";
-        case METHOD: case FUNCTION: return "code-function-symbolic";
-        case VARIABLE: return "code-variable-symbolic";
-        // Добавьте другие маппинги иконок GNOME
-        default: return "obj-symbolic";
+        switch ((int) this) {
+        case 2: case 3: case 4: return "code-context-menu-symbolic"; // Module, Namespace, Package
+        case 5: case 9: case 10: case 11: return "code-class-symbolic"; // Class, Constructor, Enum, Interface
+        case 6: case 12: return "code-function-symbolic"; // Method, Function
+        case 8: case 13: return "code-variable-symbolic"; // Field, Variable
+        default: return "code-variable-symbolic";
         }
     }
 }
