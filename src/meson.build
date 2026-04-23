@@ -13,6 +13,7 @@ iide_sources = [
     'Widgets/ToolViews/TerminalView.vala',
     'Widgets/ToolViews/LogView.vala',
     'Widgets/Find/SearchResult.vala',
+    'Widgets/Find/SearchResultsView.vala',
     'Widgets/Search/SearchPanelInterface.vala',
     'Widgets/Search/SearchCenterDialog.vala',
     'Widgets/Search/FuzzyFinderPage.vala',

@@ -8,7 +8,7 @@ public class Iide.MatchRange : Object {
 }
 
 
-private class Iide.SearchResult : Object {
+public class Iide.SearchResult : Object {
     public string file_path { get; construct; }
     public string relative_path { get; construct; }
     public int line_number { get; construct; }
