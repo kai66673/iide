@@ -228,7 +228,8 @@ public class Iide.FuzzyFinderPage : Gtk.Box, SearchPanelInterface {
                 var entry = all_results[(int) index];
                 var matches = entry.matches;
                 var highlighted_name = highlight_matches (entry.line_content, matches);
-                name_label.set_markup (highlighted_name);
+                var line_prefix = entry.line_number == -1 ? "" : (entry.line_number + 1).to_string () + ": ";
+                name_label.set_markup (line_prefix + highlighted_name);
                 path_label.set_label (entry.relative_path);
             }
         });
