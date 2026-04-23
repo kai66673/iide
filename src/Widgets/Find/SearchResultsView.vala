@@ -42,7 +42,7 @@ public class Iide.SearchResultItem : Gtk.Box {
                 .replace(">", "&gt;");
     }
 
-    private string highlight_matches(string text, Gee.List<MatchRange> matches) {
+    private string highlight_matches(string text, Gee.List<MatchRange>? matches) {
         var escaped = escape_pango(text);
 
         if (matches == null || matches.size == 0) {
