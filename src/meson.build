@@ -12,7 +12,7 @@ iide_sources = [
     'Widgets/ToolViews/ProjectView.vala',
     'Widgets/ToolViews/TerminalView.vala',
     'Widgets/ToolViews/LogView.vala',
-    'Widgets/Find/SearchResult.vala',
+    # 'Widgets/Find/SearchResult.vala',
     'Widgets/Find/SearchResultsView.vala',
     'Widgets/Search/SearchPanelInterface.vala',
     'Widgets/Search/SearchCenterDialog.vala',
@@ -76,7 +76,7 @@ iide_sources += gnome.compile_resources('iide-resources', 'iide.gresource.xml', 
 executable(
     'iide',
     iide_sources,
-    dependencies: [iide_deps, tree_sitter_dep],
+    dependencies: [iide_deps, tree_sitter_dep, core_dep],
     include_directories: config_inc,
     install: true,
 )

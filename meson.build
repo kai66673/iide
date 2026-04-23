@@ -125,6 +125,9 @@ configure_file(output: 'config.h', configuration: config_h)
 config_dep = valac.find_library('config', dirs: srcdir)
 config_inc = include_directories('.')
 
+subdir('core')
+subdir('plugins')
+
 subdir('data')
 subdir('src')
 subdir('po')

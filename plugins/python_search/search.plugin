@@ -1,0 +1,11 @@
+[Plugin]
+# Имя файла модуля без расширения (search.py -> search)
+Module=search
+# Для Python-плагинов всегда python3
+Loader=python3
+Name=Python Regex Search
+Description=Поиск по файлам с использованием регулярных выражений Python
+Authors=Ivan Ivanov <ivan@example.com>
+Copyright=Copyright © 2024 Iide Team
+# Наше кастомное поле для проверки зависимостей через uv
+X-Dependencies=requests,regex
