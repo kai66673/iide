@@ -84,35 +84,59 @@ public class Iide.SearchResultItem : Gtk.Box {
     }
 }
 
-public class Iide.SearchResultsView : Gtk.ListView {
+// Наследуемся от Box — это безопаснее и проще
+public class Iide.SearchResultsView : Gtk.Box {
+    private DocumentManager document_manager = DocumentManager.get_instance();
+    public Gtk.ListView list_view; // ListView теперь ВНУТРИ
     public Gtk.SingleSelection selection;
     private GLib.ListStore results;
 
     private const int MAX_RESULTS = 100;
 
     public SearchResultsView() {
-        Object(factory: new Gtk.SignalListItemFactory());
+        Object(orientation: Gtk.Orientation.VERTICAL, spacing: 0);
 
         results = new GLib.ListStore(typeof (SearchResult));
         selection = new Gtk.SingleSelection(results);
-        this.set_model(selection);
 
         var factory = new Gtk.SignalListItemFactory();
-
         factory.setup.connect((item) => {
             var list_item = item as Gtk.ListItem;
-            var item_box = new SearchResultItem();
-            list_item.set_child(item_box);
+            list_item.child = new SearchResultItem();
         });
 
         factory.bind.connect((item) => {
             var list_item = item as Gtk.ListItem;
-            var item_box = list_item.get_child() as SearchResultItem;
+            var item_box = list_item.child as SearchResultItem;
             var result = (SearchResult) list_item.item;
             item_box.bind_search_result(result);
         });
 
-        this.factory = factory;
+        // Создаем ListView как внутренний элемент
+        list_view = new Gtk.ListView(selection, factory);
+        list_view.hexpand = true;
+        list_view.vexpand = true;
+        list_view.show_separators = true;
+
+        // Добавляем ListView в наш Box
+        var scrolled = new Gtk.ScrolledWindow();
+        scrolled.child = list_view;
+        this.append(scrolled);
+    }
+
+    // В методах навигации просто меняем 'this' на 'list_view'
+    public void select_up() {
+        if (selection.selected > 0) {
+            selection.selected -= 1;
+            list_view.scroll_to(selection.selected, Gtk.ListScrollFlags.NONE, null);
+        }
+    }
+
+    public void select_down() {
+        if (selection.selected < (int) results.n_items - 1) {
+            selection.selected += 1;
+            list_view.scroll_to(selection.selected, Gtk.ListScrollFlags.NONE, null);
+        }
     }
 
     public void update_results(Gee.List<SearchResult>? new_results) {
@@ -130,6 +154,25 @@ public class Iide.SearchResultsView : Gtk.ListView {
         for (var i = 0; i < show_count; i++) {
             items[i] = new_results[i];
         }
+        update_result_list(items);
+    }
+
+    public void update_result_list(SearchResult[] items) {
         results.splice(0, results.n_items, items);
+        if (items.length > 0) {
+            selection.selected = 0;
+        }
+    }
+
+    public bool open_selected() {
+        var index = (int) selection.selected;
+        if (index >= 0 && index < results.n_items) {
+            var result = results.get_item(index) as SearchResult;
+            var file = GLib.File.new_for_path(result.file_path);
+
+            document_manager.open_document_with_selection(file, result.line_number, 0, 0, null);
+            return true;
+        }
+        return false;
     }
 }

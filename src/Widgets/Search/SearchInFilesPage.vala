@@ -1,7 +1,6 @@
 public class Iide.SearchInFilesPage : Gtk.Box, SearchPanelInterface {
     private Gtk.SearchEntry search_entry;
-    private Gtk.ListView results_view;
-    private Gtk.SingleSelection selection;
+    private SearchResultsView results_view;
     private Iide.ProjectManager project_manager;
     private Iide.DocumentManager document_manager;
     private Window? parent_window;
@@ -25,9 +24,8 @@ public class Iide.SearchInFilesPage : Gtk.Box, SearchPanelInterface {
         search_entry.grab_focus ();
     }
 
-    private Gtk.StringList string_list;
-
     public SearchInFilesPage (Window parent_window, Iide.DocumentManager document_manager) {
+        Object (orientation : Gtk.Orientation.VERTICAL, spacing : 0);
         this.parent_window = parent_window;
         this.document_manager = document_manager;
         this.project_manager = Iide.ProjectManager.get_instance ();
@@ -73,62 +71,7 @@ public class Iide.SearchInFilesPage : Gtk.Box, SearchPanelInterface {
         };
         vbox.append (search_entry);
 
-        var list_model = new Gtk.StringList (new string[0]);
-        string_list = list_model;
-        selection = new Gtk.SingleSelection (list_model);
-        results_view = new Gtk.ListView (selection, null);
-        results_view.hexpand = true;
-        results_view.vexpand = true;
-        results_view.show_separators = true;
-
-        var factory = new Gtk.SignalListItemFactory ();
-        factory.setup.connect ((item) => {
-            var list_item = item as Gtk.ListItem;
-            var item_box = new Gtk.Box (Gtk.Orientation.VERTICAL, 2);
-            item_box.margin_start = 8;
-            item_box.margin_end = 8;
-            item_box.margin_top = 4;
-            item_box.margin_bottom = 4;
-
-            var line_label = new Gtk.Label (null);
-            line_label.xalign = 0;
-            line_label.add_css_class ("monospace");
-            line_label.add_css_class ("body");
-            line_label.hexpand = true;
-            line_label.selectable = true;
-
-            var path_label = new Gtk.Label (null);
-            path_label.xalign = 0;
-            path_label.add_css_class ("dim-label");
-            path_label.add_css_class ("caption");
-            path_label.hexpand = true;
-
-            item_box.append (line_label);
-            item_box.append (path_label);
-            list_item.set_child (item_box);
-        });
-
-        factory.bind.connect ((item) => {
-            var list_item = item as Gtk.ListItem;
-            var item_box = list_item.get_child () as Gtk.Box;
-            var line_label = item_box.get_first_child () as Gtk.Label;
-            var path_label = line_label.get_next_sibling () as Gtk.Label;
-
-            var index = list_item.get_position ();
-            if (index >= 0 && index < all_results.size) {
-                var result = all_results[(int) index];
-                var highlighted = highlight_matches (result.line_content, result.matches);
-                line_label.set_markup ("%d: %s".printf (result.line_number + 1, highlighted));
-                path_label.set_label ("%s".printf (result.relative_path));
-            }
-        });
-
-        results_view.factory = factory;
-
-        var scrolled = new Gtk.ScrolledWindow ();
-        scrolled.child = results_view;
-        scrolled.hexpand = true;
-        scrolled.vexpand = true;
+        results_view = new SearchResultsView ();
 
         status_stack = new Gtk.Stack ();
         status_stack.transition_type = Gtk.StackTransitionType.CROSSFADE;
@@ -147,7 +90,7 @@ public class Iide.SearchInFilesPage : Gtk.Box, SearchPanelInterface {
         loading_box.append (loading_label);
 
         status_stack.add_named (loading_box, "loading");
-        status_stack.add_named (scrolled, "ready");
+        status_stack.add_named (results_view, "ready");
 
         vbox.append (status_stack);
         this.append (vbox);
@@ -158,7 +101,7 @@ public class Iide.SearchInFilesPage : Gtk.Box, SearchPanelInterface {
         key_controller.key_pressed.connect (on_key_pressed);
         search_entry.add_controller (key_controller);
 
-        results_view.activate.connect (() => {
+        results_view.list_view.activate.connect (() => {
             open_selected ();
         });
 
@@ -180,42 +123,6 @@ public class Iide.SearchInFilesPage : Gtk.Box, SearchPanelInterface {
         }
     }
 
-    private string escape_pango (string text) {
-        return text
-                .replace ("&", "&amp;")
-                .replace ("<", "&lt;")
-                .replace (">", "&gt;");
-    }
-
-    private string highlight_matches (string text, Gee.List<MatchRange> matches) {
-        var escaped = escape_pango (text);
-
-        if (matches == null || matches.size == 0) {
-            return escaped;
-        }
-
-        var sb = new StringBuilder ();
-        int pos = 0;
-
-        foreach (var m in matches) {
-            if (m.start > pos) {
-                sb.append (escaped.substring (pos, m.start - pos));
-            }
-            if (m.end > m.start && m.end <= (int) escaped.length) {
-                sb.append ("<span weight=\"bold\" background=\"#ffd700\" color=\"#000000\">");
-                sb.append (escaped.substring (m.start, m.end - m.start));
-                sb.append ("</span>");
-            }
-            pos = m.end;
-        }
-
-        if (pos < (int) escaped.length) {
-            sb.append (escaped.substring (pos));
-        }
-
-        return sb.str;
-    }
-
     private bool on_key_pressed (Gtk.EventControllerKey controller, uint keyval, uint keycode, Gdk.ModifierType modifiers) {
         if (keyval == Gdk.Key.Escape) {
             close_requested ();
@@ -224,16 +131,10 @@ public class Iide.SearchInFilesPage : Gtk.Box, SearchPanelInterface {
             open_selected ((modifiers & Gdk.ModifierType.SHIFT_MASK) == 0);
             return true;
         } else if (keyval == Gdk.Key.Up || keyval == Gdk.Key.KP_Up) {
-            if (selection.selected > 0) {
-                selection.selected -= 1;
-                results_view.scroll_to (selection.selected, Gtk.ListScrollFlags.NONE, null);
-            }
+            results_view.select_up ();
             return true;
         } else if (keyval == Gdk.Key.Down || keyval == Gdk.Key.KP_Down) {
-            if (selection.selected < (int) string_list.get_n_items () - 1) {
-                selection.selected += 1;
-                results_view.scroll_to (selection.selected, Gtk.ListScrollFlags.NONE, null);
-            }
+            results_view.select_down ();
             return true;
         }
         return false;
@@ -608,17 +509,7 @@ public class Iide.SearchInFilesPage : Gtk.Box, SearchPanelInterface {
     }
 
     private void update_results () {
-        var strings = new string[all_results.size];
-        for (int i = 0; i < all_results.size; i++) {
-            var result = all_results[i];
-            strings[i] = "%d: %s".printf (result.line_number + 1, result.line_content);
-        }
-
-        string_list.splice (0, string_list.get_n_items (), strings);
-
-        if (all_results.size > 0) {
-            selection.selected = 0;
-        }
+        results_view.update_results (all_results);
 
         // ВЫКЛЮЧАЕМ ИНДИКАТОР ЗАГРУЗКИ
         spinner.stop ();
@@ -626,7 +517,7 @@ public class Iide.SearchInFilesPage : Gtk.Box, SearchPanelInterface {
     }
 
     private void open_selected (bool close_search = true) {
-        var index = (int) selection.selected;
+        var index = (int) results_view.selection.selected;
         if (index >= 0 && index < all_results.size) {
             var result = all_results[index];
             var file = GLib.File.new_for_path (result.file_path);

@@ -13,7 +13,7 @@ public class Iide.SearchResult : Object {
     public string relative_path { get; construct; }
     public int line_number { get; construct; }
     public string line_content { get; construct; }
-    public Gee.List<MatchRange> matches { get; construct; }
+    public Gee.List<MatchRange>? matches { get; construct; }
     public string? icon_name { get; construct; }
     public int score { get; construct; }
 
@@ -21,12 +21,12 @@ public class Iide.SearchResult : Object {
         string relative_path,
         int line_number,
         string line_content,
-        Gee.List<MatchRange> matches,
+        Gee.List<MatchRange>? matches = null,
         string? icon_name = null,
         int score = 0) {
         Object (
-                file_path: file_path,
-                relative_path: relative_path,
+                file_path : file_path,
+                relative_path : relative_path,
                 line_number: line_number,
                 line_content: line_content,
                 matches: matches,

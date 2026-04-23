@@ -1,8 +1,6 @@
 public class Iide.FuzzyFinderPage : Gtk.Box, SearchPanelInterface {
     private Gtk.SearchEntry search_entry;
-    private Gtk.ListView list_view;
-    private Gtk.SingleSelection selection;
-    private Gtk.StringList string_list;
+    private SearchResultsView results_view;
     private Iide.ProjectManager project_manager;
     private Iide.DocumentManager document_manager;
     private Window? parent_window;
@@ -16,42 +14,6 @@ public class Iide.FuzzyFinderPage : Gtk.Box, SearchPanelInterface {
 
     public void focus_search_entry () {
         search_entry.grab_focus ();
-    }
-
-    private string escape_pango (string text) {
-        return text
-                .replace ("&", "&amp;")
-                .replace ("<", "&lt;")
-                .replace (">", "&gt;");
-    }
-
-    private string highlight_matches (string text, Gee.List<MatchRange> matches) {
-        var escaped = escape_pango (text);
-
-        if (matches == null || matches.size == 0) {
-            return escaped;
-        }
-
-        var sb = new StringBuilder ();
-        int pos = 0;
-
-        foreach (var m in matches) {
-            if (m.start > pos) {
-                sb.append (escaped.substring (pos, m.start - pos));
-            }
-            if (m.end > m.start && m.end <= (int) escaped.length) {
-                sb.append ("<span weight=\"bold\" background=\"#ffd700\" color=\"#000000\">");
-                sb.append (escaped.substring (m.start, m.end - m.start));
-                sb.append ("</span>");
-            }
-            pos = m.end;
-        }
-
-        if (pos < (int) escaped.length) {
-            sb.append (escaped.substring (pos));
-        }
-
-        return sb.str;
     }
 
     private int fuzzy_match_with_positions (string text, string query, Gee.List<MatchRange> matches) {
@@ -158,16 +120,10 @@ public class Iide.FuzzyFinderPage : Gtk.Box, SearchPanelInterface {
             open_selected ((modifiers & Gdk.ModifierType.SHIFT_MASK) != 0);
             return true;
         } else if (keyval == Gdk.Key.Up || keyval == Gdk.Key.KP_Up) {
-            if (selection.selected > 0 && string_list != null) {
-                selection.selected -= 1;
-                list_view.scroll_to (selection.selected, Gtk.ListScrollFlags.NONE, null);
-            }
+            results_view.select_up ();
             return true;
         } else if (keyval == Gdk.Key.Down || keyval == Gdk.Key.KP_Down) {
-            if (string_list != null && selection.selected < (int) string_list.get_n_items () - 1) {
-                selection.selected += 1;
-                list_view.scroll_to (selection.selected, Gtk.ListScrollFlags.NONE, null);
-            }
+            results_view.select_down ();
             return true;
         }
         return false;
@@ -186,61 +142,9 @@ public class Iide.FuzzyFinderPage : Gtk.Box, SearchPanelInterface {
         };
         vbox.append (search_entry);
 
-        string_list = new Gtk.StringList (new string[0]);
-        selection = new Gtk.SingleSelection (string_list);
-        list_view = new Gtk.ListView (selection, null);
-        list_view.hexpand = true;
-        list_view.vexpand = true;
-        list_view.show_separators = true;
+        results_view = new SearchResultsView ();
 
-        var factory = new Gtk.SignalListItemFactory ();
-        factory.setup.connect ((item) => {
-            var list_item = item as Gtk.ListItem;
-            var item_box = new Gtk.Box (Gtk.Orientation.VERTICAL, 2);
-            item_box.margin_start = 8;
-            item_box.margin_end = 8;
-            item_box.margin_top = 6;
-            item_box.margin_bottom = 6;
-
-            var name_label = new Gtk.Label (null);
-            name_label.xalign = 0;
-            name_label.add_css_class ("title-5");
-            name_label.hexpand = true;
-
-            var path_label = new Gtk.Label (null);
-            path_label.xalign = 0;
-            path_label.add_css_class ("dim-label");
-            path_label.add_css_class ("caption");
-            path_label.hexpand = true;
-
-            item_box.append (name_label);
-            item_box.append (path_label);
-            list_item.set_child (item_box);
-        });
-        factory.bind.connect ((item) => {
-            var list_item = item as Gtk.ListItem;
-            var item_box = list_item.get_child () as Gtk.Box;
-            var name_label = item_box.get_first_child () as Gtk.Label;
-            var path_label = name_label.get_next_sibling () as Gtk.Label;
-
-            var index = list_item.get_position ();
-            if (index >= 0 && index < all_results.size) {
-                var entry = all_results[(int) index];
-                var matches = entry.matches;
-                var highlighted_name = highlight_matches (entry.line_content, matches);
-                var line_prefix = entry.line_number == -1 ? "" : (entry.line_number + 1).to_string () + ": ";
-                name_label.set_markup (line_prefix + highlighted_name);
-                path_label.set_label (entry.relative_path);
-            }
-        });
-        list_view.factory = factory;
-
-        var scrolled = new Gtk.ScrolledWindow ();
-        scrolled.child = list_view;
-        scrolled.hexpand = true;
-        scrolled.vexpand = true;
-        vbox.append (scrolled);
-
+        vbox.append (results_view);
         append (vbox);
 
         search_entry.changed.connect (on_search_changed);
@@ -249,7 +153,7 @@ public class Iide.FuzzyFinderPage : Gtk.Box, SearchPanelInterface {
         key_controller.key_pressed.connect (on_key_pressed);
         search_entry.add_controller (key_controller);
 
-        list_view.activate.connect (() => {
+        results_view.list_view.activate.connect (() => {
             open_selected ();
         });
 
@@ -340,20 +244,11 @@ public class Iide.FuzzyFinderPage : Gtk.Box, SearchPanelInterface {
     }
 
     private void update_results () {
-        var strings = new string[all_results.size];
-        for (int i = 0; i < all_results.size; i++) {
-            strings[i] = all_results[i].relative_path;
-        }
-
-        string_list.splice (0, string_list.get_n_items (), strings);
-
-        if (all_results.size > 0) {
-            selection.selected = 0;
-        }
+        results_view.update_results (all_results);
     }
 
     private void open_selected (bool close_search = true) {
-        var index = (int) selection.selected;
+        var index = (int) results_view.selection.selected;
         if (index >= 0 && index < all_results.size) {
             var entry = all_results[index];
             var file = GLib.File.new_for_path (entry.file_path);
