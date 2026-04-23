@@ -17,9 +17,9 @@ public class Iide.SearchInFilesPage : Gtk.Box, SearchPanelInterface {
 
     private ThreadPool<SearchTask> thread_pool;
     private Cancellable? search_cancellable = null;
-    private Gee.List<SearchResult> all_results;
+    private Gee.List<TextSearchResult> all_results;
     private string cache_query = "";
-    private Gee.List<SearchResult> search_cache = new Gee.ArrayList<SearchResult> ();
+    private Gee.List<TextSearchResult> search_cache = new Gee.ArrayList<TextSearchResult> ();
 
     public void focus_search_entry () {
         search_entry.grab_focus ();
@@ -34,7 +34,7 @@ public class Iide.SearchInFilesPage : Gtk.Box, SearchPanelInterface {
         }
     }
 
-    private class SearchResult : Object {
+    private class TextSearchResult : Object {
         public string file_path { get; construct; }
         public string file_name { get; construct; }
         public string relative_path { get; construct; }
@@ -43,7 +43,7 @@ public class Iide.SearchInFilesPage : Gtk.Box, SearchPanelInterface {
         public Gee.List<MatchRange> matches { get; construct; }
         public int score { get; construct; }
 
-        public SearchResult (string file_path, string file_name, string relative_path, int line_number, string line_content, Gee.List<MatchRange> matches, int score = 0) {
+        public TextSearchResult (string file_path, string file_name, string relative_path, int line_number, string line_content, Gee.List<MatchRange> matches, int score = 0) {
             Object (
                     file_path: file_path,
                     file_name: file_name,
@@ -62,7 +62,7 @@ public class Iide.SearchInFilesPage : Gtk.Box, SearchPanelInterface {
         this.parent_window = parent_window;
         this.document_manager = document_manager;
         this.project_manager = Iide.ProjectManager.get_instance ();
-        this.all_results = new Gee.ArrayList<SearchResult> ();
+        this.all_results = new Gee.ArrayList<TextSearchResult> ();
 
         var project_root = project_manager.get_current_project_root ();
         if (project_root != null) {
@@ -397,24 +397,24 @@ public class Iide.SearchInFilesPage : Gtk.Box, SearchPanelInterface {
     private class SearchTask {
         public Gee.List<Iide.FileEntry> files;
         public string query;
-        public Gee.List<SearchResult> results;
+        public Gee.List<TextSearchResult> results;
         public Cancellable cancellable;
 
         public SearchTask (Gee.List<Iide.FileEntry> files, string query, Cancellable cancellable) {
             this.files = files;
             this.query = query;
-            this.results = new Gee.ArrayList<SearchResult> ();
-            this.results = new Gee.ArrayList<SearchResult> ();
+            this.results = new Gee.ArrayList<TextSearchResult> ();
+            this.results = new Gee.ArrayList<TextSearchResult> ();
         }
     }
 
     private void clear_results () {
-        all_results = new Gee.ArrayList<SearchResult> ();
+        all_results = new Gee.ArrayList<TextSearchResult> ();
         update_results ();
 
         // Очищаем кэш
         cache_query = "";
-        search_cache = new Gee.ArrayList<SearchResult> ();
+        search_cache = new Gee.ArrayList<TextSearchResult> ();
     }
 
     private async void perform_search_async () {
@@ -456,7 +456,7 @@ public class Iide.SearchInFilesPage : Gtk.Box, SearchPanelInterface {
     }
 
     private void filter_cache_to_ui (string query) {
-        var filtered_results = new Gee.ArrayList<SearchResult> ();
+        var filtered_results = new Gee.ArrayList<TextSearchResult> ();
 
         foreach (var res in search_cache) {
             var matches = new Gee.ArrayList<MatchRange> ();
@@ -465,9 +465,9 @@ public class Iide.SearchInFilesPage : Gtk.Box, SearchPanelInterface {
 
             // В UI пускаем только качественные совпадения
             if (score > 50) {
-                filtered_results.add (new SearchResult (
-                                                        res.file_path, res.file_name, res.relative_path,
-                                                        res.line_number, res.line_content, matches, score
+                filtered_results.add (new TextSearchResult (
+                                                            res.file_path, res.file_name, res.relative_path,
+                                                            res.line_number, res.line_content, matches, score
                 ));
             }
         }
@@ -534,20 +534,20 @@ public class Iide.SearchInFilesPage : Gtk.Box, SearchPanelInterface {
         if (current_run_cancellable.is_cancelled ())
             return;
 
-        var search_cache_tmp = new Gee.ArrayList<SearchResult> ();
+        var search_cache_tmp = new Gee.ArrayList<TextSearchResult> ();
         foreach (var task in tasks) {
             search_cache_tmp.add_all (task.results);
         }
 
         // 2. Отбираем для текущего отображения (>50)
-        var all_task_results = new Gee.ArrayList<SearchResult> ();
+        var all_task_results = new Gee.ArrayList<TextSearchResult> ();
         foreach (var res in search_cache_tmp) {
             if (res.score > 50)all_task_results.add (res);
         }
 
         LoggerService.get_instance ().debug ("SEARCH TEXT", "results count=" + all_task_results.size.to_string ());
         if (all_task_results.size > 4000) {
-            var top_results = new Gee.TreeSet<SearchResult> ((a, b) => {
+            var top_results = new Gee.TreeSet<TextSearchResult> ((a, b) => {
                 // Сортируем по score (убывание). Если score равны, сравниваем пути для уникальности
                 int res = b.score - a.score;
                 if (res == 0) {
@@ -573,12 +573,12 @@ public class Iide.SearchInFilesPage : Gtk.Box, SearchPanelInterface {
             }
 
             // Теперь all_results просто копирует готовый топ-200
-            all_results = new Gee.ArrayList<SearchResult> ();
+            all_results = new Gee.ArrayList<TextSearchResult> ();
             all_results.add_all (top_results);
         } else {
             all_task_results.sort ((a, b) => b.score - a.score);
 
-            all_results = new Gee.ArrayList<SearchResult> ();
+            all_results = new Gee.ArrayList<TextSearchResult> ();
             for (int i = 0; i < all_task_results.size && i < MAX_RESULTS; i++) {
                 all_results.add (all_task_results[i]);
             }
@@ -619,14 +619,14 @@ public class Iide.SearchInFilesPage : Gtk.Box, SearchPanelInterface {
                         }
                         matches_in_this_file++;
 
-                        task.results.add (new SearchResult (
-                                                            file_entry.path,
-                                                            file_entry.name,
-                                                            file_entry.relative_path,
-                                                            line_num,
-                                                            line,
-                                                            matches,
-                                                            score
+                        task.results.add (new TextSearchResult (
+                                                                file_entry.path,
+                                                                file_entry.name,
+                                                                file_entry.relative_path,
+                                                                line_num,
+                                                                line,
+                                                                matches,
+                                                                score
                         ));
                     }
                     line_num++;
