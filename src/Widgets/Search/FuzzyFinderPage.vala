@@ -3,7 +3,6 @@ public class Iide.FuzzyFinderPage : Gtk.Box, SearchPanelInterface {
     private Gtk.ListView list_view;
     private Gtk.SingleSelection selection;
     private Gtk.StringList string_list;
-    private Gee.List<Iide.FileEntry> filtered_files;
     private Iide.ProjectManager project_manager;
     private Iide.DocumentManager document_manager;
     private Window? parent_window;
@@ -11,18 +10,9 @@ public class Iide.FuzzyFinderPage : Gtk.Box, SearchPanelInterface {
     private uint debounce_id = 0;
     private bool cache_loaded = false;
     private string current_query = "";
-    private Gee.List<Gee.List<MatchRange>> filtered_matches;
+    private Gee.List<SearchResult> all_results;
 
-    private const int MAX_RESULTS = 50;
-
-    private class MatchRange : Object {
-        public int start { get; construct; }
-        public int end { get; construct; }
-
-        public MatchRange (int start, int end) {
-            Object (start: start, end: end);
-        }
-    }
+    private const int MAX_RESULTS = 100;
 
     public void focus_search_entry () {
         search_entry.grab_focus ();
@@ -144,8 +134,8 @@ public class Iide.FuzzyFinderPage : Gtk.Box, SearchPanelInterface {
         this.parent_window = parent_window;
         this.document_manager = document_manager;
         this.project_manager = Iide.ProjectManager.get_instance ();
-        this.filtered_files = new Gee.ArrayList<Iide.FileEntry> ();
-        this.filtered_matches = new Gee.ArrayList<Gee.List<MatchRange>> ();
+
+        this.all_results = new Gee.ArrayList<SearchResult> ();
 
         setup_ui ();
 
@@ -234,10 +224,10 @@ public class Iide.FuzzyFinderPage : Gtk.Box, SearchPanelInterface {
             var path_label = name_label.get_next_sibling () as Gtk.Label;
 
             var index = list_item.get_position ();
-            if (index >= 0 && index < filtered_files.size) {
-                var entry = filtered_files[(int) index];
-                var matches = filtered_matches.size > index ? filtered_matches[(int) index] : null;
-                var highlighted_name = highlight_matches (entry.name, matches);
+            if (index >= 0 && index < all_results.size) {
+                var entry = all_results[(int) index];
+                var matches = entry.matches;
+                var highlighted_name = highlight_matches (entry.line_content, matches);
                 name_label.set_markup (highlighted_name);
                 path_label.set_label (entry.relative_path);
             }
@@ -308,57 +298,64 @@ public class Iide.FuzzyFinderPage : Gtk.Box, SearchPanelInterface {
     private void perform_search () {
         var cache = project_manager.get_file_cache ();
         if (cache == null) {
-            filtered_files.clear ();
-            filtered_matches.clear ();
+            all_results.clear ();
             update_results ();
             return;
         }
 
         current_query = search_entry.get_text ();
         var query = current_query.down ();
-        filtered_files.clear ();
-        filtered_matches.clear ();
+        all_results.clear ();
 
         if (query == "") {
             foreach (var f in cache) {
-                if (filtered_files.size >= MAX_RESULTS)break;
-                filtered_files.add (f);
-                filtered_matches.add (new Gee.ArrayList<MatchRange> ());
+                if (all_results.size >= MAX_RESULTS)break;
+                all_results.add (new SearchResult (f.path,
+                                                   f.relative_path,
+                                                   -1,
+                                                   f.name,
+                                                   new Gee.ArrayList<MatchRange> ()));
             }
         } else {
             foreach (var f in cache) {
                 var matches = new Gee.ArrayList<MatchRange> ();
                 int score = fuzzy_match_with_positions (f.name.down (), query, matches);
 
-                if (score > 0) {
-                    filtered_files.add (f);
-                    filtered_matches.add (matches);
-                    if (filtered_files.size >= MAX_RESULTS)break;
+                if (score > 20) {
+                    all_results.add (new SearchResult (f.path,
+                                                       f.relative_path,
+                                                       -1,
+                                                       f.name,
+                                                       matches,
+                                                       null,
+                                                       score));
+                    if (all_results.size >= MAX_RESULTS)break;
                 }
             }
         }
 
+        all_results.sort ((a, b) => b.score - a.score);
         update_results ();
     }
 
     private void update_results () {
-        var strings = new string[filtered_files.size];
-        for (int i = 0; i < filtered_files.size; i++) {
-            strings[i] = filtered_files[i].display_name;
+        var strings = new string[all_results.size];
+        for (int i = 0; i < all_results.size; i++) {
+            strings[i] = all_results[i].relative_path;
         }
 
         string_list.splice (0, string_list.get_n_items (), strings);
 
-        if (filtered_files.size > 0) {
+        if (all_results.size > 0) {
             selection.selected = 0;
         }
     }
 
     private void open_selected (bool close_search = true) {
         var index = (int) selection.selected;
-        if (index >= 0 && index < filtered_files.size) {
-            var entry = filtered_files[index];
-            var file = GLib.File.new_for_path (entry.path);
+        if (index >= 0 && index < all_results.size) {
+            var entry = all_results[index];
+            var file = GLib.File.new_for_path (entry.file_path);
             document_manager.open_document (file, null);
             if (close_search) {
                 close_requested ();
