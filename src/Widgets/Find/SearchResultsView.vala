@@ -170,7 +170,14 @@ public class Iide.SearchResultsView : Gtk.Box {
             var result = results.get_item(index) as SearchResult;
             var file = GLib.File.new_for_path(result.file_path);
 
-            document_manager.open_document_with_selection(file, result.line_number, 0, 0, null);
+            int start_col = 0;
+            int end_col = 0;
+            if (result.matches != null && result.matches.size > 0) {
+                start_col = result.matches[0].start;
+                end_col = result.matches[0].end;
+            }
+
+            document_manager.open_document_with_selection(file, result.line_number, start_col, end_col, null);
             return true;
         }
         return false;

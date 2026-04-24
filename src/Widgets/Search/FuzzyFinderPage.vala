@@ -2,8 +2,6 @@ public class Iide.FuzzyFinderPage : Gtk.Box, SearchPanelInterface {
     private Gtk.SearchEntry search_entry;
     private SearchResultsView results_view;
     private Iide.ProjectManager project_manager;
-    private Iide.DocumentManager document_manager;
-    private Window? parent_window;
 
     private uint debounce_id = 0;
     private bool cache_loaded = false;
@@ -92,9 +90,7 @@ public class Iide.FuzzyFinderPage : Gtk.Box, SearchPanelInterface {
         return score;
     }
 
-    public FuzzyFinderPage (Window parent_window, Iide.DocumentManager document_manager) {
-        this.parent_window = parent_window;
-        this.document_manager = document_manager;
+    public FuzzyFinderPage () {
         this.project_manager = Iide.ProjectManager.get_instance ();
 
         this.all_results = new Gee.ArrayList<SearchResult> ();
@@ -117,7 +113,7 @@ public class Iide.FuzzyFinderPage : Gtk.Box, SearchPanelInterface {
             close_requested ();
             return true;
         } else if (keyval == Gdk.Key.Return || keyval == Gdk.Key.KP_Enter) {
-            open_selected ((modifiers & Gdk.ModifierType.SHIFT_MASK) != 0);
+            open_selected ((modifiers & Gdk.ModifierType.SHIFT_MASK) == 0);
             return true;
         } else if (keyval == Gdk.Key.Up || keyval == Gdk.Key.KP_Up) {
             results_view.select_up ();
@@ -248,14 +244,8 @@ public class Iide.FuzzyFinderPage : Gtk.Box, SearchPanelInterface {
     }
 
     private void open_selected (bool close_search = true) {
-        var index = (int) results_view.selection.selected;
-        if (index >= 0 && index < all_results.size) {
-            var entry = all_results[index];
-            var file = GLib.File.new_for_path (entry.file_path);
-            document_manager.open_document (file, null);
-            if (close_search) {
-                close_requested ();
-            }
+        if (results_view.open_selected () && close_search) {
+            close_requested ();
         }
     }
 

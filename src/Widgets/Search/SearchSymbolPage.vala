@@ -7,13 +7,9 @@ public class Iide.SearchSymbolPage : Gtk.Box, SearchPanelInterface {
     private GLib.Cancellable? search_cancellable = null;
     private uint debounce_id = 0;
 
-    private Iide.DocumentManager document_manager;
-
     private const int MAX_RESULTS = 100;
 
-    public SearchSymbolPage (Iide.DocumentManager document_manager) {
-        this.document_manager = document_manager;
-
+    public SearchSymbolPage () {
         setup_ui ();
     }
 

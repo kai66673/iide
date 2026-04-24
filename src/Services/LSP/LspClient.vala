@@ -635,7 +635,7 @@ public class Iide.LspClient : Object {
                     item.detail = item_obj.get_string_member ("detail");
 
                 if (item_obj.has_member ("kind"))
-                    item.kind = (int) item_obj.get_int_member ("kind");
+                    item.kind = (IdeLspCompletionKind) item_obj.get_int_member ("kind");
 
                 // Обработка документации (может быть строкой или объектом MarkupContent)
                 if (item_obj.has_member ("documentation")) {

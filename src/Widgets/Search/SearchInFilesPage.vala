@@ -2,8 +2,6 @@ public class Iide.SearchInFilesPage : Gtk.Box, SearchPanelInterface {
     private Gtk.SearchEntry search_entry;
     private SearchResultsView results_view;
     private Iide.ProjectManager project_manager;
-    private Iide.DocumentManager document_manager;
-    private Window? parent_window;
     private string project_root_path;
 
     private Gtk.Stack status_stack;
@@ -24,10 +22,8 @@ public class Iide.SearchInFilesPage : Gtk.Box, SearchPanelInterface {
         search_entry.grab_focus ();
     }
 
-    public SearchInFilesPage (Window parent_window, Iide.DocumentManager document_manager) {
-        Object (orientation : Gtk.Orientation.VERTICAL, spacing : 0);
-        this.parent_window = parent_window;
-        this.document_manager = document_manager;
+    public SearchInFilesPage () {
+        Object (orientation : Gtk.Orientation.VERTICAL, spacing: 0);
         this.project_manager = Iide.ProjectManager.get_instance ();
         this.all_results = new Gee.ArrayList<SearchResult> ();
 
@@ -517,22 +513,8 @@ public class Iide.SearchInFilesPage : Gtk.Box, SearchPanelInterface {
     }
 
     private void open_selected (bool close_search = true) {
-        var index = (int) results_view.selection.selected;
-        if (index >= 0 && index < all_results.size) {
-            var result = all_results[index];
-            var file = GLib.File.new_for_path (result.file_path);
-
-            int start_col = 0;
-            int end_col = 0;
-            if (result.matches != null && result.matches.size > 0) {
-                start_col = result.matches[0].start;
-                end_col = result.matches[0].end;
-            }
-
-            document_manager.open_document_with_selection (file, result.line_number, start_col, end_col, null);
-            if (close_search) {
-                close_requested ();
-            }
+        if (results_view.open_selected () && close_search) {
+            close_requested ();
         }
     }
 
