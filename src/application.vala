@@ -51,6 +51,7 @@ public class Iide.Application : Adw.Application {
         action_manager.register_action (new PreferencesAction (this));
         action_manager.register_action (new ToggleMinimapAction (this));
         action_manager.register_action (new FuzzyFinderAction (this));
+        action_manager.register_action (new SearchSymbolAction (this));
         action_manager.register_action (new SearchInFilesAction (this));
         action_manager.register_action (new ZoomInAction ());
         action_manager.register_action (new ZoomOutAction ());
@@ -367,6 +368,32 @@ private class FuzzyFinderAction : Iide.Action {
     }
 }
 
+private class SearchSymbolAction : Iide.Action {
+    private weak Iide.Application app;
+
+    public SearchSymbolAction (Iide.Application app) {
+        this.app = app;
+    }
+
+    public override string id { get { return "search_symbol"; } }
+    public override string name { get { return _("Search  Symbol"); } }
+    public override string? description { get { return _("Search Symbol in Project"); } }
+    public override string? icon_name { get { return "system-search-symbolic"; } }
+    public override string? category { get { return "Edit"; } }
+
+    public override bool can_execute () {
+        return app ? .active_window is Iide.Window;
+    }
+
+    public override void execute () {
+        var win = app ? .active_window as Iide.Window;
+        if (win != null) {
+            var dialog = new Iide.SearchCenterDialog (win, win.get_document_manager ());
+            dialog.set_active_page (Iide.SearchPanelKind.SYMBOL);
+            dialog.present ();
+        }
+    }
+}
 private class SearchInFilesAction : Iide.Action {
     private weak Iide.Application app;
 
