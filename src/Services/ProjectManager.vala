@@ -5,15 +5,17 @@ using Gee;
 public class Iide.FileEntry : Object {
     public string path { get; construct; }
     public string name { get; construct; }
+    public bool is_text_file { get; construct; }
     public string relative_path { get; construct; }
     public string display_name { get; construct; }
 
-    public FileEntry (string path, string name, string relative_path) {
+    public FileEntry (string path, string name, bool is_text_file, string relative_path) {
         Object (
-            path: path,
-            name: name,
-            relative_path: relative_path,
-            display_name: "%s  →  %s".printf (name, relative_path)
+                path: path,
+                name: name,
+                is_text_file: is_text_file,
+                relative_path: relative_path,
+                display_name: "%s  →  %s".printf (name, relative_path)
         );
     }
 }
@@ -25,9 +27,9 @@ public class Iide.LanguageConfig : GLib.Object {
 
     public LanguageConfig (string language_id, string[] server_command, string[] file_patterns) {
         Object (
-            language_id: language_id,
-            server_command: server_command,
-            file_patterns: file_patterns
+                language_id: language_id,
+                server_command: server_command,
+                file_patterns: file_patterns
         );
     }
 }
@@ -40,6 +42,7 @@ public class Iide.ProjectManager : Object {
     private Gee.HashMap<string, LanguageConfig> language_configs;
 
     private Gee.List<Iide.FileEntry> file_cache;
+    private Gee.List<Iide.FileEntry> text_file_cache;
     private bool cache_valid = false;
     private bool cache_loading = false;
     private FileMonitor? directory_monitor;
@@ -68,6 +71,7 @@ public class Iide.ProjectManager : Object {
         settings = Iide.SettingsService.get_instance ();
         language_configs = new Gee.HashMap<string, LanguageConfig> ();
         file_cache = new Gee.ArrayList<Iide.FileEntry> ();
+        text_file_cache = new Gee.ArrayList<Iide.FileEntry> ();
         init_default_language_configs ();
     }
 
@@ -90,7 +94,7 @@ public class Iide.ProjectManager : Object {
         return language_configs.values;
     }
 
-    public LanguageConfig? get_language_config (string language_id) {
+    public LanguageConfig ? get_language_config (string language_id) {
         return language_configs.get (language_id);
     }
 
@@ -127,11 +131,11 @@ public class Iide.ProjectManager : Object {
                 for (int j = 0; j < lang_count; j++) {
                     var node = languages.get_element (j);
                     var lang_obj = node.get_object ();
-                    if (lang_obj == null) continue;
+                    if (lang_obj == null)continue;
 
                     string? lang_id = null;
-                    string[]? server_cmd = null;
-                    string[]? patterns = null;
+                    string[] ? server_cmd = null;
+                    string[] ? patterns = null;
 
                     if (lang_obj.has_member ("id")) {
                         lang_id = lang_obj.get_string_member ("id");
@@ -241,6 +245,7 @@ public class Iide.ProjectManager : Object {
             current_project_name = null;
             cache_valid = false;
             file_cache.clear ();
+            text_file_cache.clear ();
             settings.current_project_path = "";
             project_closed ();
         }
@@ -257,10 +262,13 @@ public class Iide.ProjectManager : Object {
 
         cache_loading = true;
         file_cache.clear ();
+        text_file_cache.clear ();
 
         try {
             yield scan_directory_async (current_project_root, current_project_root.get_path ());
+
             file_cache.sort ((a, b) => a.name.collate (b.name));
+            text_file_cache.sort ((a, b) => a.name.collate (b.name));
             cache_valid = true;
             file_cache_updated ();
         } catch (Error e) {
@@ -270,16 +278,19 @@ public class Iide.ProjectManager : Object {
         cache_loading = false;
     }
 
+    private bool is_text_file (GLib.FileInfo file_info) {
+        return ContentType.is_a (file_info.get_content_type (), "text/plain");
+    }
+
     private async void scan_directory_async (GLib.File dir, string base_path) throws Error {
-        var enumerator = yield dir.enumerate_children_async (
-            "standard::name,standard::type",
+        var enumerator = yield dir.enumerate_children_async ("standard::name,standard::type,standard::content-type",
             FileQueryInfoFlags.NONE,
             Priority.DEFAULT,
-            null
-        );
+            null);
 
         while (true) {
             var files = yield enumerator.next_files_async (100, Priority.DEFAULT, null);
+
             if (files == null || files.length () == 0) {
                 break;
             }
@@ -307,7 +318,19 @@ public class Iide.ProjectManager : Object {
                     var path = dir.get_child (name).get_path ();
                     if (path != null) {
                         var relative = path.substring (base_path.length + 1);
-                        file_cache.add (new Iide.FileEntry (path, name, relative));
+                        bool is_text = is_text_file (info);
+                        file_cache.add (new Iide.FileEntry (
+                                                            path,
+                                                            name,
+                                                            is_text,
+                                                            relative));
+                        if (is_text) {
+                            text_file_cache.add (new Iide.FileEntry (
+                                                                     path,
+                                                                     name,
+                                                                     true,
+                                                                     relative));
+                        }
                     }
                 }
             }
@@ -319,6 +342,13 @@ public class Iide.ProjectManager : Object {
             return null;
         }
         return file_cache;
+    }
+
+    public Gee.List<Iide.FileEntry>? get_text_file_cache () {
+        if (!cache_valid) {
+            return null;
+        }
+        return text_file_cache;
     }
 
     public async void ensure_file_cache_async () {
@@ -333,7 +363,7 @@ public class Iide.ProjectManager : Object {
         file_cache_invalidated ();
     }
 
-    public string? get_workspace_root_path () {
+    public string ? get_workspace_root_path () {
         if (current_project_root != null) {
             return current_project_root.get_path ();
         }
@@ -353,7 +383,7 @@ public class Iide.ProjectManager : Object {
         return current_project_root;
     }
 
-    public string? get_current_project_name () {
+    public string ? get_current_project_name () {
         return current_project_name;
     }
 
@@ -374,6 +404,7 @@ public class Iide.ProjectManager : Object {
 
         try {
             var file = yield dialog.select_folder (parent_window, null);
+
             if (file != null) {
                 yield open_project_async (file);
             }

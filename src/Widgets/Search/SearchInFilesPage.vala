@@ -108,17 +108,6 @@ public class Iide.SearchInFilesPage : Gtk.Box, SearchPanelInterface {
         search_entry.focus_on_click = false;
     }
 
-    private bool is_text_file (string path) {
-        var file = GLib.File.new_for_path (path);
-        try {
-            var info = file.query_info (FileAttribute.STANDARD_CONTENT_TYPE, FileQueryInfoFlags.NONE);
-            string content_type = info.get_content_type ();
-            return ContentType.is_a (content_type, "text/plain");
-        } catch (Error e) {
-            return false;
-        }
-    }
-
     private bool on_key_pressed (Gtk.EventControllerKey controller, uint keyval, uint keycode, Gdk.ModifierType modifiers) {
         if (keyval == Gdk.Key.Escape) {
             close_requested ();
@@ -346,8 +335,8 @@ public class Iide.SearchInFilesPage : Gtk.Box, SearchPanelInterface {
     }
 
     private async void perform_full_disk_search_async (string current_query, Cancellable current_run_cancellable) {
-        var file_cache = project_manager.get_file_cache ();
-        if (file_cache == null) {
+        var text_files = project_manager.get_text_file_cache ();
+        if (text_files == null || text_files.size == 0) {
             clear_results ();
             return;
         }
@@ -355,18 +344,6 @@ public class Iide.SearchInFilesPage : Gtk.Box, SearchPanelInterface {
         // ВКЛЮЧАЕМ ИНДИКАТОР ЗАГРУЗКИ
         status_stack.visible_child_name = "loading";
         spinner.start ();
-
-        var text_files = new Gee.ArrayList<Iide.FileEntry> ();
-        foreach (var f in file_cache) {
-            if (is_text_file (f.path)) {
-                text_files.add (f);
-            }
-        }
-
-        if (text_files.size == 0) {
-            clear_results ();
-            return;
-        }
 
         int num_threads = (int) GLib.get_num_processors ();
         int files_per_thread = (text_files.size + num_threads - 1) / num_threads;
