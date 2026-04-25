@@ -114,7 +114,7 @@ public class Iide.TextView : Panel.Widget {
         });
 
         source_map = new GtkSource.Map ();
-        source_map.set_view (source_view);
+        // source_map.set_view (source_view);
         source_map.add_css_class ("textview-map");
         source_map.visible = settings.show_minimap;
 
@@ -128,9 +128,12 @@ public class Iide.TextView : Panel.Widget {
 
         scroll.set_child (source_view);
 
-        scroll.get_vadjustment ().bind_property ("value",
-                                                 source_map.get_vadjustment (), "value",
-                                                 BindingFlags.BIDIRECTIONAL | BindingFlags.SYNC_CREATE);
+        // Чтобы миникарта понимала масштаб и положение,
+        // она должна использовать тот же VAdjustment, что и ScrolledWindow редактора.
+        source_map.set_view (source_view);
+
+        // 3. Убедитесь, что миникарта не пытается скроллиться сама по себе
+        source_map.vexpand = true;
 
         var subbox = new Gtk.Box (Gtk.Orientation.HORIZONTAL, 0);
         subbox.homogeneous = false;
@@ -159,7 +162,6 @@ public class Iide.TextView : Panel.Widget {
             source_view.grab_focus ();
         });
 
-
         child = box;
 
         title = file.get_basename ();
@@ -185,6 +187,33 @@ public class Iide.TextView : Panel.Widget {
         // Режим вставки (Insert/Overwrite)
         source_view.notify["overwrite"].connect (() => {
             editor_status_bar.update_mode (source_view.overwrite);
+        });
+
+        var main_adj = scroll.get_vadjustment ();
+        var map_adj = source_map.get_vadjustment ();
+
+        // 1. Связываем только ЗНАЧЕНИЕ (позицию), но не масштаб
+        // Мы используем формулу пропорции, чтобы слайдер стоял там, где нужно
+        main_adj.value_changed.connect (() => {
+            // Рассчитываем процент прокрутки
+            double main_range = main_adj.upper - main_adj.page_size;
+            double map_range = map_adj.upper - map_adj.page_size;
+
+            // Проверяем, что нам есть куда скроллить в основном вьювере
+            if (main_range > 0) {
+                // 1. Рассчитываем процент прокрутки (от 0.0 до 1.0)
+                double percentage = main_adj.value / main_range;
+
+                // 2. Рассчитываем целевое значение для миникарты
+                double target_value = percentage * map_range;
+
+                // 3. Применяем значение с ограничением (clamp),
+                // чтобы избежать вылетов за границы при резком ресайзе
+                map_adj.set_value (target_value.clamp (0, map_range));
+            } else {
+                // Если текст целиком влезает в экран, сбрасываем карту в начало
+                map_adj.set_value (0);
+            }
         });
     }
 
