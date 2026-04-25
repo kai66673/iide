@@ -361,8 +361,8 @@ private class FuzzyFinderAction : Iide.Action {
     public override void execute () {
         var win = app ? .active_window as Iide.Window;
         if (win != null) {
-            var dialog = new Iide.SearchCenterDialog (win, win.get_document_manager ());
-            dialog.set_active_page (Iide.SearchPanelKind.FILES);
+            var dialog = new Iide.SearchWindow (win, win.get_document_manager ());
+            dialog.set_active_page ("files");
             dialog.present ();
         }
     }
@@ -388,8 +388,8 @@ private class SearchSymbolAction : Iide.Action {
     public override void execute () {
         var win = app ? .active_window as Iide.Window;
         if (win != null) {
-            var dialog = new Iide.SearchCenterDialog (win, win.get_document_manager ());
-            dialog.set_active_page (Iide.SearchPanelKind.SYMBOL);
+            var dialog = new Iide.SearchWindow (win, win.get_document_manager ());
+            dialog.set_active_page ("symbols");
             dialog.present ();
         }
     }
@@ -414,9 +414,8 @@ private class SearchInFilesAction : Iide.Action {
     public override void execute () {
         var win = app ? .active_window as Iide.Window;
         if (win != null) {
-            // var dialog = new Iide.SearchInFilesDialog (win, win.get_document_manager ());
-            var dialog = new Iide.SearchCenterDialog (win, win.get_document_manager ());
-            dialog.set_active_page (Iide.SearchPanelKind.TEXT);
+            var dialog = new Iide.SearchWindow (win, win.get_document_manager ());
+            dialog.set_active_page ("text");
             dialog.present ();
         }
     }

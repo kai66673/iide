@@ -43,7 +43,7 @@ public class Iide.ProjectManager : Object {
 
     private Gee.List<Iide.FileEntry> file_cache;
     private Gee.List<Iide.FileEntry> text_file_cache;
-    private bool cache_valid = false;
+    public bool cache_valid = false;
     private bool cache_loading = false;
     private FileMonitor? directory_monitor;
 
