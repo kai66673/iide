@@ -109,12 +109,12 @@ public class Iide.SearchSymbolPage : Gtk.Box, SearchPanelInterface {
         spinner.start ();
 
         try {
-            var client = IdeLspService.get_instance ().get_client ();
-            if (client != null) {
-                var results = yield client.workspace_symbols (query, search_cancellable);
-
-                update_results_list (results);
+            var clients = IdeLspService.get_instance ().get_clients ();
+            var results = new Gee.ArrayList<LspSymbol> ();
+            foreach (var client in clients) {
+                results.add_all (yield client.workspace_symbols (query, search_cancellable));
             }
+            update_results_list (results);
         } catch (GLib.IOError.CANCELLED e) {
         } catch (GLib.Error e) {
             warning ("LSP Symbol Search Error: %s", e.message);

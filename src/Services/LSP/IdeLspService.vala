@@ -67,6 +67,10 @@ public class Iide.IdeLspService : GLib.Object {
         return null;
     }
 
+    public LspClient[] get_clients () {
+        return clients.values.to_array ();
+    }
+
     public void register_client (LspClient client) {
         int id = client.get_hash ();
 
