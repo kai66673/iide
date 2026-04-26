@@ -121,12 +121,35 @@ textview {
     -gtk-icon-size: 16px;
 }
 
-/* label,
-box {
-    min-width: 0;
-    margin-left: 0;
-    margin-right: 0;
-} */
+/* Основной класс для иконок-шрифтов */
+.nerd-icon {
+    margin-right: 6px;
+    font-weight: normal;
+    /* Фиксированная ширина помогает выравнивать текст в списках */
+    min-width: 16px;
+}
+
+/* Цвета символов как в популярных IDE */
+.icon-orange {
+    color: #ee9d28;
+}
+
+/* Классы, Перечисления */
+.icon-purple {
+    color: #b180d7;
+}
+
+/* Методы, Функции */
+.icon-blue {
+    color: #75beff;
+}
+
+/* Переменные, Поля */
+.icon-gray {
+    color: #858585;
+}
+
+/* Файлы, Разное */
 
 .editor-status-bar .diagnostic-box {
     transition:
@@ -136,6 +159,61 @@ box {
     padding: 2px 6px;
     opacity: 0.8;
     /* В обычном состоянии чуть приглушенно */
+}
+
+/* Основной класс для иконок-шрифтов */
+/* Специфичные настройки для иконок в списках */
+.nerd-icon {
+    font-size: 1.1em;
+    /* Чуть увеличим, чтобы иконки были четче */
+    min-width: 20px;
+}
+
+/* Цвета символов как в популярных IDE */
+.icon-orange {
+    /* Классы, Перечисления */
+    color: #ee9d28;
+}
+
+.icon-purple {
+    /* Методы, Функции */
+    color: #b180d7;
+}
+
+.icon-blue {
+    /* Переменные, Поля */
+    color: #75beff;
+}
+
+.icon-gray {
+    /* Файлы, Разное */
+    color: #858585;
+}
+
+.icon-cyan {
+    color: #9cdcfe;
+}
+
+.icon-green {
+    color: #4ec9b0;
+}
+
+.icon-yellow {
+    color: #dcdcaa;
+}
+
+.icon-tan {
+    color: #dcb67a;
+}
+
+.icon-green {
+    color: #4ec9b0;
+}
+
+/* Уменьшим размер иконок для Completion (по желанию) */
+.completion-row .nerd-icon {
+    font-size: 0.95em;
+    margin-right: 8px;
 }
 
 .editor-status-bar .diagnostic-box.hover {

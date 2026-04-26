@@ -67,7 +67,7 @@ public class Iide.BreadcrumbSymbolOutlineNavigator : Gtk.Box {
         box.margin_end = 8;
         box.margin_top = box.margin_bottom = 2;
 
-        var icon = new Gtk.Image.from_icon_name ("code-context-symbolic");
+        var icon = Iide.SymbolIconFactory.create_for_ts (item.type);
         var label = new Gtk.Label (item.name);
 
         box.append (icon);

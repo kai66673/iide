@@ -166,7 +166,7 @@ namespace Iide {
 
             switch (cell.column) {
             case CompletionColumn.ICON :
-                cell.set_icon_name (p.item.kind.to_icon_name ());
+                cell.set_widget (SymbolIconFactory.create_for_completion (p.item.kind));
                 break;
             case CompletionColumn.TYPED_TEXT:
                 cell.text = p.get_label ();

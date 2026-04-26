@@ -2,6 +2,7 @@ using TreeSitter;
 
 public struct BreadcrumbItem {
     public string name;
+    public string type;
     public TreeSitter.Point start_point;
     public Gee.List<BreadcrumbItem?> siblings; // Добавляем список соседей
     public Gee.List<BreadcrumbItem?> children;
@@ -404,6 +405,7 @@ public abstract class Iide.BaseTreeSitterHighlighter : Object {
                     get_iters_from_ts_node (buffer, name_node, out s, out e);
                     siblings.add (BreadcrumbItem () {
                         name = buffer.get_text (s, e, false),
+                        type = child.type (),
                         start_point = child.start_point ()
                     });
                 }
@@ -439,6 +441,7 @@ public abstract class Iide.BaseTreeSitterHighlighter : Object {
                     var siblings = get_siblings_for_node (node.parent ());
                     result.insert (0, BreadcrumbItem () {
                         name = buffer.get_text (s, e, false),
+                        type = node.type (),
                         start_point = node.start_point (), // Прыгаем к началу всего блока (fn/class)
                         siblings = siblings
                     });
@@ -489,6 +492,7 @@ public abstract class Iide.BaseTreeSitterHighlighter : Object {
 
                     var item = BreadcrumbItem () {
                         name = buffer.get_text (s, e, false),
+                        type = child.type (),
                         start_point = child.start_point (),
                         // Рекурсивно ищем детей ТОЛЬКО внутри этого контейнера для иерархии
                         children = collect_container_children (child)

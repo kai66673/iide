@@ -2,6 +2,7 @@ iide_sources = [
     'main.vala',
     'application.vala',
     'window.vala',
+    'Services/SymbolIconFactory.vala',
     'Widgets/TextView/TextView.vala',
     'Widgets/TextView/SourceView.vala',
     'Widgets/TextView/FontZoomer.vala',

@@ -129,10 +129,11 @@ public class Iide.FileTreeView : Box {
             var item = (Gtk.ListItem) list_item;
             var expander = new TreeExpander ();
             var box = new Box (Orientation.HORIZONTAL, 6);
-            var icon = new Image ();
+            var icon_box = new Box (Orientation.HORIZONTAL, 2);
+            icon_box.set_size_request (20, 20);
             var label = new Label ("");
 
-            box.append (icon);
+            box.append (icon_box);
             box.append (label);
             expander.set_child (box);
             item.set_child (expander);
@@ -146,13 +147,13 @@ public class Iide.FileTreeView : Box {
             var file_item = tree_row.get_item () as FileItem;
             var expander = item.get_child () as TreeExpander;
             var box = expander.get_child () as Box;
-            var icon = box.get_first_child () as Image;
-            var label = icon.get_next_sibling () as Label;
+            var icon_box = box.get_first_child () as Box;
+            var label = icon_box.get_next_sibling () as Label;
 
             expander.list_row = tree_row;
             if (file_item != null) {
                 label.label = file_item.name;
-                icon.icon_name = file_item.is_directory ? "folder-symbolic" : IconProvider.get_mime_type_icon_name (mime_type_for_file (file_item.file));
+                icon_box.append (SymbolIconFactory.create_for_file (file_item.file));
 
                 if (!file_item.is_directory) {
                     var click = new Gtk.GestureClick ();

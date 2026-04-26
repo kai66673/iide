@@ -1,7 +1,7 @@
 public class Iide.SearchResultItem : Gtk.Box {
     private Gtk.Label name_label;
     private Gtk.Label path_label;
-    private Gtk.Image icon;
+    private Gtk.Box icon_box;
 
     public SearchResultItem() {
         Object(orientation: Gtk.Orientation.HORIZONTAL, spacing: 12);
@@ -10,8 +10,8 @@ public class Iide.SearchResultItem : Gtk.Box {
         this.margin_top = 6;
         this.margin_bottom = 6;
 
-        icon = new Gtk.Image();
-        icon.set_size_request(20, 20);
+        icon_box = new Gtk.Box(Gtk.Orientation.VERTICAL, 0);
+        icon_box.set_size_request(20, 20);
 
         var text_box = new Gtk.Box(Gtk.Orientation.VERTICAL, 2);
         text_box.hexpand = true;
@@ -31,7 +31,7 @@ public class Iide.SearchResultItem : Gtk.Box {
         text_box.append(name_label);
         text_box.append(path_label);
 
-        this.append(icon);
+        this.append(icon_box);
         this.append(text_box);
     }
 
@@ -76,10 +76,10 @@ public class Iide.SearchResultItem : Gtk.Box {
         var line_prefix = result.line_number == -1 ? "" : (result.line_number + 1).to_string() + ": ";
         name_label.set_markup(line_prefix + highlighted_name);
         path_label.set_label(result.relative_path);
-        if (result.icon_name == null) {
-            icon.hide();
+        if (result.icon_widget == null) {
+            icon_box.hide();
         } else {
-            icon.set_from_icon_name(result.icon_name);
+            icon_box.append(result.icon_widget);
         }
     }
 }

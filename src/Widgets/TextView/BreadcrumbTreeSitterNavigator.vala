@@ -66,9 +66,8 @@ public class Iide.BreadcrumbTreeSitterNavigator : Gtk.Box {
         box.margin_start = 4;
         box.margin_end = 4;
 
-        // Для Tree-sitter можно использовать общую иконку "символа"
-        // или пытаться определять её по типу узла (если передавать его в структуру)
-        var icon = new Gtk.Image.from_icon_name ("code-context-symbolic");
+        var icon = Iide.SymbolIconFactory.create_for_ts (item.type);
+
         var label = new Gtk.Label (item.name);
         label.ellipsize = Pango.EllipsizeMode.END;
 
