@@ -54,6 +54,8 @@ public class Iide.BreadcrumbTreeSitterNavigator : Gtk.Box {
         scroll.set_max_content_height (400);
         scroll.set_child (list_box);
         this.append (scroll);
+
+        this.search_entry.grab_focus ();
     }
 
     private Gtk.ListBoxRow create_row (BreadcrumbItem item) {

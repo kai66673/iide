@@ -11,17 +11,16 @@ public class Iide.BreadcrumbFileSegment : Gtk.Box {
 
         button = new Gtk.MenuButton ();
         button.has_frame = false;
-        button.can_focus = false;
         button.add_css_class ("flat");
         button.add_css_class ("small-menu-button");
         button.valign = Gtk.Align.CENTER;
         button.can_shrink = true;
+        button.always_show_arrow = true;
 
-        var label = new Gtk.Label (file.get_basename () + (is_file ? "" : " >"));
+        var label = new Gtk.Label (file.get_basename ());
         button.set_child (label);
         label.set_ellipsize (Pango.EllipsizeMode.END);
         label.set_width_chars (1);
-        button.always_show_arrow = false;
 
         if (is_file) {
             // В VSCode обычно иконка и текст вместе, можно использовать Box
@@ -68,9 +67,14 @@ public class Iide.BreadcrumbSymbolSegment : Gtk.Box {
         button.has_frame = false;
         button.add_css_class ("flat");
         button.add_css_class ("small-menu-button");
+        button.valign = Gtk.Align.CENTER;
+        button.can_shrink = true;
+        button.always_show_arrow = true;
 
-        // В VSCode перед именем символа часто идет иконка типа
-        button.label = item.name + "  >";
+        var label = new Gtk.Label (item.name);
+        button.set_child (label);
+        label.set_ellipsize (Pango.EllipsizeMode.END);
+        label.set_width_chars (1);
 
         this.append (button);
         setup_popover ();

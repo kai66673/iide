@@ -31,6 +31,7 @@ public class Iide.BreadcrumbFileNavigator : Gtk.Box {
                     load_directory.end (res);
                     this.current_folder = parent;
                     this.search_entry.text = "";
+                    this.search_entry.grab_focus ();
                 });
         });
 
@@ -63,6 +64,7 @@ public class Iide.BreadcrumbFileNavigator : Gtk.Box {
                     load_directory.end (res);
                     this.current_folder = selected;
                     this.search_entry.text = "";
+                    this.search_entry.grab_focus ();
                 });
             } else {
                 open_file (selected);
@@ -88,7 +90,10 @@ public class Iide.BreadcrumbFileNavigator : Gtk.Box {
         search_entry.search_changed.connect (() => { list_box.invalidate_filter (); });
 
         // Запускаем загрузку
-        load_directory.begin (this.current_folder);
+        load_directory.begin (this.current_folder, (obj, res) => {
+            load_directory.end (res);
+            this.search_entry.grab_focus ();
+        });
     }
 
     private async void load_directory (GLib.File folder) {
