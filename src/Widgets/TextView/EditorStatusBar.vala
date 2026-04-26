@@ -8,6 +8,8 @@ public class Iide.EditorStatusBar : Gtk.Box {
     private Gtk.Label warn_label;
     private Gtk.Box diagnostic_box;
 
+    private BreadcrumbsBar new_breadcrumps;
+
     public signal void breadcrumb_clicked (uint line, uint column);
 
     private Iide.DiagnosticsPopover diag_popover = null;
@@ -18,10 +20,22 @@ public class Iide.EditorStatusBar : Gtk.Box {
         this.add_css_class ("editor-status-bar");
 
         // Левая часть: Breadcrumbs
-        breadcrumbs_container = new Gtk.Box (Gtk.Orientation.HORIZONTAL, 6);
+        new_breadcrumps = new BreadcrumbsBar ();
+        this.append (new_breadcrumps);
+        new_breadcrumps.update_file_path (GLib.File.new_for_uri (source_view.uri),
+                                          GLib.File.new_for_path (ProjectManager.get_instance ().get_workspace_root_path ()));
+
+        breadcrumbs_container = new Gtk.Box (Gtk.Orientation.HORIZONTAL, 0);
         breadcrumbs_container.set_hexpand (true);
         this.append (breadcrumbs_container);
         breadcrumbs_container.height_request = 24;
+        breadcrumbs_container.hexpand = false;
+        breadcrumbs_container.halign = Gtk.Align.START;
+
+        // spacer
+        var spacer_box = new Gtk.Box (Gtk.Orientation.HORIZONTAL, 2);
+        spacer_box.hexpand = true;
+        this.append (spacer_box);
 
         // Правая часть: Статистика
         var info_box = new Gtk.Box (Gtk.Orientation.HORIZONTAL, 12);
@@ -127,11 +141,18 @@ public class Iide.EditorStatusBar : Gtk.Box {
         }
 
         foreach (var crumb in crumbs) {
-            var btn = new Gtk.Button.with_label (crumb.name + " >");
+            var btn = new Gtk.Button ();
             btn.add_css_class ("flat");
-            btn.add_css_class ("breadcrumps-btn");
+            btn.add_css_class ("small-menu-button");
             btn.vexpand = false;
+            btn.hexpand = false;
             btn.valign = Gtk.Align.CENTER;
+            btn.halign = Gtk.Align.CENTER;
+            btn.can_shrink = true;
+            var label = new Gtk.Label (crumb.name + " >");
+            label.set_ellipsize (Pango.EllipsizeMode.END);
+            label.set_width_chars (1);
+            btn.set_child (label);
             breadcrumbs_container.append (btn);
 
             btn.clicked.connect (() => {
