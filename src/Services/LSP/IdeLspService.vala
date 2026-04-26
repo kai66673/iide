@@ -277,7 +277,6 @@ public class Iide.IdeLspService : GLib.Object {
     public async string ? request_hover (string uri, int line, int character) {
         var client = get_client_for_uri (uri);
         if (client == null) {
-            logger.debug ("HOVER", "client is null!");
             return null;
         }
         try {

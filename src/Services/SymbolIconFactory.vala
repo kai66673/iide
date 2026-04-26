@@ -184,6 +184,111 @@ public class Iide.SymbolIconFactory : Object {
         }
     }
 
+    private static void get_file_info (GLib.File file, out string icon_char, out string color_hex) {
+        string name = file.get_basename ().down ();
+        string mime = get_mime_type (file);
+
+        // Значения по умолчанию
+        icon_char = "\uf0214"; // (File)
+        color_hex = "#858585"; // Gray
+
+        if (mime == "inode/directory") {
+            icon_char = "\uf024b"; // (Folder)
+            color_hex = "#dcb67a"; // Tan
+        }
+        // --- Системные / Конфиги ---
+        else if (name == "makefile" || name.has_suffix (".mk")) {
+            icon_char = "\ue673"; color_hex = "#6d8086";
+        } else if (name == "dockerfile" || name.has_suffix (".dockerfile")) {
+            icon_char = "\uf308"; color_hex = "#384d54";
+        } else if (name.has_suffix (".json")) {
+            icon_char = "\ue60b"; color_hex = "#cbcb41";
+        } else if (name.has_suffix (".xml") || name.has_suffix (".ui") || name.has_suffix (".glade")) {
+            icon_char = "\uf05c0"; color_hex = "#e37933";
+        } else if (name.has_suffix (".yaml") || name.has_suffix (".yml")) {
+            icon_char = "\ue6a8"; color_hex = "#cb3e20";
+        } else if (name.has_suffix (".conf") || name.has_suffix (".ini")) {
+            icon_char = "\ue615"; color_hex = "#6d8086";
+        } else if (name.has_suffix (".md") || name.has_suffix (".markdown")) {
+            icon_char = "\ue609"; color_hex = "#519aba";
+        }
+        // --- Языки программирования ---
+        else if (name.has_suffix (".vala") || name.has_suffix (".vapi")) {
+            icon_char = "\ue69b"; color_hex = "#6e44b3";
+        } else if (name.has_suffix (".c")) {
+            icon_char = "\ue61e"; color_hex = "#599eff";
+        } else if (name.has_suffix (".cpp") || name.has_suffix (".hpp") || name.has_suffix (".cc")) {
+            icon_char = "\ue61d"; color_hex = "#00599c";
+        } else if (name.has_suffix (".py")) {
+            icon_char = "\ue73c"; color_hex = "#306998";
+        } else if (name.has_suffix (".js")) {
+            icon_char = "\ue74e"; color_hex = "#f1e05a";
+        } else if (name.has_suffix (".ts")) {
+            icon_char = "\ue628"; color_hex = "#2b7489";
+        } else if (name.has_suffix (".css")) {
+            icon_char = "\ue749"; color_hex = "#563d7c";
+        } else if (name.has_suffix (".html")) {
+            icon_char = "\ue736"; color_hex = "#e34c26";
+        } else if (name.has_suffix (".sh") || name.has_suffix (".bash") || name.has_suffix (".zsh")) {
+            icon_char = "\ue795"; color_hex = "#4ebd4e";
+        } else if (name.has_suffix (".rs")) {
+            icon_char = "\ue7a8"; color_hex = "#dea584";
+        } else if (name.has_suffix (".go")) {
+            icon_char = "\ue627"; color_hex = "#00add8";
+        } else if (name.has_suffix (".lua")) {
+            icon_char = "\ue620"; color_hex = "#000080";
+        }
+        // --- Инструменты сборки ---
+        else if (name == "meson.build" || name == "meson_options.txt") {
+            icon_char = "\ue673"; color_hex = "#8d9da4";
+        } else if (name.has_suffix (".build")) { // Общий для разных сборок
+            icon_char = "\ue673"; color_hex = "#8d9da4";
+        }
+        // --- Мультимедиа (MIME-базировано) ---
+        else if (mime.has_prefix ("image/")) {
+            icon_char = "\uf024f"; color_hex = "#a074c4";
+        } else if (mime.has_prefix ("audio/") || mime.has_prefix ("video/")) {
+            icon_char = "\uf024d"; color_hex = "#2b7489";
+        } else if (mime == "application/pdf") {
+            icon_char = "\uf1c1"; color_hex = "#cc342d";
+        }
+    }
+
+    public static Gdk.Texture create_texture_for_file (GLib.File file) {
+        ensure_initialized ();
+
+        // 1. Получаем данные об иконке (символ и цвет)
+        string icon_char;
+        string color_hex;
+        get_file_info (file, out icon_char, out color_hex);
+
+        // 2. Рендерим в Cairo Surface
+        int size = 16; // Стандартный размер иконки для вкладок/панелей
+        var surface = new Cairo.ImageSurface (Cairo.Format.ARGB32, size, size);
+        var cr = new Cairo.Context (surface);
+
+        // Устанавливаем цвет
+        Gdk.RGBA rgba = {};
+        rgba.parse (color_hex);
+        Gdk.cairo_set_source_rgba (cr, rgba);
+
+        // Настраиваем Pango Layout
+        var layout = Pango.cairo_create_layout (cr);
+        layout.set_font_description (Pango.FontDescription.from_string ("Symbols Nerd Font Mono 11"));
+        layout.set_text (icon_char, -1);
+
+        // Центрируем иконку
+        Pango.Rectangle ink_rect, logical_rect;
+        layout.get_pixel_extents (out ink_rect, out logical_rect);
+        cr.move_to ((size - logical_rect.width) / 2.0, (size - logical_rect.height) / 2.0);
+
+        Pango.cairo_show_layout (cr, layout);
+
+        // 3. Создаем текстуру из поверхности
+        var pixbuf = Gdk.pixbuf_get_from_surface (surface, 0, 0, size, size);
+        return Gdk.Texture.for_pixbuf (pixbuf);
+    }
+
     private static Gtk.Widget build_label (string icon_char, string color_class) {
         var label = new Gtk.Label (icon_char);
         label.add_css_class ("nerd-icon");

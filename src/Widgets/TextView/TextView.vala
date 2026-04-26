@@ -89,7 +89,8 @@ public class Iide.TextView : Panel.Widget {
         source_view = new SourceView (window, uri, buffer);
         source_view.bottom_margin = 400;
 
-        icon_name = source_view.icon_name;
+        // icon_name = source_view.icon_name;
+        set_icon (SymbolIconFactory.create_texture_for_file (file));
         font_zoomer = new FontZoomer (source_view);
 
         // Connect to application-level zoom and minimap changes
