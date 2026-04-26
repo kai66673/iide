@@ -3,6 +3,7 @@ using TreeSitter;
 public struct BreadcrumbItem {
     public string name;
     public TreeSitter.Point start_point;
+    public Gee.List<BreadcrumbItem?> siblings; // Добавляем список соседей
 }
 
 public abstract class Iide.BaseTreeSitterHighlighter : Object {
@@ -389,6 +390,27 @@ public abstract class Iide.BaseTreeSitterHighlighter : Object {
         }
     }
 
+    private Gee.List<BreadcrumbItem?> get_siblings_for_node (TreeSitter.Node parent_node) {
+        var siblings = new Gee.ArrayList<BreadcrumbItem?> ();
+        if (parent_node.is_null ())return siblings;
+
+        for (uint32 i = 0; i < parent_node.named_child_count (); i++) {
+            var child = parent_node.named_child (i);
+            if (is_container_node (child.type ())) {
+                var name_node = find_name_node (child);
+                if (name_node != null && !name_node.is_null ()) {
+                    Gtk.TextIter s, e;
+                    get_iters_from_ts_node (buffer, name_node, out s, out e);
+                    siblings.add (BreadcrumbItem () {
+                        name = buffer.get_text (s, e, false),
+                        start_point = child.start_point ()
+                    });
+                }
+            }
+        }
+        return siblings;
+    }
+
     public Gee.List<BreadcrumbItem?> get_breadcrumbs_at_cursor () {
         var result = new Gee.ArrayList<BreadcrumbItem?> ();
         if (tree == null)return result;
@@ -412,9 +434,12 @@ public abstract class Iide.BaseTreeSitterHighlighter : Object {
                 if (name_node != null && !name_node.is_null ()) {
                     Gtk.TextIter s, e;
                     get_iters_from_ts_node (buffer, name_node, out s, out e);
+                    // Получаем всех соседей этого узла (детей его родителя)
+                    var siblings = get_siblings_for_node (node.parent ());
                     result.insert (0, BreadcrumbItem () {
                         name = buffer.get_text (s, e, false),
-                        start_point = node.start_point () // Прыгаем к началу всего блока (fn/class)
+                        start_point = node.start_point (), // Прыгаем к началу всего блока (fn/class)
+                        siblings = siblings
                     });
                 }
             }

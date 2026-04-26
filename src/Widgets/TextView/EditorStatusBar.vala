@@ -1,6 +1,5 @@
 public class Iide.EditorStatusBar : Gtk.Box {
     private SourceView source_view;
-    private Gtk.Box breadcrumbs_container;
     private Gtk.Label pos_label;
     private Gtk.Label mode_label;
 
@@ -25,12 +24,7 @@ public class Iide.EditorStatusBar : Gtk.Box {
         new_breadcrumps.update_file_path (GLib.File.new_for_uri (source_view.uri),
                                           GLib.File.new_for_path (ProjectManager.get_instance ().get_workspace_root_path ()));
 
-        breadcrumbs_container = new Gtk.Box (Gtk.Orientation.HORIZONTAL, 0);
-        breadcrumbs_container.set_hexpand (true);
-        this.append (breadcrumbs_container);
-        breadcrumbs_container.height_request = 24;
-        breadcrumbs_container.hexpand = false;
-        breadcrumbs_container.halign = Gtk.Align.START;
+        new_breadcrumps.breadcrumb_clicked.connect ((line, column) => { breadcrumb_clicked (line, column); });
 
         // spacer
         var spacer_box = new Gtk.Box (Gtk.Orientation.HORIZONTAL, 2);
@@ -132,34 +126,7 @@ public class Iide.EditorStatusBar : Gtk.Box {
     }
 
     public void update_breadcrumbs (Gee.List<BreadcrumbItem?> crumbs) {
-        // Очистка контейнера
-        var child = breadcrumbs_container.get_first_child ();
-        while (child != null) {
-            var next = child.get_next_sibling ();
-            breadcrumbs_container.remove (child);
-            child = next;
-        }
-
-        foreach (var crumb in crumbs) {
-            var btn = new Gtk.Button ();
-            btn.add_css_class ("flat");
-            btn.add_css_class ("small-menu-button");
-            btn.vexpand = false;
-            btn.hexpand = false;
-            btn.valign = Gtk.Align.CENTER;
-            btn.halign = Gtk.Align.CENTER;
-            btn.can_shrink = true;
-            var label = new Gtk.Label (crumb.name + " >");
-            label.set_ellipsize (Pango.EllipsizeMode.END);
-            label.set_width_chars (1);
-            btn.set_child (label);
-            breadcrumbs_container.append (btn);
-
-            btn.clicked.connect (() => {
-                // Генерируем сигнал или вызываем метод перемещения курсора
-                this.breadcrumb_clicked (crumb.start_point.row, crumb.start_point.column);
-            });
-        }
+        new_breadcrumps.update_breadcrumbs (crumbs);
     }
 
     public void update_position (int line, int col, int selection_len = 0) {

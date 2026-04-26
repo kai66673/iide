@@ -54,9 +54,54 @@ public class Iide.BreadcrumbFileSegment : Gtk.Box {
     }
 }
 
+public class Iide.BreadcrumbSymbolSegment : Gtk.Box {
+    private Gtk.MenuButton button;
+    private BreadcrumbItem current_item;
+
+    public signal void breadcrumb_clicked (uint line, uint column);
+
+    public BreadcrumbSymbolSegment (BreadcrumbItem item) {
+        Object (orientation: Gtk.Orientation.HORIZONTAL, spacing: 0);
+        this.current_item = item;
+
+        button = new Gtk.MenuButton ();
+        button.has_frame = false;
+        button.add_css_class ("flat");
+        button.add_css_class ("small-menu-button");
+
+        // В VSCode перед именем символа часто идет иконка типа
+        button.label = item.name + "  >";
+
+        this.append (button);
+        setup_popover ();
+    }
+
+    private void setup_popover () {
+        var popover = new Gtk.Popover ();
+        button.set_popover (popover);
+
+        button.notify["active"].connect (() => {
+            if (button.active) {
+                var navigator = new BreadcrumbTreeSitterNavigator (this.current_item.siblings);
+                popover.set_child (navigator);
+
+                // Используем ваш проверенный метод для фокуса
+                navigator.search_entry.set_key_capture_widget (popover);
+
+                navigator.breadcrumb_clicked.connect ((line, column) => {
+                    button.active = false;
+                    this.breadcrumb_clicked (line, column);
+                });
+            }
+        });
+    }
+}
+
 public class Iide.BreadcrumbsBar : Gtk.Box {
     private Gtk.Box path_box; // Относительный путь: Проект > src > main.vala
     private Gtk.Box scope_box; // LSP-структура: MyClass > my_method
+
+    public signal void breadcrumb_clicked (uint line, uint column);
 
     public BreadcrumbsBar () {
         Object (orientation: Gtk.Orientation.HORIZONTAL, spacing: 0);
@@ -99,6 +144,22 @@ public class Iide.BreadcrumbsBar : Gtk.Box {
             current_file = current_file.get_parent ();
             if (current_file == null)
                 break;
+        }
+    }
+
+    public void update_breadcrumbs (Gee.List<BreadcrumbItem?> crumbs) {
+        // Очистка контейнера
+        var child = scope_box.get_first_child ();
+        while (child != null) {
+            var next = child.get_next_sibling ();
+            scope_box.remove (child);
+            child = next;
+        }
+
+        foreach (var crumb in crumbs) {
+            var ts_segment = new BreadcrumbSymbolSegment (crumb);
+            scope_box.append (ts_segment);
+            ts_segment.breadcrumb_clicked.connect ((line, column) => { breadcrumb_clicked (line, column); });
         }
     }
 }

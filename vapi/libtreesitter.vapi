@@ -185,6 +185,12 @@ namespace TreeSitter {
 
         [CCode (cname = "ts_node_child_by_field_name")]
         public Node child_by_field_name (string field_name, uint32 name_len = 0);
+
+        [CCode (cname = "ts_node_named_child_count")]
+        public uint32 named_child_count ();
+
+        [CCode (cname = "ts_node_named_child")]
+        public TreeSitter.Node named_child (uint32 child_index);
     }
 
     [CCode (cname = "TSTreeCursor", free_function = "ts_tree_cursor_delete", has_type_id = false)]
