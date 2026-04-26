@@ -4,6 +4,7 @@ public struct BreadcrumbItem {
     public string name;
     public TreeSitter.Point start_point;
     public Gee.List<BreadcrumbItem?> siblings; // Добавляем список соседей
+    public Gee.List<BreadcrumbItem?> children;
 }
 
 public abstract class Iide.BaseTreeSitterHighlighter : Object {
@@ -467,6 +468,45 @@ public abstract class Iide.BaseTreeSitterHighlighter : Object {
             last_crumbs = new_crumbs;
             breadcrumbs_changed (last_crumbs);
         }
+    }
+
+    public Gee.List<BreadcrumbItem?> get_full_outline () {
+        var root = tree.root_node ();
+        return collect_container_children (root);
+    }
+
+    private Gee.List<BreadcrumbItem?> collect_container_children (TreeSitter.Node parent) {
+        var list = new Gee.ArrayList<BreadcrumbItem?> ();
+
+        for (uint32 i = 0; i < parent.named_child_count (); i++) {
+            var child = parent.named_child (i);
+
+            if (is_container_node (child.type ())) {
+                var name_node = find_name_node (child);
+                if (name_node != null && !name_node.is_null ()) {
+                    Gtk.TextIter s, e;
+                    get_iters_from_ts_node (buffer, name_node, out s, out e);
+
+                    var item = BreadcrumbItem () {
+                        name = buffer.get_text (s, e, false),
+                        start_point = child.start_point (),
+                        // Рекурсивно ищем детей ТОЛЬКО внутри этого контейнера для иерархии
+                        children = collect_container_children (child)
+                    };
+                    list.add (item);
+                } else {
+                    // Если это контейнер, но у него нет имени (странно, но бывает),
+                    // все равно ищем внутри него
+                    list.add_all (collect_container_children (child));
+                }
+            } else {
+                // КЛЮЧЕВОЙ МОМЕНТ:
+                // Если текущий узел НЕ контейнер (например, блок if или namespace),
+                // мы все равно должны заглянуть внутрь, так как там могут быть контейнеры.
+                list.add_all (collect_container_children (child));
+            }
+        }
+        return list;
     }
 
     ~BaseTreeSitterHighlighter () {

@@ -87,6 +87,8 @@ public class Iide.TextView : Panel.Widget {
         });
 
         source_view = new SourceView (window, uri, buffer);
+        source_view.bottom_margin = 400;
+
         icon_name = source_view.icon_name;
         font_zoomer = new FontZoomer (source_view);
 

@@ -19,7 +19,7 @@ public class Iide.EditorStatusBar : Gtk.Box {
         this.add_css_class ("editor-status-bar");
 
         // Левая часть: Breadcrumbs
-        new_breadcrumps = new BreadcrumbsBar ();
+        new_breadcrumps = new BreadcrumbsBar (source_view);
         this.append (new_breadcrumps);
         new_breadcrumps.update_file_path (GLib.File.new_for_uri (source_view.uri),
                                           GLib.File.new_for_path (ProjectManager.get_instance ().get_workspace_root_path ()));
