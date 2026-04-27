@@ -9,8 +9,6 @@ public class Iide.EditorStatusBar : Gtk.Box {
 
     private BreadcrumbsBar new_breadcrumps;
 
-    public signal void breadcrumb_clicked (uint line, uint column);
-
     private Iide.DiagnosticsPopover diag_popover = null;
 
     public EditorStatusBar (SourceView source_view) {
@@ -23,8 +21,6 @@ public class Iide.EditorStatusBar : Gtk.Box {
         this.append (new_breadcrumps);
         new_breadcrumps.update_file_path (GLib.File.new_for_uri (source_view.uri),
                                           GLib.File.new_for_path (ProjectManager.get_instance ().get_workspace_root_path ()));
-
-        new_breadcrumps.breadcrumb_clicked.connect ((line, column) => { breadcrumb_clicked (line, column); });
 
         // spacer
         var spacer_box = new Gtk.Box (Gtk.Orientation.HORIZONTAL, 2);

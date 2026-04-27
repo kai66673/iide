@@ -576,4 +576,14 @@ public class Iide.SourceView : GtkSource.View {
             pending_scroll_iter = null;
         }
     }
+
+    public void goto (int line, int column) {
+        Gtk.TextIter iter;
+        buffer.get_iter_at_line (out iter, line);
+        iter.set_line_index (column);
+
+        buffer.place_cursor (iter);
+        scroll_to_iter (iter, 0.1, false, 0, 0.5);
+        grab_focus ();
+    }
 }

@@ -1,10 +1,8 @@
 public class Iide.BreadcrumbTreeSitterNavigator : Gtk.Box {
+    private SourceView source_view;
     private Gee.List<TreeSitterNodeItem?> siblings;
     public Gtk.SearchEntry search_entry;
     private Gtk.ListBox list_box;
-
-    // Сигнал уведомляет TextView, куда нужно переместить курсор
-    public signal void breadcrumb_clicked (uint line, uint column);
 
     private class BreadcrumbObject : Object {
         public TreeSitterNodeItem item;
@@ -14,8 +12,9 @@ public class Iide.BreadcrumbTreeSitterNavigator : Gtk.Box {
         }
     }
 
-    public BreadcrumbTreeSitterNavigator (Gee.List<TreeSitterNodeItem?> siblings) {
+    public BreadcrumbTreeSitterNavigator (SourceView source_view, Gee.List<TreeSitterNodeItem?> siblings) {
         Object (orientation: Gtk.Orientation.VERTICAL, spacing: 6);
+        this.source_view = source_view;
         this.siblings = siblings;
         this.set_size_request (280, -1);
         this.margin_top = 6;
@@ -83,6 +82,7 @@ public class Iide.BreadcrumbTreeSitterNavigator : Gtk.Box {
 
     private void on_row_activated (Gtk.ListBoxRow row) {
         var obj = row.get_data<BreadcrumbObject> ("item");
-        this.breadcrumb_clicked (obj.item.start_point.row, obj.item.start_point.column);
+        source_view.goto ((int) obj.item.start_point.row,
+                          (int) obj.item.start_point.column);
     }
 }

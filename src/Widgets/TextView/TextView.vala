@@ -155,15 +155,6 @@ public class Iide.TextView : Panel.Widget {
         if (source_view.ts_highlighter != null) {
             source_view.ts_highlighter.breadcrumbs_changed.connect (this.editor_status_bar.update_breadcrumbs);
         }
-        this.editor_status_bar.breadcrumb_clicked.connect ((line, column) => {
-            Gtk.TextIter iter;
-            buffer.get_iter_at_line (out iter, (int) line);
-            iter.set_line_index ((int) column);
-
-            buffer.place_cursor (iter);
-            source_view.scroll_to_iter (iter, 0.1, false, 0, 0.5);
-            source_view.grab_focus ();
-        });
 
         child = box;
 

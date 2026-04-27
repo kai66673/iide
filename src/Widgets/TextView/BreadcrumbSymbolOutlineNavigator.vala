@@ -1,8 +1,9 @@
 public class Iide.BreadcrumbSymbolOutlineNavigator : Gtk.Box {
+    private SourceView source_view;
     public Gtk.SearchEntry search_entry;
     private Gtk.ListBox list_box;
 
-    public signal void breadcrumb_clicked (uint line, uint column);
+    public signal void close_reqested ();
 
     private class BreadcrumbObject : Object {
         public TreeSitterNodeItem item;
@@ -12,8 +13,9 @@ public class Iide.BreadcrumbSymbolOutlineNavigator : Gtk.Box {
         }
     }
 
-    public BreadcrumbSymbolOutlineNavigator (Gee.List<TreeSitterNodeItem?> full_outline) {
+    public BreadcrumbSymbolOutlineNavigator (SourceView source_view) {
         Object (orientation: Gtk.Orientation.VERTICAL, spacing: 6);
+        this.source_view = source_view;
         this.set_size_request (300, 400); // Оутлайн обычно длиннее
 
         search_entry = new Gtk.SearchEntry ();
@@ -23,7 +25,7 @@ public class Iide.BreadcrumbSymbolOutlineNavigator : Gtk.Box {
         list_box.add_css_class ("navigation-sidebar");
 
         // Рекурсивно заполняем список с учетом отступов
-        add_symbols_recursively (full_outline, 0);
+        add_symbols_recursively (source_view.ts_highlighter.get_full_outline (), 0);
 
         // Фильтрация
         list_box.set_filter_func ((row) => {
@@ -79,6 +81,8 @@ public class Iide.BreadcrumbSymbolOutlineNavigator : Gtk.Box {
 
     private void on_row_activated (Gtk.ListBoxRow row) {
         var obj = row.get_data<BreadcrumbObject> ("item");
-        this.breadcrumb_clicked (obj.item.start_point.row, obj.item.start_point.column);
+        this.source_view.goto ((int) obj.item.start_point.row,
+                               (int) obj.item.start_point.column);
+        this.close_reqested ();
     }
 }

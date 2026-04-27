@@ -4,8 +4,6 @@ public class Iide.BreadcrumbFileSegment : Gtk.Box {
     private Gtk.MenuButton button;
     private SourceView source_view;
 
-    public signal void breadcrumb_clicked (uint line, uint column);
-
     public BreadcrumbFileSegment (SourceView source_view, GLib.File file, bool is_file) {
         Object (orientation: Gtk.Orientation.HORIZONTAL, spacing: 0);
         this.source_view = source_view;
@@ -64,16 +62,13 @@ public class Iide.BreadcrumbFileSegment : Gtk.Box {
 
         button.notify["active"].connect (() => {
             if (button.active) {
-                // Получаем ПОЛНОЕ дерево символов из хайлайтера/LSP
-                var outline = source_view.ts_highlighter.get_full_outline ();
-                var navigator = new BreadcrumbSymbolOutlineNavigator (outline);
+                var navigator = new BreadcrumbSymbolOutlineNavigator (source_view);
 
                 popover.set_child (navigator);
                 navigator.search_entry.set_key_capture_widget (popover);
-
-                navigator.breadcrumb_clicked.connect ((line, column) => {
+                navigator.close_reqested.connect (() => {
                     button.active = false;
-                    breadcrumb_clicked (line, column);
+                    source_view.grab_focus ();
                 });
             }
         });
@@ -81,13 +76,13 @@ public class Iide.BreadcrumbFileSegment : Gtk.Box {
 }
 
 public class Iide.BreadcrumbSymbolSegment : Gtk.Box {
+    private SourceView source_view;
     private Gtk.MenuButton button;
     private TreeSitterNodeItem current_item;
 
-    public signal void breadcrumb_clicked (uint line, uint column);
-
-    public BreadcrumbSymbolSegment (TreeSitterNodeItem item) {
+    public BreadcrumbSymbolSegment (SourceView source_view, TreeSitterNodeItem item) {
         Object (orientation: Gtk.Orientation.HORIZONTAL, spacing: 0);
+        this.source_view = source_view;
         this.current_item = item;
 
         button = new Gtk.MenuButton ();
@@ -115,19 +110,13 @@ public class Iide.BreadcrumbSymbolSegment : Gtk.Box {
             if (button.active) {
                 if (this.current_item.siblings.size < 2) {
                     button.active = false;
-                    this.breadcrumb_clicked (this.current_item.start_point.row,
-                                             this.current_item.start_point.column);
+                    this.source_view.goto ((int) this.current_item.start_point.row,
+                                           (int) this.current_item.start_point.column);
                 } else {
-                    var navigator = new BreadcrumbTreeSitterNavigator (this.current_item.siblings);
+                    var navigator = new BreadcrumbTreeSitterNavigator (source_view, this.current_item.siblings);
                     popover.set_child (navigator);
 
-                    // Используем ваш проверенный метод для фокуса
                     navigator.search_entry.set_key_capture_widget (popover);
-
-                    navigator.breadcrumb_clicked.connect ((line, column) => {
-                        button.active = false;
-                        this.breadcrumb_clicked (line, column);
-                    });
                 }
             }
         });
@@ -138,8 +127,6 @@ public class Iide.BreadcrumbsBar : Gtk.Box {
     private Gtk.Box path_box; // Относительный путь: Проект > src > main.vala
     private Gtk.Box scope_box; // LSP-структура: MyClass > my_method
     private SourceView source_view;
-
-    public signal void breadcrumb_clicked (uint line, uint column);
 
     public BreadcrumbsBar (SourceView source_view) {
         Object (orientation: Gtk.Orientation.HORIZONTAL, spacing: 0);
@@ -171,9 +158,6 @@ public class Iide.BreadcrumbsBar : Gtk.Box {
 
         var segment = new BreadcrumbFileSegment (source_view, file, true);
         path_box.append (segment);
-        segment.breadcrumb_clicked.connect ((line, column) => {
-            breadcrumb_clicked (line, column);
-        });
 
         if (relative_path == null) {
             return;
@@ -199,11 +183,8 @@ public class Iide.BreadcrumbsBar : Gtk.Box {
         }
 
         foreach (var crumb in crumbs) {
-            var ts_segment = new BreadcrumbSymbolSegment (crumb);
+            var ts_segment = new BreadcrumbSymbolSegment (source_view, crumb);
             scope_box.append (ts_segment);
-            ts_segment.breadcrumb_clicked.connect ((line, column) => {
-                breadcrumb_clicked (line, column);
-            });
         }
     }
 }
