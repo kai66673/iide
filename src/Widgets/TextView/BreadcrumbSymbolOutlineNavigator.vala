@@ -16,7 +16,7 @@ public class Iide.BreadcrumbSymbolOutlineNavigator : Gtk.Box {
     public BreadcrumbSymbolOutlineNavigator (SourceView source_view) {
         Object (orientation: Gtk.Orientation.VERTICAL, spacing: 6);
         this.source_view = source_view;
-        this.set_size_request (300, 400); // Оутлайн обычно длиннее
+        this.set_size_request (300, -1);
 
         search_entry = new Gtk.SearchEntry ();
         this.append (search_entry);
