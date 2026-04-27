@@ -59,14 +59,6 @@ public class Iide.IdeLspService : GLib.Object {
         return null;
     }
 
-    public LspClient ? get_client () {
-        if (clients.is_empty)
-            return null;
-        foreach (var entry in clients.entries)
-            return entry.value;
-        return null;
-    }
-
     public LspClient[] get_clients () {
         return clients.values.to_array ();
     }

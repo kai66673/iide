@@ -5,14 +5,14 @@ public class Iide.BreadcrumbSymbolOutlineNavigator : Gtk.Box {
     public signal void breadcrumb_clicked (uint line, uint column);
 
     private class BreadcrumbObject : Object {
-        public BreadcrumbItem item;
-        public BreadcrumbObject (BreadcrumbItem item) {
+        public TreeSitterNodeItem item;
+        public BreadcrumbObject (TreeSitterNodeItem item) {
             Object ();
             this.item = item;
         }
     }
 
-    public BreadcrumbSymbolOutlineNavigator (Gee.List<BreadcrumbItem?> full_outline) {
+    public BreadcrumbSymbolOutlineNavigator (Gee.List<TreeSitterNodeItem?> full_outline) {
         Object (orientation: Gtk.Orientation.VERTICAL, spacing: 6);
         this.set_size_request (300, 400); // Оутлайн обычно длиннее
 
@@ -47,7 +47,7 @@ public class Iide.BreadcrumbSymbolOutlineNavigator : Gtk.Box {
         this.search_entry.grab_focus ();
     }
 
-    private void add_symbols_recursively (Gee.List<BreadcrumbItem?> symbols, int depth) {
+    private void add_symbols_recursively (Gee.List<TreeSitterNodeItem?> symbols, int depth) {
         foreach (var sym in symbols) {
             var row = create_symbol_row (sym, depth);
             list_box.append (row);
@@ -58,7 +58,7 @@ public class Iide.BreadcrumbSymbolOutlineNavigator : Gtk.Box {
         }
     }
 
-    private Gtk.ListBoxRow create_symbol_row (BreadcrumbItem item, int depth) {
+    private Gtk.ListBoxRow create_symbol_row (TreeSitterNodeItem item, int depth) {
         var row = new Gtk.ListBoxRow ();
         var box = new Gtk.Box (Gtk.Orientation.HORIZONTAL, 8);
         box.margin_start = 8 + (depth * 16); // Создаем визуальную иерархию

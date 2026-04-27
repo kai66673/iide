@@ -1,5 +1,5 @@
 public class Iide.BreadcrumbTreeSitterNavigator : Gtk.Box {
-    private Gee.List<BreadcrumbItem?> siblings;
+    private Gee.List<TreeSitterNodeItem?> siblings;
     public Gtk.SearchEntry search_entry;
     private Gtk.ListBox list_box;
 
@@ -7,14 +7,14 @@ public class Iide.BreadcrumbTreeSitterNavigator : Gtk.Box {
     public signal void breadcrumb_clicked (uint line, uint column);
 
     private class BreadcrumbObject : Object {
-        public BreadcrumbItem item;
-        public BreadcrumbObject (BreadcrumbItem item) {
+        public TreeSitterNodeItem item;
+        public BreadcrumbObject (TreeSitterNodeItem item) {
             Object ();
             this.item = item;
         }
     }
 
-    public BreadcrumbTreeSitterNavigator (Gee.List<BreadcrumbItem?> siblings) {
+    public BreadcrumbTreeSitterNavigator (Gee.List<TreeSitterNodeItem?> siblings) {
         Object (orientation: Gtk.Orientation.VERTICAL, spacing: 6);
         this.siblings = siblings;
         this.set_size_request (280, -1);
@@ -58,7 +58,7 @@ public class Iide.BreadcrumbTreeSitterNavigator : Gtk.Box {
         this.search_entry.grab_focus ();
     }
 
-    private Gtk.ListBoxRow create_row (BreadcrumbItem item) {
+    private Gtk.ListBoxRow create_row (TreeSitterNodeItem item) {
         var row = new Gtk.ListBoxRow ();
         var box = new Gtk.Box (Gtk.Orientation.HORIZONTAL, 8);
         box.margin_bottom = 4;

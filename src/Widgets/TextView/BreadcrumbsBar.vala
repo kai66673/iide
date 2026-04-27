@@ -82,11 +82,11 @@ public class Iide.BreadcrumbFileSegment : Gtk.Box {
 
 public class Iide.BreadcrumbSymbolSegment : Gtk.Box {
     private Gtk.MenuButton button;
-    private BreadcrumbItem current_item;
+    private TreeSitterNodeItem current_item;
 
     public signal void breadcrumb_clicked (uint line, uint column);
 
-    public BreadcrumbSymbolSegment (BreadcrumbItem item) {
+    public BreadcrumbSymbolSegment (TreeSitterNodeItem item) {
         Object (orientation: Gtk.Orientation.HORIZONTAL, spacing: 0);
         this.current_item = item;
 
@@ -183,7 +183,7 @@ public class Iide.BreadcrumbsBar : Gtk.Box {
         }
     }
 
-    public void update_breadcrumbs (Gee.List<BreadcrumbItem?> crumbs) {
+    public void update_breadcrumbs (Gee.List<TreeSitterNodeItem?> crumbs) {
         // Очистка контейнера
         var child = scope_box.get_first_child ();
         while (child != null) {
