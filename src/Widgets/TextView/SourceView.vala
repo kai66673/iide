@@ -513,7 +513,7 @@ public class Iide.SourceView : GtkSource.View {
         var lsp_service = IdeLspService.get_instance ();
         string? markdown = yield lsp_service.request_hover (uri, line, col);
 
-        tooltip_widget.update_text (markdown, false);
+        tooltip_widget.update_text (escape_pango (markdown), false);
     }
 
     private void on_click_pressed (Gtk.GestureClick gesture, int n_press, double x, double y) {

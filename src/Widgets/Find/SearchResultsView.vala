@@ -35,13 +35,6 @@ public class Iide.SearchResultItem : Gtk.Box {
         this.append(text_box);
     }
 
-    private string escape_pango(string text) {
-        return text
-                .replace("&", "&amp;")
-                .replace("<", "&lt;")
-                .replace(">", "&gt;");
-    }
-
     private string highlight_matches(string text, Gee.List<MatchRange>? matches) {
         var escaped = escape_pango(text);
 

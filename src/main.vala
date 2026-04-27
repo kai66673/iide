@@ -19,6 +19,8 @@
  */
 
 int main (string[] args) {
+    //  GLib.Environment.set_variable ("GSK_RENDERER","ngl", true);
+
     Intl.bindtextdomain (Config.GETTEXT_PACKAGE, Config.LOCALEDIR);
     Intl.bind_textdomain_codeset (Config.GETTEXT_PACKAGE, "UTF-8");
     Intl.textdomain (Config.GETTEXT_PACKAGE);

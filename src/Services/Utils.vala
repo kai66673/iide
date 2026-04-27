@@ -33,4 +33,13 @@ namespace Iide {
             stderr.printf("Ошибка при копировании: %s\n", e.message);
         }
     }
+
+    public string? escape_pango(string? text) {
+        if (text == null)
+            return null;
+        return text
+                .replace("&", "&amp;")
+                .replace("<", "&lt;")
+                .replace(">", "&gt;");
+    }
 }
