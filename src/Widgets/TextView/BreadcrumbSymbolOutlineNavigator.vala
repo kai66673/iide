@@ -52,8 +52,6 @@ public class Iide.BreadcrumbSymbolOutlineNavigator : Gtk.Box {
             var row = create_symbol_row (sym, depth);
             list_box.append (row);
 
-            message ("SO: " + sym.children.size.to_string ());
-
             if (sym.children != null && sym.children.size > 0) {
                 add_symbols_recursively (sym.children, depth + 1);
             }
