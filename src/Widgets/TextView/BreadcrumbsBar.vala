@@ -113,16 +113,22 @@ public class Iide.BreadcrumbSymbolSegment : Gtk.Box {
 
         button.notify["active"].connect (() => {
             if (button.active) {
-                var navigator = new BreadcrumbTreeSitterNavigator (this.current_item.siblings);
-                popover.set_child (navigator);
-
-                // Используем ваш проверенный метод для фокуса
-                navigator.search_entry.set_key_capture_widget (popover);
-
-                navigator.breadcrumb_clicked.connect ((line, column) => {
+                if (this.current_item.siblings.size < 2) {
                     button.active = false;
-                    this.breadcrumb_clicked (line, column);
-                });
+                    this.breadcrumb_clicked (this.current_item.start_point.row,
+                                             this.current_item.start_point.column);
+                } else {
+                    var navigator = new BreadcrumbTreeSitterNavigator (this.current_item.siblings);
+                    popover.set_child (navigator);
+
+                    // Используем ваш проверенный метод для фокуса
+                    navigator.search_entry.set_key_capture_widget (popover);
+
+                    navigator.breadcrumb_clicked.connect ((line, column) => {
+                        button.active = false;
+                        this.breadcrumb_clicked (line, column);
+                    });
+                }
             }
         });
     }
