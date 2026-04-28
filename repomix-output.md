@@ -7559,161 +7559,6 @@ public class Iide.ProjectPanel : BasePanel {
 }
 ```
 
-## File: src/Widgets/TextView/BreadcrumbFileNavigator.vala
-```
-public class Iide.BreadcrumbFileNavigator : Gtk.Box {
-    private GLib.File root_file;
-    private GLib.File current_folder;
-
-    public Gtk.SearchEntry search_entry;
-    private Gtk.Button back_button;
-    private Gtk.ListBox list_box;
-    private Gtk.ScrolledWindow scrolled;
-    private Gtk.Stack stack;
-
-    private void open_file (GLib.File file) {
-        DocumentManager.get_instance ().open_document (file, null);
-    }
-
-    public BreadcrumbFileNavigator (GLib.File file) {
-        Object (orientation: Gtk.Orientation.VERTICAL, spacing: 6);
-        this.root_file = file;
-        this.current_folder = file;
-        this.set_size_request (300, -1);
-        this.margin_top = this.margin_bottom = this.margin_start = this.margin_end = 6;
-
-        // --- Header ---
-        var header = new Gtk.Box (Gtk.Orientation.HORIZONTAL, 4);
-
-        back_button = new Gtk.Button.from_icon_name ("go-previous-symbolic");
-        back_button.add_css_class ("flat");
-        back_button.clicked.connect (() => {
-            var parent = current_folder.get_parent ();
-            if (parent != null)
-                load_directory.begin (parent, (obj, res) => {
-                    load_directory.end (res);
-                    this.current_folder = parent;
-                    this.search_entry.text = "";
-                    this.search_entry.grab_focus ();
-                });
-        });
-
-        search_entry = new Gtk.SearchEntry ();
-        search_entry.hexpand = true;
-        search_entry.focusable = true; // Критично для фокуса
-
-        header.append (back_button);
-        header.append (search_entry);
-        this.append (header);
-
-        // --- Stack для переключения между загрузкой и списком ---
-        stack = new Gtk.Stack ();
-        stack.transition_type = Gtk.StackTransitionType.CROSSFADE;
-
-        var spinner = new Gtk.Spinner ();
-        spinner.start ();
-        stack.add_named (spinner, "loading");
-
-        list_box = new Gtk.ListBox ();
-        list_box.add_css_class ("navigation-sidebar");
-        list_box.row_activated.connect ((row) => {
-            var name = row.get_data<string> ("file-name");
-            var type = row.get_data<GLib.FileType> ("file-type");
-            var selected = current_folder.get_child (name);
-
-            if (type == GLib.FileType.DIRECTORY) {
-                // Переходим глубже
-                load_directory.begin (selected, (obj, res) => {
-                    load_directory.end (res);
-                    this.current_folder = selected;
-                    this.search_entry.text = "";
-                    this.search_entry.grab_focus ();
-                });
-            } else {
-                open_file (selected);
-            }
-        });
-
-        list_box.set_filter_func ((row) => {
-            var text = search_entry.get_text ().down ();
-            if (text == "")return true;
-            var name = row.get_data<string> ("file-name").down ();
-            return name.contains (text);
-        });
-
-        scrolled = new Gtk.ScrolledWindow ();
-        scrolled.propagate_natural_height = true;
-        scrolled.set_min_content_height (0);
-        scrolled.set_max_content_height (400);
-        scrolled.set_child (list_box);
-        stack.add_named (scrolled, "list");
-
-        this.append (stack);
-
-        search_entry.search_changed.connect (() => { list_box.invalidate_filter (); });
-
-        // Запускаем загрузку
-        load_directory.begin (this.current_folder, (obj, res) => {
-            load_directory.end (res);
-            this.search_entry.grab_focus ();
-        });
-    }
-
-    private async void load_directory (GLib.File folder) {
-        stack.visible_child_name = "loading";
-        list_box.remove_all ();
-        back_button.sensitive = (folder.get_parent () != null);
-        search_entry.placeholder_text = folder.get_basename ();
-
-        try {
-            var enumerator = yield folder.enumerate_children_async ("standard::name,standard::icon,standard::file-type",
-                GLib.FileQueryInfoFlags.NONE, GLib.Priority.DEFAULT, null);
-
-            while (true) {
-                var files = yield enumerator.next_files_async (50, GLib.Priority.DEFAULT, null);
-
-                if (files == null)break;
-                foreach (var info in files) {
-                    list_box.append (create_row (info));
-                }
-            }
-            stack.visible_child_name = "list";
-        } catch (Error e) {
-            stack.add_named (new Gtk.Label (e.message), "error");
-            stack.visible_child_name = "error";
-        }
-    }
-
-    private Gtk.ListBoxRow create_row (GLib.FileInfo info) {
-        var row = new Gtk.ListBoxRow ();
-        var box = new Gtk.Box (Gtk.Orientation.HORIZONTAL, 8);
-        box.margin_start = box.margin_end = 8;
-        box.margin_top = box.margin_bottom = 4;
-
-        var icon = new Gtk.Image.from_gicon (info.get_icon ());
-        var label = new Gtk.Label (info.get_name ());
-        label.ellipsize = Pango.EllipsizeMode.END;
-
-        box.append (icon);
-        box.append (label);
-
-        // Если это папка, добавим стрелочку вправо, как в VSCode
-        if (info.get_file_type () == GLib.FileType.DIRECTORY) {
-            var arrow = new Gtk.Image.from_icon_name ("go-next-symbolic");
-            arrow.halign = Gtk.Align.END;
-            arrow.hexpand = true;
-            arrow.opacity = 0.5;
-            box.append (arrow);
-        }
-
-        row.set_child (box);
-        row.set_data ("file-name", info.get_name ());
-        row.set_data ("file-type", info.get_file_type ());
-        return row;
-    }
-}
-```
-
 ## File: src/main.vala
 ```
 /* main.vala
@@ -7747,6 +7592,134 @@ int main (string[] args) {
 
     var app = new Iide.Application ();
     return app.run (args);
+}
+```
+
+## File: src/Services/Actions/ShortcutSettings.vala
+```
+public class Iide.ShortcutSettings : Object {
+    private static ShortcutSettings? _instance;
+    private GLib.Settings settings;
+    private Gee.HashMap<string, string> shortcuts_cache;
+    private Gee.HashMap<string, bool> toggle_states_cache;
+
+    public static ShortcutSettings get_instance () {
+        if (_instance == null) {
+            _instance = new ShortcutSettings ();
+        }
+        return _instance;
+    }
+
+    private ShortcutSettings () {
+        settings = new GLib.Settings ("org.github.kai66673.iide");
+        shortcuts_cache = new Gee.HashMap<string, string> ();
+        toggle_states_cache = new Gee.HashMap<string, bool> ();
+        set_default_shortcuts ();
+        set_default_toggle_states ();
+        load_from_gsettings ();
+    }
+
+    private void set_default_shortcuts () {
+        shortcuts_cache.set ("save", "<primary>s");
+        shortcuts_cache.set ("open_project", "<primary>o");
+        shortcuts_cache.set ("preferences", "<primary>comma");
+        shortcuts_cache.set ("toggle_minimap", "<primary>m");
+        shortcuts_cache.set ("fuzzy_finder", "<primary>p");
+        shortcuts_cache.set ("search_symbol", "<primary>t");
+        shortcuts_cache.set ("search_in_files", "<primary><shift>f");
+        shortcuts_cache.set ("zoom_in", "<primary>plus");
+        shortcuts_cache.set ("zoom_out", "<primary>minus");
+        shortcuts_cache.set ("zoom_reset", "<primary>0");
+        shortcuts_cache.set ("expand_selection", "<primary>w");
+        shortcuts_cache.set ("shrink_selection", "<primary><shift>w");
+        shortcuts_cache.set ("quit", "<primary>q");
+    }
+
+    private void set_default_toggle_states () {
+        toggle_states_cache.set ("toggle_minimap", true);
+    }
+
+    private void load_from_gsettings () {
+        var json_str = settings.get_string ("shortcuts");
+        if (json_str == null || json_str == "") {
+            save_to_gsettings ();
+            return;
+        }
+
+        try {
+            var parser = new Json.Parser ();
+            parser.load_from_data (json_str);
+            var root = parser.get_root ();
+            if (root.get_node_type () == Json.NodeType.OBJECT) {
+                var obj = root.get_object ();
+                obj.foreach_member ((obj, name, node) => {
+                    shortcuts_cache.set (name, node.get_string ());
+                });
+            }
+        } catch (Error e) {
+            warning ("Failed to parse shortcuts: %s", e.message);
+        }
+    }
+
+    private void save_to_gsettings () {
+        var root = new Json.Node (Json.NodeType.OBJECT);
+        var obj = new Json.Object ();
+        foreach (var entry in shortcuts_cache.entries) {
+            obj.set_string_member (entry.key, entry.value);
+        }
+        root.set_object (obj);
+
+        var generator = new Json.Generator ();
+        generator.set_root (root);
+        var json_str = generator.to_data (null);
+        settings.set_string ("shortcuts", json_str);
+    }
+
+    public signal void shortcut_changed (string action_id, string? new_shortcut);
+
+    public string ? get_shortcut (string action_id) {
+        return shortcuts_cache.get (action_id);
+    }
+
+    public void set_shortcut (string action_id, string? shortcut) {
+        if (shortcut == null || shortcut == "") {
+            shortcuts_cache.unset (action_id);
+        } else {
+            shortcuts_cache.set (action_id, shortcut);
+        }
+        save_to_gsettings ();
+        shortcut_changed (action_id, shortcut);
+    }
+
+    public Gee.Map<string, string?> get_all_shortcuts () {
+        var result = new Gee.HashMap<string, string?> ();
+        foreach (var entry in shortcuts_cache.entries) {
+            result.set (entry.key, entry.value);
+        }
+        return result;
+    }
+
+    public void reset_shortcut (string action_id) {
+        shortcuts_cache.unset (action_id);
+        save_to_gsettings ();
+        shortcut_changed (action_id, null);
+    }
+
+    public void reset_all_shortcuts () {
+        shortcuts_cache.clear ();
+        save_to_gsettings ();
+        foreach (var action_id in shortcuts_cache.keys) {
+            shortcut_changed (action_id, null);
+        }
+    }
+
+    public bool get_toggle_state (string action_id) {
+        return toggle_states_cache.get (action_id);
+    }
+
+    public void set_toggle_state (string action_id, bool state) {
+        toggle_states_cache.set (action_id, state);
+    }
 }
 ```
 
@@ -8404,6 +8377,253 @@ public class Iide.SymbolsSearchEngine : SearchEngine, Object {
                                          SymbolIconFactory.create_for_symbol (sym.kind)));
         }
         return items;
+    }
+}
+```
+
+## File: src/Widgets/TextView/BreadcrumbFileNavigator.vala
+```
+public class Iide.BreadcrumbFileNavigator : Gtk.Box {
+    private GLib.File root_file;
+    private GLib.File current_folder;
+
+    public Gtk.SearchEntry search_entry;
+    private Gtk.Button back_button;
+    private Gtk.ListBox list_box;
+    private Gtk.ScrolledWindow scrolled;
+    private Gtk.Stack stack;
+
+    private void open_file (GLib.File file) {
+        DocumentManager.get_instance ().open_document (file, null);
+    }
+
+    public signal void close_requested ();
+
+    public BreadcrumbFileNavigator (GLib.File file) {
+        Object (orientation: Gtk.Orientation.VERTICAL, spacing: 6);
+        this.root_file = file;
+        this.current_folder = file;
+        this.set_size_request (300, -1);
+        this.margin_top = this.margin_bottom = this.margin_start = this.margin_end = 6;
+
+        // --- Header ---
+        var header = new Gtk.Box (Gtk.Orientation.HORIZONTAL, 4);
+
+        back_button = new Gtk.Button.from_icon_name ("go-previous-symbolic");
+        back_button.add_css_class ("flat");
+        back_button.clicked.connect (() => {
+            var parent = current_folder.get_parent ();
+            if (parent != null)
+                load_directory.begin (parent, (obj, res) => {
+                    load_directory.end (res);
+                    this.current_folder = parent;
+                    this.search_entry.text = "";
+                    this.refresh_state ();
+                });
+        });
+
+        search_entry = new Gtk.SearchEntry ();
+        search_entry.hexpand = true;
+        search_entry.focusable = true; // Критично для фокуса
+
+        header.append (back_button);
+        header.append (search_entry);
+        this.append (header);
+
+        // --- Stack для переключения между загрузкой и списком ---
+        stack = new Gtk.Stack ();
+        stack.transition_type = Gtk.StackTransitionType.CROSSFADE;
+
+        var spinner = new Gtk.Spinner ();
+        spinner.start ();
+        stack.add_named (spinner, "loading");
+
+        list_box = new Gtk.ListBox ();
+        list_box.add_css_class ("navigation-sidebar");
+        list_box.row_activated.connect ((row) => { open_or_select_row (row); });
+
+        list_box.set_filter_func ((row) => {
+            var text = search_entry.get_text ().down ();
+            if (text == "")return true;
+            var name = row.get_data<string> ("file-name").down ();
+            return name.contains (text);
+        });
+
+        scrolled = new Gtk.ScrolledWindow ();
+        scrolled.propagate_natural_height = true;
+        scrolled.set_min_content_height (0);
+        scrolled.set_max_content_height (400);
+        scrolled.set_child (list_box);
+        stack.add_named (scrolled, "list");
+
+        this.append (stack);
+
+        search_entry.search_changed.connect (() => {
+            list_box.invalidate_filter ();
+            select_first_visible_row ();
+        });
+
+        // Запускаем загрузку
+        load_directory.begin (this.current_folder, (obj, res) => {
+            load_directory.end (res);
+            this.refresh_state ();
+        });
+
+        var key_controller = new Gtk.EventControllerKey ();
+        key_controller.key_pressed.connect (on_key_pressed);
+        search_entry.add_controller (key_controller);
+        list_box.set_selection_mode (Gtk.SelectionMode.SINGLE);
+
+        search_entry.activate.connect (() => {
+            open_or_select_row (list_box.get_selected_row ());
+        });
+    }
+
+    private void select_first_visible_row () {
+        var row = list_box.get_first_child ();
+        while (row != null) {
+            var list_row = row as Gtk.ListBoxRow;
+            if (list_row.get_child_visible ()) {
+                list_box.select_row (list_row);
+                break;
+            }
+            row = row.get_next_sibling ();
+        }
+    }
+
+    private void refresh_state () {
+        this.search_entry.grab_focus ();
+        select_first_visible_row ();
+    }
+
+    private void open_or_select_row (Gtk.ListBoxRow? row) {
+        if (row == null)
+            return;
+
+        var name = row.get_data<string> ("file-name");
+        var type = row.get_data<GLib.FileType> ("file-type");
+        var selected = current_folder.get_child (name);
+
+        if (type == GLib.FileType.DIRECTORY) {
+            // Переходим глубже
+            load_directory.begin (selected, (obj, res) => {
+                load_directory.end (res);
+                this.current_folder = selected;
+                this.search_entry.text = "";
+                this.refresh_state ();
+            });
+        } else {
+            open_file (selected);
+        }
+    }
+
+    private bool on_key_pressed (Gtk.EventControllerKey controller, uint keyval, uint keycode, Gdk.ModifierType modifiers) {
+        if (keyval == Gdk.Key.Escape) {
+            close_requested ();
+            return true;
+        } else if (keyval == Gdk.Key.Up || keyval == Gdk.Key.KP_Up) {
+            move_selection_up ();
+            return true;
+        } else if (keyval == Gdk.Key.Down || keyval == Gdk.Key.KP_Down) {
+            move_selection_down ();
+            return true;
+        }
+        return false;
+    }
+
+    private void move_selection_down () {
+        var selected_row = list_box.get_selected_row ();
+        if (selected_row == null) {
+            select_first_visible_row ();
+            return;
+        }
+
+        var next_row_widget = selected_row.get_next_sibling ();
+        while (next_row_widget != null) {
+            var list_row = next_row_widget as Gtk.ListBoxRow;
+            if (list_row.get_child_visible ()) {
+                list_box.select_row (list_row);
+                return;
+            }
+            next_row_widget = next_row_widget.get_next_sibling ();
+        }
+
+        if (!selected_row.get_child_visible ())
+            select_first_visible_row ();
+    }
+
+    private void move_selection_up () {
+        var selected_row = list_box.get_selected_row ();
+        if (selected_row == null) {
+            select_first_visible_row ();
+            return;
+        }
+
+        var prev_row_widget = selected_row.get_prev_sibling ();
+        while (prev_row_widget != null) {
+            var list_row = prev_row_widget as Gtk.ListBoxRow;
+            if (list_row.get_child_visible ()) {
+                list_box.select_row (list_row);
+                return;
+            }
+            prev_row_widget = prev_row_widget.get_prev_sibling ();
+        }
+
+        if (!selected_row.get_child_visible ())
+            select_first_visible_row ();
+    }
+
+    private async void load_directory (GLib.File folder) {
+        stack.visible_child_name = "loading";
+        list_box.remove_all ();
+        back_button.sensitive = (folder.get_parent () != null);
+        search_entry.placeholder_text = folder.get_basename ();
+
+        try {
+            var enumerator = yield folder.enumerate_children_async ("standard::name,standard::icon,standard::file-type",
+                GLib.FileQueryInfoFlags.NONE, GLib.Priority.DEFAULT, null);
+
+            while (true) {
+                var files = yield enumerator.next_files_async (50, GLib.Priority.DEFAULT, null);
+
+                if (files == null)break;
+                foreach (var info in files) {
+                    list_box.append (create_row (info));
+                }
+            }
+            stack.visible_child_name = "list";
+        } catch (Error e) {
+            stack.add_named (new Gtk.Label (e.message), "error");
+            stack.visible_child_name = "error";
+        }
+    }
+
+    private Gtk.ListBoxRow create_row (GLib.FileInfo info) {
+        var row = new Gtk.ListBoxRow ();
+        var box = new Gtk.Box (Gtk.Orientation.HORIZONTAL, 8);
+        box.margin_start = box.margin_end = 8;
+        box.margin_top = box.margin_bottom = 4;
+
+        var icon = new Gtk.Image.from_gicon (info.get_icon ());
+        var label = new Gtk.Label (info.get_name ());
+        label.ellipsize = Pango.EllipsizeMode.END;
+
+        box.append (icon);
+        box.append (label);
+
+        // Если это папка, добавим стрелочку вправо, как в VSCode
+        if (info.get_file_type () == GLib.FileType.DIRECTORY) {
+            var arrow = new Gtk.Image.from_icon_name ("go-next-symbolic");
+            arrow.halign = Gtk.Align.END;
+            arrow.hexpand = true;
+            arrow.opacity = 0.5;
+            box.append (arrow);
+        }
+
+        row.set_child (box);
+        row.set_data ("file-name", info.get_name ());
+        row.set_data ("file-type", info.get_file_type ());
+        return row;
     }
 }
 ```
@@ -9128,134 +9348,6 @@ public class Iide.SearchResult : Object {
 }
 ```
 
-## File: src/Services/Actions/ShortcutSettings.vala
-```
-public class Iide.ShortcutSettings : Object {
-    private static ShortcutSettings? _instance;
-    private GLib.Settings settings;
-    private Gee.HashMap<string, string> shortcuts_cache;
-    private Gee.HashMap<string, bool> toggle_states_cache;
-
-    public static ShortcutSettings get_instance () {
-        if (_instance == null) {
-            _instance = new ShortcutSettings ();
-        }
-        return _instance;
-    }
-
-    private ShortcutSettings () {
-        settings = new GLib.Settings ("org.github.kai66673.iide");
-        shortcuts_cache = new Gee.HashMap<string, string> ();
-        toggle_states_cache = new Gee.HashMap<string, bool> ();
-        set_default_shortcuts ();
-        set_default_toggle_states ();
-        load_from_gsettings ();
-    }
-
-    private void set_default_shortcuts () {
-        shortcuts_cache.set ("save", "<primary>s");
-        shortcuts_cache.set ("open_project", "<primary>o");
-        shortcuts_cache.set ("preferences", "<primary>comma");
-        shortcuts_cache.set ("toggle_minimap", "<primary>m");
-        shortcuts_cache.set ("fuzzy_finder", "<primary>p");
-        shortcuts_cache.set ("search_symbol", "<primary>t");
-        shortcuts_cache.set ("search_in_files", "<primary><shift>f");
-        shortcuts_cache.set ("zoom_in", "<primary>plus");
-        shortcuts_cache.set ("zoom_out", "<primary>minus");
-        shortcuts_cache.set ("zoom_reset", "<primary>0");
-        shortcuts_cache.set ("expand_selection", "<primary>w");
-        shortcuts_cache.set ("shrink_selection", "<primary><shift>w");
-        shortcuts_cache.set ("quit", "<primary>q");
-    }
-
-    private void set_default_toggle_states () {
-        toggle_states_cache.set ("toggle_minimap", true);
-    }
-
-    private void load_from_gsettings () {
-        var json_str = settings.get_string ("shortcuts");
-        if (json_str == null || json_str == "") {
-            save_to_gsettings ();
-            return;
-        }
-
-        try {
-            var parser = new Json.Parser ();
-            parser.load_from_data (json_str);
-            var root = parser.get_root ();
-            if (root.get_node_type () == Json.NodeType.OBJECT) {
-                var obj = root.get_object ();
-                obj.foreach_member ((obj, name, node) => {
-                    shortcuts_cache.set (name, node.get_string ());
-                });
-            }
-        } catch (Error e) {
-            warning ("Failed to parse shortcuts: %s", e.message);
-        }
-    }
-
-    private void save_to_gsettings () {
-        var root = new Json.Node (Json.NodeType.OBJECT);
-        var obj = new Json.Object ();
-        foreach (var entry in shortcuts_cache.entries) {
-            obj.set_string_member (entry.key, entry.value);
-        }
-        root.set_object (obj);
-
-        var generator = new Json.Generator ();
-        generator.set_root (root);
-        var json_str = generator.to_data (null);
-        settings.set_string ("shortcuts", json_str);
-    }
-
-    public signal void shortcut_changed (string action_id, string? new_shortcut);
-
-    public string ? get_shortcut (string action_id) {
-        return shortcuts_cache.get (action_id);
-    }
-
-    public void set_shortcut (string action_id, string? shortcut) {
-        if (shortcut == null || shortcut == "") {
-            shortcuts_cache.unset (action_id);
-        } else {
-            shortcuts_cache.set (action_id, shortcut);
-        }
-        save_to_gsettings ();
-        shortcut_changed (action_id, shortcut);
-    }
-
-    public Gee.Map<string, string?> get_all_shortcuts () {
-        var result = new Gee.HashMap<string, string?> ();
-        foreach (var entry in shortcuts_cache.entries) {
-            result.set (entry.key, entry.value);
-        }
-        return result;
-    }
-
-    public void reset_shortcut (string action_id) {
-        shortcuts_cache.unset (action_id);
-        save_to_gsettings ();
-        shortcut_changed (action_id, null);
-    }
-
-    public void reset_all_shortcuts () {
-        shortcuts_cache.clear ();
-        save_to_gsettings ();
-        foreach (var action_id in shortcuts_cache.keys) {
-            shortcut_changed (action_id, null);
-        }
-    }
-
-    public bool get_toggle_state (string action_id) {
-        return toggle_states_cache.get (action_id);
-    }
-
-    public void set_toggle_state (string action_id, bool state) {
-        toggle_states_cache.set (action_id, state);
-    }
-}
-```
-
 ## File: src/Services/LSP/LspTypes.vala
 ```
 public enum Iide.CompletionTriggerKind {
@@ -9598,98 +9690,6 @@ public class Iide.PythonHighlighter : BaseTreeSitterHighlighter {
 }
 ```
 
-## File: src/Widgets/TextView/BreadcrumbTreeSitterNavigator.vala
-```
-public class Iide.BreadcrumbTreeSitterNavigator : Gtk.Box {
-    private SourceView source_view;
-    private Gee.List<TreeSitterNodeItem?> siblings;
-    public Gtk.SearchEntry search_entry;
-    private Gtk.ListBox list_box;
-
-    private class BreadcrumbObject : Object {
-        public TreeSitterNodeItem item;
-        public BreadcrumbObject (TreeSitterNodeItem item) {
-            Object ();
-            this.item = item;
-        }
-    }
-
-    public BreadcrumbTreeSitterNavigator (SourceView source_view, Gee.List<TreeSitterNodeItem?> siblings) {
-        Object (orientation: Gtk.Orientation.VERTICAL, spacing: 6);
-        this.source_view = source_view;
-        this.siblings = siblings;
-        this.set_size_request (280, -1);
-        this.margin_top = 6;
-        this.margin_bottom = 6;
-        this.margin_start = 6;
-        this.margin_end = 6;
-
-        // --- Поиск ---
-        search_entry = new Gtk.SearchEntry ();
-        search_entry.hexpand = true;
-        this.append (search_entry);
-
-        // --- Список элементов ---
-        list_box = new Gtk.ListBox ();
-        list_box.add_css_class ("navigation-sidebar");
-
-        foreach (var item in siblings) {
-            list_box.append (create_row (item));
-        }
-
-        // Фильтрация
-        list_box.set_filter_func ((row) => {
-            var text = search_entry.get_text ().down ();
-            if (text == "")return true;
-
-            var obj = row.get_data<BreadcrumbObject> ("item");
-            var name = obj.item.name.down ();
-            return name.contains (text);
-        });
-        search_entry.search_changed.connect (() => { list_box.invalidate_filter (); });
-
-        list_box.row_activated.connect (on_row_activated);
-
-        var scroll = new Gtk.ScrolledWindow ();
-        scroll.propagate_natural_height = true;
-        scroll.set_max_content_height (400);
-        scroll.set_child (list_box);
-        this.append (scroll);
-
-        this.search_entry.grab_focus ();
-    }
-
-    private Gtk.ListBoxRow create_row (TreeSitterNodeItem item) {
-        var row = new Gtk.ListBoxRow ();
-        var box = new Gtk.Box (Gtk.Orientation.HORIZONTAL, 8);
-        box.margin_bottom = 4;
-        box.margin_top = 4;
-        box.margin_start = 4;
-        box.margin_end = 4;
-
-        var icon = Iide.SymbolIconFactory.create_for_ts (item.type);
-
-        var label = new Gtk.Label (item.name);
-        label.ellipsize = Pango.EllipsizeMode.END;
-
-        box.append (icon);
-        box.append (label);
-        row.set_child (box);
-
-        // Сохраняем данные для поиска и активации
-        row.set_data ("item", new BreadcrumbObject (item));
-
-        return row;
-    }
-
-    private void on_row_activated (Gtk.ListBoxRow row) {
-        var obj = row.get_data<BreadcrumbObject> ("item");
-        source_view.goto ((int) obj.item.start_point.row,
-                          (int) obj.item.start_point.column);
-    }
-}
-```
-
 ## File: src/style.css
 ```css
 textview {
@@ -9984,14 +9984,15 @@ public class Iide.SearchResultsView : Gtk.Box {
 }
 ```
 
-## File: src/Widgets/TextView/BreadcrumbSymbolOutlineNavigator.vala
+## File: src/Widgets/TextView/BreadcrumbTreeSitterNavigator.vala
 ```
-public class Iide.BreadcrumbSymbolOutlineNavigator : Gtk.Box {
+public class Iide.BreadcrumbTreeSitterNavigator : Gtk.Box {
     private SourceView source_view;
+    private Gee.List<TreeSitterNodeItem?> siblings;
     public Gtk.SearchEntry search_entry;
     private Gtk.ListBox list_box;
 
-    public signal void close_reqested ();
+    public signal void close_requested ();
 
     private class BreadcrumbObject : Object {
         public TreeSitterNodeItem item;
@@ -10001,19 +10002,28 @@ public class Iide.BreadcrumbSymbolOutlineNavigator : Gtk.Box {
         }
     }
 
-    public BreadcrumbSymbolOutlineNavigator (SourceView source_view) {
+    public BreadcrumbTreeSitterNavigator (SourceView source_view, Gee.List<TreeSitterNodeItem?> siblings) {
         Object (orientation: Gtk.Orientation.VERTICAL, spacing: 6);
         this.source_view = source_view;
-        this.set_size_request (300, -1);
+        this.siblings = siblings;
+        this.set_size_request (280, -1);
+        this.margin_top = 6;
+        this.margin_bottom = 6;
+        this.margin_start = 6;
+        this.margin_end = 6;
 
+        // --- Поиск ---
         search_entry = new Gtk.SearchEntry ();
+        search_entry.hexpand = true;
         this.append (search_entry);
 
+        // --- Список элементов ---
         list_box = new Gtk.ListBox ();
         list_box.add_css_class ("navigation-sidebar");
 
-        // Рекурсивно заполняем список с учетом отступов
-        add_symbols_recursively (source_view.ts_highlighter.get_full_outline (), 0);
+        foreach (var item in siblings) {
+            list_box.append (create_row (item));
+        }
 
         // Фильтрация
         list_box.set_filter_func ((row) => {
@@ -10024,9 +10034,15 @@ public class Iide.BreadcrumbSymbolOutlineNavigator : Gtk.Box {
             var name = obj.item.name.down ();
             return name.contains (text);
         });
-        search_entry.search_changed.connect (() => { list_box.invalidate_filter (); });
+        search_entry.search_changed.connect (() => {
+            list_box.invalidate_filter ();
+            refresh_state ();
+        });
 
         list_box.row_activated.connect (on_row_activated);
+        search_entry.activate.connect (() => {
+            on_row_activated (list_box.get_selected_row ());
+        });
 
         var scroll = new Gtk.ScrolledWindow ();
         scroll.propagate_natural_height = true;
@@ -10034,29 +10050,99 @@ public class Iide.BreadcrumbSymbolOutlineNavigator : Gtk.Box {
         scroll.set_child (list_box);
         this.append (scroll);
 
-        this.search_entry.grab_focus ();
+        var key_controller = new Gtk.EventControllerKey ();
+        key_controller.key_pressed.connect (on_key_pressed);
+        search_entry.add_controller (key_controller);
+        list_box.set_selection_mode (Gtk.SelectionMode.SINGLE);
+
+        this.refresh_state ();
     }
 
-    private void add_symbols_recursively (Gee.List<TreeSitterNodeItem?> symbols, int depth) {
-        foreach (var sym in symbols) {
-            var row = create_symbol_row (sym, depth);
-            list_box.append (row);
-
-            if (sym.children != null && sym.children.size > 0) {
-                add_symbols_recursively (sym.children, depth + 1);
+    private void select_first_visible_row () {
+        var row = list_box.get_first_child ();
+        while (row != null) {
+            var list_row = row as Gtk.ListBoxRow;
+            if (list_row.get_child_visible ()) {
+                list_box.select_row (list_row);
+                break;
             }
+            row = row.get_next_sibling ();
         }
     }
 
-    private Gtk.ListBoxRow create_symbol_row (TreeSitterNodeItem item, int depth) {
+    private void refresh_state () {
+        this.search_entry.grab_focus ();
+        select_first_visible_row ();
+    }
+
+    private bool on_key_pressed (Gtk.EventControllerKey controller, uint keyval, uint keycode, Gdk.ModifierType modifiers) {
+        if (keyval == Gdk.Key.Escape) {
+            close_requested ();
+            return true;
+        } else if (keyval == Gdk.Key.Up || keyval == Gdk.Key.KP_Up) {
+            move_selection_up ();
+            return true;
+        } else if (keyval == Gdk.Key.Down || keyval == Gdk.Key.KP_Down) {
+            move_selection_down ();
+            return true;
+        }
+        return false;
+    }
+
+    private void move_selection_down () {
+        var selected_row = list_box.get_selected_row ();
+        if (selected_row == null) {
+            select_first_visible_row ();
+            return;
+        }
+
+        var next_row_widget = selected_row.get_next_sibling ();
+        while (next_row_widget != null) {
+            var list_row = next_row_widget as Gtk.ListBoxRow;
+            if (list_row.get_child_visible ()) {
+                list_box.select_row (list_row);
+                return;
+            }
+            next_row_widget = next_row_widget.get_next_sibling ();
+        }
+
+        if (!selected_row.get_child_visible ())
+            select_first_visible_row ();
+    }
+
+    private void move_selection_up () {
+        var selected_row = list_box.get_selected_row ();
+        if (selected_row == null) {
+            select_first_visible_row ();
+            return;
+        }
+
+        var prev_row_widget = selected_row.get_prev_sibling ();
+        while (prev_row_widget != null) {
+            var list_row = prev_row_widget as Gtk.ListBoxRow;
+            if (list_row.get_child_visible ()) {
+                list_box.select_row (list_row);
+                return;
+            }
+            prev_row_widget = prev_row_widget.get_prev_sibling ();
+        }
+
+        if (!selected_row.get_child_visible ())
+            select_first_visible_row ();
+    }
+
+    private Gtk.ListBoxRow create_row (TreeSitterNodeItem item) {
         var row = new Gtk.ListBoxRow ();
         var box = new Gtk.Box (Gtk.Orientation.HORIZONTAL, 8);
-        box.margin_start = 8 + (depth * 16); // Создаем визуальную иерархию
-        box.margin_end = 8;
-        box.margin_top = box.margin_bottom = 2;
+        box.margin_bottom = 4;
+        box.margin_top = 4;
+        box.margin_start = 4;
+        box.margin_end = 4;
 
         var icon = Iide.SymbolIconFactory.create_for_ts (item.type);
+
         var label = new Gtk.Label (item.name);
+        label.ellipsize = Pango.EllipsizeMode.END;
 
         box.append (icon);
         box.append (label);
@@ -10064,14 +10150,14 @@ public class Iide.BreadcrumbSymbolOutlineNavigator : Gtk.Box {
 
         // Сохраняем данные для поиска и активации
         row.set_data ("item", new BreadcrumbObject (item));
+
         return row;
     }
 
     private void on_row_activated (Gtk.ListBoxRow row) {
         var obj = row.get_data<BreadcrumbObject> ("item");
-        this.source_view.goto ((int) obj.item.start_point.row,
-                               (int) obj.item.start_point.column);
-        this.close_reqested ();
+        source_view.goto ((int) obj.item.start_point.row,
+                          (int) obj.item.start_point.column);
     }
 }
 ```
@@ -10401,6 +10487,182 @@ namespace TreeSitter {
  */
 ```
 
+## File: src/Widgets/TextView/BreadcrumbSymbolOutlineNavigator.vala
+```
+public class Iide.BreadcrumbSymbolOutlineNavigator : Gtk.Box {
+    private SourceView source_view;
+    public Gtk.SearchEntry search_entry;
+    private Gtk.ListBox list_box;
+
+    public signal void close_requested ();
+
+    private class BreadcrumbObject : Object {
+        public TreeSitterNodeItem item;
+        public BreadcrumbObject (TreeSitterNodeItem item) {
+            Object ();
+            this.item = item;
+        }
+    }
+
+    public BreadcrumbSymbolOutlineNavigator (SourceView source_view) {
+        Object (orientation: Gtk.Orientation.VERTICAL, spacing: 6);
+        this.source_view = source_view;
+        this.set_size_request (300, -1);
+
+        search_entry = new Gtk.SearchEntry ();
+        this.append (search_entry);
+
+        list_box = new Gtk.ListBox ();
+        list_box.add_css_class ("navigation-sidebar");
+
+        // Рекурсивно заполняем список с учетом отступов
+        add_symbols_recursively (source_view.ts_highlighter.get_full_outline (), 0);
+
+        // Фильтрация
+        list_box.set_filter_func ((row) => {
+            var text = search_entry.get_text ().down ();
+            if (text == "")return true;
+
+            var obj = row.get_data<BreadcrumbObject> ("item");
+            var name = obj.item.name.down ();
+            return name.contains (text);
+        });
+        search_entry.search_changed.connect (() => {
+            list_box.invalidate_filter ();
+            refresh_state ();
+        });
+
+        list_box.row_activated.connect (on_row_activated);
+        search_entry.activate.connect (() => {
+            on_row_activated (list_box.get_selected_row ());
+        });
+
+        var scroll = new Gtk.ScrolledWindow ();
+        scroll.propagate_natural_height = true;
+        scroll.set_max_content_height (400);
+        scroll.set_child (list_box);
+        this.append (scroll);
+
+        var key_controller = new Gtk.EventControllerKey ();
+        key_controller.key_pressed.connect (on_key_pressed);
+        search_entry.add_controller (key_controller);
+        list_box.set_selection_mode (Gtk.SelectionMode.SINGLE);
+
+        this.refresh_state ();
+    }
+
+    private void select_first_visible_row () {
+        var row = list_box.get_first_child ();
+        while (row != null) {
+            var list_row = row as Gtk.ListBoxRow;
+            if (list_row.get_child_visible ()) {
+                list_box.select_row (list_row);
+                break;
+            }
+            row = row.get_next_sibling ();
+        }
+    }
+
+    private void refresh_state () {
+        this.search_entry.grab_focus ();
+        select_first_visible_row ();
+    }
+
+    private bool on_key_pressed (Gtk.EventControllerKey controller, uint keyval, uint keycode, Gdk.ModifierType modifiers) {
+        if (keyval == Gdk.Key.Escape) {
+            close_requested ();
+            return true;
+        } else if (keyval == Gdk.Key.Up || keyval == Gdk.Key.KP_Up) {
+            move_selection_up ();
+            return true;
+        } else if (keyval == Gdk.Key.Down || keyval == Gdk.Key.KP_Down) {
+            move_selection_down ();
+            return true;
+        }
+        return false;
+    }
+
+    private void move_selection_down () {
+        var selected_row = list_box.get_selected_row ();
+        if (selected_row == null) {
+            select_first_visible_row ();
+            return;
+        }
+
+        var next_row_widget = selected_row.get_next_sibling ();
+        while (next_row_widget != null) {
+            var list_row = next_row_widget as Gtk.ListBoxRow;
+            if (list_row.get_child_visible ()) {
+                list_box.select_row (list_row);
+                return;
+            }
+            next_row_widget = next_row_widget.get_next_sibling ();
+        }
+
+        if (!selected_row.get_child_visible ())
+            select_first_visible_row ();
+    }
+
+    private void move_selection_up () {
+        var selected_row = list_box.get_selected_row ();
+        if (selected_row == null) {
+            select_first_visible_row ();
+            return;
+        }
+
+        var prev_row_widget = selected_row.get_prev_sibling ();
+        while (prev_row_widget != null) {
+            var list_row = prev_row_widget as Gtk.ListBoxRow;
+            if (list_row.get_child_visible ()) {
+                list_box.select_row (list_row);
+                return;
+            }
+            prev_row_widget = prev_row_widget.get_prev_sibling ();
+        }
+
+        if (!selected_row.get_child_visible ())
+            select_first_visible_row ();
+    }
+
+    private void add_symbols_recursively (Gee.List<TreeSitterNodeItem?> symbols, int depth) {
+        foreach (var sym in symbols) {
+            var row = create_symbol_row (sym, depth);
+            list_box.append (row);
+
+            if (sym.children != null && sym.children.size > 0) {
+                add_symbols_recursively (sym.children, depth + 1);
+            }
+        }
+    }
+
+    private Gtk.ListBoxRow create_symbol_row (TreeSitterNodeItem item, int depth) {
+        var row = new Gtk.ListBoxRow ();
+        var box = new Gtk.Box (Gtk.Orientation.HORIZONTAL, 8);
+        box.margin_start = 8 + (depth * 16); // Создаем визуальную иерархию
+        box.margin_end = 8;
+        box.margin_top = box.margin_bottom = 2;
+
+        var icon = Iide.SymbolIconFactory.create_for_ts (item.type);
+        var label = new Gtk.Label (item.name);
+
+        box.append (icon);
+        box.append (label);
+        row.set_child (box);
+
+        // Сохраняем данные для поиска и активации
+        row.set_data ("item", new BreadcrumbObject (item));
+        return row;
+    }
+
+    private void on_row_activated (Gtk.ListBoxRow row) {
+        var obj = row.get_data<BreadcrumbObject> ("item");
+        this.source_view.goto ((int) obj.item.start_point.row,
+                               (int) obj.item.start_point.column);
+        this.close_requested ();
+    }
+}
+```
+
 ## File: src/Widgets/TextView/BreadcrumbsBar.vala
 ```
 public class Iide.BreadcrumbFileSegment : Gtk.Box {
@@ -10457,6 +10719,11 @@ public class Iide.BreadcrumbFileSegment : Gtk.Box {
 
                 popover.set_child (navigator);
                 navigator.search_entry.set_key_capture_widget (popover);
+
+                navigator.close_requested.connect (() => {
+                    button.active = false;
+                    source_view.grab_focus ();
+                });
             }
         });
     }
@@ -10471,7 +10738,7 @@ public class Iide.BreadcrumbFileSegment : Gtk.Box {
 
                 popover.set_child (navigator);
                 navigator.search_entry.set_key_capture_widget (popover);
-                navigator.close_reqested.connect (() => {
+                navigator.close_requested.connect (() => {
                     button.active = false;
                     source_view.grab_focus ();
                 });
@@ -10522,6 +10789,10 @@ public class Iide.BreadcrumbSymbolSegment : Gtk.Box {
                     popover.set_child (navigator);
 
                     navigator.search_entry.set_key_capture_widget (popover);
+                    navigator.close_requested.connect (() => {
+                        button.active = false;
+                        source_view.grab_focus ();
+                    });
                 }
             }
         });
@@ -10590,6 +10861,466 @@ public class Iide.BreadcrumbsBar : Gtk.Box {
         foreach (var crumb in crumbs) {
             var ts_segment = new BreadcrumbSymbolSegment (source_view, crumb);
             scope_box.append (ts_segment);
+        }
+    }
+}
+```
+
+## File: src/application.vala
+```
+/* application.vala
+ *
+ * Copyright 2026 kai
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see <https://www.gnu.org/licenses/>.
+ *
+ * SPDX-License-Identifier: GPL-3.0-or-later
+ */
+
+[CCode (cname = "gtk_style_context_add_provider_for_display", cheader_filename = "gtk/gtk.h")]
+extern void add_provider_to_display (Gdk.Display display, Gtk.StyleProvider provider, uint priority);
+
+public class Iide.Application : Adw.Application {
+    private Iide.SettingsService settings;
+    private Iide.ActionManager action_manager;
+    private SimpleActionGroup simple_action_group = new SimpleActionGroup ();
+
+    public signal void zoom_changed (int zoom_level);
+    public signal void minimap_changed (bool visible);
+
+    public Application () {
+        Object (
+                application_id: "org.github.kai66673.iide",
+                flags: ApplicationFlags.DEFAULT_FLAGS,
+                resource_base_path: "/org/github/kai66673/iide"
+        );
+    }
+
+    construct {
+        settings = Iide.SettingsService.get_instance ();
+        action_manager = Iide.ActionManager.get_instance ();
+
+        register_builtin_actions ();
+        apply_shortcuts ();
+    }
+
+    private void register_builtin_actions () {
+        action_manager.register_action (new SaveAllAction (this));
+        action_manager.register_action (new OpenProjectAction (this));
+        action_manager.register_action (new PreferencesAction (this));
+        action_manager.register_action (new ToggleMinimapAction (this));
+        action_manager.register_action (new FuzzyFinderAction (this));
+        action_manager.register_action (new SearchSymbolAction (this));
+        action_manager.register_action (new SearchInFilesAction (this));
+        action_manager.register_action (new ZoomInAction ());
+        action_manager.register_action (new ZoomOutAction ());
+        action_manager.register_action (new ZoomResetAction ());
+        action_manager.register_action (new ExpandSelectionAction ());
+        action_manager.register_action (new ShrinkSelectionAction ());
+        action_manager.register_action (new QuitAction ());
+
+        // Ins/Ovr toggle
+        // Действие переключения режима
+        var toggle_overwrite = new SimpleAction ("toggle-overwrite", null);
+        toggle_overwrite.activate.connect (() => {
+            // Переключаем встроенное свойство SourceView
+            var win = active_window as Iide.Window;
+            if (win != null) {
+                var view = win.get_active_source_view ();
+                if (view != null) {
+                    view.overwrite = !view.overwrite;
+                }
+            }
+        });
+        simple_action_group.add_action (toggle_overwrite);
+        set_accels_for_action ("editor.toggle-overwrite", { "Insert" });
+    }
+
+    private void apply_shortcuts () {
+        action_manager.apply_shortcuts_to_application (this);
+
+        action_manager.get_all_actions ().foreach ((action) => {
+            action.shortcut_changed.connect ((new_shortcut) => {
+                if (new_shortcut != null && new_shortcut != "") {
+                    this.set_accels_for_action ("app." + action.id, { new_shortcut });
+                } else {
+                    this.set_accels_for_action ("app." + action.id, {});
+                }
+            });
+            return true;
+        });
+    }
+
+    public Iide.ActionManager get_action_manager () {
+        return action_manager;
+    }
+
+    public Iide.SettingsService get_settings () {
+        return settings;
+    }
+
+    public void register_embedded_fonts () {
+        try {
+            // Путь к шрифту в GResource
+            string font_path = "/org/github/kai66673/iide/fonts/SymbolsNerdFontMono-Regular.ttf";
+            var bytes = resources_lookup_data (font_path, ResourceLookupFlags.NONE);
+
+            // В GTK4 для кастомных шрифтов из памяти используется PangoCairo и FontConfig
+            // На Linux/Arch самый простой способ - создать временный конфиг
+            // или использовать Fontconfig напрямую.
+
+            // Но есть способ проще для GTK4 через CSS (начиная с новых версий):
+            string css = """
+            @font-face {
+                font-family: "Symbols Nerd Font Mono";
+                src: url("resource:///org/github/kai66673/iide/fonts/SymbolsNerdFontMono-Regular.ttf");
+            }
+        """;
+            var provider = new Gtk.CssProvider ();
+            provider.load_from_bytes (new GLib.Bytes (css.data));
+            add_provider_to_display (
+                                     Gdk.Display.get_default (),
+                                     provider,
+                                     Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION
+            );
+
+            message ("Встроенный шрифт Nerd Font успешно зарегистрирован через CSS.");
+        } catch (Error e) {
+            message ("Не удалось загрузить встроенный шрифт: %s", e.message);
+        }
+    }
+
+    public override void activate () {
+        base.activate ();
+
+        var icon_theme = Gtk.IconTheme.get_for_display (Gdk.Display.get_default ());
+        icon_theme.add_resource_path ("/org/github/kai66673/iide/icons");
+
+        var css_provider = new Gtk.CssProvider ();
+        css_provider.load_from_resource ("/org/github/kai66673/iide/style.css");
+        add_provider_to_display (
+                                 Gdk.Display.get_default (),
+                                 css_provider,
+                                 Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION
+        );
+
+        register_embedded_fonts ();
+
+        var win = this.active_window ?? new Iide.Window (this);
+        win.present ();
+    }
+}
+
+private class SaveAllAction : Iide.Action {
+    private weak Iide.Application app;
+
+    public SaveAllAction (Iide.Application app) {
+        this.app = app;
+    }
+
+    public override string id { get { return "save"; } }
+    public override string name { get { return _("Save All"); } }
+    public override string? description { get { return _("Save all open documents"); } }
+    public override string? icon_name { get { return "document-save-symbolic"; } }
+    public override string? category { get { return "File"; } }
+
+    public override bool can_execute () {
+        return app ? .active_window is Iide.Window;
+    }
+
+    public override void execute () {
+        var win = app ? .active_window as Iide.Window;
+        win?.save_modified ();
+    }
+}
+
+private class OpenProjectAction : Iide.Action {
+    private weak Iide.Application app;
+
+    public OpenProjectAction (Iide.Application app) {
+        this.app = app;
+    }
+
+    public override string id { get { return "open_project"; } }
+    public override string name { get { return _("Open Project"); } }
+    public override string? description { get { return _("Open a project folder"); } }
+    public override string? icon_name { get { return "folder-open-symbolic"; } }
+    public override string? category { get { return "File"; } }
+
+    public override bool can_execute () {
+        return true;
+    }
+
+    public override void execute () {
+        var win = app ? .active_window as Iide.Window;
+        win?.open_project_dialog ();
+    }
+}
+
+private class PreferencesAction : Iide.Action {
+    private weak Iide.Application app;
+
+    public PreferencesAction (Iide.Application app) {
+        this.app = app;
+    }
+
+    public override string id { get { return "preferences"; } }
+    public override string name { get { return _("Preferences"); } }
+    public override string? description { get { return _("Open preferences dialog"); } }
+    public override string? icon_name { get { return "preferences-system-symbolic"; } }
+    public override string? category { get { return "Application"; } }
+
+    public override bool can_execute () {
+        return true;
+    }
+
+    public override void execute () {
+        var dialog = new Iide.PreferencesDialog ();
+        dialog.set_transient_for (app ? .active_window);
+        dialog.present ();
+    }
+}
+
+private class ToggleMinimapAction : Iide.Action {
+    private weak Iide.Application app;
+
+    public ToggleMinimapAction (Iide.Application app) {
+        this.app = app;
+        this.state = Iide.SettingsService.get_instance ().show_minimap;
+    }
+
+    public override string id { get { return "toggle_minimap"; } }
+    public override string name { get { return _("Toggle Minimap"); } }
+    public override string? description { get { return _("Show or hide the minimap"); } }
+    public override string? icon_name { get { return "view-fullscreen-symbolic"; } }
+    public override string? category { get { return "View"; } }
+    public override bool is_toggle { get { return true; } }
+
+    public override bool can_execute () {
+        return true;
+    }
+
+    public override void execute () {
+        var settings = Iide.SettingsService.get_instance ();
+        state = !state;
+        settings.show_minimap = state;
+        app?.minimap_changed (state);
+
+        state_changed (state);
+        Iide.ActionManager.get_instance ().set_toggle_state (id, state);
+    }
+}
+
+private class ZoomInAction : Iide.Action {
+    private Iide.SettingsService settings;
+
+    public override string id { get { return "zoom_in"; } }
+    public override string name { get { return _("Zoom In"); } }
+    public override string? description { get { return _("Increase editor font size"); } }
+    public override string? icon_name { get { return "zoom-in-symbolic"; } }
+    public override string? category { get { return "View"; } }
+
+    public override bool can_execute () {
+        settings = Iide.SettingsService.get_instance ();
+        return settings.editor_font_size < FontSizeHelper.MAX_ZOOM_LEVEL;
+    }
+
+    public override void execute () {
+        settings = Iide.SettingsService.get_instance ();
+        var app = GLib.Application.get_default () as Iide.Application;
+        settings.editor_font_size++;
+        app?.zoom_changed (settings.editor_font_size);
+    }
+}
+
+private class ZoomOutAction : Iide.Action {
+    private Iide.SettingsService settings;
+
+    public override string id { get { return "zoom_out"; } }
+    public override string name { get { return _("Zoom Out"); } }
+    public override string? description { get { return _("Decrease editor font size"); } }
+    public override string? icon_name { get { return "zoom-out-symbolic"; } }
+    public override string? category { get { return "View"; } }
+
+    public override bool can_execute () {
+        settings = Iide.SettingsService.get_instance ();
+        return settings.editor_font_size > FontSizeHelper.MIN_ZOOM_LEVEL;
+    }
+
+    public override void execute () {
+        settings = Iide.SettingsService.get_instance ();
+        var app = GLib.Application.get_default () as Iide.Application;
+        settings.editor_font_size--;
+        app?.zoom_changed (settings.editor_font_size);
+    }
+}
+
+private class ZoomResetAction : Iide.Action {
+    private Iide.SettingsService settings;
+
+    public override string id { get { return "zoom_reset"; } }
+    public override string name { get { return _("Zoom Reset"); } }
+    public override string? description { get { return _("Reset editor font size to default"); } }
+    public override string? icon_name { get { return "zoom-original-symbolic"; } }
+    public override string? category { get { return "View"; } }
+
+    public override bool can_execute () {
+        return true;
+    }
+
+    public override void execute () {
+        settings = Iide.SettingsService.get_instance ();
+        var app = GLib.Application.get_default () as Iide.Application;
+        settings.editor_font_size = FontSizeHelper.DEFAULT_ZOOM_LEVEL;
+        app?.zoom_changed (settings.editor_font_size);
+    }
+}
+
+private class ExpandSelectionAction : Iide.Action {
+    public override string id { get { return "expand_selection"; } }
+    public override string name { get { return _("Expand Selection"); } }
+    public override string? description { get { return _("Expand the current selection"); } }
+    public override string? icon_name { get { return "zoom-original-symbolic"; } }
+    public override string? category { get { return "View"; } }
+
+    public override bool can_execute () {
+        return true;
+    }
+
+    public override void execute () {
+        var app = GLib.Application.get_default () as Iide.Application;
+        var win = app ? .active_window as Iide.Window;
+        if (win != null) {
+            win.get_active_source_view () ? .ts_highlighter ? .expand_selection ();
+        }
+    }
+}
+
+private class ShrinkSelectionAction : Iide.Action {
+    public override string id { get { return "shrink_selection"; } }
+    public override string name { get { return _("Shrink Selection"); } }
+    public override string? description { get { return _("Shrink the current selection"); } }
+    public override string? icon_name { get { return "zoom-original-symbolic"; } }
+    public override string? category { get { return "View"; } }
+
+    public override bool can_execute () {
+        return true;
+    }
+
+    public override void execute () {
+        var app = GLib.Application.get_default () as Iide.Application;
+        var win = app ? .active_window as Iide.Window;
+        if (win != null) {
+            win.get_active_source_view () ? .ts_highlighter ? .shrink_selection ();
+        }
+    }
+}
+
+private class QuitAction : Iide.Action {
+    public override string id { get { return "quit"; } }
+    public override string name { get { return _("Quit"); } }
+    public override string? description { get { return _("Quit the application"); } }
+    public override string? icon_name { get { return "application-exit-symbolic"; } }
+    public override string? category { get { return "Application"; } }
+
+    public override bool can_execute () {
+        return true;
+    }
+
+    public override void execute () {
+        var app = GLib.Application.get_default () as Iide.Application;
+        app?.quit ();
+    }
+}
+
+private class FuzzyFinderAction : Iide.Action {
+    private weak Iide.Application app;
+
+    public FuzzyFinderAction (Iide.Application app) {
+        this.app = app;
+    }
+
+    public override string id { get { return "fuzzy_finder"; } }
+    public override string name { get { return _("Quick Open"); } }
+    public override string? description { get { return _("Open a file quickly by name"); } }
+    public override string? icon_name { get { return "system-search-symbolic"; } }
+    public override string? category { get { return "File"; } }
+
+    public override bool can_execute () {
+        return app ? .active_window is Iide.Window;
+    }
+
+    public override void execute () {
+        var win = app ? .active_window as Iide.Window;
+        if (win != null) {
+            var dialog = new Iide.SearchWindow (win, win.get_document_manager ());
+            dialog.set_active_page ("files");
+            dialog.present ();
+        }
+    }
+}
+
+private class SearchSymbolAction : Iide.Action {
+    private weak Iide.Application app;
+
+    public SearchSymbolAction (Iide.Application app) {
+        this.app = app;
+    }
+
+    public override string id { get { return "search_symbol"; } }
+    public override string name { get { return _("Search  Symbol"); } }
+    public override string? description { get { return _("Search Symbol in Project"); } }
+    public override string? icon_name { get { return "system-search-symbolic"; } }
+    public override string? category { get { return "Edit"; } }
+
+    public override bool can_execute () {
+        return app ? .active_window is Iide.Window;
+    }
+
+    public override void execute () {
+        var win = app ? .active_window as Iide.Window;
+        if (win != null) {
+            var dialog = new Iide.SearchWindow (win, win.get_document_manager ());
+            dialog.set_active_page ("symbols");
+            dialog.present ();
+        }
+    }
+}
+
+private class SearchInFilesAction : Iide.Action {
+    private weak Iide.Application app;
+
+    public SearchInFilesAction (Iide.Application app) {
+        this.app = app;
+    }
+
+    public override string id { get { return "search_in_files"; } }
+    public override string name { get { return _("Search in Files"); } }
+    public override string? description { get { return _("Search for text in all project files"); } }
+    public override string? icon_name { get { return "edit-find-symbolic"; } }
+    public override string? category { get { return "Edit"; } }
+
+    public override bool can_execute () {
+        return app ? .active_window is Iide.Window;
+    }
+
+    public override void execute () {
+        var win = app ? .active_window as Iide.Window;
+        if (win != null) {
+            var dialog = new Iide.SearchWindow (win, win.get_document_manager ());
+            dialog.set_active_page ("text");
+            dialog.present ();
         }
     }
 }
@@ -11642,9 +12373,10 @@ public class Iide.LspClient : Object {
 }
 ```
 
-## File: src/application.vala
+## File: src/Services/DocumentManager.vala
 ```
-/* application.vala
+/*
+ * documentmanager.vala
  *
  * Copyright 2026 kai
  *
@@ -11664,439 +12396,165 @@ public class Iide.LspClient : Object {
  * SPDX-License-Identifier: GPL-3.0-or-later
  */
 
-[CCode (cname = "gtk_style_context_add_provider_for_display", cheader_filename = "gtk/gtk.h")]
-extern void add_provider_to_display (Gdk.Display display, Gtk.StyleProvider provider, uint priority);
+using Gee;
+using GLib;
+using Gtk;
+using Panel;
 
-public class Iide.Application : Adw.Application {
-    private Iide.SettingsService settings;
-    private Iide.ActionManager action_manager;
-    private SimpleActionGroup simple_action_group = new SimpleActionGroup ();
+public class Iide.DocumentManager : GLib.Object {
+    public Window window;
+    private Iide.IdeLspManager lsp_manager;
+    private string? current_workspace_root;
 
-    public signal void zoom_changed (int zoom_level);
-    public signal void minimap_changed (bool visible);
+    private LoggerService logger = LoggerService.get_instance ();
+    private static DocumentManager? _instance;
 
-    public Application () {
-        Object (
-                application_id: "org.github.kai66673.iide",
-                flags: ApplicationFlags.DEFAULT_FLAGS,
-                resource_base_path: "/org/github/kai66673/iide"
-        );
+    public static DocumentManager get_instance () {
+        return _instance;
     }
 
-    construct {
-        settings = Iide.SettingsService.get_instance ();
-        action_manager = Iide.ActionManager.get_instance ();
+    public Gee.HashMap<string, TextView> _documents;
+    public Gee.HashMap<string, TextView> documents {
+        get {
+            _documents = new Gee.HashMap<string, TextView> ();
+            window.grid.foreach_frame ((frame) => {
+                var pages = frame.get_pages ();
 
-        register_builtin_actions ();
-        apply_shortcuts ();
-    }
-
-    private void register_builtin_actions () {
-        action_manager.register_action (new SaveAllAction (this));
-        action_manager.register_action (new OpenProjectAction (this));
-        action_manager.register_action (new PreferencesAction (this));
-        action_manager.register_action (new ToggleMinimapAction (this));
-        action_manager.register_action (new FuzzyFinderAction (this));
-        action_manager.register_action (new SearchSymbolAction (this));
-        action_manager.register_action (new SearchInFilesAction (this));
-        action_manager.register_action (new ZoomInAction ());
-        action_manager.register_action (new ZoomOutAction ());
-        action_manager.register_action (new ZoomResetAction ());
-        action_manager.register_action (new ExpandSelectionAction ());
-        action_manager.register_action (new ShrinkSelectionAction ());
-        action_manager.register_action (new QuitAction ());
-
-        // Ins/Ovr toggle
-        // Действие переключения режима
-        var toggle_overwrite = new SimpleAction ("toggle-overwrite", null);
-        toggle_overwrite.activate.connect (() => {
-            // Переключаем встроенное свойство SourceView
-            var win = active_window as Iide.Window;
-            if (win != null) {
-                var view = win.get_active_source_view ();
-                if (view != null) {
-                    view.overwrite = !view.overwrite;
-                }
-            }
-        });
-        simple_action_group.add_action (toggle_overwrite);
-        set_accels_for_action ("editor.toggle-overwrite", { "Insert" });
-    }
-
-    private void apply_shortcuts () {
-        action_manager.apply_shortcuts_to_application (this);
-
-        action_manager.get_all_actions ().foreach ((action) => {
-            action.shortcut_changed.connect ((new_shortcut) => {
-                if (new_shortcut != null && new_shortcut != "") {
-                    this.set_accels_for_action ("app." + action.id, { new_shortcut });
-                } else {
-                    this.set_accels_for_action ("app." + action.id, {});
+                for (uint i = 0; i < pages.get_n_items (); i++) {
+                    var item = pages.get_item (i) as Adw.TabPage;
+                    if (item == null) {
+                        continue;
+                    }
+                    var child = item.get_child ();
+                    if (child == null) {
+                        continue;
+                    }
+                    var text_view = child as TextView;
+                    if (text_view != null) {
+                        _documents.set (text_view.uri, text_view);
+                    }
                 }
             });
-            return true;
+            return _documents;
+        }
+    }
+
+    public DocumentManager (Window window) {
+        this.window = window;
+        DocumentManager._instance = this;
+        // documents = new Gee.HashMap<string, TextView> ();
+        lsp_manager = Iide.IdeLspManager.get_instance ();
+
+        lsp_manager.connect_diagnostics ((uri, diagnostics) => {
+            var doc = documents.get (uri);
+            if (doc != null) {
+                var lsp_diagnostics = new Gee.ArrayList<IdeLspDiagnostic> ();
+                foreach (var diag in diagnostics) {
+                    var d = new IdeLspDiagnostic ();
+                    d.severity = diag.severity;
+                    d.message = diag.message;
+                    d.start_line = diag.start_line;
+                    d.start_column = diag.start_column;
+                    d.end_line = diag.end_line;
+                    d.end_column = diag.end_column;
+                    lsp_diagnostics.add (d);
+                }
+
+                Idle.add (() => {
+                    doc.update_diagnostics (lsp_diagnostics);
+                    return false;
+                });
+            }
         });
     }
 
-    public Iide.ActionManager get_action_manager () {
-        return action_manager;
+    public void set_workspace_root (string? root) {
+        current_workspace_root = root;
     }
 
-    public Iide.SettingsService get_settings () {
-        return settings;
+    public signal void document_opened (TextView document);
+
+    public Panel.Widget? open_document (GLib.File file, Panel.Position ? pos) {
+        return open_document_with_selection (file, -1, -1, -1, pos);
     }
 
-    public void register_embedded_fonts () {
-        try {
-            // Путь к шрифту в GResource
-            string font_path = "/org/github/kai66673/iide/fonts/SymbolsNerdFontMono-Regular.ttf";
-            var bytes = resources_lookup_data (font_path, ResourceLookupFlags.NONE);
+    public Panel.Widget? open_document_with_selection (GLib.File file, int line, int start_col, int end_col, Panel.Position ? pos) {
+        string uri = file.get_uri ();
 
-            // В GTK4 для кастомных шрифтов из памяти используется PangoCairo и FontConfig
-            // На Linux/Arch самый простой способ - создать временный конфиг
-            // или использовать Fontconfig напрямую.
-
-            // Но есть способ проще для GTK4 через CSS (начиная с новых версий):
-            string css = """
-            @font-face {
-                font-family: "Symbols Nerd Font Mono";
-                src: url("resource:///org/github/kai66673/iide/fonts/SymbolsNerdFontMono-Regular.ttf");
+        var docs = documents;
+        if (docs.has_key (uri)) {
+            var widget = docs.get (uri);
+            widget.raise ();
+            widget.view_grab_focus ();
+            if (line >= 0) {
+                widget.select_and_scroll (line, start_col, end_col, false);
             }
-        """;
-            var provider = new Gtk.CssProvider ();
-            provider.load_from_bytes (new GLib.Bytes (css.data));
-            add_provider_to_display (
-                                     Gdk.Display.get_default (),
-                                     provider,
-                                     Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION
-            );
+            return widget;
+        } else {
+            var shared_table = Iide.StyleService.get_instance ().shared_table;
+            var buffer = new GtkSource.Buffer (shared_table);
+            var source_file = new GtkSource.File ();
+            source_file.location = file;
+            var file_loader = new GtkSource.FileLoader (buffer, source_file);
+            Iide.TextView? panel_widget = null;
+            file_loader.load_async.begin (Priority.DEFAULT, null, null, (obj, res) => {
+                try {
+                    file_loader.load_async.end (res);
+                    panel_widget = new Iide.TextView (file, buffer, window);
 
-            message ("Встроенный шрифт Nerd Font успешно зарегистрирован через CSS.");
-        } catch (Error e) {
-            message ("Не удалось загрузить встроенный шрифт: %s", e.message);
+                    panel_widget.buffer_saved.connect (() => {
+                        string content = ((GtkSource.Buffer) panel_widget.text_view.buffer).text;
+                        lsp_manager.change_document.begin (uri, content);
+                    });
+
+                    if (pos == null) {
+                        window.grid.add (panel_widget);
+                    } else {
+                        window.add_widget (panel_widget, pos);
+                    }
+                    panel_widget.raise ();
+                    panel_widget.view_grab_focus ();
+                    logger.debug ("Doc", "Document panel widget created: " + uri);
+
+                    if (line >= 0) {
+                        // TODO: with timeout...
+                        panel_widget.select_and_scroll (line, start_col, end_col, true);
+                    }
+
+                    string content = buffer.text;
+                    string? lang_id = lsp_manager.get_language_id_for_file (file);
+                    if (lang_id != null) {
+                        lsp_manager.open_document.begin (uri, lang_id, content, current_workspace_root, panel_widget.text_view);
+                    }
+                } catch (Error e) {
+                    logger.error ("Doc", "Error Opening File", "Failed to read file %s: %s".printf (file.get_path (), e.message));
+                }
+            });
+            return panel_widget;
         }
     }
 
-    public override void activate () {
-        base.activate ();
-
-        var icon_theme = Gtk.IconTheme.get_for_display (Gdk.Display.get_default ());
-        icon_theme.add_resource_path ("/org/github/kai66673/iide/icons");
-
-        var css_provider = new Gtk.CssProvider ();
-        css_provider.load_from_resource ("/org/github/kai66673/iide/style.css");
-        add_provider_to_display (
-                                 Gdk.Display.get_default (),
-                                 css_provider,
-                                 Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION
-        );
-
-        register_embedded_fonts ();
-
-        var win = this.active_window ?? new Iide.Window (this);
-        win.present ();
-    }
-}
-
-private class SaveAllAction : Iide.Action {
-    private weak Iide.Application app;
-
-    public SaveAllAction (Iide.Application app) {
-        this.app = app;
+    public Panel.Widget? get_document_for_file (GLib.File file) {
+        string uri = file.get_uri ();
+        return documents.get (uri);
     }
 
-    public override string id { get { return "save"; } }
-    public override string name { get { return _("Save All"); } }
-    public override string? description { get { return _("Save all open documents"); } }
-    public override string? icon_name { get { return "document-save-symbolic"; } }
-    public override string? category { get { return "File"; } }
-
-    public override bool can_execute () {
-        return app ? .active_window is Iide.Window;
+    public bool is_file_open (GLib.File file) {
+        return documents.has_key (file.get_uri ());
     }
 
-    public override void execute () {
-        var win = app ? .active_window as Iide.Window;
-        win?.save_modified ();
-    }
-}
-
-private class OpenProjectAction : Iide.Action {
-    private weak Iide.Application app;
-
-    public OpenProjectAction (Iide.Application app) {
-        this.app = app;
-    }
-
-    public override string id { get { return "open_project"; } }
-    public override string name { get { return _("Open Project"); } }
-    public override string? description { get { return _("Open a project folder"); } }
-    public override string? icon_name { get { return "folder-open-symbolic"; } }
-    public override string? category { get { return "File"; } }
-
-    public override bool can_execute () {
-        return true;
-    }
-
-    public override void execute () {
-        var win = app ? .active_window as Iide.Window;
-        win?.open_project_dialog ();
-    }
-}
-
-private class PreferencesAction : Iide.Action {
-    private weak Iide.Application app;
-
-    public PreferencesAction (Iide.Application app) {
-        this.app = app;
-    }
-
-    public override string id { get { return "preferences"; } }
-    public override string name { get { return _("Preferences"); } }
-    public override string? description { get { return _("Open preferences dialog"); } }
-    public override string? icon_name { get { return "preferences-system-symbolic"; } }
-    public override string? category { get { return "Application"; } }
-
-    public override bool can_execute () {
-        return true;
-    }
-
-    public override void execute () {
-        var dialog = new Iide.PreferencesDialog ();
-        dialog.set_transient_for (app ? .active_window);
-        dialog.present ();
-    }
-}
-
-private class ToggleMinimapAction : Iide.Action {
-    private weak Iide.Application app;
-
-    public ToggleMinimapAction (Iide.Application app) {
-        this.app = app;
-        this.state = Iide.SettingsService.get_instance ().show_minimap;
-    }
-
-    public override string id { get { return "toggle_minimap"; } }
-    public override string name { get { return _("Toggle Minimap"); } }
-    public override string? description { get { return _("Show or hide the minimap"); } }
-    public override string? icon_name { get { return "view-fullscreen-symbolic"; } }
-    public override string? category { get { return "View"; } }
-    public override bool is_toggle { get { return true; } }
-
-    public override bool can_execute () {
-        return true;
-    }
-
-    public override void execute () {
-        var settings = Iide.SettingsService.get_instance ();
-        state = !state;
-        settings.show_minimap = state;
-        app?.minimap_changed (state);
-
-        state_changed (state);
-        Iide.ActionManager.get_instance ().set_toggle_state (id, state);
-    }
-}
-
-private class ZoomInAction : Iide.Action {
-    private Iide.SettingsService settings;
-
-    public override string id { get { return "zoom_in"; } }
-    public override string name { get { return _("Zoom In"); } }
-    public override string? description { get { return _("Increase editor font size"); } }
-    public override string? icon_name { get { return "zoom-in-symbolic"; } }
-    public override string? category { get { return "View"; } }
-
-    public override bool can_execute () {
-        settings = Iide.SettingsService.get_instance ();
-        return settings.editor_font_size < FontSizeHelper.MAX_ZOOM_LEVEL;
-    }
-
-    public override void execute () {
-        settings = Iide.SettingsService.get_instance ();
-        var app = GLib.Application.get_default () as Iide.Application;
-        settings.editor_font_size++;
-        app?.zoom_changed (settings.editor_font_size);
-    }
-}
-
-private class ZoomOutAction : Iide.Action {
-    private Iide.SettingsService settings;
-
-    public override string id { get { return "zoom_out"; } }
-    public override string name { get { return _("Zoom Out"); } }
-    public override string? description { get { return _("Decrease editor font size"); } }
-    public override string? icon_name { get { return "zoom-out-symbolic"; } }
-    public override string? category { get { return "View"; } }
-
-    public override bool can_execute () {
-        settings = Iide.SettingsService.get_instance ();
-        return settings.editor_font_size > FontSizeHelper.MIN_ZOOM_LEVEL;
-    }
-
-    public override void execute () {
-        settings = Iide.SettingsService.get_instance ();
-        var app = GLib.Application.get_default () as Iide.Application;
-        settings.editor_font_size--;
-        app?.zoom_changed (settings.editor_font_size);
-    }
-}
-
-private class ZoomResetAction : Iide.Action {
-    private Iide.SettingsService settings;
-
-    public override string id { get { return "zoom_reset"; } }
-    public override string name { get { return _("Zoom Reset"); } }
-    public override string? description { get { return _("Reset editor font size to default"); } }
-    public override string? icon_name { get { return "zoom-original-symbolic"; } }
-    public override string? category { get { return "View"; } }
-
-    public override bool can_execute () {
-        return true;
-    }
-
-    public override void execute () {
-        settings = Iide.SettingsService.get_instance ();
-        var app = GLib.Application.get_default () as Iide.Application;
-        settings.editor_font_size = FontSizeHelper.DEFAULT_ZOOM_LEVEL;
-        app?.zoom_changed (settings.editor_font_size);
-    }
-}
-
-private class ExpandSelectionAction : Iide.Action {
-    public override string id { get { return "expand_selection"; } }
-    public override string name { get { return _("Expand Selection"); } }
-    public override string? description { get { return _("Expand the current selection"); } }
-    public override string? icon_name { get { return "zoom-original-symbolic"; } }
-    public override string? category { get { return "View"; } }
-
-    public override bool can_execute () {
-        return true;
-    }
-
-    public override void execute () {
-        var app = GLib.Application.get_default () as Iide.Application;
-        var win = app ? .active_window as Iide.Window;
-        if (win != null) {
-            win.get_active_source_view () ? .ts_highlighter ? .expand_selection ();
+    public Gee.ArrayList<string> get_open_document_uris () {
+        var uris = new Gee.ArrayList<string> ();
+        foreach (var uri in documents.keys) {
+            uris.add (uri);
         }
-    }
-}
-
-private class ShrinkSelectionAction : Iide.Action {
-    public override string id { get { return "shrink_selection"; } }
-    public override string name { get { return _("Shrink Selection"); } }
-    public override string? description { get { return _("Shrink the current selection"); } }
-    public override string? icon_name { get { return "zoom-original-symbolic"; } }
-    public override string? category { get { return "View"; } }
-
-    public override bool can_execute () {
-        return true;
+        return uris;
     }
 
-    public override void execute () {
-        var app = GLib.Application.get_default () as Iide.Application;
-        var win = app ? .active_window as Iide.Window;
-        if (win != null) {
-            win.get_active_source_view () ? .ts_highlighter ? .shrink_selection ();
-        }
-    }
-}
-
-private class QuitAction : Iide.Action {
-    public override string id { get { return "quit"; } }
-    public override string name { get { return _("Quit"); } }
-    public override string? description { get { return _("Quit the application"); } }
-    public override string? icon_name { get { return "application-exit-symbolic"; } }
-    public override string? category { get { return "Application"; } }
-
-    public override bool can_execute () {
-        return true;
-    }
-
-    public override void execute () {
-        var app = GLib.Application.get_default () as Iide.Application;
-        app?.quit ();
-    }
-}
-
-private class FuzzyFinderAction : Iide.Action {
-    private weak Iide.Application app;
-
-    public FuzzyFinderAction (Iide.Application app) {
-        this.app = app;
-    }
-
-    public override string id { get { return "fuzzy_finder"; } }
-    public override string name { get { return _("Quick Open"); } }
-    public override string? description { get { return _("Open a file quickly by name"); } }
-    public override string? icon_name { get { return "system-search-symbolic"; } }
-    public override string? category { get { return "File"; } }
-
-    public override bool can_execute () {
-        return app ? .active_window is Iide.Window;
-    }
-
-    public override void execute () {
-        var win = app ? .active_window as Iide.Window;
-        if (win != null) {
-            var dialog = new Iide.SearchWindow (win, win.get_document_manager ());
-            dialog.set_active_page ("files");
-            dialog.present ();
-        }
-    }
-}
-
-private class SearchSymbolAction : Iide.Action {
-    private weak Iide.Application app;
-
-    public SearchSymbolAction (Iide.Application app) {
-        this.app = app;
-    }
-
-    public override string id { get { return "search_symbol"; } }
-    public override string name { get { return _("Search  Symbol"); } }
-    public override string? description { get { return _("Search Symbol in Project"); } }
-    public override string? icon_name { get { return "system-search-symbolic"; } }
-    public override string? category { get { return "Edit"; } }
-
-    public override bool can_execute () {
-        return app ? .active_window is Iide.Window;
-    }
-
-    public override void execute () {
-        var win = app ? .active_window as Iide.Window;
-        if (win != null) {
-            var dialog = new Iide.SearchWindow (win, win.get_document_manager ());
-            dialog.set_active_page ("symbols");
-            dialog.present ();
-        }
-    }
-}
-
-private class SearchInFilesAction : Iide.Action {
-    private weak Iide.Application app;
-
-    public SearchInFilesAction (Iide.Application app) {
-        this.app = app;
-    }
-
-    public override string id { get { return "search_in_files"; } }
-    public override string name { get { return _("Search in Files"); } }
-    public override string? description { get { return _("Search for text in all project files"); } }
-    public override string? icon_name { get { return "edit-find-symbolic"; } }
-    public override string? category { get { return "Edit"; } }
-
-    public override bool can_execute () {
-        return app ? .active_window is Iide.Window;
-    }
-
-    public override void execute () {
-        var win = app ? .active_window as Iide.Window;
-        if (win != null) {
-            var dialog = new Iide.SearchWindow (win, win.get_document_manager ());
-            dialog.set_active_page ("text");
-            dialog.present ();
+    public void open_document_by_uri (string uri) {
+        var file = GLib.File.new_for_uri (uri);
+        if (file.query_exists (null)) {
+            open_document (file, null);
         }
     }
 }
@@ -12691,193 +13149,6 @@ public class Iide.SourceView : GtkSource.View {
         buffer.place_cursor (iter);
         scroll_to_iter (iter, 0.1, false, 0, 0.5);
         grab_focus ();
-    }
-}
-```
-
-## File: src/Services/DocumentManager.vala
-```
-/*
- * documentmanager.vala
- *
- * Copyright 2026 kai
- *
- * This program is free software: you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation, either version 3 of the License, or
- * (at your option) any later version.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program.  If not, see <https://www.gnu.org/licenses/>.
- *
- * SPDX-License-Identifier: GPL-3.0-or-later
- */
-
-using Gee;
-using GLib;
-using Gtk;
-using Panel;
-
-public class Iide.DocumentManager : GLib.Object {
-    public Window window;
-    private Iide.IdeLspManager lsp_manager;
-    private string? current_workspace_root;
-
-    private LoggerService logger = LoggerService.get_instance ();
-    private static DocumentManager? _instance;
-
-    public static DocumentManager get_instance () {
-        return _instance;
-    }
-
-    public Gee.HashMap<string, TextView> _documents;
-    public Gee.HashMap<string, TextView> documents {
-        get {
-            _documents = new Gee.HashMap<string, TextView> ();
-            window.grid.foreach_frame ((frame) => {
-                var pages = frame.get_pages ();
-
-                for (uint i = 0; i < pages.get_n_items (); i++) {
-                    var item = pages.get_item (i) as Adw.TabPage;
-                    if (item == null) {
-                        continue;
-                    }
-                    var child = item.get_child ();
-                    if (child == null) {
-                        continue;
-                    }
-                    var text_view = child as TextView;
-                    if (text_view != null) {
-                        _documents.set (text_view.uri, text_view);
-                    }
-                }
-            });
-            return _documents;
-        }
-    }
-
-    public DocumentManager (Window window) {
-        this.window = window;
-        DocumentManager._instance = this;
-        // documents = new Gee.HashMap<string, TextView> ();
-        lsp_manager = Iide.IdeLspManager.get_instance ();
-
-        lsp_manager.connect_diagnostics ((uri, diagnostics) => {
-            var doc = documents.get (uri);
-            if (doc != null) {
-                var lsp_diagnostics = new Gee.ArrayList<IdeLspDiagnostic> ();
-                foreach (var diag in diagnostics) {
-                    var d = new IdeLspDiagnostic ();
-                    d.severity = diag.severity;
-                    d.message = diag.message;
-                    d.start_line = diag.start_line;
-                    d.start_column = diag.start_column;
-                    d.end_line = diag.end_line;
-                    d.end_column = diag.end_column;
-                    lsp_diagnostics.add (d);
-                }
-
-                Idle.add (() => {
-                    doc.update_diagnostics (lsp_diagnostics);
-                    return false;
-                });
-            }
-        });
-    }
-
-    public void set_workspace_root (string? root) {
-        current_workspace_root = root;
-    }
-
-    public signal void document_opened (TextView document);
-
-    public Panel.Widget? open_document (GLib.File file, Panel.Position ? pos) {
-        return open_document_with_selection (file, -1, -1, -1, pos);
-    }
-
-    public Panel.Widget? open_document_with_selection (GLib.File file, int line, int start_col, int end_col, Panel.Position ? pos) {
-        string uri = file.get_uri ();
-
-        var docs = documents;
-        if (docs.has_key (uri)) {
-            var widget = docs.get (uri);
-            widget.raise ();
-            widget.view_grab_focus ();
-            if (line >= 0) {
-                widget.select_and_scroll (line, start_col, end_col, false);
-            }
-            return widget;
-        } else {
-            var shared_table = Iide.StyleService.get_instance ().shared_table;
-            var buffer = new GtkSource.Buffer (shared_table);
-            var source_file = new GtkSource.File ();
-            source_file.location = file;
-            var file_loader = new GtkSource.FileLoader (buffer, source_file);
-            Iide.TextView? panel_widget = null;
-            file_loader.load_async.begin (Priority.DEFAULT, null, null, (obj, res) => {
-                try {
-                    file_loader.load_async.end (res);
-                    panel_widget = new Iide.TextView (file, buffer, window);
-
-                    panel_widget.buffer_saved.connect (() => {
-                        string content = ((GtkSource.Buffer) panel_widget.text_view.buffer).text;
-                        lsp_manager.change_document.begin (uri, content);
-                    });
-
-                    if (pos == null) {
-                        window.grid.add (panel_widget);
-                    } else {
-                        window.add_widget (panel_widget, pos);
-                    }
-                    panel_widget.raise ();
-                    panel_widget.view_grab_focus ();
-                    logger.debug ("Doc", "Document panel widget created: " + uri);
-
-                    if (line >= 0) {
-                        // TODO: with timeout...
-                        panel_widget.select_and_scroll (line, start_col, end_col, true);
-                    }
-
-                    string content = buffer.text;
-                    string? lang_id = lsp_manager.get_language_id_for_file (file);
-                    if (lang_id != null) {
-                        lsp_manager.open_document.begin (uri, lang_id, content, current_workspace_root, panel_widget.text_view);
-                    }
-                } catch (Error e) {
-                    logger.error ("Doc", "Error Opening File", "Failed to read file %s: %s".printf (file.get_path (), e.message));
-                }
-            });
-            return panel_widget;
-        }
-    }
-
-    public Panel.Widget? get_document_for_file (GLib.File file) {
-        string uri = file.get_uri ();
-        return documents.get (uri);
-    }
-
-    public bool is_file_open (GLib.File file) {
-        return documents.has_key (file.get_uri ());
-    }
-
-    public Gee.ArrayList<string> get_open_document_uris () {
-        var uris = new Gee.ArrayList<string> ();
-        foreach (var uri in documents.keys) {
-            uris.add (uri);
-        }
-        return uris;
-    }
-
-    public void open_document_by_uri (string uri) {
-        var file = GLib.File.new_for_uri (uri);
-        if (file.query_exists (null)) {
-            open_document (file, null);
-        }
     }
 }
 ```
