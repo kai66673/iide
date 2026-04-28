@@ -22,14 +22,14 @@ public class Iide.SymbolsSearchEngine : SearchEngine, Object {
 
     public async Gee.List<SearchResult> perform_search (string query, GLib.Cancellable cancellable) throws Error {
         var clients = IdeLspService.get_instance ().get_clients ();
-        var results = new Gee.ArrayList<LspSymbol> ();
+        var results = new Gee.ArrayList<WorkspaceLspSymbol> ();
         foreach (var client in clients) {
             results.add_all (yield client.workspace_symbols (query, cancellable));
         }
         return to_search_results (results);
     }
 
-    private Gee.List<SearchResult> to_search_results (Gee.List<LspSymbol> results) {
+    private Gee.List<SearchResult> to_search_results (Gee.List<WorkspaceLspSymbol> results) {
         var items = new Gee.ArrayList<SearchResult> ();
         foreach (var sym in results) {
             var file_path = sym.uri.replace ("file://", "");

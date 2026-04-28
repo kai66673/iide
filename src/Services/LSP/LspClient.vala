@@ -728,22 +728,35 @@ public class Iide.LspClient : Object {
         return parse_hover_result (response.get_member ("result"));
     }
 
-    public async Gee.List<LspSymbol>? workspace_symbols (string query, Cancellable ? cancellable = null) throws Error {
+    public async Gee.List<DocumentLspSymbol>? document_symbols (string uri, Cancellable ? cancellable = null) throws Error {
+        var params = new Json.Object ();
+
+        var doc = new Json.Object ();
+        doc.set_string_member ("uri", uri);
+        params.set_object_member ("textDocument", doc);
+
+        var response = yield this.send_request ("textDocument/documentSymbol", params, cancellable);
+
+        if (response == null || !response.has_member ("result"))
+            return null;
+
+        return parse_document_lsp_symbols (response.get_member ("result"));
+    }
+
+    public async Gee.List<WorkspaceLspSymbol>? workspace_symbols (string query, Cancellable ? cancellable = null) throws Error {
         var params = new Json.Object ();
         params.set_string_member ("query", query);
 
-        // Предполагаем, что у вас есть базовый метод для запросов call_method_async
-        // который возвращает Json.Node
         var response = yield this.send_request ("workspace/symbol", params, cancellable);
 
-        if (response == null || !response.has_member ("result"))return null;
+        if (response == null || !response.has_member ("result"))
+            return null;
 
-        // Используем парсер, который мы обсуждали ранее
-        return parse_lsp_symbols (response.get_member ("result"));
+        return parse_workspace_lsp_symbols (response.get_member ("result"));
     }
 
-    public Gee.List<LspSymbol> parse_lsp_symbols (Json.Node root_node) {
-        var result = new Gee.ArrayList<LspSymbol> ();
+    public Gee.List<WorkspaceLspSymbol> parse_workspace_lsp_symbols (Json.Node root_node) {
+        var result = new Gee.ArrayList<WorkspaceLspSymbol> ();
 
         // Проверяем, что корень — это массив
         if (root_node.get_node_type () != Json.NodeType.ARRAY)return result;
@@ -752,7 +765,7 @@ public class Iide.LspClient : Object {
 
         foreach (var element in array.get_elements ()) {
             var obj = element.get_object ();
-            var symbol = new LspSymbol ();
+            var symbol = new WorkspaceLspSymbol ();
 
             symbol.name = obj.get_string_member ("name");
             symbol.kind = (SymbolKind) obj.get_int_member ("kind");
@@ -833,5 +846,55 @@ public class Iide.LspClient : Object {
         loc.end_column = (int) end.get_int_member ("character");
 
         return loc;
+    }
+
+    public Gee.List<Iide.DocumentLspSymbol> parse_document_lsp_symbols (Json.Node root_node) {
+        var result = new Gee.ArrayList<Iide.DocumentLspSymbol> ();
+
+        // Проверяем тип узла (должен быть массив)
+        if (root_node.get_node_type () != Json.NodeType.ARRAY)return result;
+
+        var array = root_node.get_array ();
+        foreach (var element in array.get_elements ()) {
+            if (element.get_node_type () != Json.NodeType.OBJECT)continue;
+
+            var symbol = parse_single_document_lsp_symbol (element.get_object (), null);
+            result.add (symbol);
+        }
+
+        return result;
+    }
+
+    private Iide.DocumentLspSymbol parse_single_document_lsp_symbol (Json.Object obj, string? parent_name) {
+        var symbol = new Iide.DocumentLspSymbol ();
+
+        // Базовые поля
+        symbol.name = obj.get_string_member ("name");
+        symbol.kind = (SymbolKind) obj.get_int_member ("kind");
+        symbol.container_name = parent_name;
+
+        // В DocumentSymbol используем selectionRange для точного указания на имя
+        // Если его нет (старый сервер), берем обычный range
+        var range_key = obj.has_member ("selectionRange") ? "selectionRange" : "range";
+        var range_obj = obj.get_object_member (range_key);
+        var start_obj = range_obj.get_object_member ("start");
+
+        symbol.start_line = (int) start_obj.get_int_member ("line");
+        symbol.start_char = (int) start_obj.get_int_member ("character");
+
+        // Рекурсивная обработка детей
+        if (obj.has_member ("children")) {
+            var children_node = obj.get_member ("children");
+            if (children_node != null && !children_node.is_null ()) {
+                var children_array = children_node.get_array ();
+                foreach (var child_element in children_array.get_elements ()) {
+                    // Рекурсивно парсим ребенка, передавая имя текущего символа как родителя
+                    var child_symbol = parse_single_document_lsp_symbol (child_element.get_object (), symbol.name);
+                    symbol.children.add (child_symbol);
+                }
+            }
+        }
+
+        return symbol;
     }
 }

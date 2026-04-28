@@ -149,11 +149,20 @@ public enum Iide.SymbolKind {
     OPERATOR = 25, TYPE_PARAMETER = 26;
 }
 
-public class Iide.LspSymbol : Object {
+public class Iide.WorkspaceLspSymbol : Object {
     public string name { get; set; }
     public SymbolKind kind { get; set; }
     public string uri { get; set; }
     public int start_line { get; set; }
     public int start_char { get; set; }
     public string? container_name { get; set; }
+}
+
+public class Iide.DocumentLspSymbol : Object {
+    public string name { get; set; }
+    public SymbolKind kind { get; set; }
+    public int start_line { get; set; }
+    public int start_char { get; set; }
+    public string? container_name { get; set; }
+    public Gee.List<DocumentLspSymbol> children { get; set; default = new Gee.ArrayList<DocumentLspSymbol> (); }
 }
