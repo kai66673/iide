@@ -4,6 +4,8 @@ public class Iide.BreadcrumbTreeSitterNavigator : Gtk.Box {
     public Gtk.SearchEntry search_entry;
     private Gtk.ListBox list_box;
 
+    public signal void close_requested ();
+
     private class BreadcrumbObject : Object {
         public TreeSitterNodeItem item;
         public BreadcrumbObject (TreeSitterNodeItem item) {
@@ -44,9 +46,15 @@ public class Iide.BreadcrumbTreeSitterNavigator : Gtk.Box {
             var name = obj.item.name.down ();
             return name.contains (text);
         });
-        search_entry.search_changed.connect (() => { list_box.invalidate_filter (); });
+        search_entry.search_changed.connect (() => {
+            list_box.invalidate_filter ();
+            refresh_state ();
+        });
 
         list_box.row_activated.connect (on_row_activated);
+        search_entry.activate.connect (() => {
+            on_row_activated (list_box.get_selected_row ());
+        });
 
         var scroll = new Gtk.ScrolledWindow ();
         scroll.propagate_natural_height = true;
@@ -54,7 +62,85 @@ public class Iide.BreadcrumbTreeSitterNavigator : Gtk.Box {
         scroll.set_child (list_box);
         this.append (scroll);
 
+        var key_controller = new Gtk.EventControllerKey ();
+        key_controller.key_pressed.connect (on_key_pressed);
+        search_entry.add_controller (key_controller);
+        list_box.set_selection_mode (Gtk.SelectionMode.SINGLE);
+
+        this.refresh_state ();
+    }
+
+    private void select_first_visible_row () {
+        var row = list_box.get_first_child ();
+        while (row != null) {
+            var list_row = row as Gtk.ListBoxRow;
+            if (list_row.get_child_visible ()) {
+                list_box.select_row (list_row);
+                break;
+            }
+            row = row.get_next_sibling ();
+        }
+    }
+
+    private void refresh_state () {
         this.search_entry.grab_focus ();
+        select_first_visible_row ();
+    }
+
+    private bool on_key_pressed (Gtk.EventControllerKey controller, uint keyval, uint keycode, Gdk.ModifierType modifiers) {
+        if (keyval == Gdk.Key.Escape) {
+            close_requested ();
+            return true;
+        } else if (keyval == Gdk.Key.Up || keyval == Gdk.Key.KP_Up) {
+            move_selection_up ();
+            return true;
+        } else if (keyval == Gdk.Key.Down || keyval == Gdk.Key.KP_Down) {
+            move_selection_down ();
+            return true;
+        }
+        return false;
+    }
+
+    private void move_selection_down () {
+        var selected_row = list_box.get_selected_row ();
+        if (selected_row == null) {
+            select_first_visible_row ();
+            return;
+        }
+
+        var next_row_widget = selected_row.get_next_sibling ();
+        while (next_row_widget != null) {
+            var list_row = next_row_widget as Gtk.ListBoxRow;
+            if (list_row.get_child_visible ()) {
+                list_box.select_row (list_row);
+                return;
+            }
+            next_row_widget = next_row_widget.get_next_sibling ();
+        }
+
+        if (!selected_row.get_child_visible ())
+            select_first_visible_row ();
+    }
+
+    private void move_selection_up () {
+        var selected_row = list_box.get_selected_row ();
+        if (selected_row == null) {
+            select_first_visible_row ();
+            return;
+        }
+
+        var prev_row_widget = selected_row.get_prev_sibling ();
+        while (prev_row_widget != null) {
+            var list_row = prev_row_widget as Gtk.ListBoxRow;
+            if (list_row.get_child_visible ()) {
+                list_box.select_row (list_row);
+                return;
+            }
+            prev_row_widget = prev_row_widget.get_prev_sibling ();
+        }
+
+        if (!selected_row.get_child_visible ())
+            select_first_visible_row ();
     }
 
     private Gtk.ListBoxRow create_row (TreeSitterNodeItem item) {

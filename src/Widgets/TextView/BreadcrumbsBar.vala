@@ -52,6 +52,11 @@ public class Iide.BreadcrumbFileSegment : Gtk.Box {
 
                 popover.set_child (navigator);
                 navigator.search_entry.set_key_capture_widget (popover);
+
+                navigator.close_requested.connect (() => {
+                    button.active = false;
+                    source_view.grab_focus ();
+                });
             }
         });
     }
@@ -66,7 +71,7 @@ public class Iide.BreadcrumbFileSegment : Gtk.Box {
 
                 popover.set_child (navigator);
                 navigator.search_entry.set_key_capture_widget (popover);
-                navigator.close_reqested.connect (() => {
+                navigator.close_requested.connect (() => {
                     button.active = false;
                     source_view.grab_focus ();
                 });
@@ -117,6 +122,10 @@ public class Iide.BreadcrumbSymbolSegment : Gtk.Box {
                     popover.set_child (navigator);
 
                     navigator.search_entry.set_key_capture_widget (popover);
+                    navigator.close_requested.connect (() => {
+                        button.active = false;
+                        source_view.grab_focus ();
+                    });
                 }
             }
         });

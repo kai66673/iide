@@ -12,6 +12,8 @@ public class Iide.BreadcrumbFileNavigator : Gtk.Box {
         DocumentManager.get_instance ().open_document (file, null);
     }
 
+    public signal void close_requested ();
+
     public BreadcrumbFileNavigator (GLib.File file) {
         Object (orientation: Gtk.Orientation.VERTICAL, spacing: 6);
         this.root_file = file;
@@ -31,7 +33,7 @@ public class Iide.BreadcrumbFileNavigator : Gtk.Box {
                     load_directory.end (res);
                     this.current_folder = parent;
                     this.search_entry.text = "";
-                    this.search_entry.grab_focus ();
+                    this.refresh_state ();
                 });
         });
 
@@ -53,23 +55,7 @@ public class Iide.BreadcrumbFileNavigator : Gtk.Box {
 
         list_box = new Gtk.ListBox ();
         list_box.add_css_class ("navigation-sidebar");
-        list_box.row_activated.connect ((row) => {
-            var name = row.get_data<string> ("file-name");
-            var type = row.get_data<GLib.FileType> ("file-type");
-            var selected = current_folder.get_child (name);
-
-            if (type == GLib.FileType.DIRECTORY) {
-                // Переходим глубже
-                load_directory.begin (selected, (obj, res) => {
-                    load_directory.end (res);
-                    this.current_folder = selected;
-                    this.search_entry.text = "";
-                    this.search_entry.grab_focus ();
-                });
-            } else {
-                open_file (selected);
-            }
-        });
+        list_box.row_activated.connect ((row) => { open_or_select_row (row); });
 
         list_box.set_filter_func ((row) => {
             var text = search_entry.get_text ().down ();
@@ -87,13 +73,119 @@ public class Iide.BreadcrumbFileNavigator : Gtk.Box {
 
         this.append (stack);
 
-        search_entry.search_changed.connect (() => { list_box.invalidate_filter (); });
+        search_entry.search_changed.connect (() => {
+            list_box.invalidate_filter ();
+            select_first_visible_row ();
+        });
 
         // Запускаем загрузку
         load_directory.begin (this.current_folder, (obj, res) => {
             load_directory.end (res);
-            this.search_entry.grab_focus ();
+            this.refresh_state ();
         });
+
+        var key_controller = new Gtk.EventControllerKey ();
+        key_controller.key_pressed.connect (on_key_pressed);
+        search_entry.add_controller (key_controller);
+        list_box.set_selection_mode (Gtk.SelectionMode.SINGLE);
+
+        search_entry.activate.connect (() => {
+            open_or_select_row (list_box.get_selected_row ());
+        });
+    }
+
+    private void select_first_visible_row () {
+        var row = list_box.get_first_child ();
+        while (row != null) {
+            var list_row = row as Gtk.ListBoxRow;
+            if (list_row.get_child_visible ()) {
+                list_box.select_row (list_row);
+                break;
+            }
+            row = row.get_next_sibling ();
+        }
+    }
+
+    private void refresh_state () {
+        this.search_entry.grab_focus ();
+        select_first_visible_row ();
+    }
+
+    private void open_or_select_row (Gtk.ListBoxRow? row) {
+        if (row == null)
+            return;
+
+        var name = row.get_data<string> ("file-name");
+        var type = row.get_data<GLib.FileType> ("file-type");
+        var selected = current_folder.get_child (name);
+
+        if (type == GLib.FileType.DIRECTORY) {
+            // Переходим глубже
+            load_directory.begin (selected, (obj, res) => {
+                load_directory.end (res);
+                this.current_folder = selected;
+                this.search_entry.text = "";
+                this.refresh_state ();
+            });
+        } else {
+            open_file (selected);
+        }
+    }
+
+    private bool on_key_pressed (Gtk.EventControllerKey controller, uint keyval, uint keycode, Gdk.ModifierType modifiers) {
+        if (keyval == Gdk.Key.Escape) {
+            close_requested ();
+            return true;
+        } else if (keyval == Gdk.Key.Up || keyval == Gdk.Key.KP_Up) {
+            move_selection_up ();
+            return true;
+        } else if (keyval == Gdk.Key.Down || keyval == Gdk.Key.KP_Down) {
+            move_selection_down ();
+            return true;
+        }
+        return false;
+    }
+
+    private void move_selection_down () {
+        var selected_row = list_box.get_selected_row ();
+        if (selected_row == null) {
+            select_first_visible_row ();
+            return;
+        }
+
+        var next_row_widget = selected_row.get_next_sibling ();
+        while (next_row_widget != null) {
+            var list_row = next_row_widget as Gtk.ListBoxRow;
+            if (list_row.get_child_visible ()) {
+                list_box.select_row (list_row);
+                return;
+            }
+            next_row_widget = next_row_widget.get_next_sibling ();
+        }
+
+        if (!selected_row.get_child_visible ())
+            select_first_visible_row ();
+    }
+
+    private void move_selection_up () {
+        var selected_row = list_box.get_selected_row ();
+        if (selected_row == null) {
+            select_first_visible_row ();
+            return;
+        }
+
+        var prev_row_widget = selected_row.get_prev_sibling ();
+        while (prev_row_widget != null) {
+            var list_row = prev_row_widget as Gtk.ListBoxRow;
+            if (list_row.get_child_visible ()) {
+                list_box.select_row (list_row);
+                return;
+            }
+            prev_row_widget = prev_row_widget.get_prev_sibling ();
+        }
+
+        if (!selected_row.get_child_visible ())
+            select_first_visible_row ();
     }
 
     private async void load_directory (GLib.File folder) {
