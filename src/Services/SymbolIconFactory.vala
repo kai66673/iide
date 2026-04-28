@@ -1,14 +1,19 @@
 public class Iide.SymbolIconFactory : Object {
     private static Pango.AttrList _cached_attrs;
+    private static Pango.FontDescription _symbols_font_desc;
+    private static Gee.HashMap<string, Gdk.Texture> _textures_cache;
+
     private static bool _initialized = false;
 
     private static void ensure_initialized () {
-        if (_initialized)return;
+        if (_initialized)
+            return;
 
         _cached_attrs = new Pango.AttrList ();
         // Размер 11pt обычно хорошо сочетается со стандартным шрифтом интерфейса
-        var font_desc = Pango.FontDescription.from_string ("Symbols Nerd Font Mono 11");
-        _cached_attrs.insert (Pango.attr_font_desc_new (font_desc));
+        _symbols_font_desc = Pango.FontDescription.from_string ("Symbols Nerd Font Mono 11");
+        _cached_attrs.insert (Pango.attr_font_desc_new (_symbols_font_desc));
+        _textures_cache = new Gee.HashMap<string, Gdk.Texture> ();
 
         _initialized = true;
     }
@@ -262,6 +267,13 @@ public class Iide.SymbolIconFactory : Object {
         string color_hex;
         get_file_info (file, out icon_char, out color_hex);
 
+        // Ключ: символ + цвет + размер (если он будет меняться)
+        string key = @"$icon_char:$color_hex";
+
+        if (_textures_cache.has_key (key)) {
+            return _textures_cache.get (key);
+        }
+
         // 2. Рендерим в Cairo Surface
         int size = 16; // Стандартный размер иконки для вкладок/панелей
         var surface = new Cairo.ImageSurface (Cairo.Format.ARGB32, size, size);
@@ -274,7 +286,7 @@ public class Iide.SymbolIconFactory : Object {
 
         // Настраиваем Pango Layout
         var layout = Pango.cairo_create_layout (cr);
-        layout.set_font_description (Pango.FontDescription.from_string ("Symbols Nerd Font Mono 11"));
+        layout.set_font_description (_symbols_font_desc);
         layout.set_text (icon_char, -1);
 
         // Центрируем иконку
@@ -286,7 +298,12 @@ public class Iide.SymbolIconFactory : Object {
 
         // 3. Создаем текстуру из поверхности
         var pixbuf = Gdk.pixbuf_get_from_surface (surface, 0, 0, size, size);
-        return Gdk.Texture.for_pixbuf (pixbuf);
+        var texture = Gdk.Texture.for_pixbuf (pixbuf);
+
+        // Сохраняем в кэш
+        _textures_cache.set (key, texture);
+
+        return texture;
     }
 
     private static Gtk.Widget build_label (string icon_char, string color_class) {
@@ -294,6 +311,7 @@ public class Iide.SymbolIconFactory : Object {
         label.add_css_class ("nerd-icon");
         label.add_css_class (color_class);
         label.set_attributes (_cached_attrs);
+        label.create_pango_context ();
         return label;
     }
 }
