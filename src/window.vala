@@ -95,6 +95,8 @@ public class Iide.Window : Panel.DocumentWorkspace {
         var start_toggle_btn = new Panel.ToggleButton (dock, Panel.Area.START);
         header.pack_start (start_toggle_btn);
 
+        setup_navigation_buttons (header);
+
         var end_toggle_btn = new Panel.ToggleButton (dock, Panel.Area.END);
         header.pack_end (end_toggle_btn);
 
@@ -188,13 +190,7 @@ public class Iide.Window : Panel.DocumentWorkspace {
                 project_manager.project_opened.connect (() => {
                     if (!project_opened_handled) {
                         project_opened_handled = true;
-                        if (has_grid_docs) {
-                            restore_grid_documents (grid_data);
-                        } else if (has_open_docs) {
-                            foreach (var uri in open_docs) {
-                                document_manager.open_document_by_uri (uri);
-                            }
-                        }
+                        restore_opened_documents ();
                     }
                 });
 
@@ -203,24 +199,12 @@ public class Iide.Window : Panel.DocumentWorkspace {
                 Timeout.add (500, () => {
                     if (!project_opened_handled) {
                         project_opened_handled = true;
-                        if (has_grid_docs) {
-                            restore_grid_documents (grid_data);
-                        } else if (has_open_docs) {
-                            foreach (var uri in open_docs) {
-                                document_manager.open_document_by_uri (uri);
-                            }
-                        }
+                        restore_opened_documents ();
                     }
                     return Source.REMOVE;
                 });
             } else {
-                if (has_grid_docs) {
-                    restore_grid_documents (grid_data);
-                } else if (has_open_docs) {
-                    foreach (var uri in open_docs) {
-                        document_manager.open_document_by_uri (uri);
-                    }
-                }
+                restore_opened_documents ();
             }
 
             return Source.REMOVE;
@@ -270,6 +254,39 @@ public class Iide.Window : Panel.DocumentWorkspace {
         });
 
         repair_empty_areas ();
+    }
+
+    private void restore_opened_documents () {
+        var grid_data = settings.grid_layout;
+        bool has_grid_docs = grid_data != null && grid_data != "";
+
+        var open_docs = settings.open_documents;
+        bool has_open_docs = open_docs.size > 0;
+
+        if (has_grid_docs) {
+            restore_grid_documents (grid_data);
+        } else if (has_open_docs) {
+            foreach (var uri in open_docs) {
+                document_manager.open_document_by_uri (uri);
+            }
+        }
+
+        NavigationHistoryService.get_instance ().start_navigation ();
+    }
+
+    private void setup_navigation_buttons (Adw.HeaderBar header) {
+        // Кнопка Назад
+        var back_btn = new Gtk.Button.from_icon_name ("go-previous-symbolic");
+        back_btn.tooltip_text = "Назад (Alt+Left)";
+        back_btn.action_name = "app.navigation_back"; // Привязываем к Action
+
+        // Кнопка Вперед
+        var forward_btn = new Gtk.Button.from_icon_name ("go-next-symbolic");
+        forward_btn.tooltip_text = "Вперед (Alt+Right)";
+        forward_btn.action_name = "app.navigation_forward";
+
+        header.pack_start (back_btn);
+        header.pack_start (forward_btn);
     }
 
     private void repair_empty_areas () {

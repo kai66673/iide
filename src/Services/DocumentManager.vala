@@ -180,4 +180,17 @@ public class Iide.DocumentManager : GLib.Object {
             open_document (file, null);
         }
     }
+
+    public bool navigate_to (NavigationPoint nav_point) {
+        var docs = documents;
+        var uri = nav_point.file.get_uri ();
+        if (docs.has_key (uri)) {
+            var widget = docs.get (uri);
+            widget.raise ();
+            widget.view_grab_focus ();
+            widget.select_and_scroll (nav_point.line, nav_point.column, nav_point.column, false);
+            return true;
+        }
+        return false;
+    }
 }

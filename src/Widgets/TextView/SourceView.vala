@@ -82,7 +82,8 @@ public class Iide.SourceView : GtkSource.View {
     private ulong delete_handler_id = 0;
     private int lsp_sync_kind = 0; // 0 - не синхронизирован, 1 - incremental, 2 - full sync
 
-    // private LoggerService logger = LoggerService.get_instance ();
+    private int last_line = -1;
+    private NavigationHistoryService history;
 
     public SourceView (Window window, string uri, GtkSource.Buffer buffer) {
         Object (buffer : buffer);
@@ -90,6 +91,7 @@ public class Iide.SourceView : GtkSource.View {
         this.uri = uri;
         this.ts_manager = new TreeSitterManager ();
         this.ts_highlighter = null;
+        this.history = NavigationHistoryService.get_instance ();
 
         this.tooltip_widget = new LspTooltipWidget ();
 
@@ -185,6 +187,38 @@ public class Iide.SourceView : GtkSource.View {
         this.connect_incremental_signals ();
 
         buffer.set_modified (false);
+
+        // 1. Триггер по фокусу
+        var focus_controller = new Gtk.EventControllerFocus ();
+        focus_controller.enter.connect (() => {
+            // При получении фокуса сохраняем текущую позицию
+            handle_navigation_trigger (false);
+        });
+        add_controller (focus_controller);
+
+        // 2. Триггер по перемещению курсора
+        this.buffer.notify["cursor-position"].connect (() => {
+            handle_navigation_trigger (true);
+        });
+    }
+
+    private void handle_navigation_trigger (bool check_distance) {
+        Gtk.TextIter iter;
+        this.buffer.get_iter_at_mark (out iter, this.buffer.get_insert ());
+        int current_line = iter.get_line ();
+
+        if (!check_distance || (last_line == -1 || (current_line - last_line).abs () > 10)) {
+            save_current_point (iter);
+        }
+
+        last_line = current_line;
+    }
+
+    private void save_current_point (Gtk.TextIter iter) {
+        var file = File.new_for_uri (uri);
+        if (file != null) {
+            history.push_point (file, iter.get_line (), iter.get_line_offset ());
+        }
     }
 
     // Этот метод вызывается при открытии файла
@@ -577,7 +611,7 @@ public class Iide.SourceView : GtkSource.View {
         }
     }
 
-    public void goto (int line, int column) {
+    public void goto (int line, int column, bool save_to_navigation_history = true) {
         Gtk.TextIter iter;
         buffer.get_iter_at_line (out iter, line);
         iter.set_line_index (column);

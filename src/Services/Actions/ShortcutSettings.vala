@@ -34,6 +34,8 @@ public class Iide.ShortcutSettings : Object {
         shortcuts_cache.set ("expand_selection", "<primary>w");
         shortcuts_cache.set ("shrink_selection", "<primary><shift>w");
         shortcuts_cache.set ("quit", "<primary>q");
+        shortcuts_cache.set ("navigation_back", "<Alt>Left");
+        shortcuts_cache.set ("navigation_forward", "<Alt>Right");
     }
 
     private void set_default_toggle_states () {

@@ -40,6 +40,7 @@ iide_sources = [
     'Services/ProjectManager.vala',
     'Services/SettingsService.vala',
     'Services/PanelLayoutHelper.vala',
+    'Services/NavigationHistoryService.vala',
     'Services/LSP/LspTypes.vala',
     'Services/LSP/config/LspConfig.vala',
     'Services/LSP/config/PythonLspConfig.vala',

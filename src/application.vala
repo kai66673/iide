@@ -59,6 +59,8 @@ public class Iide.Application : Adw.Application {
         action_manager.register_action (new ExpandSelectionAction ());
         action_manager.register_action (new ShrinkSelectionAction ());
         action_manager.register_action (new QuitAction ());
+        action_manager.register_action (new NavigationBackAction (this));
+        action_manager.register_action (new NavigationForwardAction (this));
 
         // Ins/Ovr toggle
         // Действие переключения режима
@@ -451,6 +453,56 @@ private class SearchInFilesAction : Iide.Action {
             var dialog = new Iide.SearchWindow (win, win.get_document_manager ());
             dialog.set_active_page ("text");
             dialog.present ();
+        }
+    }
+}
+
+private class NavigationBackAction : Iide.Action {
+    private weak Iide.Application app;
+
+    public NavigationBackAction (Iide.Application app) {
+        this.app = app;
+    }
+
+    public override string id { get { return "navigation_back"; } }
+    public override string name { get { return _("Navigation Back"); } }
+    public override string? description { get { return _("Navigation Back"); } }
+    public override string? icon_name { get { return "go-previous-symbolic"; } }
+    public override string? category { get { return "Application"; } }
+
+    public override bool can_execute () {
+        return app ? .active_window is Iide.Window;
+    }
+
+    public override void execute () {
+        var win = app ? .active_window as Iide.Window;
+        if (win != null) {
+            Iide.NavigationHistoryService.get_instance ().navigate_back ();
+        }
+    }
+}
+
+private class NavigationForwardAction : Iide.Action {
+    private weak Iide.Application app;
+
+    public NavigationForwardAction (Iide.Application app) {
+        this.app = app;
+    }
+
+    public override string id { get { return "navigation_forward"; } }
+    public override string name { get { return _("Navigation Forward"); } }
+    public override string? description { get { return _("Navigation Forward"); } }
+    public override string? icon_name { get { return "go-next-symbolic"; } }
+    public override string? category { get { return "Application"; } }
+
+    public override bool can_execute () {
+        return app ? .active_window is Iide.Window;
+    }
+
+    public override void execute () {
+        var win = app ? .active_window as Iide.Window;
+        if (win != null) {
+            Iide.NavigationHistoryService.get_instance ().navigate_forward ();
         }
     }
 }
