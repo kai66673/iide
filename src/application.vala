@@ -103,34 +103,28 @@ public class Iide.Application : Adw.Application {
     }
 
     public void register_embedded_fonts () {
-        try {
-            // Путь к шрифту в GResource
-            string font_path = "/org/github/kai66673/iide/fonts/SymbolsNerdFontMono-Regular.ttf";
-            var bytes = resources_lookup_data (font_path, ResourceLookupFlags.NONE);
+        // Путь к шрифту в GResource
+        // string font_path = "/org/github/kai66673/iide/fonts/SymbolsNerdFontMono-Regular.ttf";
+        // var bytes = resources_lookup_data (font_path, ResourceLookupFlags.NONE);
 
-            // В GTK4 для кастомных шрифтов из памяти используется PangoCairo и FontConfig
-            // На Linux/Arch самый простой способ - создать временный конфиг
-            // или использовать Fontconfig напрямую.
+        // В GTK4 для кастомных шрифтов из памяти используется PangoCairo и FontConfig
+        // На Linux/Arch самый простой способ - создать временный конфиг
+        // или использовать Fontconfig напрямую.
 
-            // Но есть способ проще для GTK4 через CSS (начиная с новых версий):
-            string css = """
+        // Но есть способ проще для GTK4 через CSS (начиная с новых версий):
+        string css = """
             @font-face {
                 font-family: "Symbols Nerd Font Mono";
                 src: url("resource:///org/github/kai66673/iide/fonts/SymbolsNerdFontMono-Regular.ttf");
             }
         """;
-            var provider = new Gtk.CssProvider ();
-            provider.load_from_bytes (new GLib.Bytes (css.data));
-            add_provider_to_display (
-                                     Gdk.Display.get_default (),
-                                     provider,
-                                     Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION
-            );
-
-            message ("Встроенный шрифт Nerd Font успешно зарегистрирован через CSS.");
-        } catch (Error e) {
-            message ("Не удалось загрузить встроенный шрифт: %s", e.message);
-        }
+        var provider = new Gtk.CssProvider ();
+        provider.load_from_bytes (new GLib.Bytes (css.data));
+        add_provider_to_display (
+                                 Gdk.Display.get_default (),
+                                 provider,
+                                 Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION
+        );
     }
 
     public override void activate () {
