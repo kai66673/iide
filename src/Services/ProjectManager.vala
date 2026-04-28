@@ -189,7 +189,7 @@ public class Iide.ProjectManager : Object {
         }
     }
 
-    public async void open_project_async (GLib.File project_root) {
+    public void open_project_file (GLib.File project_root) {
         if (!project_root.query_exists (null)) {
             stderr.printf ("Project directory does not exist: %s\n", project_root.get_path ());
             return;
@@ -210,7 +210,7 @@ public class Iide.ProjectManager : Object {
 
         load_lsp_config (project_root);
 
-        yield rebuild_file_cache_async ();
+        rebuild_file_cache_async.begin ();
 
         setup_directory_monitor (project_root);
 
@@ -374,7 +374,7 @@ public class Iide.ProjectManager : Object {
         if (path != null && path != "") {
             var file = GLib.File.new_for_path (path);
             if (file.query_exists (null)) {
-                open_project_async.begin (file);
+                open_project_file (file);
             }
         }
     }
@@ -406,7 +406,7 @@ public class Iide.ProjectManager : Object {
             var file = yield dialog.select_folder (parent_window, null);
 
             if (file != null) {
-                yield open_project_async (file);
+                open_project_file (file);
             }
         } catch {
             // User dismissed dialog or other error - silently ignore

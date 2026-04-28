@@ -175,40 +175,8 @@ public class Iide.Window : Panel.DocumentWorkspace {
         setup_lsp_status ();
         setup_global_diag_widget ();
 
-        Timeout.add (100, () => {
-            var last_project_path = settings.current_project_path;
-
-            var grid_data = settings.grid_layout;
-            bool has_grid_docs = grid_data != null && grid_data != "";
-
-            var open_docs = settings.open_documents;
-            bool has_open_docs = open_docs.size > 0;
-
-            if (last_project_path != null && last_project_path != "") {
-                bool project_opened_handled = false;
-
-                project_manager.project_opened.connect (() => {
-                    if (!project_opened_handled) {
-                        project_opened_handled = true;
-                        restore_opened_documents ();
-                    }
-                });
-
-                project_manager.open_project_by_path (last_project_path);
-
-                Timeout.add (500, () => {
-                    if (!project_opened_handled) {
-                        project_opened_handled = true;
-                        restore_opened_documents ();
-                    }
-                    return Source.REMOVE;
-                });
-            } else {
-                restore_opened_documents ();
-            }
-
-            return Source.REMOVE;
-        });
+        project_manager.open_project_by_path (settings.current_project_path);
+        restore_opened_documents ();
 
         // Handle window close
         this.close_request.connect (() => {
@@ -259,19 +227,22 @@ public class Iide.Window : Panel.DocumentWorkspace {
     private void restore_opened_documents () {
         var grid_data = settings.grid_layout;
         bool has_grid_docs = grid_data != null && grid_data != "";
-
-        var open_docs = settings.open_documents;
-        bool has_open_docs = open_docs.size > 0;
-
         if (has_grid_docs) {
-            restore_grid_documents (grid_data);
-        } else if (has_open_docs) {
-            foreach (var uri in open_docs) {
-                document_manager.open_document_by_uri (uri);
+            restore_documents_from_grid_data (grid_data);
+        } else {
+            var open_docs = settings.open_documents;
+            bool has_open_docs = open_docs.size > 0;
+            if (has_open_docs) {
+                foreach (var uri in open_docs) {
+                    document_manager.open_document_by_uri (uri);
+                }
             }
         }
 
-        NavigationHistoryService.get_instance ().start_navigation ();
+        Timeout.add (300, () => {
+            NavigationHistoryService.get_instance ().start_navigation ();
+            return Source.REMOVE;
+        });
     }
 
     private void setup_navigation_buttons (Adw.HeaderBar header) {
@@ -394,7 +365,7 @@ public class Iide.Window : Panel.DocumentWorkspace {
         settings.window_maximized = maximized;
     }
 
-    private async void restore_grid_documents_async (Gee.ArrayList<Iide.PanelLayoutHelper.DocumentInfo> sorted_docs) {
+    private void restore_grid_documents (Gee.ArrayList<Iide.PanelLayoutHelper.DocumentInfo> sorted_docs) {
         uint last_col = 0;
         foreach (var doc_info in sorted_docs) {
             if (doc_info.column > last_col) {
@@ -416,7 +387,7 @@ public class Iide.Window : Panel.DocumentWorkspace {
         }
     }
 
-    private void restore_grid_documents (string grid_data) {
+    private void restore_documents_from_grid_data (string grid_data) {
         var docs = Iide.PanelLayoutHelper.parse_grid_documents (grid_data);
         if (docs.size == 0) {
             return;
@@ -432,7 +403,7 @@ public class Iide.Window : Panel.DocumentWorkspace {
             return (int) (a.row - b.row);
         });
 
-        restore_grid_documents_async.begin (sorted_docs);
+        restore_grid_documents (sorted_docs);
     }
 
     public void save_modified () {
