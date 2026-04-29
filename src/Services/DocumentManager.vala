@@ -26,7 +26,8 @@ using Panel;
 
 public class Iide.DocumentManager : GLib.Object {
     public Window window;
-    private Iide.IdeLspManager lsp_manager;
+    private IdeLspService lsp_service;
+
     private string? current_workspace_root;
 
     private LoggerService logger = LoggerService.get_instance ();
@@ -66,9 +67,9 @@ public class Iide.DocumentManager : GLib.Object {
         this.window = window;
         DocumentManager._instance = this;
         // documents = new Gee.HashMap<string, TextView> ();
-        lsp_manager = Iide.IdeLspManager.get_instance ();
+        lsp_service = IdeLspService.get_instance ();
 
-        lsp_manager.connect_diagnostics ((uri, diagnostics) => {
+        lsp_service.diagnostics_updated.connect ((uri, diagnostics) => {
             var doc = documents.get (uri);
             if (doc != null) {
                 var lsp_diagnostics = new Gee.ArrayList<IdeLspDiagnostic> ();
@@ -127,7 +128,7 @@ public class Iide.DocumentManager : GLib.Object {
 
                     panel_widget.buffer_saved.connect (() => {
                         string content = ((GtkSource.Buffer) panel_widget.text_view.buffer).text;
-                        lsp_manager.change_document.begin (uri, content);
+                        lsp_service.change_document.begin (uri, content);
                     });
 
                     if (pos == null) {
@@ -145,9 +146,9 @@ public class Iide.DocumentManager : GLib.Object {
                     }
 
                     string content = buffer.text;
-                    string? lang_id = lsp_manager.get_language_id_for_file (file);
+                    string? lang_id = lsp_service.get_language_id_for_file (file);
                     if (lang_id != null) {
-                        lsp_manager.open_document.begin (uri, lang_id, content, current_workspace_root, panel_widget.text_view);
+                        lsp_service.open_document.begin (uri, lang_id, content, current_workspace_root, panel_widget.text_view);
                     }
                 } catch (Error e) {
                     logger.error ("Doc", "Error Opening File", "Failed to read file %s: %s".printf (file.get_path (), e.message));

@@ -50,6 +50,73 @@ public class Iide.IdeLspService : GLib.Object {
         return _instance;
     }
 
+    public string ? get_language_id_for_file (GLib.File file) {
+        string filename = file.get_basename () ?? "";
+
+        switch (filename) {
+        case "CMakeLists.txt" :
+            return "cmake";
+        case ".gitignore":
+            return "git-config";
+        case "meson.build":
+            return "meson";
+        case "PKGBUILD":
+            return "bash";
+        default:
+            break;
+        }
+
+        string path = file.get_path () ?? "";
+        int dot_pos = path.last_index_of (".");
+        if (dot_pos >= 0 && dot_pos < path.length - 1) {
+            string ext = path[dot_pos + 1 : path.length].down ();
+            switch (ext) {
+            case "py":
+                return "python";
+            case "c":
+            case "h":
+                return "c";
+            case "cpp":
+            case "cc":
+            case "cxx":
+            case "hpp":
+            case "hxx":
+                return "cpp";
+            case "vala":
+            case "vapi":
+                return "vala";
+            case "rs":
+                return "rust";
+            case "go":
+                return "go";
+            case "js":
+            case "ts":
+                return "javascript";
+            case "json":
+                return "json";
+            case "xml":
+                return "xml";
+            case "html":
+            case "htm":
+                return "html";
+            case "css":
+                return "css";
+            case "md":
+            case "markdown":
+                return "markdown";
+            case "sh":
+            case "bash":
+            case "zsh":
+                return "bash";
+            case "yaml":
+            case "yml":
+                return "yaml";
+            }
+        }
+
+        return null;
+    }
+
     public LspClient ? get_client_by_hash (int client_id) {
         foreach (var client in clients.values) {
             if (client.get_hash () == client_id) {
