@@ -260,7 +260,7 @@ public class Iide.SymbolIconFactory : Object {
         color_hex = "#858585"; // Gray
 
         if (mime == "inode/directory") {
-            icon_char = "\uf024b"; // (Folder)
+            icon_char = "\ueaf7"; // (Folder)
             color_hex = "#dcb67a"; // Tan
         }
         // --- Системные / Конфиги ---
