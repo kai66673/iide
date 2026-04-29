@@ -1,0 +1,26 @@
+{
+    "version": "2.0.0",
+    "tasks": [
+        {
+            "label": "Build Iide",
+            "type": "shell",
+            "command": "meson compile -C build",
+            "group": {
+                "kind": "build",
+                "isDefault": false
+            }
+        },
+        {
+            "label": "Run Iide",
+            "type": "shell",
+            "command": "${workspaceFolder}/build/src/iide",
+            "dependsOn": [
+                "Build Iide"
+            ],
+            "group": {
+                "kind": "build",
+                "isDefault": true
+            }
+        }
+    ]
+}

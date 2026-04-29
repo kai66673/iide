@@ -1,0 +1,14 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug Vala App",
+            "program": "${workspaceFolder}/build/src/iide",
+            "args": [],
+            "cwd": "${workspaceFolder}",
+            "preLaunchTask": "Build Iide"
+        }
+    ]
+}
