@@ -13,7 +13,7 @@ public class Iide.SymbolIconFactory : Object {
 
         _cached_attrs = new Pango.AttrList ();
         // Размер 11pt обычно хорошо сочетается со стандартным шрифтом интерфейса
-        _symbols_font_desc = Pango.FontDescription.from_string ("Symbols Nerd Font Mono 11");
+        _symbols_font_desc = Pango.FontDescription.from_string ("Symbols Nerd Font 11");
         _cached_attrs.insert (Pango.AttrFontDesc.new (_symbols_font_desc));
         _textures_cache = new Gee.HashMap<string, Gdk.Texture> ();
 
@@ -256,7 +256,7 @@ public class Iide.SymbolIconFactory : Object {
         string mime = get_mime_type (file);
 
         // Значения по умолчанию
-        icon_char = "\uf0214"; // (File)
+        icon_char = ((unichar) 0xf0214).to_string (); // (File)
         color_hex = "#858585"; // Gray
 
         if (mime == "inode/directory") {
@@ -271,7 +271,7 @@ public class Iide.SymbolIconFactory : Object {
         } else if (name.has_suffix (".json")) {
             icon_char = "\ue60b"; color_hex = "#cbcb41";
         } else if (name.has_suffix (".xml") || name.has_suffix (".ui") || name.has_suffix (".glade")) {
-            icon_char = "\uf05c0"; color_hex = "#e37933";
+            icon_char = ((unichar) 0xf05c0).to_string (); color_hex = "#e37933";
         } else if (name.has_suffix (".yaml") || name.has_suffix (".yml")) {
             icon_char = "\ue6a8"; color_hex = "#cb3e20";
         } else if (name.has_suffix (".conf") || name.has_suffix (".ini")) {
@@ -331,7 +331,7 @@ public class Iide.SymbolIconFactory : Object {
         // Настраиваем Pango Layout
         var layout = Pango.cairo_create_layout (cr);
         layout.set_font_description (_symbols_font_desc);
-        layout.set_text (icon_char, -1);
+        layout.set_text (icon_char, icon_char.length);
 
         // Центрируем иконку
         Pango.Rectangle ink_rect, logical_rect;

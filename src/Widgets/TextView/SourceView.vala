@@ -65,7 +65,6 @@ public class Iide.SourceView : GtkSource.View {
     private Iide.TreeSitterManager ts_manager;
     public BaseTreeSitterHighlighter? ts_highlighter;
     public GutterMarkRenderer mark_renderer;
-    public string icon_name = "text-x-generic";
     private Gtk.TextIter? pending_scroll_iter = null;
 
     private WordRange? last_hover_range = null;
@@ -411,14 +410,12 @@ public class Iide.SourceView : GtkSource.View {
         string mime_type = mime_type_for_file (file);
         message ("MIME: _ " + mime_type);
 
-        icon_name = IconProvider.get_mime_type_icon_name (mime_type);
         language = manager.guess_language (file.get_path (), mime_type);
 
         // Fake file type detection
         // "Not all files are equal"
         if (file.get_basename () == "CMakeLists.txt") {
             language = manager.get_language ("cmake");
-            icon_name = "text-x-cmake"; // Specific icon for CMake
         }
     }
 

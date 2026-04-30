@@ -3,7 +3,7 @@
   <gresource prefix="/org/github/kai66673/iide">
     <file preprocess="xml-stripblanks">window.ui</file>
     <file preprocess="xml-stripblanks">shortcuts-dialog.ui</file>
-    <file>fonts/SymbolsNerdFontMono-Regular.ttf</file>
+    <file>fonts/SymbolsNerdFont-Regular.ttf</file>
     <file>style.css</file>
   </gresource>
   <gresource prefix="/org/github/kai66673/iide/icons">

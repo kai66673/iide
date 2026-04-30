@@ -114,8 +114,8 @@ public class Iide.Application : Adw.Application {
         // Но есть способ проще для GTK4 через CSS (начиная с новых версий):
         string css = """
             @font-face {
-                font-family: "Symbols Nerd Font Mono";
-                src: url("resource:///org/github/kai66673/iide/fonts/SymbolsNerdFontMono-Regular.ttf");
+                font-family: "Symbols Nerd Font";
+                src: url("resource:///org/github/kai66673/iide/fonts/SymbolsNerdFont-Regular.ttf");
             }
         """;
         var provider = new Gtk.CssProvider ();

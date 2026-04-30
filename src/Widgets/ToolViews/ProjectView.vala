@@ -75,18 +75,6 @@ public class Iide.FileTreeView : Box {
             // Затем по имени
             return strcmp (fi1.name.down (), fi2.name.down ());
         });
-        sorter.set_sort_func ((a, b) => {
-            var fi1 = a as FileItem;
-            var fi2 = b as FileItem;
-            if (fi1 == null || fi2 == null)return 0;
-
-            // Сначала сравниваем тип: директории перед файлами
-            if (fi1.is_directory != fi2.is_directory) {
-                return fi1.is_directory ? -1 : 1;
-            }
-            // Затем по имени
-            return strcmp (fi1.name.down (), fi2.name.down ());
-        });
         column.sorter = sorter;
         column_view.append_column (column);
 
@@ -110,7 +98,7 @@ public class Iide.FileTreeView : Box {
         var store = new GLib.ListStore (typeof (FileItem));
         try {
             // Запрашиваем только нужные атрибуты
-            var enumerator = dir.enumerate_children ("standard::display-name,standard::type,standard::icon", 0, null);
+            var enumerator = dir.enumerate_children ("standard::display-name,standard::type", 0, null);
             GLib.FileInfo info;
             while ((info = enumerator.next_file (null)) != null) {
                 store.append (new FileItem (dir.get_child (info.get_name ()), info));
@@ -153,7 +141,11 @@ public class Iide.FileTreeView : Box {
             expander.list_row = tree_row;
             if (file_item != null) {
                 label.label = file_item.name;
-                icon_box.append (SymbolIconFactory.create_for_file (file_item.file));
+                if (file_item.is_directory) {
+                    icon_box.append (IconProvider.get_instance ().folder_image (1));
+                } else {
+                    icon_box.append (SymbolIconFactory.create_for_file (file_item.file));
+                }
 
                 if (!file_item.is_directory) {
                     var click = new Gtk.GestureClick ();
