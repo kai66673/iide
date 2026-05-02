@@ -290,7 +290,7 @@
             "style": "mt-ini"
         },
         "mt-markdown": {
-            "icon": "0xe60b",
+            "char": "0xeb1d",
             "style": "mt-markdown"
         },
         "mt-toml": {
