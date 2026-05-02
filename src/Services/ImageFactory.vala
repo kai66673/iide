@@ -131,18 +131,20 @@ public class Iide.ImageFactory {
         return _provider.image (icon_id_for_file (file));
     }
 
+    public static Gtk.Image create_for_file_info (GLib.FileInfo info) {
+        SymbIconProvider _provider = SymbIconProvider.get_instance ();
+        return _provider.image (icon_id_for_file_info (info));
+    }
+
     public static string icon_name_for_file (GLib.File file) {
         SymbIconProvider _provider = SymbIconProvider.get_instance ();
         return _provider.icon_name (icon_id_for_file (file));
     }
 
-    private static IconID icon_id_for_file (GLib.File file) {
-        string basename = file.get_basename ().down ();
-        string extension = filename_extension (basename);
-
+    private static IconID ? icon_id_for_extension (string extension) {
         switch (extension) {
         // --- Системные / Конфиги ---
-        case "makefile": case ".mk": case ".build":
+        case "makefile" : case ".mk": case ".build":
             return IconID.MT_MAKE;
         case "dockerfile": case ".dockerfile":
             return IconID.MT_DOCKER;
@@ -185,6 +187,22 @@ public class Iide.ImageFactory {
             return IconID.MT_GO;
         case ".lua":
             return IconID.MT_MAKE;
+        }
+        return null;
+    }
+
+    private static IconID icon_id_for_file_info (GLib.FileInfo info) {
+        string extension = filename_extension (info.get_name ());
+        return icon_id_for_extension(extension) ?? IconID.MT_DEFAULT;
+    }
+
+    private static IconID icon_id_for_file (GLib.File file) {
+        string basename = file.get_basename ().down ();
+        string extension = filename_extension (basename);
+
+        var icon_id = icon_id_for_extension (extension);
+        if (icon_id != null) {
+            return icon_id;
         }
 
         // --- Мультимедиа (MIME-базировано) ---

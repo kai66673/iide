@@ -195,7 +195,7 @@ public class Iide.BreadcrumbFileNavigator : Gtk.Box {
         search_entry.placeholder_text = folder.get_basename ();
 
         try {
-            var enumerator = yield folder.enumerate_children_async ("standard::name,standard::icon,standard::file-type",
+            var enumerator = yield folder.enumerate_children_async ("standard::name,standard::file-type",
                 GLib.FileQueryInfoFlags.NONE, GLib.Priority.DEFAULT, null);
 
             while (true) {
@@ -219,7 +219,9 @@ public class Iide.BreadcrumbFileNavigator : Gtk.Box {
         box.margin_start = box.margin_end = 8;
         box.margin_top = box.margin_bottom = 4;
 
-        var icon = new Gtk.Image.from_gicon (info.get_icon ());
+        bool is_directory = info.get_file_type () == FileType.DIRECTORY;
+
+        var icon = is_directory ? ImageFactory.folder_image () : ImageFactory.create_for_file_info (info);
         var label = new Gtk.Label (info.get_name ());
         label.ellipsize = Pango.EllipsizeMode.END;
 
@@ -227,7 +229,7 @@ public class Iide.BreadcrumbFileNavigator : Gtk.Box {
         box.append (label);
 
         // Если это папка, добавим стрелочку вправо, как в VSCode
-        if (info.get_file_type () == GLib.FileType.DIRECTORY) {
+        if (is_directory) {
             var arrow = new Gtk.Image.from_icon_name ("go-next-symbolic");
             arrow.halign = Gtk.Align.END;
             arrow.hexpand = true;
