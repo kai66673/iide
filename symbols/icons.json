@@ -95,7 +95,7 @@
             "#6d8086",
             "#6d8086"
         ],
-        "mt-md": [
+        "mt-markdown": [
             "#519aba",
             "#519aba"
         ],
@@ -186,95 +186,95 @@
             "style": "folder"
         },
         "ls-class": {
-            "char": "\ueb5b",
+            "char": "0xeb5b",
             "style": "ls-class"
         },
         "ls-method": {
-            "char": "\uea8c",
+            "char": "0xea8c",
             "style": "ls-method"
         },
         "ls-field": {
-            "char": "\ueb5f",
+            "char": "0xeb5f",
             "style": "ls-field"
         },
         "ls-enum": {
-            "char": "\uea95",
+            "char": "0xea95",
             "style": "ls-class"
         },
         "ls-interface": {
-            "char": "\ueb61",
+            "char": "0xeb61",
             "style": "ls-interface"
         },
         "ls-text": {
-            "char": "\ueb69"
+            "char": "0xeb69"
         },
         "ls-constructor": {
-            "char": "\ueb44",
+            "char": "0xeb44",
             "style": "ls-constructor"
         },
         "ls-module": {
-            "char": "\ueb29",
+            "char": "0xeb29",
             "style": "ls-module"
         },
         "ls-keyword": {
-            "char": "\ueb62"
+            "char": "0xeb62"
         },
         "ls-snippet": {
-            "char": "\ueb66",
+            "char": "0xeb66",
             "style": "ls-snippet"
         },
         "ls-color": {
-            "char": "\uf024b",
+            "char": "0xf024b",
             "style": "ls-color"
         },
         "ls-file": {
-            "char": "\uf0214"
+            "char": "0xf0214"
         },
         "ls-folder": {
-            "char": "\uf024b",
+            "char": "0xf024b",
             "style": "ls-folder"
         },
         "ls-constant": {
-            "char": "\ueb5d",
+            "char": "0xeb5d",
             "symbol": "ls-constant"
         },
         "ls-struct": {
-            "char": "\uea91",
+            "char": "0xea91",
             "style": "ls-struct"
         },
         "ls-operator": {
-            "char": "\ueb64",
+            "char": "0xeb64",
             "style": ""
         },
         "ls-property": {
-            "char": "\ueb65",
+            "char": "0xeb65",
             "style": "ls-property"
         },
         "ls-enum-member": {
-            "char": "\ueb5e",
+            "char": "0xeb5e",
             "style": "ls-enum-member"
         },
         "ls-type-parameter": {
-            "char": "\uea92",
+            "char": "0xea92",
             "style": "ls-type-parameter"
         },
         "ls-literal": {
-            "char": "\uea90",
+            "char": "0xea90",
             "style": "ls-literal"
         },
         "ls-default": {
-            "char": "\uea8b"
+            "char": "0xea8b"
         },
         "mt-make": {
-            "char": "\ue673",
+            "char": "0xe673",
             "style": "mt-make"
         },
         "mt-docker": {
-            "char": "\uf308",
+            "char": "0xf308",
             "style": "mt-docker"
         },
         "mt-json": {
-            "char": "\ue60b",
+            "char": "0xe60b",
             "style": "mt-json"
         },
         "mt-xml": {
@@ -282,99 +282,99 @@
             "style": "mt-xml"
         },
         "mt-yaml": {
-            "char": "\ue8eb",
+            "char": "0xe8eb",
             "style": "mt-xml"
         },
         "mt-ini": {
-            "char": "\ue615",
+            "char": "0xe615",
             "style": "mt-ini"
         },
-        "mt-md": {
-            "icon": "\ue609",
-            "style": "mt-md"
+        "mt-markdown": {
+            "icon": "0xe60b",
+            "style": "mt-markdown"
         },
         "mt-toml": {
-            "char": "\ue6b2",
+            "char": "0xe6b2",
             "style": "mt-toml"
         },
         "mt-vala": {
-            "char": "\ue69e",
+            "char": "0xe69e",
             "style": "mt-vala"
         },
         "mt-c": {
-            "char": "\ue61e",
+            "char": "0xe61e",
             "style": "mt-c"
         },
         "mt-h": {
-            "char": "\ue7fe",
+            "char": "0xe7fe",
             "style": "mt-h"
         },
         "mt-cpp": {
-            "char": "\ue61d",
+            "char": "0xe61d",
             "style": "mt-cpp"
         },
         "mt-py": {
-            "char": "\ue73c",
+            "char": "0xe73c",
             "style": "mt-py"
         },
         "mt-js": {
-            "char": "\ue74e",
+            "char": "0xe74e",
             "style": "mt-js"
         },
         "mt-ts": {
-            "char": "\ue628",
+            "char": "0xe628",
             "style": "mt-ts"
         },
         "mt-css": {
-            "char": "\ue749",
+            "char": "0xe749",
             "style": "mt-css"
         },
         "mt-html": {
-            "char": "\ue736",
+            "char": "0xe736",
             "style": "mt-html"
         },
         "mt-bash": {
-            "char": "\ue736",
+            "char": "0xe736",
             "style": "mt-bash"
         },
         "mt-rust": {
-            "char": "\ue7a8",
+            "char": "0xe7a8",
             "style": "mt-rust"
         },
         "mt-go": {
-            "char": "\ue627",
+            "char": "0xe627",
             "style": "mt-go"
         },
         "mt-lua": {
-            "char": "\ue620",
+            "char": "0xe620",
             "style": "mt-lua"
         },
         "mt-x-image": {
-            "char": "\uf024f",
+            "char": "0xf024f",
             "style": "mt-x-image"
         },
         "mt-x-audio": {
-            "char": "\uf1c7",
+            "char": "0xf1c7",
             "style": "mt-x-audio"
         },
         "mt-x-video": {
-            "char": "\uf1c8",
+            "char": "0xf1c8",
             "style": "mt-x-video"
         },
         "mt-x-text": {
-            "char": "\uf0f6",
+            "char": "0xf0f6",
             "style": "mt-x-text"
         },
         "mt-x-app": {
-            "char": "\uf1c3",
+            "char": "0xf1c3",
             "style": "mt-x-app"
         },
         "mt-default": {
-            "char": "\uf016",
+            "char": "0xf016",
             "style": "mt-default"
         },
         "app-project": {
-            "char": "\uf13d2"
+            "char": "0xf13d2"
         }
     }
 }

@@ -162,7 +162,7 @@ public class Iide.ImageFactory {
         case ".conf": case ".ini":
             return IconID.MT_INI;
         case ".md": case ".markdown":
-            return IconID.MT_MD;
+            return IconID.MT_MARKDOWN;
         case ".toml":
             return IconID.MT_TOML;
         // --- Языки программирования ---

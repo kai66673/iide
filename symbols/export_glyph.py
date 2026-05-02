@@ -178,7 +178,9 @@ def main():
         )
 
         # Парсим HEX-коды (0x... или U+...)
-        if isinstance(char_raw, str) and char_raw.lower().startswith(("0x", "u+")):
+        if isinstance(char_raw, str) and char_raw.lower().startswith(
+            ("0x", "u+", "U+")
+        ):
             char_parsed = chr(
                 int(char_raw.lower().replace("u+", "").replace("0x", ""), 16)
             )
@@ -214,7 +216,9 @@ def main():
     # Generate SymbIconProvider.vala
     generate_provider_source_file(icon_indexes)
 
+    print("=================================================")
     print(f"Successfully generated {len(icon_names)} icons and {css_file_name}")
+    print("=================================================")
 
 
 if __name__ == "__main__":

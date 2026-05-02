@@ -72,8 +72,8 @@
 .def-mt-ini { color: #6d8086; }
 .dark .def-mt-ini { color: #6d8086; }
 
-.def-mt-md { color: #519aba; }
-.dark .def-mt-md { color: #519aba; }
+.def-mt-markdown { color: #519aba; }
+.dark .def-mt-markdown { color: #519aba; }
 
 .def-mt-toml { color: #cb3e20; }
 .dark .def-mt-toml { color: #cb3e20; }
