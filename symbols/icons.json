@@ -282,8 +282,8 @@
             "style": "mt-xml"
         },
         "mt-yaml": {
-            "char": "\ue6a8",
-            "style": "mt-yaml"
+            "char": "\ue8eb",
+            "style": "mt-xml"
         },
         "mt-ini": {
             "char": "\ue615",
@@ -372,6 +372,9 @@
         "mt-default": {
             "char": "\uf016",
             "style": "mt-default"
+        },
+        "app-project": {
+            "char": "\uf13d2"
         }
     }
 }

@@ -141,6 +141,11 @@ public class Iide.ImageFactory {
         return _provider.icon_name (icon_id_for_file (file));
     }
 
+    public static string icon_name_for_id (IconID icon_id) {
+        SymbIconProvider _provider = SymbIconProvider.get_instance ();
+        return _provider.icon_name (icon_id);
+    }
+
     private static IconID ? icon_id_for_extension (string extension) {
         switch (extension) {
         // --- Системные / Конфиги ---
@@ -193,7 +198,7 @@ public class Iide.ImageFactory {
 
     private static IconID icon_id_for_file_info (GLib.FileInfo info) {
         string extension = filename_extension (info.get_name ());
-        return icon_id_for_extension(extension) ?? IconID.MT_DEFAULT;
+        return icon_id_for_extension (extension) ?? IconID.MT_DEFAULT;
     }
 
     private static IconID icon_id_for_file (GLib.File file) {

@@ -53,7 +53,8 @@ public enum Iide.IconID {
     MT_X_VIDEO = 45,
     MT_X_TEXT = 46,
     MT_X_APP = 47,
-    MT_DEFAULT = 48;
+    MT_DEFAULT = 48,
+    APP_PROJECT = 49;
 }
 
 public class Iide.SymbIconProvider {
@@ -96,7 +97,7 @@ public class Iide.SymbIconProvider {
             { "mt-docker", "mt-docker" },
             { "mt-json", "mt-json" },
             { "mt-xml", "mt-xml" },
-            { "mt-yaml", "mt-yaml" },
+            { "mt-yaml", "mt-xml" },
             { "mt-ini", "mt-ini" },
             { "mt-md", "mt-md" },
             { "mt-toml", "mt-toml" },
@@ -119,6 +120,7 @@ public class Iide.SymbIconProvider {
             { "mt-x-text", "mt-x-text" },
             { "mt-x-app", "mt-x-app" },
             { "mt-default", "mt-default" },
+            { "app-project", "" },
         };
     }
     public Gtk.Image image (IconID icon_id, bool colorize = true, int? pixel_size = null) {
