@@ -39,7 +39,7 @@ public class Iide.SymbolsSearchEngine : SearchEngine, Object {
                                          sym.start_line,
                                          sym.name,
                                          null,
-                                         SymbolIconFactory.create_for_symbol (sym.kind)));
+                                         ImageFactory.create_for_symbol (sym.kind)));
         }
         return items;
     }

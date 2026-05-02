@@ -1,0 +1,164 @@
+{
+    "font_file": "fonts/SYMBOLIC.ttf",
+    "font_name": "Symbols Nerd Font",
+    "output_dir": "gen_icons",
+    "styles": {
+        "folder": [
+            "#5f23b3",
+            "#7fcfc9"
+        ],
+        "ls-class": [
+            "#f57900",
+            "#f57900"
+        ],
+        "ls-method": [
+            "#9141ac",
+            "#9141ac"
+        ],
+        "ls-field": [
+            "#3584e4",
+            "#3584e4"
+        ],
+        "ls-interface": [
+            "#33d17a",
+            "#33d17a"
+        ],
+        "ls-constructor": [
+            "#3584e4",
+            "#3584e4"
+        ],
+        "ls-module": [
+            "#3584e4",
+            "#3584e4"
+        ],
+        "ls-snippet": [
+            "#33d17a",
+            "#33d17a"
+        ],
+        "ls-color": [
+            "#c0bfb1",
+            "#c0bfb1"
+        ],
+        "ls-folder": [
+            "#c0bfb1",
+            "#c0bfb1"
+        ],
+        "ls-constant": [
+            "#3584e4",
+            "#3584e4"
+        ],
+        "ls-struct": [
+            "#f57900",
+            "#f57900"
+        ],
+        "ls-operator": [
+            "#2aa1b3",
+            "#2aa1b3"
+        ],
+        "ls-property": [
+            "#3584e4",
+            "#3584e4"
+        ],
+        "ls-enum-member": [
+            "#3584e4",
+            "#3584e4"
+        ],
+        "ls-type-parameter": [
+            "#2aa1b3",
+            "#2aa1b3"
+        ],
+        "ls-literal": [
+            "#33d17a",
+            "#33d17a"
+        ]
+    },
+    "icons": {
+        "folder": {
+            "char": "0xeaf7",
+            "style": "folder"
+        },
+        "ls-class": {
+            "char": "\ueb5b",
+            "style": "ls-class"
+        },
+        "ls-method": {
+            "char": "\uea8c",
+            "style": "ls-method"
+        },
+        "ls-field": {
+            "char": "\ueb5f",
+            "style": "ls-field"
+        },
+        "ls-enum": {
+            "char": "\uea95",
+            "style": "ls-class"
+        },
+        "ls-interface": {
+            "char": "\ueb61",
+            "style": "ls-interface"
+        },
+        "ls-text": {
+            "char": "\ueb69"
+        },
+        "ls-constructor": {
+            "char": "\ueb44",
+            "style": "ls-constructor"
+        },
+        "ls-module": {
+            "char": "\ueb29",
+            "style": "ls-module"
+        },
+        "ls-keyword": {
+            "char": "\ueb62"
+        },
+        "ls-snippet": {
+            "char": "\ueb66",
+            "style": "ls-snippet"
+        },
+        "ls-color": {
+            "char": "\uf024b",
+            "style": "ls-color"
+        },
+        "ls-file": {
+            "char": "\uf0214"
+        },
+        "ls-folder": {
+            "char": "\uf024b",
+            "style": "ls-folder"
+        },
+        "ls-constant": {
+            "char": "\ueb5d",
+            "symbol": "ls-constant"
+        },
+        "ls-struct": {
+            "char": "\uea91",
+            "style": "ls-struct"
+        },
+        "ls-operator": {
+            "char": "\ueb64",
+            "style": ""
+        },
+        "ls-property": {
+            "char": "\ueb65",
+            "style": "ls-property"
+        },
+        "ls-enum-member": {
+            "char": "\ueb5e",
+            "style": "ls-enum-member"
+        },
+        "ls-type-parameter": {
+            "char": "\uea92",
+            "style": "ls-type-parameter"
+        },
+        "ls-literal": {
+            "char": "\uea90",
+            "style": "ls-literal"
+        },
+        "ls-default": {
+            "char": "\uea8b"
+        },
+        "mt-xml": {
+            "char": "0xf05c0"
+        }
+    }
+}

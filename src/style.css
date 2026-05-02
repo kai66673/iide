@@ -121,6 +121,21 @@ textview {
     -gtk-icon-size: 16px;
 }
 
+/* 3. Или используйте системную переменную (она ТОЧНО меняется через StyleManager) */
+image.def-icon {
+    color: #6c0941;
+    /* Темно-синий */
+}
+
+/* 2. Используем селектор .dark. 
+   Libadwaita ОБЯЗАТЕЛЬНО вешает класс .dark на AdwApplicationWindow, 
+   когда StyleManager переходит в темный режим. */
+.dark image.def-icon {
+    color: #81e5b0;
+    /* Светло-синий */
+}
+
+/* Циан для теста */
 /* Основной класс для иконок-шрифтов */
 .nerd-icon {
     margin-right: 6px;
@@ -217,8 +232,7 @@ textview {
 }
 
 .editor-status-bar .diagnostic-box.hover {
-    background-color: alpha(@window_fg_color,
-            0.08);
+    background-color: alpha(@window_fg_color, 0.08);
     /* Легкий фон под цвет текста */
     opacity: 1;
     /* Полная яркость при наведении */

@@ -8,6 +8,7 @@ public class Iide.IconProvider {
     private Pango.AttrList _cached_attrs;
     private Pango.FontDescription[] _font_descriptions;
     private int _icon_sizes[2] = { 16, 18 };
+    private Gee.HashMap<string, Gdk.Texture> _file_textures;
 
     private Gdk.Texture[] _folder_textures;
 
@@ -16,10 +17,6 @@ public class Iide.IconProvider {
             instance = new IconProvider();
         }
         return instance;
-    }
-
-    public Gtk.Image folder_image(int size_index) {
-        return image_from_texture(_folder_textures[size_index], _icon_sizes[size_index]);
     }
 
     private IconProvider() {
@@ -40,6 +37,43 @@ public class Iide.IconProvider {
             render_font_char_to_texture("\ueaf7", color, 0),
             render_font_char_to_texture("\ueaf7", color, 1)
         };
+
+        _file_textures = new Gee.HashMap<string, Gdk.Texture> ();
+
+        ///////////////////////////////////////////////////
+        // File Extensions
+
+        // --- Системные / Конфиги ---
+        var mk_texture = render_font_char_to_texture
+                ("\uf308", Gdk.RGBA() { red = 0.43f, green = 0.50f, blue = 0.53f, alpha = 1.0f }, 1);
+        _file_textures.set(".mk", mk_texture);
+        _file_textures.set("makefile", mk_texture);
+
+        var docker_texture = render_font_char_to_texture
+                ("\uf308", Gdk.RGBA() { red = 0.22f, green = 0.30f, blue = 0.33f, alpha = 1.0f }, 1);
+        _file_textures.set("dockerfile", docker_texture);
+        _file_textures.set(".dockerfile", docker_texture);
+
+        var json_texture = render_font_char_to_texture
+                ("\uf308", Gdk.RGBA() { red = 0.80f, green = 0.80f, blue = 0.25f, alpha = 1.0f }, 1);
+        _file_textures.set(".json", json_texture);
+
+        var xml_texture = render_font_char_to_texture
+                (((unichar) 0xf05c0).to_string(), Gdk.RGBA() { red = 0.89f, green = 0.47f, blue = 0.20f, alpha = 1.0f }, 1);
+        _file_textures.set(".xml", xml_texture);
+        _file_textures.set(".ui", xml_texture);
+        _file_textures.set(".glade", xml_texture);
+        _file_textures.set(".qrc", xml_texture);
+
+        var yaml_texture = render_font_char_to_texture
+                ("\ue6a8", Gdk.RGBA() { red = 0.80f, green = 0.24f, blue = 0.13f, alpha = 1.0f }, 1);
+        _file_textures.set(".yaml", yaml_texture);
+        _file_textures.set(".yml", yaml_texture);
+
+        var conf_texture = render_font_char_to_texture
+                ("\ue615", Gdk.RGBA() { red = 0.43f, green = 0.50f, blue = 0.53f, alpha = 1.0f }, 1);
+        _file_textures.set(".conf", conf_texture);
+        _file_textures.set(".ini", conf_texture);
     }
 
     private Gtk.Image image_from_texture(Gdk.Texture texture, int icon_size) {

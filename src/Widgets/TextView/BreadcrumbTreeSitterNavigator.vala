@@ -151,7 +151,7 @@ public class Iide.BreadcrumbTreeSitterNavigator : Gtk.Box {
         box.margin_start = 4;
         box.margin_end = 4;
 
-        var icon = Iide.SymbolIconFactory.create_for_ts (item.type);
+        var icon = ImageFactory.create_for_ts (item.type);
 
         var label = new Gtk.Label (item.name);
         label.ellipsize = Pango.EllipsizeMode.END;

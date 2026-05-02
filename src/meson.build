@@ -37,6 +37,8 @@ iide_sources = [
     'Services/LoggerService.vala',
     'Services/DocumentManager.vala',
     'Services/IconProvider.vala',
+    'Services/ImageFactory.vala',
+    'Services/SymbIconProvider.vala',
     'Services/ProjectManager.vala',
     'Services/SettingsService.vala',
     'Services/PanelLayoutHelper.vala',
@@ -81,7 +83,7 @@ iide_sources += gnome.compile_resources('iide-resources', 'iide.gresource.xml', 
 
 executable(
     'iide',
-    iide_sources,
+    iide_sources + [symbols_res],
     dependencies: [iide_deps, tree_sitter_dep],
     include_directories: config_inc,
     install: true,

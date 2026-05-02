@@ -4,7 +4,7 @@
         {
             "label": "Build Iide",
             "type": "shell",
-            "command": "meson compile -C build",
+            "command": "meson setup build --reconfigure && meson compile -C build",
             "group": {
                 "kind": "build",
                 "isDefault": false

@@ -157,12 +157,22 @@ public class Iide.Window : Panel.DocumentWorkspace {
             var scheme = (ColorScheme) theme_dropdown.selected;
             settings.color_scheme = scheme;
             style_manager.color_scheme = scheme.to_adw_color_scheme ();
+
+            // ПРИНУДИТЕЛЬНО добавляем класс на окно, чтобы CSS его увидел
+            if (scheme == ColorScheme.DARK) {
+                this.add_css_class ("dark");
+            } else {
+                this.remove_css_class ("dark");
+            }
         });
+        if (settings.color_scheme == ColorScheme.DARK) {
+            this.add_css_class ("dark");
+        }
+
         header.pack_end (theme_dropdown);
 
         // statusbar (создаётся после восстановления layout)
 
-        // create_frames ();
         create_panels ();
 
         // Восстанавливаем виджеты из сохранённого layout

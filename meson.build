@@ -126,6 +126,7 @@ config_dep = valac.find_library('config', dirs: srcdir)
 config_inc = include_directories('.')
 
 subdir('data')
+subdir('symbols')
 subdir('src')
 subdir('po')
 

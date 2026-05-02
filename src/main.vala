@@ -26,6 +26,7 @@ int main (string[] args) {
     Intl.textdomain (Config.GETTEXT_PACKAGE);
 
     // GtkSource.init ();
+    Adw.init ();
 
     var app = new Iide.Application ();
     return app.run (args);
