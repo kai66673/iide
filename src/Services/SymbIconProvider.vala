@@ -27,7 +27,33 @@ public enum Iide.IconID {
     LS_TYPE_PARAMETER = 19,
     LS_LITERAL = 20,
     LS_DEFAULT = 21,
-    MT_XML = 22;
+    MT_MAKE = 22,
+    MT_DOCKER = 23,
+    MT_JSON = 24,
+    MT_XML = 25,
+    MT_YAML = 26,
+    MT_INI = 27,
+    MT_MD = 28,
+    MT_TOML = 29,
+    MT_VALA = 30,
+    MT_C = 31,
+    MT_H = 32,
+    MT_CPP = 33,
+    MT_PY = 34,
+    MT_JS = 35,
+    MT_TS = 36,
+    MT_CSS = 37,
+    MT_HTML = 38,
+    MT_BASH = 39,
+    MT_RUST = 40,
+    MT_GO = 41,
+    MT_LUA = 42,
+    MT_X_IMAGE = 43,
+    MT_X_AUDIO = 44,
+    MT_X_VIDEO = 45,
+    MT_X_TEXT = 46,
+    MT_X_APP = 47,
+    MT_DEFAULT = 48;
 }
 
 public class Iide.SymbIconProvider {
@@ -66,7 +92,33 @@ public class Iide.SymbIconProvider {
             { "ls-type-parameter", "ls-type-parameter" },
             { "ls-literal", "ls-literal" },
             { "ls-default", "" },
-            { "mt-xml", "" },
+            { "mt-make", "mt-make" },
+            { "mt-docker", "mt-docker" },
+            { "mt-json", "mt-json" },
+            { "mt-xml", "mt-xml" },
+            { "mt-yaml", "mt-yaml" },
+            { "mt-ini", "mt-ini" },
+            { "mt-md", "mt-md" },
+            { "mt-toml", "mt-toml" },
+            { "mt-vala", "mt-vala" },
+            { "mt-c", "mt-c" },
+            { "mt-h", "mt-h" },
+            { "mt-cpp", "mt-cpp" },
+            { "mt-py", "mt-py" },
+            { "mt-js", "mt-js" },
+            { "mt-ts", "mt-ts" },
+            { "mt-css", "mt-css" },
+            { "mt-html", "mt-html" },
+            { "mt-bash", "mt-bash" },
+            { "mt-rust", "mt-rust" },
+            { "mt-go", "mt-go" },
+            { "mt-lua", "mt-lua" },
+            { "mt-x-image", "mt-x-image" },
+            { "mt-x-audio", "mt-x-audio" },
+            { "mt-x-video", "mt-x-video" },
+            { "mt-x-text", "mt-x-text" },
+            { "mt-x-app", "mt-x-app" },
+            { "mt-default", "mt-default" },
         };
     }
     public Gtk.Image image (IconID icon_id, bool colorize = true, int? pixel_size = null) {
@@ -82,5 +134,10 @@ public class Iide.SymbIconProvider {
             img.pixel_size = pixel_size;
         }
         return img;
+    }
+
+    public string icon_name (IconID icon_id) {
+        var icon_name = _icon_indexes[(int) icon_id, 0];
+        return _prefix + icon_name + "-symbolic";
     }
 }

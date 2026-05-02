@@ -105,4 +105,102 @@ public class Iide.ImageFactory {
         SymbIconProvider _provider = SymbIconProvider.get_instance ();
         return _provider.image (IconID.FOLDER);
     }
+
+    private static string filename_extension (string basename) {
+        // Находим позицию последней точки
+        int dot_index = basename.last_index_of_char ('.');
+        if (dot_index != -1) {
+            return basename.substring (dot_index);
+        }
+        return basename;
+    }
+
+    private static string get_mime_type (GLib.File file) {
+        try {
+            // Запрашиваем только нужный атрибут для скорости
+            var info = file.query_info (FileAttribute.STANDARD_CONTENT_TYPE, FileQueryInfoFlags.NONE, null);
+            var content_type = info.get_content_type ();
+            return ContentType.get_mime_type (content_type);
+        } catch (Error e) {
+            return "application/octet-stream";
+        }
+    }
+
+    public static Gtk.Image create_for_file (GLib.File file) {
+        SymbIconProvider _provider = SymbIconProvider.get_instance ();
+        return _provider.image (icon_id_for_file (file));
+    }
+
+    public static string icon_name_for_file (GLib.File file) {
+        SymbIconProvider _provider = SymbIconProvider.get_instance ();
+        return _provider.icon_name (icon_id_for_file (file));
+    }
+
+    private static IconID icon_id_for_file (GLib.File file) {
+        string basename = file.get_basename ().down ();
+        string extension = filename_extension (basename);
+
+        switch (extension) {
+        // --- Системные / Конфиги ---
+        case "makefile": case ".mk": case ".build":
+            return IconID.MT_MAKE;
+        case "dockerfile": case ".dockerfile":
+            return IconID.MT_DOCKER;
+        case ".json":
+            return IconID.MT_JSON;
+        case ".xml": case ".ui": case ".glade":
+            return IconID.MT_XML;
+        case ".yaml": case ".yml":
+            return IconID.MT_YAML;
+        case ".conf": case ".ini":
+            return IconID.MT_INI;
+        case ".md": case ".markdown":
+            return IconID.MT_MD;
+        case ".toml":
+            return IconID.MT_TOML;
+        // --- Языки программирования ---
+        case ".vala": case ".vapi":
+            return IconID.MT_VALA;
+        case ".c":
+            return IconID.MT_C;
+        case ".h": case ".hh": case ".hpp":
+            return IconID.MT_H;
+        case ".cpp": case ".cc":
+            return IconID.MT_CPP;
+        case ".py": case ".pyi": case ".pyw":
+            return IconID.MT_PY;
+        case ".js":
+            return IconID.MT_JS;
+        case ".ts":
+            return IconID.MT_TS;
+        case ".css":
+            return IconID.MT_CSS;
+        case ".html":
+            return IconID.MT_HTML;
+        case ".sh": case ".zsh": case ".bash":
+            return IconID.MT_BASH;
+        case ".rs":
+            return IconID.MT_RUST;
+        case ".go":
+            return IconID.MT_GO;
+        case ".lua":
+            return IconID.MT_MAKE;
+        }
+
+        // --- Мультимедиа (MIME-базировано) ---
+        string mime = get_mime_type (file);
+        if (mime.has_prefix ("text/")) {
+            return IconID.MT_X_TEXT;
+        } else if (mime.has_prefix ("image/")) {
+            return IconID.MT_X_IMAGE;
+        } else if (mime.has_prefix ("audio/")) {
+            return IconID.MT_X_AUDIO;
+        } else if (mime.has_prefix ("video/")) {
+            return IconID.MT_X_VIDEO;
+        } else if (mime.has_prefix ("application/")) {
+            return IconID.MT_X_APP;
+        }
+
+        return IconID.MT_DEFAULT;
+    }
 }

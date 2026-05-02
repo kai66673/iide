@@ -24,13 +24,6 @@ public class Iide.SymbolIconFactory : Object {
      * Создает виджет иконки на основе типа узла Tree-sitter (строка)
      */
 
-    public static Gtk.Widget create_for_file (GLib.File file) {
-        var texture = create_texture_for_file (file);
-        var img = new Gtk.Image.from_paintable (texture);
-        img.pixel_size = TEXTURE_ICON_SIZE;
-        return img;
-    }
-
     private static string get_mime_type (GLib.File file) {
         try {
             // Запрашиваем только нужный атрибут для скорости

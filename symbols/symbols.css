@@ -54,3 +54,84 @@
 .def-ls-literal { color: #33d17a; }
 .dark .def-ls-literal { color: #33d17a; }
 
+.def-mt-make { color: #6d8086; }
+.dark .def-mt-make { color: #6d8086; }
+
+.def-mt-docker { color: #384d54; }
+.dark .def-mt-docker { color: #384d54; }
+
+.def-mt-json { color: #cbcb41; }
+.dark .def-mt-json { color: #cbcb41; }
+
+.def-mt-xml { color: #e37933; }
+.dark .def-mt-xml { color: #e37933; }
+
+.def-mt-yaml { color: #cb3e20; }
+.dark .def-mt-yaml { color: #cb3e20; }
+
+.def-mt-ini { color: #6d8086; }
+.dark .def-mt-ini { color: #6d8086; }
+
+.def-mt-md { color: #519aba; }
+.dark .def-mt-md { color: #519aba; }
+
+.def-mt-toml { color: #cb3e20; }
+.dark .def-mt-toml { color: #cb3e20; }
+
+.def-mt-vala { color: #6e44b3; }
+.dark .def-mt-vala { color: #6e44b3; }
+
+.def-mt-c { color: #599eff; }
+.dark .def-mt-c { color: #599eff; }
+
+.def-mt-h { color: #599eff; }
+.dark .def-mt-h { color: #599eff; }
+
+.def-mt-cpp { color: #00599c; }
+.dark .def-mt-cpp { color: #00599c; }
+
+.def-mt-py { color: #306998; }
+.dark .def-mt-py { color: #306998; }
+
+.def-mt-js { color: #f1e05a; }
+.dark .def-mt-js { color: #f1e05a; }
+
+.def-mt-ts { color: #2b7489; }
+.dark .def-mt-ts { color: #2b7489; }
+
+.def-mt-css { color: #563d7c; }
+.dark .def-mt-css { color: #563d7c; }
+
+.def-mt-html { color: #e34c26; }
+.dark .def-mt-html { color: #e34c26; }
+
+.def-mt-bash { color: #4ebd4e; }
+.dark .def-mt-bash { color: #4ebd4e; }
+
+.def-mt-rust { color: #dea584; }
+.dark .def-mt-rust { color: #dea584; }
+
+.def-mt-go { color: #00add8; }
+.dark .def-mt-go { color: #00add8; }
+
+.def-mt-lua { color: #000080; }
+.dark .def-mt-lua { color: #000080; }
+
+.def-mt-x-image { color: #a074c4; }
+.dark .def-mt-x-image { color: #a074c4; }
+
+.def-mt-x-audio { color: #2b7489; }
+.dark .def-mt-x-audio { color: #2b7489; }
+
+.def-mt-x-video { color: #2b7489; }
+.dark .def-mt-x-video { color: #2b7489; }
+
+.def-mt-x-text { color: #858585; }
+.dark .def-mt-x-text { color: #858585; }
+
+.def-mt-default { color: #858585; }
+.dark .def-mt-default { color: #858585; }
+
+.def-mt-x-app { color: #858585; }
+.dark .def-mt-x-app { color: #858585; }
+

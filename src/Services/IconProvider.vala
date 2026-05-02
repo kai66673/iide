@@ -76,12 +76,6 @@ public class Iide.IconProvider {
         _file_textures.set(".ini", conf_texture);
     }
 
-    private Gtk.Image image_from_texture(Gdk.Texture texture, int icon_size) {
-        var img = new Gtk.Image.from_paintable(texture);
-        img.pixel_size = icon_size;
-        return img;
-    }
-
     private Gdk.Texture render_font_char_to_texture(string icon_char,
                                                     Gdk.RGBA color,
                                                     int size_index) {

@@ -70,6 +70,114 @@
         "ls-literal": [
             "#33d17a",
             "#33d17a"
+        ],
+        "mt-make": [
+            "#6d8086",
+            "#6d8086"
+        ],
+        "mt-docker": [
+            "#384d54",
+            "#384d54"
+        ],
+        "mt-json": [
+            "#cbcb41",
+            "#cbcb41"
+        ],
+        "mt-xml": [
+            "#e37933",
+            "#e37933"
+        ],
+        "mt-yaml": [
+            "#cb3e20",
+            "#cb3e20"
+        ],
+        "mt-ini": [
+            "#6d8086",
+            "#6d8086"
+        ],
+        "mt-md": [
+            "#519aba",
+            "#519aba"
+        ],
+        "mt-toml": [
+            "#cb3e20",
+            "#cb3e20"
+        ],
+        "mt-vala": [
+            "#6e44b3",
+            "#6e44b3"
+        ],
+        "mt-c": [
+            "#599eff",
+            "#599eff"
+        ],
+        "mt-h": [
+            "#599eff",
+            "#599eff"
+        ],
+        "mt-cpp": [
+            "#00599c",
+            "#00599c"
+        ],
+        "mt-py": [
+            "#306998",
+            "#306998"
+        ],
+        "mt-js": [
+            "#f1e05a",
+            "#f1e05a"
+        ],
+        "mt-ts": [
+            "#2b7489",
+            "#2b7489"
+        ],
+        "mt-css": [
+            "#563d7c",
+            "#563d7c"
+        ],
+        "mt-html": [
+            "#e34c26",
+            "#e34c26"
+        ],
+        "mt-bash": [
+            "#4ebd4e",
+            "#4ebd4e"
+        ],
+        "mt-rust": [
+            "#dea584",
+            "#dea584"
+        ],
+        "mt-go": [
+            "#00add8",
+            "#00add8"
+        ],
+        "mt-lua": [
+            "#000080",
+            "#000080"
+        ],
+        "mt-x-image": [
+            "#a074c4",
+            "#a074c4"
+        ],
+        "mt-x-audio": [
+            "#2b7489",
+            "#2b7489"
+        ],
+        "mt-x-video": [
+            "#2b7489",
+            "#2b7489"
+        ],
+        "mt-x-text": [
+            "#858585",
+            "#858585"
+        ],
+        "mt-default": [
+            "#858585",
+            "#858585"
+        ],
+        "mt-x-app": [
+            "#858585",
+            "#858585"
         ]
     },
     "icons": {
@@ -157,8 +265,113 @@
         "ls-default": {
             "char": "\uea8b"
         },
+        "mt-make": {
+            "char": "\ue673",
+            "style": "mt-make"
+        },
+        "mt-docker": {
+            "char": "\uf308",
+            "style": "mt-docker"
+        },
+        "mt-json": {
+            "char": "\ue60b",
+            "style": "mt-json"
+        },
         "mt-xml": {
-            "char": "0xf05c0"
+            "char": "0xf05c0",
+            "style": "mt-xml"
+        },
+        "mt-yaml": {
+            "char": "\ue6a8",
+            "style": "mt-yaml"
+        },
+        "mt-ini": {
+            "char": "\ue615",
+            "style": "mt-ini"
+        },
+        "mt-md": {
+            "icon": "\ue609",
+            "style": "mt-md"
+        },
+        "mt-toml": {
+            "char": "\ue6b2",
+            "style": "mt-toml"
+        },
+        "mt-vala": {
+            "char": "\ue69e",
+            "style": "mt-vala"
+        },
+        "mt-c": {
+            "char": "\ue61e",
+            "style": "mt-c"
+        },
+        "mt-h": {
+            "char": "\ue7fe",
+            "style": "mt-h"
+        },
+        "mt-cpp": {
+            "char": "\ue61d",
+            "style": "mt-cpp"
+        },
+        "mt-py": {
+            "char": "\ue73c",
+            "style": "mt-py"
+        },
+        "mt-js": {
+            "char": "\ue74e",
+            "style": "mt-js"
+        },
+        "mt-ts": {
+            "char": "\ue628",
+            "style": "mt-ts"
+        },
+        "mt-css": {
+            "char": "\ue749",
+            "style": "mt-css"
+        },
+        "mt-html": {
+            "char": "\ue736",
+            "style": "mt-html"
+        },
+        "mt-bash": {
+            "char": "\ue736",
+            "style": "mt-bash"
+        },
+        "mt-rust": {
+            "char": "\ue7a8",
+            "style": "mt-rust"
+        },
+        "mt-go": {
+            "char": "\ue627",
+            "style": "mt-go"
+        },
+        "mt-lua": {
+            "char": "\ue620",
+            "style": "mt-lua"
+        },
+        "mt-x-image": {
+            "char": "\uf024f",
+            "style": "mt-x-image"
+        },
+        "mt-x-audio": {
+            "char": "\uf1c7",
+            "style": "mt-x-audio"
+        },
+        "mt-x-video": {
+            "char": "\uf1c8",
+            "style": "mt-x-video"
+        },
+        "mt-x-text": {
+            "char": "\uf0f6",
+            "style": "mt-x-text"
+        },
+        "mt-x-app": {
+            "char": "\uf1c3",
+            "style": "mt-x-app"
+        },
+        "mt-default": {
+            "char": "\uf016",
+            "style": "mt-default"
         }
     }
 }

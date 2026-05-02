@@ -144,7 +144,7 @@ public class Iide.FileTreeView : Box {
                 if (file_item.is_directory) {
                     icon_box.append (ImageFactory.folder_image ());
                 } else {
-                    icon_box.append (SymbolIconFactory.create_for_file (file_item.file));
+                    icon_box.append (ImageFactory.create_for_file (file_item.file));
                 }
 
                 if (!file_item.is_directory) {
