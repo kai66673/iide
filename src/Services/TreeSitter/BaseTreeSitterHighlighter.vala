@@ -19,6 +19,9 @@ public abstract class Iide.BaseTreeSitterHighlighter : Object {
     protected GtkSource.Buffer buffer;
     protected SourceView view;
 
+    protected BaseTreeSitterIndenter? ts_indenter;
+    private bool _internal_change = false;
+
     // Оптимизированный кэш: [capture_index, theme_index]
     // theme_index: 1 - Light, 0 - Dark
     private Gtk.TextTag ? [, ] capture_tags;
@@ -65,6 +68,11 @@ public abstract class Iide.BaseTreeSitterHighlighter : Object {
         // Подготавливаем индексный мост сразу после загрузки Query
         prepare_capture_mapping ();
 
+        this.ts_indenter = this.create_indenter ();
+        if (ts_indenter != null) {
+            view.auto_indent = false;
+        }
+
         // Устанавливаем тему цвета и подписываемся на изменение схемы цветов
         set_color_theme ();
         this.buffer.notify["style-scheme"].connect_after (set_color_theme);
@@ -90,6 +98,15 @@ public abstract class Iide.BaseTreeSitterHighlighter : Object {
 
     // Абстрактный метод для фильтрации узлов Breadcrumbs
     protected abstract bool is_container_node (string node_type);
+
+    // Виртуальный метод создания индентера
+    public virtual BaseTreeSitterIndenter ? create_indenter () {
+        return null;
+    }
+
+    public unowned TreeSitter.Tree? get_tree () {
+        return tree;
+    }
 
     private void load_query (Language lang) {
         string source = query_source ();
@@ -252,6 +269,9 @@ public abstract class Iide.BaseTreeSitterHighlighter : Object {
     }
 
     private void on_insert_text (Gtk.TextIter iter, string text, int len_bytes) {
+        if (_internal_change)
+            return;
+
         InputEdit edit = {};
 
         // Начальные координаты (фиксируем ДО вставки)
@@ -281,6 +301,26 @@ public abstract class Iide.BaseTreeSitterHighlighter : Object {
         };
 
         tree.edit (edit);
+
+        if (ts_indenter != null && text.has_suffix ("\n")) {
+            this.sync_and_render (); // Мгновенный инкрементальный парсинг
+
+            string suffix = ts_indenter.calculate_indent (this.tree, iter, view.indent_width);
+
+            if (suffix.length > 0) {
+                _internal_change = true;
+                // Отменяем дебаунс, так как сейчас будет новая вставка
+                if (highlight_timeout_id > 0) {
+                    Source.remove (highlight_timeout_id);
+                    highlight_timeout_id = 0;
+                }
+
+                buffer.insert (ref iter, suffix, suffix.length);
+
+                _internal_change = false;
+                return; // Рекурсивный вызов сам запустит дебаунс
+            }
+        }
 
         // После правки дерева запускаем отложенную перекраску (debounce)
         on_buffer_changed ();

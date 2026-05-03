@@ -2,20 +2,24 @@
 extern unowned TreeSitter.Language ? get_lang_python ();
 
 public class Iide.PythonHighlighter : BaseTreeSitterHighlighter {
-    public PythonHighlighter (SourceView view) {
-        base (view);
-    }
+  public PythonHighlighter (SourceView view) {
+    base (view);
+  }
 
-    protected override unowned TreeSitter.Language get_ts_language () {
-        return get_lang_python ();
-    }
+  protected override unowned TreeSitter.Language get_ts_language () {
+    return get_lang_python ();
+  }
 
-    protected override string get_query_filename () {
-        return "python/highlights.scm";
-    }
+  protected override string get_query_filename () {
+    return "python/highlights.scm";
+  }
 
-    protected override string query_source () {
-        return """
+  protected override BaseTreeSitterIndenter ? create_indenter () {
+    return new PythonTreeSitterIndenter (get_ts_language ());
+  }
+
+  protected override string query_source () {
+    return """
         ; Identifier naming conventions
 
         (identifier) @variable
@@ -156,11 +160,11 @@ public class Iide.PythonHighlighter : BaseTreeSitterHighlighter {
           "case"
         ] @keyword
         """;
-    }
+  }
 
-    protected override bool is_container_node (string node_type) {
-        return node_type in new string[] {
-                   "function_definition", "class_definition", "module_definition"
-        };
-    }
+  protected override bool is_container_node (string node_type) {
+    return node_type in new string[] {
+             "function_definition", "class_definition", "module_definition"
+    };
+  }
 }
