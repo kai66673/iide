@@ -19,8 +19,11 @@ public abstract class Iide.BaseTreeSitterHighlighter : Object {
     protected GtkSource.Buffer buffer;
     protected SourceView view;
 
+    private TreeSitter.Input ts_input;
+
     protected BaseTreeSitterIndenter? ts_indenter;
     private bool _internal_change = false;
+    private uint pending_indents = 0;
 
     // Оптимизированный кэш: [capture_index, theme_index]
     // theme_index: 1 - Light, 0 - Dark
@@ -49,6 +52,50 @@ public abstract class Iide.BaseTreeSitterHighlighter : Object {
         initial_rehighlight ();
     }
 
+    private static string ? ts_read_callback (void* payload, uint32 byte_index, Point position, out uint32 bytes_read) {
+        var self = (BaseTreeSitterHighlighter) payload;
+        var buffer = self.buffer;
+        bytes_read = 0;
+
+        Gtk.TextIter iter;
+        // 1. Сначала переходим строго по номеру строки
+        buffer.get_iter_at_line (out iter, (int) position.row);
+
+        // 2. БЕЗОПАСНАЯ УСТАНОВКА ИНДЕКСА
+        // Вместо прямого set_line_index, проверяем длину строки
+        int bytes_in_line = iter.get_bytes_in_line ();
+
+        // Если Tree-sitter просит индекс за пределами текущей строки
+        if ((int) position.column < bytes_in_line) {
+            iter.set_line_index ((int) position.column);
+        } else if ((int) position.column == bytes_in_line && bytes_in_line > 0) {
+            // Мы в самом конце строки (возможно на \n)
+            iter.set_line_index ((int) position.column);
+        } else {
+            // Если индекс совсем за пределами, значит этой части текста еще нет
+            // или Tree-sitter запрашивает пустоту
+            return null;
+        }
+
+        if (iter.is_end ())return null;
+
+        Gtk.TextIter end = iter;
+        // Захватываем текст до конца строки
+        if (end.forward_to_line_end ()) {
+            // Если не конец файла, захватываем символ переноса (\n)
+            if (!end.is_end ()) {
+                end.forward_char ();
+            }
+        } else {
+            end.forward_to_end ();
+        }
+
+        string chunk = buffer.get_slice (iter, end, false);
+        bytes_read = (uint32) chunk.length;
+
+        return chunk;
+    }
+
     protected BaseTreeSitterHighlighter (SourceView view) {
         view.set_insert_spaces_instead_of_tabs (true);
         view.set_tab_width (4);
@@ -56,6 +103,12 @@ public abstract class Iide.BaseTreeSitterHighlighter : Object {
 
         this.view = view;
         this.buffer = (GtkSource.Buffer) view.get_buffer ();
+
+        // Заполняем структуру один раз
+        this.ts_input = {};
+        this.ts_input.payload = (void*) this;
+        this.ts_input.read = ts_read_callback;
+        this.ts_input.encoding = TreeSitter.InputEncoding.UTF8;
 
         this.parser = new Parser ();
         this.cursor = new QueryCursor ();
@@ -78,7 +131,7 @@ public abstract class Iide.BaseTreeSitterHighlighter : Object {
         this.buffer.notify["style-scheme"].connect_after (set_color_theme);
 
         // Подключаемся к низкоуровневым сигналам
-        buffer.insert_text.connect_after (on_insert_text);
+        buffer.insert_text.connect (on_insert_text);
         buffer.delete_range.connect (on_delete_range);
 
         buffer.notify["cursor-position"].connect (() => {
@@ -161,9 +214,7 @@ public abstract class Iide.BaseTreeSitterHighlighter : Object {
         Gtk.TextIter start, end;
         buffer.get_bounds (out start, out end);
 
-        // Берем актуальный контент
-        string content = buffer.get_text (start, end, false);
-        this.tree = parser.parse_string (null, content.data);
+        this.tree = parser.parse (null, ts_input);
 
         update_breadcrumbs ();
 
@@ -176,19 +227,12 @@ public abstract class Iide.BaseTreeSitterHighlighter : Object {
     }
 
     private void sync_and_render () {
-        Gtk.TextIter start, end;
-        buffer.get_bounds (out start, out end);
-        // Берем актуальный контент
-        string content = buffer.get_text (start, end, false);
-
         // old_tree уже содержит правки от on_insert_text / on_delete_range
         unowned TreeSitter.Tree? old_tree = this.tree;
-        var new_tree = parser.parse_string (old_tree, content.data);
-
+        var new_tree = parser.parse (old_tree, ts_input);
         update_breadcrumbs ();
 
         TreeSitter.Range[] changed_ranges = old_tree.get_changed_ranges (new_tree);
-        // uint32 length = (uint32) changed_ranges.length;
         this.tree = (owned) new_tree;
         this.cursor = new QueryCursor ();
         foreach (var range in changed_ranges) {
@@ -269,60 +313,80 @@ public abstract class Iide.BaseTreeSitterHighlighter : Object {
     }
 
     private void on_insert_text (Gtk.TextIter iter, string text, int len_bytes) {
-        if (_internal_change)
-            return;
+        // 1. Фиксируем точку вставки (здесь она абсолютно стабильна)
+        uint32 start_byte = get_byte_offset_safe (iter);
+        uint32 start_row = (uint32) iter.get_line ();
+        uint32 start_col = (uint32) iter.get_line_index ();
 
-        InputEdit edit = {};
-
-        // Начальные координаты (фиксируем ДО вставки)
-        Gtk.TextIter start_buf;
-        buffer.get_start_iter (out start_buf);
-        edit.start_byte = (uint32) buffer.get_slice (start_buf, iter, false).length;
-
-        edit.start_point = TreeSitter.Point () {
-            row = (uint32) iter.get_line (),
-            column = (uint32) iter.get_line_index ()
-        };
-
-        // Вставка в Tree-sitter — это замена диапазона нулевой длины на новый текст
-        edit.old_end_byte = edit.start_byte;
-        edit.old_end_point = edit.start_point;
-
-        // Вычисляем, где окажется конец после вставки
+        // 2. Считаем статистику вставляемого текста
         uint32 lines_added;
         uint32 last_line_bytes;
         calculate_text_stats (text, out lines_added, out last_line_bytes);
 
-        edit.new_end_byte = edit.start_byte + (uint32) text.length;
+        // 3. Формируем Edit
+        InputEdit edit = {};
+        edit.start_byte = start_byte;
+        edit.start_point = { start_row, start_col };
 
-        edit.new_end_point = TreeSitter.Point () {
-            row = edit.start_point.row + lines_added,
-            column = lines_added > 0 ? last_line_bytes : edit.start_point.column + last_line_bytes
+        // При вставке "старый конец" совпадает с началом (мы ничего не удаляли)
+        edit.old_end_byte = start_byte;
+        edit.old_end_point = { start_row, start_col };
+
+        // "Новый конец" — это математический результат вставки
+        edit.new_end_byte = start_byte + (uint32) text.length;
+        edit.new_end_point = Point () {
+            row = start_row + lines_added,
+            column = (lines_added > 0) ? last_line_bytes : start_col + last_line_bytes
         };
 
         tree.edit (edit);
 
-        if (ts_indenter != null && text.has_suffix ("\n")) {
-            this.sync_and_render (); // Мгновенный инкрементальный парсинг
+        if (_internal_change)
+            return;
+        // В сигнале insert-text (ДО вставки)
+        if (ts_indenter != null && text == "\n") {
+            pending_indents++; // Увеличиваем счетчик задач
 
-            string suffix = ts_indenter.calculate_indent (this.tree, iter, view.indent_width);
+            int offset_for_idle = iter.get_offset () + 1;
 
-            if (suffix.length > 0) {
-                _internal_change = true;
-                // Отменяем дебаунс, так как сейчас будет новая вставка
-                if (highlight_timeout_id > 0) {
-                    Source.remove (highlight_timeout_id);
-                    highlight_timeout_id = 0;
+            Idle.add (() => {
+                if (pending_indents == 0)
+                    return false;
+
+                // Уменьшаем счетчик
+                pending_indents--;
+
+                // А. СИНХРОНИЗАЦИЯ: Получаем актуальное дерево
+                this.sync_and_render ();
+
+                Gtk.TextIter fresh_iter;
+                buffer.get_iter_at_offset (out fresh_iter, offset_for_idle);
+
+                // Б. РАСЧЕТ: Вычисляем отступ
+                string suffix = ts_indenter.calculate_indent (this.tree, fresh_iter, view.indent_width);
+
+                if (suffix.length > 0) {
+                    _internal_change = true;
+
+                    // 2. СБРОС ТАЙМЕРА: Если мы сейчас вставим пробелы,
+                    // старый запланированный таймер подсветки нам не нужен
+                    if (highlight_timeout_id > 0) {
+                        Source.remove (highlight_timeout_id);
+                        highlight_timeout_id = 0;
+                    }
+
+                    buffer.insert (ref fresh_iter, suffix, (int) suffix.length);
+                    _internal_change = false;
                 }
 
-                buffer.insert (ref iter, suffix, suffix.length);
+                // В. ЗАПУСК: Планируем перекраску после всех манипуляций
+                on_buffer_changed ();
 
-                _internal_change = false;
-                return; // Рекурсивный вызов сам запустит дебаунс
-            }
+                return false;
+            });
         }
 
-        // После правки дерева запускаем отложенную перекраску (debounce)
+        // Если это не Enter, просто запускаем обычный дебаунс раскраски
         on_buffer_changed ();
     }
 

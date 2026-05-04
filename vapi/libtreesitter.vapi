@@ -90,6 +90,9 @@ namespace TreeSitter {
 
         [CCode (cname = "ts_parser_parse_string", array_length_type = "uint32_t")]
         public Tree parse_string (Tree? tree, uint8[] source);
+
+        [CCode (cname = "ts_parser_parse")]
+        public Tree ? parse (Tree? old_tree, Input input);
     }
 
     [CCode (cname = "TSTree", free_function = "ts_tree_delete")]
@@ -120,11 +123,15 @@ namespace TreeSitter {
         uint32 end_byte;
     }
 
+    [CCode (cname = "TSInputReadFunc", has_target = false)]
+    public delegate string ? InputReadFunc (void* payload, uint32 byte_index, Point position, out uint32 bytes_read);
+
     [CCode (cname = "TSInput", has_type_id = false)]
+    [SimpleType] // Добавьте это, чтобы структура передавалась по значению
     public struct Input {
-        void* payload;
-        // const char *(*read)(void *payload, uint32 byte_index, Point position, uint32 *bytes_read);
-        InputEncoding encoding;
+        public void* payload;
+        public InputReadFunc read;
+        public InputEncoding encoding;
     }
 
     [CCode (cname = "TSLogger", has_type_id = false)]

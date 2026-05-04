@@ -34,12 +34,20 @@ namespace Iide {
         }
     }
 
-    public string? escape_pango(string? text) {
+    public string ? escape_pango(string? text) {
         if (text == null)
             return null;
         return text
                 .replace("&", "&amp;")
                 .replace("<", "&lt;")
                 .replace(">", "&gt;");
+    }
+
+    private uint32 get_byte_offset_safe(Gtk.TextIter iter) {
+        Gtk.TextIter start;
+        iter.get_buffer().get_start_iter(out start);
+        // Используем get_text вместо get_slice для гарантии чистого UTF-8
+        string text = iter.get_buffer().get_text(start, iter, false);
+        return (uint32) text.length;
     }
 }
