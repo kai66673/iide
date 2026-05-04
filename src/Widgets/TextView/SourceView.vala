@@ -178,7 +178,7 @@ public class Iide.SourceView : GtkSource.View {
         // Control-click controller (goto definition)
         var click_gest = new Gtk.GestureClick ();
         click_gest.set_button (1);
-        click_gest.pressed.connect (on_click_pressed);
+        click_gest.released.connect (on_click_released);
         add_controller (click_gest);
 
         // setup_buffer_signals ();
@@ -547,7 +547,7 @@ public class Iide.SourceView : GtkSource.View {
         tooltip_widget.update_text (escape_pango (markdown), false);
     }
 
-    private void on_click_pressed (Gtk.GestureClick gesture, int n_press, double x, double y) {
+    private void on_click_released (Gtk.GestureClick gesture, int n_press, double x, double y) {
         // Получаем состояние модификаторов через основной контроллер
         var modifiers = gesture.get_current_event_state ();
 
@@ -578,7 +578,12 @@ public class Iide.SourceView : GtkSource.View {
         }
 
         var loc = locations.get (0);
-        window.get_document_manager ().open_document_with_selection (File.new_for_uri (loc.uri), loc.start_line, loc.start_column, loc.end_column, null);
+        if (this.uri == loc.uri) {
+            this.select_and_scroll (loc.start_line, loc.start_column, loc.end_column, false);
+        } else {
+            window.get_document_manager ().open_document_with_selection
+                (File.new_for_uri (loc.uri), loc.start_line, loc.start_column, loc.end_column, null);
+        }
     }
 
     public void select_and_scroll (int line, int start_col, int end_col, bool is_new) {
@@ -592,6 +597,7 @@ public class Iide.SourceView : GtkSource.View {
         Gtk.TextIter end_iter;
         buffer.get_iter_at_line_offset (out end_iter, line, end_col);
 
+        buffer.place_cursor (start_iter);
         buffer.select_range (start_iter, end_iter);
         scroll_to_iter (start_iter, 0.0, true, 0.5, 0.5);
         pending_scroll_iter = null;
