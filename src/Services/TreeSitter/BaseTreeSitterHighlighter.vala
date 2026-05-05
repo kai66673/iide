@@ -343,6 +343,7 @@ public abstract class Iide.BaseTreeSitterHighlighter : Object {
 
         if (_internal_change)
             return;
+
         // В сигнале insert-text (ДО вставки)
         if (ts_indenter != null && text == "\n") {
             pending_indents++; // Увеличиваем счетчик задач
@@ -352,9 +353,6 @@ public abstract class Iide.BaseTreeSitterHighlighter : Object {
             Idle.add (() => {
                 if (pending_indents == 0)
                     return false;
-
-                // Уменьшаем счетчик
-                pending_indents--;
 
                 // А. СИНХРОНИЗАЦИЯ: Получаем актуальное дерево
                 this.sync_and_render ();
@@ -379,6 +377,8 @@ public abstract class Iide.BaseTreeSitterHighlighter : Object {
                     _internal_change = false;
                 }
 
+                pending_indents--; // Уменьшаем счетчик
+                
                 // В. ЗАПУСК: Планируем перекраску после всех манипуляций
                 on_buffer_changed ();
 
