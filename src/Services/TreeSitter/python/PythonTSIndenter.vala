@@ -14,9 +14,11 @@ public class Iide.PythonTreeSitterIndenter : BaseTreeSitterIndenter {
         (try_statement) @indent.begin
         (except_clause) @indent.begin
         (finally_clause) @indent.begin
-        ; Контейнеры (скобки), где тоже нужен отступ (list) @indent.begin
-        (dictionary) @indent.begin
         (parenthesized_expression) @indent.begin
+        (list) @indent.begin
+        (dictionary) @indent.begin
+        (argument_list) @indent.begin
+        (parameters) @indent.begin
     """;
 
     public PythonTreeSitterIndenter (TreeSitter.Language lang) {
