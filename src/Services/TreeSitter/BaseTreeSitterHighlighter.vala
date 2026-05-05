@@ -376,58 +376,38 @@ public abstract class Iide.BaseTreeSitterHighlighter : Object {
 
         tree.edit (edit);
 
+        // Блокируем рекурсивный вызов индентера и дебаунс подсветки
         if (_internal_change)
             return;
 
-        // В сигнале insert-text (ДО вставки)
+        // 2. АСИНХРОННО: Обработка Enter
         if (ts_indenter != null && text == "\n") {
-            pending_indents++; // Увеличиваем счетчик задач
-
-            int offset_for_idle = iter.get_offset () + 1;
+            pending_indents++;
+            // Сохраняем позицию СРАЗУ ПОСЛЕ вставленного \n
+            int offset_after_newline = iter.get_offset () + 1;
 
             Idle.add (() => {
-                if (pending_indents == 0)
-                    return false;
+                if (pending_indents == 0)return false;
 
-                // А. СИНХРОНИЗАЦИЯ: Получаем актуальное дерево
+                // Обновляем дерево (парсинг кусков буфера)
                 this.sync_and_render ();
 
                 Gtk.TextIter fresh_iter;
-                buffer.get_iter_at_offset (out fresh_iter, offset_for_idle);
+                buffer.get_iter_at_offset (out fresh_iter, offset_after_newline);
 
-                // 1. Анализируем
+                // РАСЧЕТ И ИСПОЛНЕНИЕ
                 var instr = ts_indenter.need_indent (this.tree, fresh_iter);
+                var indent_width = view.indent_width > 0 ? view.indent_width : 4;
+                apply_indent (fresh_iter, instr, indent_width);
 
-                // 2. Исполняем
-                apply_indent (fresh_iter, instr, view.indent_width);
-
-                //// Б. РАСЧЕТ: Вычисляем отступ
-                // string suffix = ts_indenter.calculate_indent (this.tree, fresh_iter, view.indent_width);
-
-                // if (suffix.length > 0) {
-                // _internal_change = true;
-
-                //// 2. СБРОС ТАЙМЕРА: Если мы сейчас вставим пробелы,
-                //// старый запланированный таймер подсветки нам не нужен
-                // if (highlight_timeout_id > 0) {
-                // Source.remove (highlight_timeout_id);
-                // highlight_timeout_id = 0;
-                // }
-
-                // buffer.insert (ref fresh_iter, suffix, (int) suffix.length);
-                // _internal_change = false;
-                // }
-
-                pending_indents--; // Уменьшаем счетчик
-
-                // В. ЗАПУСК: Планируем перекраску после всех манипуляций
-                on_buffer_changed ();
-
+                pending_indents--;
+                on_buffer_changed (); // Запуск перекраски
                 return false;
             });
+            return;
         }
 
-        // Если это не Enter, просто запускаем обычный дебаунс раскраски
+        // Обычный ввод - просто дебаунс перекраски
         on_buffer_changed ();
     }
 
