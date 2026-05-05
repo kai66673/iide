@@ -314,31 +314,47 @@ public abstract class Iide.BaseTreeSitterHighlighter : Object {
 
     public void apply_indent (Gtk.TextIter iter, IndentInstruction instr, int indent_width) {
         var buffer = iter.get_buffer ();
+        // iter здесь — начало новой строки после \n
         int current_offset = iter.get_offset ();
 
-        // 1. Удаляем пробелы в конце ПРЕДЫДУЩЕЙ строки
+        // 1. Очистка "хвостов" на ПРЕДЫДУЩЕЙ строке (как уже работает)
         if (instr.trim_chars > 0) {
             Gtk.TextIter del_end = iter;
-            del_end.backward_char (); // встали ПЕРЕД \n
-            Gtk.TextIter del_start = del_end;
-            for (int i = 0; i < instr.trim_chars; i++)del_start.backward_char ();
-
-            this._internal_change = true;
-            buffer.delete (ref del_start, ref del_end);
-            this._internal_change = false;
-
-            current_offset -= instr.trim_chars;
+            if (del_end.backward_char ()) {
+                Gtk.TextIter del_start = del_end;
+                del_start.backward_chars (instr.trim_chars);
+                this._internal_change = true;
+                buffer.delete (ref del_start, ref del_end);
+                this._internal_change = false;
+                current_offset -= instr.trim_chars;
+            }
         }
 
-        // 2. Формируем финальную строку отступа
+        // 2. !!! НОВОЕ: Очистка "паразитов" в начале НОВОЙ строки !!!
+        // Удаляем старые пробелы, которые "уехали" вниз при разрыве строки
+        Gtk.TextIter line_start;
+        buffer.get_iter_at_offset (out line_start, current_offset);
+
+        Gtk.TextIter line_end = line_start;
+        // Идем вперед, пока видим пробелы/табы, но не переходим на следующую строку
+        while (line_end.get_char ().isspace () && !line_end.ends_line ()) {
+            line_end.forward_char ();
+        }
+
+        if (!line_start.equal (line_end)) {
+            this._internal_change = true;
+            buffer.delete (ref line_start, ref line_end);
+            this._internal_change = false;
+            // Здесь current_offset не меняем, так как мы удалили текст ПОСЛЕ него
+        }
+
+        // 3. Вставка идеального отступа
         string padding = (instr.level_delta > 0) ? string.nfill (indent_width, ' ') : "";
         string final_indent = instr.base_indent + padding;
 
-        // 3. Вставляем отступ в начало новой строки
         if (final_indent.length > 0) {
             Gtk.TextIter insert_pos;
             buffer.get_iter_at_offset (out insert_pos, current_offset);
-
             this._internal_change = true;
             buffer.insert (ref insert_pos, final_indent, (int) final_indent.length);
             this._internal_change = false;
@@ -382,7 +398,17 @@ public abstract class Iide.BaseTreeSitterHighlighter : Object {
 
         // 2. АСИНХРОННО: Обработка Enter
         if (ts_indenter != null && text == "\n") {
+            // Считаем пробелы СЛЕВА от места вставки Enter
+            int trim_count = 0;
+            Gtk.TextIter ws_check = iter;
+
+            // Пока символ слева — пробел и мы не вышли за начало строки
+            while (ws_check.backward_char () && ws_check.get_char ().isspace () && !ws_check.ends_line ()) {
+                trim_count++;
+            }
+
             pending_indents++;
+
             // Сохраняем позицию СРАЗУ ПОСЛЕ вставленного \n
             int offset_after_newline = iter.get_offset () + 1;
 
@@ -398,6 +424,7 @@ public abstract class Iide.BaseTreeSitterHighlighter : Object {
                 // РАСЧЕТ И ИСПОЛНЕНИЕ
                 var instr = ts_indenter.need_indent (this.tree, fresh_iter);
                 var indent_width = view.indent_width > 0 ? view.indent_width : 4;
+                instr.trim_chars = trim_count;
                 apply_indent (fresh_iter, instr, indent_width);
 
                 pending_indents--;
