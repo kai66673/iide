@@ -312,6 +312,39 @@ public abstract class Iide.BaseTreeSitterHighlighter : Object {
         e.set_line_index ((int) end_p.column);
     }
 
+    public void apply_indent (Gtk.TextIter iter, IndentInstruction instr, int indent_width) {
+        var buffer = iter.get_buffer ();
+        int current_offset = iter.get_offset ();
+
+        // 1. Удаляем пробелы в конце ПРЕДЫДУЩЕЙ строки
+        if (instr.trim_chars > 0) {
+            Gtk.TextIter del_end = iter;
+            del_end.backward_char (); // встали ПЕРЕД \n
+            Gtk.TextIter del_start = del_end;
+            for (int i = 0; i < instr.trim_chars; i++)del_start.backward_char ();
+
+            this._internal_change = true;
+            buffer.delete (ref del_start, ref del_end);
+            this._internal_change = false;
+
+            current_offset -= instr.trim_chars;
+        }
+
+        // 2. Формируем финальную строку отступа
+        string padding = (instr.level_delta > 0) ? string.nfill (indent_width, ' ') : "";
+        string final_indent = instr.base_indent + padding;
+
+        // 3. Вставляем отступ в начало новой строки
+        if (final_indent.length > 0) {
+            Gtk.TextIter insert_pos;
+            buffer.get_iter_at_offset (out insert_pos, current_offset);
+
+            this._internal_change = true;
+            buffer.insert (ref insert_pos, final_indent, (int) final_indent.length);
+            this._internal_change = false;
+        }
+    }
+
     private void on_insert_text (Gtk.TextIter iter, string text, int len_bytes) {
         // 1. Фиксируем точку вставки (здесь она абсолютно стабильна)
         uint32 start_byte = get_byte_offset_safe (iter);
@@ -322,6 +355,8 @@ public abstract class Iide.BaseTreeSitterHighlighter : Object {
         uint32 lines_added;
         uint32 last_line_bytes;
         calculate_text_stats (text, out lines_added, out last_line_bytes);
+
+        LoggerService.get_instance ().info ("CTS", "lines_added = %u --- last_line_bytes = %u".printf (lines_added, last_line_bytes));
 
         // 3. Формируем Edit
         InputEdit edit = {};
@@ -360,25 +395,31 @@ public abstract class Iide.BaseTreeSitterHighlighter : Object {
                 Gtk.TextIter fresh_iter;
                 buffer.get_iter_at_offset (out fresh_iter, offset_for_idle);
 
-                // Б. РАСЧЕТ: Вычисляем отступ
-                string suffix = ts_indenter.calculate_indent (this.tree, fresh_iter, view.indent_width);
+                // 1. Анализируем
+                var instr = ts_indenter.need_indent (this.tree, fresh_iter);
 
-                if (suffix.length > 0) {
-                    _internal_change = true;
+                // 2. Исполняем
+                apply_indent (fresh_iter, instr, view.indent_width);
 
-                    // 2. СБРОС ТАЙМЕРА: Если мы сейчас вставим пробелы,
-                    // старый запланированный таймер подсветки нам не нужен
-                    if (highlight_timeout_id > 0) {
-                        Source.remove (highlight_timeout_id);
-                        highlight_timeout_id = 0;
-                    }
+                //// Б. РАСЧЕТ: Вычисляем отступ
+                // string suffix = ts_indenter.calculate_indent (this.tree, fresh_iter, view.indent_width);
 
-                    buffer.insert (ref fresh_iter, suffix, (int) suffix.length);
-                    _internal_change = false;
-                }
+                // if (suffix.length > 0) {
+                // _internal_change = true;
+
+                //// 2. СБРОС ТАЙМЕРА: Если мы сейчас вставим пробелы,
+                //// старый запланированный таймер подсветки нам не нужен
+                // if (highlight_timeout_id > 0) {
+                // Source.remove (highlight_timeout_id);
+                // highlight_timeout_id = 0;
+                // }
+
+                // buffer.insert (ref fresh_iter, suffix, (int) suffix.length);
+                // _internal_change = false;
+                // }
 
                 pending_indents--; // Уменьшаем счетчик
-                
+
                 // В. ЗАПУСК: Планируем перекраску после всех манипуляций
                 on_buffer_changed ();
 
@@ -428,6 +469,10 @@ public abstract class Iide.BaseTreeSitterHighlighter : Object {
         edit.new_end_point = edit.start_point;
 
         tree.edit (edit);
+
+        // 2. Блокируем перекраску, если удаление инициировано индентером
+        if (_internal_change)
+            return;
 
         // После правки дерева запускаем отложенную перекраску (debounce)
         on_buffer_changed ();
