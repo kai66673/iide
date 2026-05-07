@@ -54,7 +54,9 @@ public enum Iide.IconID {
     MT_X_TEXT = 46,
     MT_X_APP = 47,
     MT_DEFAULT = 48,
-    APP_PROJECT = 49;
+    APP_PROJECT = 49,
+    TXT_WRAP = 50,
+    LOG_ERASE = 51;
 }
 
 public class Iide.SymbIconProvider {
@@ -121,6 +123,8 @@ public class Iide.SymbIconProvider {
             { "mt-x-app", "mt-x-app" },
             { "mt-default", "mt-default" },
             { "app-project", "" },
+            { "txt-wrap", "" },
+            { "log-erase", "" },
         };
     }
     public Gtk.Image image (IconID icon_id, bool colorize = true, int? pixel_size = null) {

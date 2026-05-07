@@ -740,7 +740,14 @@ public class Iide.LspClient : Object {
         if (response == null || !response.has_member ("result"))
             return null;
 
-        return parse_document_lsp_symbols (response.get_member ("result"));
+        var node = new Json.Node(Json.NodeType.OBJECT);
+        node.set_object(response);
+        LoggerService.get_instance ().info("DS", Json.to_string (node, true));
+
+
+        var result = parse_document_lsp_symbols (response.get_member ("result"));
+        
+        return result;
     }
 
     public async Gee.List<WorkspaceLspSymbol>? workspace_symbols (string query, Cancellable ? cancellable = null) throws Error {
@@ -865,32 +872,50 @@ public class Iide.LspClient : Object {
         return result;
     }
 
-    private Iide.DocumentLspSymbol parse_single_document_lsp_symbol (Json.Object obj, string? parent_name) {
+    private Iide.DocumentLspSymbol? parse_single_document_lsp_symbol (Json.Object obj, string? parent_name) {
+        // 1. Создаем объект и ПРОВЕРЯЕМ, что он создался
         var symbol = new Iide.DocumentLspSymbol ();
+        if (symbol == null) return null;
 
-        // Базовые поля
-        symbol.name = obj.get_string_member ("name");
-        symbol.kind = (SymbolKind) obj.get_int_member ("kind");
+        // 2. Используем локальные переменные для безопасности
+        string name = "Unknown";
+        if (obj.has_member ("name")) {
+            name = obj.get_string_member ("name");
+        }
+        symbol.name = name; // Здесь может быть триггер notify
+
+        if (obj.has_member ("kind")) {
+            symbol.kind = (SymbolKind) obj.get_int_member ("kind");
+        }
+
         symbol.container_name = parent_name;
 
-        // В DocumentSymbol используем selectionRange для точного указания на имя
-        // Если его нет (старый сервер), берем обычный range
-        var range_key = obj.has_member ("selectionRange") ? "selectionRange" : "range";
-        var range_obj = obj.get_object_member (range_key);
-        var start_obj = range_obj.get_object_member ("start");
+        // 3. Координаты (выделяем в блок для безопасности)
+        Json.Object? range_obj = null;
+        if (obj.has_member ("selectionRange")) range_obj = obj.get_object_member ("selectionRange");
+        else if (obj.has_member ("range")) range_obj = obj.get_object_member ("range");
 
-        symbol.start_line = (int) start_obj.get_int_member ("line");
-        symbol.start_char = (int) start_obj.get_int_member ("character");
+        if (range_obj != null) {
+            if (range_obj.has_member ("start")) {
+                var start = range_obj.get_object_member ("start");
+                symbol.start_line = (int) start.get_int_member ("line");
+                symbol.start_char = (int) start.get_int_member ("character");
+            }
+        }
 
-        // Рекурсивная обработка детей
+        // 4. РЕКУРСИЯ (Самое опасное место)
         if (obj.has_member ("children")) {
             var children_node = obj.get_member ("children");
-            if (children_node != null && !children_node.is_null ()) {
-                var children_array = children_node.get_array ();
-                foreach (var child_element in children_array.get_elements ()) {
-                    // Рекурсивно парсим ребенка, передавая имя текущего символа как родителя
-                    var child_symbol = parse_single_document_lsp_symbol (child_element.get_object (), symbol.name);
-                    symbol.children.add (child_symbol);
+            if (children_node != null && !children_node.is_null() && children_node.get_node_type() == Json.NodeType.ARRAY) {
+                var children_array = children_node.get_array();
+                foreach (var child_node in children_array.get_elements()) {
+                    // ПРОВЕРЯЕМ, ЧТО ЭТО ОБЪЕКТ ПЕРЕД ТЕМ КАК ВЫЗВАТЬ get_object()
+                    if (child_node != null && child_node.get_node_type() == Json.NodeType.OBJECT) {
+                        var child_symbol = parse_single_document_lsp_symbol (child_node.get_object(), symbol.name);
+                        if (child_symbol != null) {
+                            symbol.children.add (child_symbol);
+                        }
+                    }
                 }
             }
         }

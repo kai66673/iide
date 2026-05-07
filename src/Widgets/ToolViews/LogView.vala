@@ -49,6 +49,8 @@ public class Iide.LogView : Gtk.Box {
     construct {
         logger = Iide.LoggerService.get_instance ();
 
+        var icon_provider = SymbIconProvider.get_instance ();
+
         var toolbar = new Gtk.Box (Gtk.Orientation.HORIZONTAL, 6);
         toolbar.add_css_class ("toolbar");
         toolbar.margin_start = 6;
@@ -57,13 +59,13 @@ public class Iide.LogView : Gtk.Box {
         toolbar.margin_bottom = 4;
 
         clear_button = new Gtk.Button () {
-            icon_name = "edit-clear-symbolic",
+            icon_name = icon_provider.icon_name (IconID.LOG_ERASE),
             tooltip_text = _("Clear logs")
         };
         clear_button.clicked.connect (on_clear_clicked);
 
         wrap_button = new Gtk.ToggleButton () {
-            icon_name = "preferences-desktop-text-wrap-symbolic",
+            icon_name = icon_provider.icon_name (IconID.TXT_WRAP),
             tooltip_text = _("Word wrap")
         };
         wrap_button.active = true;

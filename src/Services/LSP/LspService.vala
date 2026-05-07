@@ -348,11 +348,24 @@ public class Iide.IdeLspService : GLib.Object {
 
     public async Gee.ArrayList<IdeLspLocation>? goto_definition (string uri, int line, int character) {
         var client = get_client_for_uri (uri);
-        if (client == null)return null;
+        if (client == null)
+            return null;
         try {
             return yield client.request_definition (uri, line, character);
         } catch (Error e) {
             logger.error ("LSP", "Failed to request definition for %s: %s".printf (uri, e.message));
+            return null;
+        }
+    }
+
+    public async Gee.List<DocumentLspSymbol>? document_symbols(string uri) {
+                var client = get_client_for_uri (uri);
+        if (client == null)
+            return null;
+        try {
+            return yield client.document_symbols (uri);
+        } catch (Error e) {
+            logger.error ("LSP", "Failed to request document symbols for %s: %s".printf (uri, e.message));
             return null;
         }
     }
