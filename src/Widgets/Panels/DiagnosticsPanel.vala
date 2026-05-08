@@ -78,7 +78,7 @@ public class Iide.DiagnosticsPanel : BasePanel {
     private HashMap<int, Gtk.Widget> server_headers = new HashMap<int, Gtk.Widget> ();
 
     public DiagnosticsPanel () {
-        base ("Diagnostics", "dialog-error-symbolic");
+        base ("Diagnostics", SymbIconProvider.get_instance ().icon_name (IconID.APP_ISSUES));
         can_maximize = true;
 
         main_list = new Gtk.ListBox ();

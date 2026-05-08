@@ -55,8 +55,11 @@ public enum Iide.IconID {
     MT_X_APP = 47,
     MT_DEFAULT = 48,
     APP_PROJECT = 49,
-    TXT_WRAP = 50,
-    LOG_ERASE = 51;
+    APP_LOG = 50,
+    APP_TERMINAL = 51,
+    APP_ISSUES = 52,
+    TXT_WRAP = 53,
+    LOG_ERASE = 54;
 }
 
 public class Iide.SymbIconProvider {
@@ -123,6 +126,9 @@ public class Iide.SymbIconProvider {
             { "mt-x-app", "mt-x-app" },
             { "mt-default", "mt-default" },
             { "app-project", "" },
+            { "app-log", "" },
+            { "app-terminal", "" },
+            { "app-issues", "" },
             { "txt-wrap", "" },
             { "log-erase", "" },
         };

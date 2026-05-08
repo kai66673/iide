@@ -376,6 +376,15 @@
         "app-project": {
             "char": "0xf13d2"
         },
+        "app-log": {
+            "char": "0xf4ed"
+        },
+        "app-terminal": {
+            "char": "0xf489"
+        },
+        "app-issues": {
+            "char": "0xf0a04"
+        },
         "txt-wrap": {
             "char": "0xf05b6"
         },

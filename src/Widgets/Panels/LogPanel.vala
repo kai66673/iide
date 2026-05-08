@@ -1,6 +1,6 @@
 public class Iide.LogPanel : BasePanel {
     public LogPanel () {
-        base ("Logs", "document-properties-symbolic");
+        base ("Logs", SymbIconProvider.get_instance ().icon_name (IconID.APP_LOG));
         child = new LogView ();
         can_maximize = true;
     }
