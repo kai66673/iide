@@ -4,15 +4,33 @@ using GLib;
 
 public class Iide.GutterMarkRenderer : GutterRenderer {
     private int current_icon_size = 16;
-    private string error_icon_name;
-    private string warning_icon_name;
+
+    private Gtk.IconPaintable error_paintable;
+    private Gtk.IconPaintable warning_paintable;
+    private Gdk.RGBA[] error_colors = {
+        Gdk.RGBA() {red = 1.0f, green = 0.0f, blue = 0.0f, alpha = 0.86f}
+    };
+    private Gdk.RGBA[] warning_colors = {
+        Gdk.RGBA() {red = 0.7f, green = 0.7f, blue = 0.0f, alpha = 0.86f}
+    };
 
     public GutterMarkRenderer() {
         Object();
+        init_paintable_icons ();
+    }
 
+    private void init_paintable_icons() {
         var icon_provider = SymbIconProvider.get_instance ();
-        error_icon_name = icon_provider.icon_name (IconID.COD_ERROR);
-        warning_icon_name = icon_provider.icon_name (IconID.COD_WARNING);
+        var display = Gdk.Display.get_default ();
+        var theme = Gtk.IconTheme.get_for_display (display);
+
+        var error_icon_name = icon_provider.icon_name (IconID.COD_ERROR);
+        var error_gicon = new GLib.ThemedIcon (error_icon_name);
+        error_paintable = theme.lookup_by_gicon (error_gicon, current_icon_size, 1, Gtk.TextDirection.NONE, 0);
+
+        var warning_icon_name = icon_provider.icon_name (IconID.COD_WARNING);
+        var warning_gicon = new GLib.ThemedIcon (warning_icon_name);
+        warning_paintable = theme.lookup_by_gicon (warning_gicon, current_icon_size, 1, Gtk.TextDirection.NONE, 0);
     }
 
     public void set_icons_size (int size) {
@@ -47,32 +65,20 @@ public class Iide.GutterMarkRenderer : GutterRenderer {
         lines.get_iter_at_line (out iter, line);
         var marks = iter.get_marks ();
 
-        string? icon_name_to_draw = null;
-
+        bool has_error = false;
+        bool has_warning = false;
         foreach (var text_mark in marks) {
             var lsp_mark = text_mark as LspDiagnosticsMark;
             if (lsp_mark != null) {
-                if (lsp_mark.severity == 1)
-                    icon_name_to_draw = error_icon_name;
-                else
-                    icon_name_to_draw = warning_icon_name;
-                break; 
+                if (lsp_mark.severity == 1) {
+                    has_error = true;
+                } else {
+                    has_warning = true;
+                }
             }
         }
 
-        if (icon_name_to_draw == null) {
-            return;
-        }
-
-        var display = Gdk.Display.get_default ();
-        if (display == null) {
-            return;
-        }
-
-        var theme = Gtk.IconTheme.get_for_display (display);
-        var gicon = new GLib.ThemedIcon (icon_name_to_draw);
-        var paintable = theme.lookup_by_gicon (gicon, current_icon_size, 1, Gtk.TextDirection.NONE, 0);
-        if (paintable == null) {
+        if (!has_error && !has_warning) {
             return;
         }
 
@@ -85,7 +91,10 @@ public class Iide.GutterMarkRenderer : GutterRenderer {
 
         var point = Graphene.Point () { x = x, y = y_pos };
         snapshot.translate (point);
-        paintable.snapshot (snapshot, snapshot_size, snapshot_size);
+        if (has_warning)
+            warning_paintable.snapshot_symbolic (snapshot, snapshot_size, snapshot_size, warning_colors);
+        if (has_error)
+            error_paintable.snapshot_symbolic (snapshot, snapshot_size, snapshot_size, error_colors);
         snapshot.translate (Graphene.Point () { x = -x, y = -y_pos });
     }
 }
