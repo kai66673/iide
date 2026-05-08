@@ -178,6 +178,18 @@
         "mt-x-app": [
             "#858585",
             "#858585"
+        ],
+        "cod-error": [
+            "#ff3300",
+            "#ff3300"
+        ],
+        "cod-warning": [
+            "#cccc00",
+            "#cccc00"
+        ],
+        "cod-info": [
+            "#66ccff",
+            "#66ccff"
         ]
     },
     "icons": {
@@ -385,11 +397,32 @@
         "app-issues": {
             "char": "0xf0a04"
         },
+        "app-error": {
+            "char": "0xea87"
+        },
+        "app-warning": {
+            "char": "0xea6c"
+        },
+        "app-info": {
+            "char": "0xea74"
+        },
         "txt-wrap": {
             "char": "0xf05b6"
         },
         "log-erase": {
             "char": "0xf12d"
+        },
+        "cod-error": {
+            "char": "0xea87",
+            "style": "cod-error"
+        },
+        "cod-warning": {
+            "char": "0xea6c",
+            "style": "cod-warning"
+        },
+        "cod-info": {
+            "char": "0xea74",
+            "style": "cod-info"
         }
     }
 }

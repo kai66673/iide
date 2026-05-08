@@ -90,7 +90,7 @@ public class Iide.DiagnosticsService : Object {
             foreach (var list in client_files.values) {
                 foreach (var d in list) {
                     if (d.severity == 1)e++;
-                    else if (d.severity == 2)w++;
+                    else w++;
                 }
             }
         }

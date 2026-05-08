@@ -50,9 +50,11 @@ public class Iide.EditorStatusBar : Gtk.Box {
         warn_label = new Gtk.Label ("0");
         warn_label.add_css_class ("warning-label");
 
-        diagnostic_box.append (new Gtk.Image.from_icon_name ("dialog-error-symbolic"));
+        var icon_provider = SymbIconProvider.get_instance ();
+
+        diagnostic_box.append (icon_provider.image (IconID.COD_ERROR));
         diagnostic_box.append (error_label);
-        diagnostic_box.append (new Gtk.Image.from_icon_name ("dialog-warning-symbolic"));
+        diagnostic_box.append (icon_provider.image (IconID.COD_WARNING));
         diagnostic_box.append (warn_label);
 
         // Добавляем в инфо-бокс перед позицией курсора
@@ -110,15 +112,15 @@ public class Iide.EditorStatusBar : Gtk.Box {
         this.diag_popover.popup ();
     }
 
-    public void update_diagnostics (int errors, int warnings, int infos) {
-        if (errors == 0 && warnings == 0 && infos == 0) {
+    public void update_diagnostics (int errors, int warnings) {
+        if (errors == 0 && warnings == 0) {
             diagnostic_box.hide ();
             return;
         }
 
         diagnostic_box.show ();
         error_label.label = errors.to_string ();
-        warn_label.label = (warnings + infos).to_string ();
+        warn_label.label = warnings.to_string ();
     }
 
     public void update_breadcrumbs (Gee.List<TreeSitterNodeItem?> crumbs) {

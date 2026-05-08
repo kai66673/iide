@@ -38,6 +38,7 @@ public class Iide.Window : Panel.DocumentWorkspace {
     private Gtk.Label global_diag_label;
     private Gtk.Image global_diag_icon;
     private DiagnosticsPanel panel_widget_diagnostics;
+    private string app_error_icon_name;
 
     private BasePanel[] panel_widgets;
 
@@ -513,9 +514,10 @@ public class Iide.Window : Panel.DocumentWorkspace {
     }
 
     private void setup_global_diag_widget () {
+        app_error_icon_name = SymbIconProvider.get_instance ().icon_name (IconID.APP_ERROR);
         var content = new Gtk.Box (Gtk.Orientation.HORIZONTAL, 6);
         global_diag_icon = new Gtk.Image.from_icon_name ("emblem-ok-symbolic");
-        global_diag_label = new Gtk.Label ("OK");
+        global_diag_label = new Gtk.Label ("OK");        
 
         content.append (global_diag_icon);
         content.append (global_diag_label);
@@ -541,7 +543,7 @@ public class Iide.Window : Panel.DocumentWorkspace {
             global_diag_label.label = "OK";
             global_diag_btn.remove_css_class ("error-state"); // Можно добавить для цвета
         } else {
-            global_diag_icon.icon_name = "dialog-error-symbolic";
+            global_diag_icon.icon_name = app_error_icon_name;
             global_diag_label.label = @"$errors / $warns";
             global_diag_btn.add_css_class ("error-state");
         }

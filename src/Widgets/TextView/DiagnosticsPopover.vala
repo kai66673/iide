@@ -117,11 +117,13 @@ public class Iide.DiagnosticsPopover : Gtk.Popover {
         row.set_data ("mark", mark);
 
         // Добавляем иконку в начало (префикс)
-        var icon_name = mark.get_icon_name ();
-        if (icon_name != null) {
-            var img = new Gtk.Image.from_icon_name (icon_name + "-symbolic");
-            img.add_css_class (mark.category); // Можно покрасить иконку через CSS
-            row.add_prefix (img);
+        switch (mark.severity) {
+            case 1:
+                row.add_prefix (SymbIconProvider.get_instance ().image (IconID.COD_ERROR));
+                break;
+            case 2: case 3: case 4:
+                row.add_prefix (SymbIconProvider.get_instance ().image (IconID.COD_WARNING));
+                break;
         }
 
         // При клике на строку — прыгаем к марке

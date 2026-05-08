@@ -135,3 +135,12 @@
 .def-mt-x-app { color: #858585; }
 .dark .def-mt-x-app { color: #858585; }
 
+.def-cod-error { color: #ff3300; }
+.dark .def-cod-error { color: #ff3300; }
+
+.def-cod-warning { color: #cccc00; }
+.dark .def-cod-warning { color: #cccc00; }
+
+.def-cod-info { color: #66ccff; }
+.dark .def-cod-info { color: #66ccff; }
+

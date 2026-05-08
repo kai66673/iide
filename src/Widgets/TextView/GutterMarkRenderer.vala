@@ -4,6 +4,16 @@ using GLib;
 
 public class Iide.GutterMarkRenderer : GutterRenderer {
     private int current_icon_size = 16;
+    private string error_icon_name;
+    private string warning_icon_name;
+
+    public GutterMarkRenderer() {
+        Object();
+
+        var icon_provider = SymbIconProvider.get_instance ();
+        error_icon_name = icon_provider.icon_name (IconID.COD_ERROR);
+        warning_icon_name = icon_provider.icon_name (IconID.COD_WARNING);
+    }
 
     public void set_icons_size (int size) {
         if (current_icon_size == size) {
@@ -42,7 +52,11 @@ public class Iide.GutterMarkRenderer : GutterRenderer {
         foreach (var text_mark in marks) {
             var lsp_mark = text_mark as LspDiagnosticsMark;
             if (lsp_mark != null) {
-                icon_name_to_draw = lsp_mark.get_icon_name ();
+                if (lsp_mark.severity == 1)
+                    icon_name_to_draw = error_icon_name;
+                else
+                    icon_name_to_draw = warning_icon_name;
+                break; 
             }
         }
 

@@ -58,8 +58,14 @@ public enum Iide.IconID {
     APP_LOG = 50,
     APP_TERMINAL = 51,
     APP_ISSUES = 52,
-    TXT_WRAP = 53,
-    LOG_ERASE = 54;
+    APP_ERROR = 53,
+    APP_WARNING = 54,
+    APP_INFO = 55,
+    TXT_WRAP = 56,
+    LOG_ERASE = 57,
+    COD_ERROR = 58,
+    COD_WARNING = 59,
+    COD_INFO = 60;
 }
 
 public class Iide.SymbIconProvider {
@@ -129,8 +135,14 @@ public class Iide.SymbIconProvider {
             { "app-log", "" },
             { "app-terminal", "" },
             { "app-issues", "" },
+            { "app-error", "" },
+            { "app-warning", "" },
+            { "app-info", "" },
             { "txt-wrap", "" },
             { "log-erase", "" },
+            { "cod-error", "cod-error" },
+            { "cod-warning", "cod-warning" },
+            { "cod-info", "cod-info" },
         };
     }
     public Gtk.Image image (IconID icon_id, bool colorize = true, int? pixel_size = null) {

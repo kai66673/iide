@@ -14,13 +14,15 @@ public class Iide.DiagnosticsRow : Adw.ActionRow {
         this.diagnostic = diagnostic;
         this.uri = uri;
 
-        var icon = new Gtk.Image.from_icon_name (
-                                                 (diagnostic.severity == 1)
-                                                 ? "dialog-error-symbolic"
-                                                 : "dialog-warning-symbolic"
-        );
-        icon.add_css_class ((diagnostic.severity == 1) ? "error" : "warning");
-        add_prefix (icon);
+        var icon_provider = SymbIconProvider.get_instance ();
+        switch (diagnostic.severity) {
+            case 1:
+                add_prefix (icon_provider.image (IconID.COD_ERROR));
+                break;
+            case 2: case 3: case 4:
+                add_prefix (icon_provider.image (IconID.COD_WARNING));
+                break;
+        }
     }
 }
 

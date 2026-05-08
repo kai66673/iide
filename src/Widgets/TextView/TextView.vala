@@ -248,7 +248,6 @@ public class Iide.TextView : Panel.Widget {
 
         int lsp_error_count = 0;
         int lsp_warning_count = 0;
-        int lsp_info_count = 0;
 
         foreach (var diag in diagnostics) {
             if (diag.start_line >= line_count) {
@@ -265,19 +264,15 @@ public class Iide.TextView : Panel.Widget {
             case 1:
                 lsp_error_count++;
                 break;
-            case 2:
+            case 2: case 3: case 4:
                 lsp_warning_count++;
-                break;
-            case 3:
-            case 4:
-                lsp_info_count++;
                 break;
             }
         }
 
         text_buffer.end_user_action ();
 
-        this.editor_status_bar.update_diagnostics (lsp_error_count, lsp_warning_count, lsp_info_count);
+        this.editor_status_bar.update_diagnostics (lsp_error_count, lsp_warning_count);
     }
 
     public void select_and_scroll (int line, int start_col, int end_col, bool is_new) {
