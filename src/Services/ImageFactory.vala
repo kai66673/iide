@@ -23,7 +23,7 @@ public class Iide.ImageFactory {
         return _provider.image (IconID.LS_DEFAULT);
     }
 
-    public static Gtk.Widget create_for_completion (Iide.IdeLspCompletionKind kind) {
+    public static Gtk.Widget create_for_completion (Iide.LspCompletionKind kind) {
         SymbIconProvider _provider = SymbIconProvider.get_instance ();
 
         switch (kind) {

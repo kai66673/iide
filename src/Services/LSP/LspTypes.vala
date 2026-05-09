@@ -18,7 +18,7 @@ public enum Iide.CompletionTriggerKind {
     TRIGGER_FOR_INCOMPLETE_COMPLETIONS = 3
 }
 
-public enum Iide.IdeLspCompletionKind {
+public enum Iide.LspCompletionKind {
     TEXT = 1,
     METHOD = 2,
     FUNCTION = 3,
@@ -109,7 +109,7 @@ public class Iide.IdeLspCompletionItem : GLib.Object {
     public int start_column { get; set; default = 0; }
     public int end_line { get; set; default = 0; }
     public int end_column { get; set; default = 0; }
-    public IdeLspCompletionKind kind { get; set; default = IdeLspCompletionKind.TEXT; }
+    public LspCompletionKind kind { get; set; default = LspCompletionKind.TEXT; }
 }
 
 public class Iide.IdeLspDiagnostic : GLib.Object {
