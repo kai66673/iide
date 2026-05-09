@@ -36,7 +36,7 @@ public class Iide.LspDocumentClient: GLib.Object {
         });
     }
 
-    private void flush_changes () {
+    public void flush_changes () {
         if (lsp_sync_kind != 1)
             return;
         if (pending_queue.is_empty)
@@ -102,7 +102,7 @@ public class Iide.LspDocumentClient: GLib.Object {
     }
 
     public void bind_lsp_client (LspClient? client) {
-        if (client == null)
+        if (client != null)
             setup_lsp_sync (client);
         else
             setup_no_lsp_sync ();

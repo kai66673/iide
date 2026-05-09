@@ -169,7 +169,7 @@ public class Iide.IdeLspService : GLib.Object {
         if (server_key == null) {
             debug ("IdeLspService: No LSP server configured for language: %s", language_id);
             Idle.add (() => {
-                view.setup_no_lsp_sync ();
+                view.bind_lsp_client (null);
                 return Source.REMOVE;
             });
             return;
@@ -188,7 +188,7 @@ public class Iide.IdeLspService : GLib.Object {
             }
 
             Idle.add (() => {
-                view.setup_lsp_sync (client);
+                view.bind_lsp_client (client);
                 return Source.REMOVE;
             });
 
@@ -228,7 +228,7 @@ public class Iide.IdeLspService : GLib.Object {
             }
 
             Idle.add (() => {
-                view.setup_lsp_sync (client);
+                view.bind_lsp_client (client);
                 return Source.REMOVE;
             });
 
@@ -236,7 +236,7 @@ public class Iide.IdeLspService : GLib.Object {
         } else {
             // TODO: restart logic...
             Idle.add (() => {
-                view.setup_no_lsp_sync ();
+                view.bind_lsp_client (null);
                 return Source.REMOVE;
             });
 

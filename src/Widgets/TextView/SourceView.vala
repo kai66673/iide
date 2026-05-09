@@ -71,15 +71,8 @@ public class Iide.SourceView : GtkSource.View {
     private LspTooltipWidget tooltip_widget;
     private string tooltip_separator = "────────────────────────────────────────";
 
-    // Incremental didChange...
-    private Gee.ArrayList<PendingChange> pending_queue = new Gee.ArrayList<PendingChange> ();
-    private uint debounce_id = 0;
-    private uint debounce_full_id = 0;
-    private int document_version = 0;
-
-    private ulong insert_handler_id = 0;
-    private ulong delete_handler_id = 0;
-    private int lsp_sync_kind = 0; // 0 - не синхронизирован, 1 - incremental, 2 - full sync
+    private LspDocumentClient lsp_doclument_client;
+    private SourceDocument document;
 
     private int last_line = -1;
     private NavigationHistoryService history;
@@ -184,10 +177,6 @@ public class Iide.SourceView : GtkSource.View {
         click_gest.released.connect (on_click_released);
         add_controller (click_gest);
 
-        // setup_buffer_signals ();
-        // setup_buffer_signals_test ();
-        this.connect_incremental_signals ();
-
         buffer.set_modified (false);
 
         // 1. Триггер по фокусу
@@ -202,6 +191,14 @@ public class Iide.SourceView : GtkSource.View {
         this.buffer.notify["cursor-position"].connect (() => {
             handle_navigation_trigger (true);
         });
+
+        this.document = new SourceDocument (this);
+        this.lsp_doclument_client = new LspDocumentClient (this);
+        this.document.document_changed.connect(this.lsp_doclument_client.add_change);
+    }
+
+    public async void lsp_sync_changes_async () {
+        yield this.lsp_doclument_client.sync_changes_async ();
     }
 
     private void handle_navigation_trigger (bool check_distance) {
@@ -224,151 +221,8 @@ public class Iide.SourceView : GtkSource.View {
     }
 
     // Этот метод вызывается при открытии файла
-    public void setup_lsp_sync (LspClient client) {
-        this.apply_sync_strategy (client.capabilities, client);
-    }
-
-    public void setup_no_lsp_sync () {
-        lsp_sync_kind = 0;
-        if (insert_handler_id > 0)buffer.disconnect (insert_handler_id);
-        if (delete_handler_id > 0)buffer.disconnect (delete_handler_id);
-
-        // Очищаем накопленные дельты (они бесполезны)
-        this.pending_queue.clear ();
-    }
-
-    private void connect_incremental_signals () {
-        insert_handler_id = buffer.insert_text.connect ((ref location, text, len) => {
-            var change = new PendingChange (text, location);
-            this.add_change (change);
-        });
-
-        delete_handler_id = buffer.delete_range.connect ((start, end) => {
-            var change = new PendingChange ("", start, end);
-            this.add_change (change);
-        });
-    }
-
-    private void apply_sync_strategy (ServerCapabilities caps, LspClient client) {
-        // Если сервер НЕ умеет в инкремент (Full Sync)
-        if (caps.sync_kind != TextDocumentSyncKind.INCREMENTAL) {
-            // Отключаем 'before' сигналы
-            if (insert_handler_id > 0)buffer.disconnect (insert_handler_id);
-            if (delete_handler_id > 0)buffer.disconnect (delete_handler_id);
-
-            // Очищаем накопленные дельты (они бесполезны для Full Sync)
-            this.pending_queue.clear ();
-
-            // Переходим на Full Sync (срабатывает ПОСЛЕ вставки текста)
-            buffer.changed.connect_after (() => {
-                this.start_debounce_full_timer ();
-            });
-
-            // ПРИНУДИТЕЛЬНО выравниваем состояние сервера (шлем весь текущий текст)
-            client.text_document_did_change.begin (this.uri, this.document_version, this.buffer.text);
-            lsp_sync_kind = 2;
-        } else {
-            lsp_sync_kind = 1;
-            reset_timer ();
-        }
-    }
-
-    private void start_debounce_full_timer () {
-        // 1. Сбрасываем старый таймер, если пользователь продолжает печатать
-        if (debounce_full_id > 0) {
-            Source.remove (debounce_full_id);
-        }
-
-        // 2. Устанавливаем задержку (например, 500 мс затишья)
-        debounce_full_id = Timeout.add (500, () => {
-            this.flush_changes_full_async.begin (); // Запускаем асинхронную отправку
-            debounce_full_id = 0;
-            return Source.REMOVE;
-        });
-    }
-
-    private async void flush_changes_full_async () {
-        this.document_version++;
-
-        // Получаем текст синхронно (он уже актуален, так как мы в Main Loop после паузы)
-        string current_text = this.buffer.text;
-
-        var client = IdeLspService.get_instance ().get_client_for_uri (this.uri);
-        if (client != null) {
-            try {
-                // Вызываем метод полной синхронизации в новом асинхронном клиенте
-                yield client.text_document_did_change (this.uri, this.document_version, current_text);
-
-                debug ("LSP: Full sync sent for %s (v%d)", this.uri, this.document_version);
-            } catch (Error e) {
-                warning ("LSP: Full sync error: %s", e.message);
-            }
-        }
-    }
-
-    private void add_change (PendingChange nc) {
-        if (!pending_queue.is_empty) {
-            // TODO: merge changes...
-        }
-
-        pending_queue.add (nc);
-        reset_timer ();
-    }
-
-    private void reset_timer () {
-        if (debounce_id > 0)Source.remove (debounce_id);
-        debounce_id = Timeout.add (400, () => {
-            flush_changes ();
-            return Source.REMOVE;
-        });
-    }
-
-    public void flush_changes () {
-        if (lsp_sync_kind != 1)return;
-        if (pending_queue.is_empty)return;
-
-        var changes = pending_queue;
-        pending_queue = new Gee.ArrayList<PendingChange> ();
-        if (debounce_id > 0) {
-            Source.remove (debounce_id);
-            debounce_id = 0;
-        }
-
-        this.document_version++;
-
-        // Передаем в менеджер для конвертации и отправки
-        var lsp_service = IdeLspService.get_instance ();
-        lsp_service.send_did_change.begin (this.uri, this.document_version, changes);
-    }
-
-    private async void flush_changes_async () {
-        if (pending_queue.is_empty)return;
-
-        var changes = pending_queue;
-        pending_queue = new Gee.ArrayList<PendingChange> ();
-        if (debounce_id > 0) {
-            Source.remove (debounce_id);
-            debounce_id = 0;
-        }
-
-        this.document_version++;
-
-        // Передаем в менеджер для конвертации и отправки
-        var lsp_service = IdeLspService.get_instance ();
-        yield lsp_service.send_did_change (this.uri, this.document_version, changes);
-    }
-
-    public async void sync_changes_async () {
-        switch (lsp_sync_kind) {
-        case 1:
-            yield flush_changes_async ();
-
-            break;
-        case 2:
-            yield flush_changes_full_async ();
-
-            break;
-        }
+    public void bind_lsp_client (LspClient? client) {
+        this.lsp_doclument_client.bind_lsp_client (client);
     }
 
     public GtkSource.Language? language {
@@ -488,7 +342,7 @@ public class Iide.SourceView : GtkSource.View {
         tooltip_widget.update_text ("Loading...", true);
         last_hover_range = word_range;
 
-        flush_changes ();
+        this.lsp_doclument_client.flush_changes ();
         fetch_lsp_hover_async.begin (word_range.line, word_range.start_column + 1);
 
         return true;
@@ -539,7 +393,7 @@ public class Iide.SourceView : GtkSource.View {
                 get_buffer ().place_cursor (iter);
 
                 // Запускаем асинхронный переход
-                flush_changes ();
+                this.lsp_doclument_client.flush_changes ();
                 handle_ctrl_click_async.begin (iter.get_line (), iter.get_line_offset ());
             }
         }
