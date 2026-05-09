@@ -84,6 +84,9 @@ public class Iide.SourceView : GtkSource.View {
     private int last_line = -1;
     private NavigationHistoryService history;
 
+    // Временный сигнал инкремента изменений
+    public signal void changed(PendingChange new_change);
+
     public SourceView (Window window, string uri, GtkSource.Buffer buffer) {
         Object (buffer : buffer);
         this.window = window;

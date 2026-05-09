@@ -13,11 +13,11 @@ public class Iide.LspDocumentClient: GLib.Object {
     private ulong change_handler_id = 0;
 
     public LspDocumentClient(SourceView source_view) {
+        Object();
         this.source_view = source_view;
-        this.source_view.changed.connect(add_change);
     }
 
-    private void add_change (PendingChange nc) {
+    public void add_change (PendingChange nc) {
         if (!pending_queue.is_empty) {
             // TODO: merge changes...
         }
@@ -101,12 +101,19 @@ public class Iide.LspDocumentClient: GLib.Object {
         }
     }
 
-    // Этот метод вызывается при открытии файла
-    public void setup_lsp_sync (LspClient client) {
-        this.apply_sync_strategy (client.capabilities, client);
+    public void bind_lsp_client (LspClient? client) {
+        if (client == null)
+            setup_lsp_sync (client);
+        else
+            setup_no_lsp_sync ();
     }
 
-    public void setup_no_lsp_sync () {
+    // Этот метод вызывается при открытии файла
+    private void setup_lsp_sync (LspClient client) {
+        this.apply_sync_strategy (client);
+    }
+
+    private void setup_no_lsp_sync () {
         lsp_sync_kind = 0;
         if (change_handler_id > 0)
             this.source_view.disconnect (change_handler_id);
@@ -115,9 +122,9 @@ public class Iide.LspDocumentClient: GLib.Object {
         this.pending_queue.clear ();
     }
 
-    private void apply_sync_strategy (ServerCapabilities caps, LspClient client) {
+    private void apply_sync_strategy (LspClient client) {
         // Если сервер НЕ умеет в инкремент (Full Sync)
-        if (caps.sync_kind != TextDocumentSyncKind.INCREMENTAL) {
+        if (client.capabilities.sync_kind != TextDocumentSyncKind.INCREMENTAL) {
             // Отключаем 'before' сигналы
             if (change_handler_id > 0)
                 this.source_view.disconnect (change_handler_id);
