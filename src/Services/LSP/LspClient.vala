@@ -569,11 +569,11 @@ public class Iide.LspClient : Object {
 
             var start = new Json.Object ();
             start.set_int_member ("line", c.start_line);
-            start.set_int_member ("character", c.start_char);
+            start.set_int_member ("character", c.start_utf16_char);
 
             var end = new Json.Object ();
             end.set_int_member ("line", c.end_line);
-            end.set_int_member ("character", c.end_char);
+            end.set_int_member ("character", c.end_utf16_char);
 
             range.set_object_member ("start", start);
             range.set_object_member ("end", end);
