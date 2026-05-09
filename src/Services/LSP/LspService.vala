@@ -11,7 +11,7 @@ public class Iide.IdeLspService : GLib.Object {
 
     private LoggerService logger = LoggerService.get_instance ();
 
-    public signal void diagnostics_updated (string uri, ArrayList<IdeLspDiagnostic> diagnostics);
+    public signal void diagnostics_updated (string uri, ArrayList<LspDiagnostic> diagnostics);
 
     public class PendingOpen {
         public string uri;
@@ -316,7 +316,7 @@ public class Iide.IdeLspService : GLib.Object {
         return clients.get (server_key);
     }
 
-    public async IdeLspCompletionResult ? request_completion (string uri,
+    public async LspCompletionResult ? request_completion (string uri,
                                                               int line,
                                                               int character,
                                                               string? trigger_character = null,
@@ -346,7 +346,7 @@ public class Iide.IdeLspService : GLib.Object {
         }
     }
 
-    public async Gee.ArrayList<IdeLspLocation>? goto_definition (string uri, int line, int character) {
+    public async Gee.ArrayList<LspLocation>? goto_definition (string uri, int line, int character) {
         var client = get_client_for_uri (uri);
         if (client == null)
             return null;

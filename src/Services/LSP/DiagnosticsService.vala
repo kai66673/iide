@@ -2,7 +2,7 @@ public class Iide.DiagnosticsService : Object {
     private static DiagnosticsService? instance;
 
     // Группировка: [ClientID] -> [FileURI] -> [Список диагностик]
-    private Gee.HashMap<int, Gee.HashMap<string, Gee.List<IdeLspDiagnostic>>> server_map;
+    private Gee.HashMap<int, Gee.HashMap<string, Gee.List<LspDiagnostic>>> server_map;
     private uint update_timeout_id = 0;
 
     public signal void diagnostics_updated (int client_id, string uri);
@@ -14,14 +14,14 @@ public class Iide.DiagnosticsService : Object {
     }
 
     private DiagnosticsService () {
-        server_map = new Gee.HashMap<int, Gee.HashMap<string, Gee.List<IdeLspDiagnostic>>> ();
+        server_map = new Gee.HashMap<int, Gee.HashMap<string, Gee.List<LspDiagnostic>>> ();
     }
 
     /**
      * Возвращает карту всех диагностик.
      * Мы возвращаем её как Map, чтобы панель могла перебрать Entry (серверы и их файлы).
      */
-    public Gee.Map<int, Gee.HashMap<string, Gee.List<IdeLspDiagnostic>>> get_server_map () {
+    public Gee.Map<int, Gee.HashMap<string, Gee.List<LspDiagnostic>>> get_server_map () {
         return server_map;
     }
 
@@ -41,7 +41,7 @@ public class Iide.DiagnosticsService : Object {
     /**
      * Возвращает список диагностик для конкретного файла от конкретного LSP-клиента.
      */
-    public Gee.List<IdeLspDiagnostic>? get_diagnostics_for_file (int client_id, string uri) {
+    public Gee.List<LspDiagnostic>? get_diagnostics_for_file (int client_id, string uri) {
         if (server_map.has_key (client_id)) {
             var client_files = server_map.get (client_id);
             if (client_files.has_key (uri)) {
@@ -52,9 +52,9 @@ public class Iide.DiagnosticsService : Object {
         return null;
     }
 
-    public void update_diagnostics (int client_id, string uri, Gee.List<IdeLspDiagnostic> list) {
+    public void update_diagnostics (int client_id, string uri, Gee.List<LspDiagnostic> list) {
         if (!server_map.has_key (client_id)) {
-            server_map.set (client_id, new Gee.HashMap<string, Gee.List<IdeLspDiagnostic>> ());
+            server_map.set (client_id, new Gee.HashMap<string, Gee.List<LspDiagnostic>> ());
         }
 
         var client_files = server_map.get (client_id);

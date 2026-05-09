@@ -237,7 +237,7 @@ public class Iide.TextView : Panel.Widget {
         return true;
     }
 
-    public void update_diagnostics (Gee.ArrayList<IdeLspDiagnostic> diagnostics) {
+    public void update_diagnostics (Gee.ArrayList<LspDiagnostic> diagnostics) {
         var text_buffer = (Gtk.TextBuffer) source_view.buffer;
 
         text_buffer.begin_user_action ();

@@ -27,9 +27,9 @@ using GtkSource;
 namespace Iide {
 
     public class LspCompletionProposal : GLib.Object, CompletionProposal {
-        public IdeLspCompletionItem item { get; private set; }
+        public LspCompletionItem item { get; private set; }
 
-        public LspCompletionProposal (IdeLspCompletionItem item) {
+        public LspCompletionProposal (LspCompletionItem item) {
             this.item = item;
         }
 

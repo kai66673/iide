@@ -35,6 +35,7 @@ iide_sources = [
     'Services/StyleManager.vala',
     'Services/LoggerService.vala',
     'Services/DocumentManager.vala',
+    'Services/PendingChange.vala',
     'Services/SourceDocument.vala',
     'Services/ImageFactory.vala',
     'Services/SymbIconProvider.vala',

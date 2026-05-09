@@ -55,7 +55,7 @@ public class Iide.LspClient : Object {
     private OutputStream output_stream;
 
     // Сигнал для передачи диагностики в UI
-    public signal void diagnostics_received (string uri, Gee.ArrayList<IdeLspDiagnostic> diagnostics);
+    public signal void diagnostics_received (string uri, Gee.ArrayList<LspDiagnostic> diagnostics);
 
     // Сигнал для логирования сообщений от сервера
     public signal void log_message (int type, string message);
@@ -484,12 +484,12 @@ public class Iide.LspClient : Object {
         yield this.send_message_async (root);
     }
 
-    private Gee.ArrayList<IdeLspDiagnostic> parse_diagnostics (Json.Array diagnostics_array) {
-        var result = new Gee.ArrayList<IdeLspDiagnostic> ();
+    private Gee.ArrayList<LspDiagnostic> parse_diagnostics (Json.Array diagnostics_array) {
+        var result = new Gee.ArrayList<LspDiagnostic> ();
 
         foreach (var diag_node in diagnostics_array.get_elements ()) {
             var diag_obj = diag_node.get_object ();
-            var d = new IdeLspDiagnostic ();
+            var d = new LspDiagnostic ();
 
             // Основные поля
             d.message = diag_obj.get_string_member ("message");
@@ -597,9 +597,9 @@ public class Iide.LspClient : Object {
         yield this.send_notification_async ("textDocument/didClose", params);
     }
 
-    private IdeLspCompletionResult parse_completion_result (Json.Node node) {
-        var res = new IdeLspCompletionResult ();
-        res.items = new Gee.ArrayList<IdeLspCompletionItem> ();
+    private LspCompletionResult parse_completion_result (Json.Node node) {
+        var res = new LspCompletionResult ();
+        res.items = new Gee.ArrayList<LspCompletionItem> ();
 
         Json.Array? items_array = null;
 
@@ -621,7 +621,7 @@ public class Iide.LspClient : Object {
         if (items_array != null) {
             foreach (var item_node in items_array.get_elements ()) {
                 var item_obj = item_node.get_object ();
-                var item = new IdeLspCompletionItem ();
+                var item = new LspCompletionItem ();
 
                 item.label = item_obj.get_string_member ("label");
 
@@ -653,7 +653,7 @@ public class Iide.LspClient : Object {
         return res;
     }
 
-    public async IdeLspCompletionResult ? request_completion (string uri, int line, int character, string? trigger_char = null, CompletionTriggerKind trigger_kind = CompletionTriggerKind.INVOKED) throws Error {
+    public async LspCompletionResult ? request_completion (string uri, int line, int character, string? trigger_char = null, CompletionTriggerKind trigger_kind = CompletionTriggerKind.INVOKED) throws Error {
         var params = new Json.Object ();
 
         var doc = new Json.Object ();
@@ -797,7 +797,7 @@ public class Iide.LspClient : Object {
         return result;
     }
 
-    public async Gee.ArrayList<IdeLspLocation>? request_definition (string uri, int line, int character) throws Error {
+    public async Gee.ArrayList<LspLocation>? request_definition (string uri, int line, int character) throws Error {
         var params = new Json.Object ();
 
         var doc = new Json.Object ();
@@ -819,8 +819,8 @@ public class Iide.LspClient : Object {
         return parse_definition_result (result_node);
     }
 
-    private Gee.ArrayList<IdeLspLocation> parse_definition_result (Json.Node node) {
-        var locations = new Gee.ArrayList<IdeLspLocation> ();
+    private Gee.ArrayList<LspLocation> parse_definition_result (Json.Node node) {
+        var locations = new Gee.ArrayList<LspLocation> ();
 
         // Случай 1: Одиночный объект Location {}
         if (node.get_node_type () == Json.NodeType.OBJECT) {
@@ -839,8 +839,8 @@ public class Iide.LspClient : Object {
         return locations;
     }
 
-    private IdeLspLocation ? parse_single_location (Json.Object obj) {
-        var loc = new IdeLspLocation ();
+    private LspLocation ? parse_single_location (Json.Object obj) {
+        var loc = new LspLocation ();
         loc.uri = obj.get_string_member ("uri");
 
         var range = obj.get_object_member ("range");

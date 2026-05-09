@@ -22,7 +22,7 @@ public class Iide.LspDiagnosticsMark : GtkSource.Mark {
         return "lsp_error";
     }
 
-    public LspDiagnosticsMark.from_lsp_diagnostic(IdeLspDiagnostic diagnostics) {
+    public LspDiagnosticsMark.from_lsp_diagnostic(LspDiagnostic diagnostics) {
         Object(name: null,
                category: category_from_severity(diagnostics.severity),
                severity: diagnostics.severity,

@@ -2,10 +2,10 @@ using Gee;
 using Adw;
 
 public class Iide.DiagnosticsRow : Adw.ActionRow {
-    private IdeLspDiagnostic diagnostic;
+    private LspDiagnostic diagnostic;
     private string uri;
 
-    public DiagnosticsRow (string uri, IdeLspDiagnostic diagnostic) {
+    public DiagnosticsRow (string uri, LspDiagnostic diagnostic) {
         Object (
                 title: diagnostic.message,
                 subtitle: @"Line $(diagnostic.start_line + 1)",
@@ -44,7 +44,7 @@ public class Iide.FileRow : Adw.ExpanderRow {
         add_row (content_list);
     }
 
-    public void update_rows (Gee.List<IdeLspDiagnostic>? diags) {
+    public void update_rows (Gee.List<LspDiagnostic>? diags) {
         // Очистка ListBox
         Gtk.Widget? child;
         while ((child = content_list.get_first_child ()) != null) {

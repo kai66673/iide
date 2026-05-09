@@ -72,9 +72,9 @@ public class Iide.DocumentManager : GLib.Object {
         lsp_service.diagnostics_updated.connect ((uri, diagnostics) => {
             var doc = documents.get (uri);
             if (doc != null) {
-                var lsp_diagnostics = new Gee.ArrayList<IdeLspDiagnostic> ();
+                var lsp_diagnostics = new Gee.ArrayList<LspDiagnostic> ();
                 foreach (var diag in diagnostics) {
-                    var d = new IdeLspDiagnostic ();
+                    var d = new LspDiagnostic ();
                     d.severity = diag.severity;
                     d.message = diag.message;
                     d.start_line = diag.start_line;
