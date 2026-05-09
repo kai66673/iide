@@ -305,33 +305,7 @@ public class Iide.SourceView : GtkSource.View {
 
     private void add_change (PendingChange nc) {
         if (!pending_queue.is_empty) {
-            // var last = pending_queue.get (pending_queue.size - 1);
-
-            // Слияние последовательной печати
-            // ВАЖНО: используем char_count() для определения реального сдвига в буфере
-            // if (nc.text != "" && last.text != "" && nc.start_offset == last.end_offset) {
-
-            // last.text += nc.text;
-
-            //// Обновляем только конечные координаты
-            // last.end_offset = nc.end_offset;
-            // last.end_line = nc.end_line;
-            // last.end_char = nc.end_char;
-
-            // reset_timer ();
-            // return;
-            // }
-
-            // TODO: merge mergeable delete_range changes...
-            // Слияние удаления (Backspace)
-            // Здесь оффсеты — это просто индексы символов, они работают корректно
-            // if (nc.text == "" && last.text == "" && nc.end_offset == last.start_offset) {
-            // last.start_offset = nc.start_offset;
-            // last.start_line = nc.start_line;
-            // last.start_char = nc.start_char;
-            // reset_timer ();
-            // return;
-            // }
+            // TODO: merge changes...
         }
 
         pending_queue.add (nc);
