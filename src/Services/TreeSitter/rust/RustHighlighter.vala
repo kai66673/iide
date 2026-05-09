@@ -10,10 +10,6 @@ public class Iide.RustHighlighter : BaseTreeSitterHighlighter {
         return get_language_rust ();
     }
 
-    protected override string get_query_filename () {
-        return "rust/highlights.scm";
-    }
-
     protected override string query_source () {
         return """
         ; Identifiers

@@ -10,10 +10,6 @@ public class Iide.CppHighlighter : BaseTreeSitterHighlighter {
         return get_lang_cpp ();
     }
 
-    protected override string get_query_filename () {
-        return "cpp/highlights.scm";
-    }
-
     protected override string query_source () {
         return """
         ; Functions

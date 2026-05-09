@@ -146,7 +146,6 @@ public abstract class Iide.BaseTreeSitterHighlighter : Object {
 
     // Абстрактные методы для реализации в подклассах (Vala, Cpp и т.д.)
     protected abstract unowned Language get_ts_language ();
-    protected abstract string get_query_filename ();
     protected abstract string query_source ();
 
     // Абстрактный метод для фильтрации узлов Breadcrumbs

@@ -47,9 +47,9 @@ public enum Iide.IdeLspCompletionKind {
 }
 
 public class Iide.PendingChange : GLib.Object {
-    public int start_offset;
-    public int end_offset;
-    public string text;
+    public int start_offset;    // Стартовая позиция в байтах
+    public int end_offset;      // Конечная позиция в байтах
+    public string text;         // Добавленный текст (для delete_range - пустой)
 
     // Замороженные координаты LSP
     public int start_line;

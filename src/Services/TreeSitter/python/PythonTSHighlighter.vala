@@ -10,10 +10,6 @@ public class Iide.PythonHighlighter : BaseTreeSitterHighlighter {
     return get_lang_python ();
   }
 
-  protected override string get_query_filename () {
-    return "python/highlights.scm";
-  }
-
   protected override BaseTreeSitterIndenter ? create_indenter () {
     return new PythonTreeSitterIndenter (get_ts_language ());
   }
