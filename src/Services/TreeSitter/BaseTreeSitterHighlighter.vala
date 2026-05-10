@@ -1,13 +1,5 @@
 using TreeSitter;
 
-public struct TreeSitterNodeItem {
-    public string name;
-    public string type;
-    public TreeSitter.Point start_point;
-    public Gee.List<TreeSitterNodeItem?> siblings; // Добавляем список соседей
-    public Gee.List<TreeSitterNodeItem?> children;
-}
-
 public abstract class Iide.BaseTreeSitterHighlighter : Object {
     // Нативные структуры Tree-sitter
     protected Parser parser;
@@ -40,8 +32,8 @@ public abstract class Iide.BaseTreeSitterHighlighter : Object {
     private Gee.ArrayQueue<TreeSitter.Range?> selection_stack = new Gee.ArrayQueue<TreeSitter.Range?> ();
     private bool is_internal_selection_change = false;
 
-    private Gee.List<TreeSitterNodeItem?> last_crumbs = null;
-    public signal void breadcrumbs_changed (Gee.List<TreeSitterNodeItem?> crumbs);
+    private Gee.List<SourceNodeItem?> last_crumbs = null;
+    public signal void breadcrumbs_changed (Gee.List<SourceNodeItem?> crumbs);
 
     private void set_color_theme () {
         var color_scheme = SettingsService.get_instance ().color_scheme;
@@ -547,8 +539,8 @@ public abstract class Iide.BaseTreeSitterHighlighter : Object {
         }
     }
 
-    private Gee.List<TreeSitterNodeItem?> get_siblings_for_node (TreeSitter.Node parent_node) {
-        var siblings = new Gee.ArrayList<TreeSitterNodeItem?> ();
+    private Gee.List<SourceNodeItem?> get_siblings_for_node (TreeSitter.Node parent_node) {
+        var siblings = new Gee.ArrayList<SourceNodeItem?> ();
         if (parent_node.is_null ())return siblings;
 
         for (uint32 i = 0; i < parent_node.named_child_count (); i++) {
@@ -558,10 +550,14 @@ public abstract class Iide.BaseTreeSitterHighlighter : Object {
                 if (name_node != null && !name_node.is_null ()) {
                     Gtk.TextIter s, e;
                     get_iters_from_ts_node (buffer, name_node, out s, out e);
-                    siblings.add (TreeSitterNodeItem () {
+                    var start_point = child.start_point ();
+                    siblings.add (SourceNodeItem () {
                         name = buffer.get_text (s, e, false),
                         type = child.type (),
-                        start_point = child.start_point ()
+                        start_point = SourceNodePosition() {
+                            row = start_point.row,
+                            column = start_point.column
+                        },
                     });
                 }
             }
@@ -569,8 +565,8 @@ public abstract class Iide.BaseTreeSitterHighlighter : Object {
         return siblings;
     }
 
-    public Gee.List<TreeSitterNodeItem?> get_breadcrumbs_at_cursor () {
-        var result = new Gee.ArrayList<TreeSitterNodeItem?> ();
+    public Gee.List<SourceNodeItem?> get_breadcrumbs_at_cursor () {
+        var result = new Gee.ArrayList<SourceNodeItem?> ();
         if (tree == null)return result;
 
         Gtk.TextIter insert_iter;
@@ -594,11 +590,15 @@ public abstract class Iide.BaseTreeSitterHighlighter : Object {
                     get_iters_from_ts_node (buffer, name_node, out s, out e);
                     // Получаем всех соседей этого узла (детей его родителя)
                     var siblings = get_siblings_for_node (node.parent ());
-                    result.insert (0, TreeSitterNodeItem () {
+                    var start_point = node.start_point ();
+                    result.insert (0, SourceNodeItem () {
                         name = buffer.get_text (s, e, false),
                         type = node.type (),
-                        start_point = node.start_point (), // Прыгаем к началу всего блока (fn/class)
-                        siblings = siblings
+                        start_point = SourceNodePosition() {
+                            row = start_point.row,
+                            column = start_point.column
+                        }, // Прыгаем к началу всего блока (fn/class)
+                        siblings = siblings,
                     });
                 }
             }
@@ -628,13 +628,13 @@ public abstract class Iide.BaseTreeSitterHighlighter : Object {
         }
     }
 
-    public Gee.List<TreeSitterNodeItem?> get_full_outline () {
+    public Gee.List<SourceNodeItem?> get_full_outline () {
         var root = tree.root_node ();
         return collect_container_children (root);
     }
 
-    private Gee.List<TreeSitterNodeItem?> collect_container_children (TreeSitter.Node parent) {
-        var list = new Gee.ArrayList<TreeSitterNodeItem?> ();
+    private Gee.List<SourceNodeItem?> collect_container_children (TreeSitter.Node parent) {
+        var list = new Gee.ArrayList<SourceNodeItem?> ();
 
         for (uint32 i = 0; i < parent.named_child_count (); i++) {
             var child = parent.named_child (i);
@@ -644,13 +644,15 @@ public abstract class Iide.BaseTreeSitterHighlighter : Object {
                 if (name_node != null && !name_node.is_null ()) {
                     Gtk.TextIter s, e;
                     get_iters_from_ts_node (buffer, name_node, out s, out e);
-
-                    var item = TreeSitterNodeItem () {
+                    var start_point = child.start_point ();
+                    var item = SourceNodeItem () {
                         name = buffer.get_text (s, e, false),
                         type = child.type (),
-                        start_point = child.start_point (),
-                        // Рекурсивно ищем детей ТОЛЬКО внутри этого контейнера для иерархии
-                        children = collect_container_children (child)
+                        start_point = SourceNodePosition() {
+                            row = start_point.row,
+                            column = start_point.column
+                        },
+                        children = collect_container_children (child),
                     };
                     list.add (item);
                 } else {

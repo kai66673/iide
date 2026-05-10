@@ -1,20 +1,20 @@
 public class Iide.BreadcrumbTreeSitterNavigator : Gtk.Box {
     private SourceView source_view;
-    private Gee.List<TreeSitterNodeItem?> siblings;
+    private Gee.List<SourceNodeItem?> siblings;
     public Gtk.SearchEntry search_entry;
     private Gtk.ListBox list_box;
 
     public signal void close_requested ();
 
     private class BreadcrumbObject : Object {
-        public TreeSitterNodeItem item;
-        public BreadcrumbObject (TreeSitterNodeItem item) {
+        public SourceNodeItem item;
+        public BreadcrumbObject (SourceNodeItem item) {
             Object ();
             this.item = item;
         }
     }
 
-    public BreadcrumbTreeSitterNavigator (SourceView source_view, Gee.List<TreeSitterNodeItem?> siblings) {
+    public BreadcrumbTreeSitterNavigator (SourceView source_view, Gee.List<SourceNodeItem?> siblings) {
         Object (orientation: Gtk.Orientation.VERTICAL, spacing: 6);
         this.source_view = source_view;
         this.siblings = siblings;
@@ -143,7 +143,7 @@ public class Iide.BreadcrumbTreeSitterNavigator : Gtk.Box {
             select_first_visible_row ();
     }
 
-    private Gtk.ListBoxRow create_row (TreeSitterNodeItem item) {
+    private Gtk.ListBoxRow create_row (SourceNodeItem item) {
         var row = new Gtk.ListBoxRow ();
         var box = new Gtk.Box (Gtk.Orientation.HORIZONTAL, 8);
         box.margin_bottom = 4;

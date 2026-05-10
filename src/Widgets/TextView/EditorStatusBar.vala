@@ -123,7 +123,7 @@ public class Iide.EditorStatusBar : Gtk.Box {
         warn_label.label = warnings.to_string ();
     }
 
-    public void update_breadcrumbs (Gee.List<TreeSitterNodeItem?> crumbs) {
+    public void update_breadcrumbs (Gee.List<SourceNodeItem?> crumbs) {
         new_breadcrumps.update_breadcrumbs (crumbs);
     }
 
