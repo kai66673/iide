@@ -156,7 +156,7 @@ public class Iide.Application : Adw.Application {
     }
 }
 
-private class SaveAllAction : Iide.Action {
+private class Iide.SaveAllAction : Iide.Action {
     private weak Iide.Application app;
 
     public SaveAllAction (Iide.Application app) {
@@ -179,7 +179,7 @@ private class SaveAllAction : Iide.Action {
     }
 }
 
-private class OpenProjectAction : Iide.Action {
+private class Iide.OpenProjectAction : Iide.Action {
     private weak Iide.Application app;
 
     public OpenProjectAction (Iide.Application app) {
@@ -202,7 +202,7 @@ private class OpenProjectAction : Iide.Action {
     }
 }
 
-private class PreferencesAction : Iide.Action {
+private class Iide.PreferencesAction : Iide.Action {
     private weak Iide.Application app;
 
     public PreferencesAction (Iide.Application app) {
@@ -226,7 +226,7 @@ private class PreferencesAction : Iide.Action {
     }
 }
 
-private class ToggleMinimapAction : Iide.Action {
+private class Iide.ToggleMinimapAction : Iide.Action {
     private weak Iide.Application app;
 
     public ToggleMinimapAction (Iide.Application app) {
@@ -256,7 +256,7 @@ private class ToggleMinimapAction : Iide.Action {
     }
 }
 
-private class ZoomInAction : Iide.Action {
+private class Iide.ZoomInAction : Iide.Action {
     private Iide.SettingsService settings;
 
     public override string id { get { return "zoom_in"; } }
@@ -267,7 +267,7 @@ private class ZoomInAction : Iide.Action {
 
     public override bool can_execute () {
         settings = Iide.SettingsService.get_instance ();
-        return settings.editor_font_size < FontSizeHelper.MAX_ZOOM_LEVEL;
+        return settings.editor_font_size < Iide.FontSizeHelper.MAX_ZOOM_LEVEL;
     }
 
     public override void execute () {
@@ -278,7 +278,7 @@ private class ZoomInAction : Iide.Action {
     }
 }
 
-private class ZoomOutAction : Iide.Action {
+private class Iide.ZoomOutAction : Iide.Action {
     private Iide.SettingsService settings;
 
     public override string id { get { return "zoom_out"; } }
@@ -289,7 +289,7 @@ private class ZoomOutAction : Iide.Action {
 
     public override bool can_execute () {
         settings = Iide.SettingsService.get_instance ();
-        return settings.editor_font_size > FontSizeHelper.MIN_ZOOM_LEVEL;
+        return settings.editor_font_size > Iide.FontSizeHelper.MIN_ZOOM_LEVEL;
     }
 
     public override void execute () {
@@ -300,7 +300,7 @@ private class ZoomOutAction : Iide.Action {
     }
 }
 
-private class ZoomResetAction : Iide.Action {
+private class Iide.ZoomResetAction : Iide.Action {
     private Iide.SettingsService settings;
 
     public override string id { get { return "zoom_reset"; } }
@@ -316,12 +316,12 @@ private class ZoomResetAction : Iide.Action {
     public override void execute () {
         settings = Iide.SettingsService.get_instance ();
         var app = GLib.Application.get_default () as Iide.Application;
-        settings.editor_font_size = FontSizeHelper.DEFAULT_ZOOM_LEVEL;
+        settings.editor_font_size = Iide.FontSizeHelper.DEFAULT_ZOOM_LEVEL;
         app?.zoom_changed (settings.editor_font_size);
     }
 }
 
-private class ExpandSelectionAction : Iide.Action {
+private class Iide.ExpandSelectionAction : Iide.Action {
     public override string id { get { return "expand_selection"; } }
     public override string name { get { return _("Expand Selection"); } }
     public override string? description { get { return _("Expand the current selection"); } }
@@ -341,7 +341,7 @@ private class ExpandSelectionAction : Iide.Action {
     }
 }
 
-private class ShrinkSelectionAction : Iide.Action {
+private class Iide.ShrinkSelectionAction : Iide.Action {
     public override string id { get { return "shrink_selection"; } }
     public override string name { get { return _("Shrink Selection"); } }
     public override string? description { get { return _("Shrink the current selection"); } }
@@ -361,7 +361,7 @@ private class ShrinkSelectionAction : Iide.Action {
     }
 }
 
-private class QuitAction : Iide.Action {
+private class Iide.QuitAction : Iide.Action {
     public override string id { get { return "quit"; } }
     public override string name { get { return _("Quit"); } }
     public override string? description { get { return _("Quit the application"); } }
@@ -378,7 +378,7 @@ private class QuitAction : Iide.Action {
     }
 }
 
-private class FuzzyFinderAction : Iide.Action {
+private class Iide.FuzzyFinderAction : Iide.Action {
     private weak Iide.Application app;
 
     public FuzzyFinderAction (Iide.Application app) {
@@ -405,7 +405,7 @@ private class FuzzyFinderAction : Iide.Action {
     }
 }
 
-private class SearchSymbolAction : Iide.Action {
+private class Iide.SearchSymbolAction : Iide.Action {
     private weak Iide.Application app;
 
     public SearchSymbolAction (Iide.Application app) {
@@ -432,7 +432,7 @@ private class SearchSymbolAction : Iide.Action {
     }
 }
 
-private class SearchInFilesAction : Iide.Action {
+private class Iide.SearchInFilesAction : Iide.Action {
     private weak Iide.Application app;
 
     public SearchInFilesAction (Iide.Application app) {
@@ -459,7 +459,7 @@ private class SearchInFilesAction : Iide.Action {
     }
 }
 
-private class NavigationBackAction : Iide.Action {
+private class Iide.NavigationBackAction : Iide.Action {
     private weak Iide.Application app;
 
     public NavigationBackAction (Iide.Application app) {
@@ -484,7 +484,7 @@ private class NavigationBackAction : Iide.Action {
     }
 }
 
-private class NavigationForwardAction : Iide.Action {
+private class Iide.NavigationForwardAction : Iide.Action {
     private weak Iide.Application app;
 
     public NavigationForwardAction (Iide.Application app) {

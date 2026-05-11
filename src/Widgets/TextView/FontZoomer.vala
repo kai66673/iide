@@ -2,7 +2,7 @@ using Gtk;
 using GtkSource;
 using GLib;
 
-public class FontZoomer : Object {
+public class Iide.FontZoomer : Object {
     private View src_view;
     private int zoom_level;
     private Iide.SettingsService settings;

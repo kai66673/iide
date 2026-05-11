@@ -144,3 +144,11 @@ local_settings_sh = configure_file(
     configuration: local_settings_conf,
 )
 meson.add_install_script(local_settings_sh)
+
+doxygen = find_program('doxygen', required: false)
+gen_docs_script = find_program('scripts/gen-docs.sh')
+if doxygen.found()
+    run_target('docs',
+        command: [gen_docs_script]
+    )
+endif

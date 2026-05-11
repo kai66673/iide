@@ -232,7 +232,7 @@ public class Iide.PreferencesDialog : Adw.PreferencesWindow {
     }
 }
 
-private class ShortcutRow : Gtk.ListBoxRow {
+private class Iide.ShortcutRow : Gtk.ListBoxRow {
     private Iide.Action action;
     private Gtk.Label shortcut_label;
 
@@ -303,7 +303,7 @@ private class ShortcutRow : Gtk.ListBoxRow {
     }
 }
 
-private class ShortcutCaptureWindow : Gtk.Window {
+private class Iide.ShortcutCaptureWindow : Gtk.Window {
     private Iide.Action action;
     private Gtk.Label label;
     private uint keyval = 0;

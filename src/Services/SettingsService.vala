@@ -19,7 +19,7 @@
  * SPDX-License-Identifier: GPL-3.0-or-later
  */
 
-public enum ColorScheme {
+public enum Iide.ColorScheme {
     SYSTEM,
     LIGHT,
     DARK;
@@ -58,7 +58,7 @@ public enum ColorScheme {
     }
 }
 
-public class FontSizeHelper : Object {
+public class Iide.FontSizeHelper : Object {
     public const int DEFAULT_ZOOM_LEVEL = 6;
     public const int MIN_ZOOM_LEVEL = 1;
     public const int MAX_ZOOM_LEVEL = 15;
