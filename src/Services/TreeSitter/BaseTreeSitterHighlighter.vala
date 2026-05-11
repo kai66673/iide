@@ -13,7 +13,7 @@ public abstract class Iide.BaseTreeSitterHighlighter : Object {
 
     private TreeSitter.Input ts_input;
 
-    protected BaseTreeSitterIndenter? ts_indenter;
+    public BaseTreeSitterIndenter? ts_indenter;
     private bool _internal_change = false;
     private uint pending_indents = 0;
 
@@ -352,7 +352,7 @@ public abstract class Iide.BaseTreeSitterHighlighter : Object {
         }
     }
 
-    private void on_insert_text (Gtk.TextIter iter, string text, int len_bytes) {
+    public void on_insert_text (Gtk.TextIter iter, string text, int len_bytes) {
         // 1. Фиксируем точку вставки (здесь она абсолютно стабильна)
         uint32 start_byte = get_byte_offset_safe (iter);
         uint32 start_row = (uint32) iter.get_line ();
@@ -447,7 +447,7 @@ public abstract class Iide.BaseTreeSitterHighlighter : Object {
         }
     }
 
-    private void on_delete_range (Gtk.TextIter start, Gtk.TextIter end) {
+    public void on_delete_range (Gtk.TextIter start, Gtk.TextIter end) {
         InputEdit edit = {};
 
         Gtk.TextIter start_buf;

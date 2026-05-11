@@ -160,13 +160,6 @@ public class Iide.SourceView : GtkSource.View {
                                               GtkSource.SpaceTypeFlags.SPACE | GtkSource.SpaceTypeFlags.TAB
         );
 
-        // Tree-sitter
-        detect_language ();
-        ts_highlighter = ts_manager.get_ts_highlighter (this);
-        if (ts_highlighter != null) {
-            ((GtkSource.Buffer) (buffer)).highlight_syntax = false;
-        }
-
         // LSP-tooltips
         has_tooltip = true;
         query_tooltip.connect (on_query_tooltip);
@@ -192,7 +185,18 @@ public class Iide.SourceView : GtkSource.View {
             handle_navigation_trigger (true);
         });
 
-        this.document = new SourceDocument (this);
+        create_document ();
+    }
+
+    private void create_document() {
+        detect_language ();
+        ts_highlighter = ts_manager.get_ts_highlighter (this);
+        if (ts_highlighter != null) {
+            this.document = new TreeSitterDocument(this, ts_highlighter);
+        } else {
+            this.document = new SourceDocument (this);
+        }
+
         this.lsp_doclument_client = new LspDocumentClient (this);
         this.document.document_changed.connect(this.lsp_doclument_client.add_change);
     }

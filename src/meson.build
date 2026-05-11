@@ -38,6 +38,7 @@ iide_sources = [
     'Services/PendingChange.vala',
     'Services/LSP/LspDocumentClient.vala',
     'Services/SourceNodeItem.vala',
+    'Services/TreeSitter/TreeSitterDocument.vala',
     'Services/SourceDocument.vala',
     'Services/ImageFactory.vala',
     'Services/SymbIconProvider.vala',
