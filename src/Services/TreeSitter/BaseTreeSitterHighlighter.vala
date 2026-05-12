@@ -352,6 +352,54 @@ public abstract class Iide.BaseTreeSitterHighlighter : Object {
         }
     }
 
+    public bool handle_key_pressed(uint keyval, uint keycode, Gdk.ModifierType modifiers) {
+        string opening = "";
+        string closing = "";
+
+        uint32 unicode = Gdk.keyval_to_unicode(keyval);
+
+        LoggerService.get_instance ().info("AUTOBR", "Keyval: %u, Keycode: %u, Modifiers: %u\n".printf(keyval, keycode, modifiers));
+
+        // Опредяем пару на основе нажатой клавиши
+        if (unicode == '(') { opening = "("; closing = ")"; }
+        else if (unicode == '{') { opening = "{"; closing = "}"; }
+        else if (unicode == '\"') { opening = "\""; closing = "\""; }
+        
+        if (opening != "") {
+            LoggerService.get_instance ().info("AUTOBR", opening);
+            wrap_selection_or_insert_pair(opening, closing);
+            return true; // Мы сами обработали вставку
+        }
+        return false;
+    }
+
+    private void wrap_selection_or_insert_pair(string op, string cl) {
+        Gtk.TextIter start, end;
+        
+        // Начало транзакции — всё внутри будет одной операцией Undo
+        buffer.begin_user_action();
+
+        if (buffer.get_selection_bounds(out start, out end)) {
+            // Кейс: Окружаем выделение
+            buffer.insert(ref start, op, -1);
+            // После вставки 'op' итератор 'end' может сместиться, 
+            // поэтому лучше переполучить его или использовать метки (GtkTextMark)
+            buffer.get_selection_bounds(out start, out end); 
+            buffer.insert(ref end, cl, -1);
+        } else {
+            // Кейс: Обычная вставка пары
+            Gtk.TextIter iter;
+            buffer.get_iter_at_mark(out iter, buffer.get_insert());
+            buffer.insert(ref iter, op + cl, -1);
+            
+            // Возвращаем курсор назад на один символ
+            iter.backward_char();
+            buffer.place_cursor(iter);
+        }
+
+        buffer.end_user_action();
+    }
+
     public void on_insert_text (Gtk.TextIter iter, string text, int len_bytes) {
         // 1. Фиксируем точку вставки (здесь она абсолютно стабильна)
         uint32 start_byte = get_byte_offset_safe (iter);

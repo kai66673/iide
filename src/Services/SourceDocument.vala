@@ -31,6 +31,7 @@ public class Iide.SourceDocument: GLib.Object {
         });
 
         var key_controller = new Gtk.EventControllerKey ();
+        key_controller.set_propagation_phase (Gtk.PropagationPhase.CAPTURE);
         key_controller.key_pressed.connect (on_key_pressed);
         source_view.add_controller (key_controller);
 

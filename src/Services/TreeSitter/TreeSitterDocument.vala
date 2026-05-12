@@ -25,6 +25,10 @@ public class Iide.TreeSitterDocument: SourceDocument {
         ts_highlighter.on_delete_range (start, end);
     }
 
+    protected override bool handle_key_pressed(uint keyval, uint keycode, Gdk.ModifierType modifiers) { 
+        return ts_highlighter.handle_key_pressed (keyval, keycode, modifiers); 
+    }
+
     public override void expand_selection() {
         ts_highlighter.expand_selection ();
     }
