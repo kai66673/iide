@@ -63,7 +63,6 @@ public class Iide.SourceView : GtkSource.View {
     public Window window;
     public string uri { get; private set; }
     private Iide.TreeSitterManager ts_manager;
-    public BaseTreeSitterHighlighter? ts_highlighter;
     public GutterMarkRenderer mark_renderer;
     private Gtk.TextIter? pending_scroll_iter = null;
 
@@ -77,6 +76,8 @@ public class Iide.SourceView : GtkSource.View {
     private int last_line = -1;
     private NavigationHistoryService history;
 
+    public signal void breadcrumbs_changed (Gee.List<SourceNodeItem?> crumbs);
+
     // Временный сигнал инкремента изменений
     public signal void changed(PendingChange new_change);
 
@@ -85,7 +86,6 @@ public class Iide.SourceView : GtkSource.View {
         this.window = window;
         this.uri = uri;
         this.ts_manager = new TreeSitterManager ();
-        this.ts_highlighter = null;
         this.history = NavigationHistoryService.get_instance ();
 
         this.tooltip_widget = new LspTooltipWidget ();
@@ -190,7 +190,7 @@ public class Iide.SourceView : GtkSource.View {
 
     private void create_document() {
         detect_language ();
-        ts_highlighter = ts_manager.get_ts_highlighter (this);
+        var ts_highlighter = ts_manager.get_ts_highlighter (this);
         if (ts_highlighter != null) {
             this.document = new TreeSitterDocument(this, ts_highlighter);
         } else {
@@ -199,6 +199,21 @@ public class Iide.SourceView : GtkSource.View {
 
         this.lsp_doclument_client = new LspDocumentClient (this);
         this.document.document_changed.connect(this.lsp_doclument_client.add_change);
+        this.document.breadcrumbs_changed.connect ((crumbs) => {
+            this.breadcrumbs_changed(crumbs);
+        });
+    }
+
+    public void expand_selection() {
+        this.document.expand_selection ();
+    }
+
+    public void shrink_selection() {
+        this.document.shrink_selection ();
+    }
+
+    public Gee.List<SourceNodeItem?> get_full_outline () {
+        return this.document.get_full_outline ();
     }
 
     public async void lsp_sync_changes_async () {

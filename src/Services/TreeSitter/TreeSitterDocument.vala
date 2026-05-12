@@ -8,6 +8,9 @@ public class Iide.TreeSitterDocument: SourceDocument {
         base(source_view);
         this.ts_highlighter = ts_highlighter;
 
+        this.ts_highlighter.breadcrumbs_changed.connect((crumbs) => {
+            this.breadcrumbs_changed(crumbs);
+        });
         // Отключаем встроенный highlighter
         ((GtkSource.Buffer) (source_view.buffer)).highlight_syntax = false;
 
@@ -22,4 +25,15 @@ public class Iide.TreeSitterDocument: SourceDocument {
         ts_highlighter.on_delete_range (start, end);
     }
 
+    public override void expand_selection() {
+        ts_highlighter.expand_selection ();
+    }
+
+    public override void shrink_selection() {
+        ts_highlighter.shrink_selection ();
+    }
+
+    public override Gee.List<SourceNodeItem?> get_full_outline () {
+        return ts_highlighter.get_full_outline ();
+    }
 }

@@ -152,9 +152,7 @@ public class Iide.TextView : Panel.Widget {
 
         this.editor_status_bar = new EditorStatusBar (source_view);
         box.append (this.editor_status_bar);
-        if (source_view.ts_highlighter != null) {
-            source_view.ts_highlighter.breadcrumbs_changed.connect (this.editor_status_bar.update_breadcrumbs);
-        }
+        source_view.breadcrumbs_changed.connect (this.editor_status_bar.update_breadcrumbs);
 
         child = box;
 

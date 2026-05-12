@@ -336,7 +336,7 @@ private class Iide.ExpandSelectionAction : Iide.Action {
         var app = GLib.Application.get_default () as Iide.Application;
         var win = app ? .active_window as Iide.Window;
         if (win != null) {
-            win.get_active_source_view () ? .ts_highlighter ? .expand_selection ();
+            win.get_active_source_view () ? .expand_selection ();
         }
     }
 }
@@ -356,7 +356,7 @@ private class Iide.ShrinkSelectionAction : Iide.Action {
         var app = GLib.Application.get_default () as Iide.Application;
         var win = app ? .active_window as Iide.Window;
         if (win != null) {
-            win.get_active_source_view () ? .ts_highlighter ? .shrink_selection ();
+            win.get_active_source_view () ? .shrink_selection ();
         }
     }
 }

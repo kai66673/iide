@@ -63,7 +63,7 @@ public class Iide.BreadcrumbSymbolOutlineNavigator : Gtk.Box {
         stack = new Gtk.Stack ();
 
         // Рекурсивно заполняем список с учетом отступов
-        add_ts_symbols_recursively (source_view.ts_highlighter.get_full_outline (), 0);
+        add_ts_symbols_recursively (source_view.get_full_outline (), 0);
 
         // Фильтрация
         ts_list_box.set_filter_func ((row) => {

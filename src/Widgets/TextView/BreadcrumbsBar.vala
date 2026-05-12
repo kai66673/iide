@@ -37,7 +37,7 @@ public class Iide.BreadcrumbFileSegment : Gtk.Box {
 
         if (!is_file) {
             setup_popover ();
-        } else if (source_view.ts_highlighter != null) {
+        } else {
             setup_file_outline_popover ();
         }
     }
