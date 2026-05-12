@@ -78,9 +78,6 @@ public class Iide.SourceView : GtkSource.View {
 
     public signal void breadcrumbs_changed (Gee.List<SourceNodeItem?> crumbs);
 
-    // Временный сигнал инкремента изменений
-    public signal void changed(PendingChange new_change);
-
     public SourceView (Window window, string uri, GtkSource.Buffer buffer) {
         Object (buffer : buffer);
         this.window = window;
