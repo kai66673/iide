@@ -304,8 +304,6 @@ public abstract class Iide.BaseTreeSitterHighlighter : Object {
 
         uint32 unicode = Gdk.keyval_to_unicode(keyval);
 
-        LoggerService.get_instance ().info("AUTOBR", "Keyval: %u, Keycode: %u, Modifiers: %u\n".printf(keyval, keycode, modifiers));
-
         // Опредяем пару на основе нажатой клавиши
         switch (unicode) {
             case '(': opening = "("; closing = ")"; break;
@@ -315,7 +313,6 @@ public abstract class Iide.BaseTreeSitterHighlighter : Object {
             default: return false; 
         }
         
-        LoggerService.get_instance ().info("AUTOBR", opening);
         wrap_selection_or_insert_pair(opening, closing);
         return true;
     }
