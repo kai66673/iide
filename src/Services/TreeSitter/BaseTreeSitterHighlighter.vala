@@ -13,10 +13,6 @@ public abstract class Iide.BaseTreeSitterHighlighter : Object {
 
     private TreeSitter.Input ts_input;
 
-    public BaseTreeSitterIndenter? ts_indenter;
-    private bool _internal_change = false;
-    private uint pending_indents = 0;
-
     // Оптимизированный кэш: [capture_index, theme_index]
     // theme_index: 1 - Light, 0 - Dark
     private Gtk.TextTag ? [, ] capture_tags;
@@ -113,11 +109,6 @@ public abstract class Iide.BaseTreeSitterHighlighter : Object {
         // Подготавливаем индексный мост сразу после загрузки Query
         prepare_capture_mapping ();
 
-        this.ts_indenter = this.create_ts_indenter ();
-        if (ts_indenter != null) {
-            view.auto_indent = false;
-        }
-
         // Устанавливаем тему цвета и подписываемся на изменение схемы цветов
         set_color_theme ();
         this.buffer.notify["style-scheme"].connect_after (set_color_theme);
@@ -138,11 +129,6 @@ public abstract class Iide.BaseTreeSitterHighlighter : Object {
 
     // Абстрактный метод для фильтрации узлов Breadcrumbs
     protected abstract bool is_container_node (string node_type);
-
-    // TODO: remove... Виртуальный метод создания индентера
-    public virtual BaseTreeSitterIndenter ? create_ts_indenter () {
-        return null;
-    }
 
     // Виртуальный метод создания индентера
     public virtual GtkSource.Indenter? create_indenter() {
@@ -312,64 +298,7 @@ public abstract class Iide.BaseTreeSitterHighlighter : Object {
         e.set_line_index ((int) end_p.column);
     }
 
-    public void apply_indent (Gtk.TextIter iter, IndentInstruction instr, int indent_width) {
-        var buffer = iter.get_buffer ();
-        // iter здесь — начало новой строки после \n
-        int current_offset = iter.get_offset ();
-
-        // 1. Очистка "хвостов" на ПРЕДЫДУЩЕЙ строке (как уже работает)
-        if (instr.trim_chars > 0) {
-            Gtk.TextIter del_end = iter;
-            if (del_end.backward_char ()) {
-                Gtk.TextIter del_start = del_end;
-                del_start.backward_chars (instr.trim_chars);
-                this._internal_change = true;
-                buffer.delete (ref del_start, ref del_end);
-                this._internal_change = false;
-                current_offset -= instr.trim_chars;
-            }
-        }
-
-        // 2. !!! НОВОЕ: Очистка "паразитов" в начале НОВОЙ строки !!!
-        // Удаляем старые пробелы, которые "уехали" вниз при разрыве строки
-        Gtk.TextIter line_start;
-        buffer.get_iter_at_offset (out line_start, current_offset);
-
-        Gtk.TextIter line_end = line_start;
-        // Идем вперед, пока видим пробелы/табы, но не переходим на следующую строку
-        while (line_end.get_char ().isspace () && !line_end.ends_line ()) {
-            line_end.forward_char ();
-        }
-
-        if (!line_start.equal (line_end)) {
-            this._internal_change = true;
-            buffer.delete (ref line_start, ref line_end);
-            this._internal_change = false;
-            // Здесь current_offset не меняем, так как мы удалили текст ПОСЛЕ него
-        }
-
-        // 3. Вставка идеального отступа
-        string padding = (instr.level_delta > 0) ? string.nfill (indent_width, ' ') : "";
-        string final_indent = instr.base_indent + padding;
-
-        if (final_indent.length > 0) {
-            Gtk.TextIter insert_pos;
-            buffer.get_iter_at_offset (out insert_pos, current_offset);
-            this._internal_change = true;
-            buffer.insert (ref insert_pos, final_indent, (int) final_indent.length);
-            this._internal_change = false;
-        }
-    }
-
     public bool handle_key_pressed(uint keyval, uint keycode, Gdk.ModifierType modifiers) {
-        //  if ((keyval == Gdk.Key.Return || keyval == Gdk.Key.KP_Enter) && modifiers == Gdk.ModifierType.NO_MODIFIER_MASK) {
-        //      Gtk.TextIter start;
-        //      Gtk.TextIter end;
-        //      if (buffer.get_selection_bounds(out start, out end))
-        //          return false;
-        //      return true;
-        //  }
-
         string opening = "";
         string closing = "";
 
@@ -466,50 +395,6 @@ public abstract class Iide.BaseTreeSitterHighlighter : Object {
         };
 
         tree.edit (edit);
-
-        // Блокируем рекурсивный вызов индентера и дебаунс подсветки
-        if (_internal_change)
-            return;
-
-        // 2. АСИНХРОННО: Обработка Enter
-        //  if (ts_indenter != null && text == "\n") {
-        //      // Считаем пробелы СЛЕВА от места вставки Enter
-        //      int trim_count = 0;
-        //      Gtk.TextIter ws_check = iter;
-
-        //      // Пока символ слева — пробел и мы не вышли за начало строки
-        //      while (ws_check.backward_char () && ws_check.get_char ().isspace () && !ws_check.ends_line ()) {
-        //          trim_count++;
-        //      }
-
-        //      pending_indents++;
-
-        //      // Сохраняем позицию СРАЗУ ПОСЛЕ вставленного \n
-        //      int offset_after_newline = iter.get_offset () + 1;
-
-        //      Idle.add (() => {
-        //          if (pending_indents == 0)return false;
-
-        //          // Обновляем дерево (парсинг кусков буфера)
-        //          this.sync_and_render ();
-
-        //          Gtk.TextIter fresh_iter;
-        //          buffer.get_iter_at_offset (out fresh_iter, offset_after_newline);
-
-        //          // РАСЧЕТ И ИСПОЛНЕНИЕ
-        //          var instr = ts_indenter.need_indent (this.tree, fresh_iter);
-        //          var indent_width = view.indent_width > 0 ? view.indent_width : 4;
-        //          instr.trim_chars = trim_count;
-        //          apply_indent (fresh_iter, instr, indent_width);
-
-        //          pending_indents--;
-        //          on_buffer_changed (); // Запуск перекраски
-        //          return false;
-        //      });
-        //      return;
-        //  }
-
-        // Обычный ввод - просто дебаунс перекраски
         on_buffer_changed ();
     }
 
@@ -551,12 +436,6 @@ public abstract class Iide.BaseTreeSitterHighlighter : Object {
         edit.new_end_point = edit.start_point;
 
         tree.edit (edit);
-
-        // 2. Блокируем перекраску, если удаление инициировано индентером
-        if (_internal_change)
-            return;
-
-        // После правки дерева запускаем отложенную перекраску (debounce)
         on_buffer_changed ();
     }
 

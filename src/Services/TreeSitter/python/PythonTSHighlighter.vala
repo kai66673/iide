@@ -10,10 +10,6 @@ public class Iide.PythonHighlighter : BaseTreeSitterHighlighter {
     return get_lang_python ();
   }
 
-  protected override BaseTreeSitterIndenter ? create_ts_indenter () {
-    return new PythonTreeSitterIndenter (get_ts_language ());
-  }
-
   protected override string query_source () {
     return """
         ; Identifier naming conventions
