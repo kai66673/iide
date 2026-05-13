@@ -122,10 +122,6 @@ public abstract class Iide.BaseTreeSitterHighlighter : Object {
         set_color_theme ();
         this.buffer.notify["style-scheme"].connect_after (set_color_theme);
 
-        // Подключаемся к низкоуровневым сигналам
-        buffer.insert_text.connect (on_insert_text);
-        buffer.delete_range.connect (on_delete_range);
-
         buffer.notify["cursor-position"].connect (() => {
             // Если позиция курсора изменилась не через наши методы expand/shrink — чистим стек
             if (!is_internal_selection_change) {
@@ -199,6 +195,14 @@ public abstract class Iide.BaseTreeSitterHighlighter : Object {
             highlight_timeout_id = 0;
             return Source.REMOVE;
         });
+    }
+
+    private void flush_changes() {
+        if (highlight_timeout_id > 0) {
+            Source.remove (highlight_timeout_id);
+        }
+        sync_and_render ();
+        highlight_timeout_id = 0;
     }
 
     private void initial_rehighlight () {
@@ -353,6 +357,14 @@ public abstract class Iide.BaseTreeSitterHighlighter : Object {
     }
 
     public bool handle_key_pressed(uint keyval, uint keycode, Gdk.ModifierType modifiers) {
+        //  if ((keyval == Gdk.Key.Return || keyval == Gdk.Key.KP_Enter) && modifiers == Gdk.ModifierType.NO_MODIFIER_MASK) {
+        //      Gtk.TextIter start;
+        //      Gtk.TextIter end;
+        //      if (buffer.get_selection_bounds(out start, out end))
+        //          return false;
+        //      return true;
+        //  }
+
         string opening = "";
         string closing = "";
 
@@ -361,31 +373,50 @@ public abstract class Iide.BaseTreeSitterHighlighter : Object {
         LoggerService.get_instance ().info("AUTOBR", "Keyval: %u, Keycode: %u, Modifiers: %u\n".printf(keyval, keycode, modifiers));
 
         // Опредяем пару на основе нажатой клавиши
-        if (unicode == '(') { opening = "("; closing = ")"; }
-        else if (unicode == '{') { opening = "{"; closing = "}"; }
-        else if (unicode == '\"') { opening = "\""; closing = "\""; }
-        
-        if (opening != "") {
-            LoggerService.get_instance ().info("AUTOBR", opening);
-            wrap_selection_or_insert_pair(opening, closing);
-            return true; // Мы сами обработали вставку
+        switch (unicode) {
+            case '(': opening = "("; closing = ")"; break;
+            case '{': opening = "{"; closing = "}"; break;
+            case '\'': opening = "\'"; closing = "\'"; break;
+            case '\"': opening = "\""; closing = "\""; break;
+            default: return false; 
         }
-        return false;
+        
+        LoggerService.get_instance ().info("AUTOBR", opening);
+        wrap_selection_or_insert_pair(opening, closing);
+        return true;
     }
 
     private void wrap_selection_or_insert_pair(string op, string cl) {
         Gtk.TextIter start, end;
-        
+
         // Начало транзакции — всё внутри будет одной операцией Undo
         buffer.begin_user_action();
 
         if (buffer.get_selection_bounds(out start, out end)) {
             // Кейс: Окружаем выделение
+
+            // 1. Сохраняем символьные смещения (оффсеты) исходного выделения
+            int orig_start_offset = start.get_offset();
+            int orig_end_offset = end.get_offset();
+
+            // 2. Вставляем открывающий символ (start сместится сам)
             buffer.insert(ref start, op, -1);
-            // После вставки 'op' итератор 'end' может сместиться, 
-            // поэтому лучше переполучить его или использовать метки (GtkTextMark)
-            buffer.get_selection_bounds(out start, out end); 
+
+            // 3. Получаем свежий итератор для конца, так как старый 'end' мог стать невалидным
+            // Смещение конца теперь сдвинулось ровно на длину открывающего символа (обычно +1)
+            buffer.get_iter_at_offset(out end, orig_end_offset + op.char_count());
+            
+            // 4. Вставляем закрывающий символ
             buffer.insert(ref end, cl, -1);
+
+            // 5. ВОЗВРАЩАЕМ ВЫДЕЛЕНИЕ: оно должно быть между старым текстом
+            // Начало сдвинулось на длину 'op'
+            // Конец тоже сдвинулся на длину 'op' (но не включает 'cl')
+            Gtk.TextIter new_start, new_end;
+            buffer.get_iter_at_offset(out new_start, orig_start_offset + op.char_count());
+            buffer.get_iter_at_offset(out new_end, orig_end_offset + op.char_count());
+            
+            buffer.select_range(new_start, new_end);
         } else {
             // Кейс: Обычная вставка пары
             Gtk.TextIter iter;
@@ -401,6 +432,8 @@ public abstract class Iide.BaseTreeSitterHighlighter : Object {
     }
 
     public void on_insert_text (Gtk.TextIter iter, string text, int len_bytes) {
+        LoggerService.get_instance ().info ("TS", "Inserting text \"%s\" (%d)".printf (text, len_bytes));
+
         // 1. Фиксируем точку вставки (здесь она абсолютно стабильна)
         uint32 start_byte = get_byte_offset_safe (iter);
         uint32 start_row = (uint32) iter.get_line ();
@@ -411,7 +444,7 @@ public abstract class Iide.BaseTreeSitterHighlighter : Object {
         uint32 last_line_bytes;
         calculate_text_stats (text, out lines_added, out last_line_bytes);
 
-        LoggerService.get_instance ().info ("CTS", "lines_added = %u --- last_line_bytes = %u".printf (lines_added, last_line_bytes));
+        //  LoggerService.get_instance ().info ("CTS", "lines_added = %u --- last_line_bytes = %u".printf (lines_added, last_line_bytes));
 
         // 3. Формируем Edit
         InputEdit edit = {};
@@ -525,7 +558,8 @@ public abstract class Iide.BaseTreeSitterHighlighter : Object {
     }
 
     public void expand_selection () {
-        if (tree == null)return;
+        if (tree == null)
+            return;
 
         Gtk.TextIter start_sel, end_sel;
         // Получаем текущее выделение
@@ -540,6 +574,7 @@ public abstract class Iide.BaseTreeSitterHighlighter : Object {
         uint32 end_byte = (uint32) buffer.get_slice (start_buf, end_sel, false).length;
 
         // Ищем узел, который охватывает текущее выделение
+        flush_changes ();
         TreeSitter.Node root = tree.root_node ();
         TreeSitter.Node node = root.named_descendant_for_byte_range (start_byte, end_byte);
 
@@ -569,7 +604,8 @@ public abstract class Iide.BaseTreeSitterHighlighter : Object {
     }
 
     public void shrink_selection () {
-        if (selection_stack.is_empty)return;
+        if (selection_stack.is_empty)
+            return;
 
         // Достаем последний сохраненный диапазон
         var last_range = selection_stack.poll ();
