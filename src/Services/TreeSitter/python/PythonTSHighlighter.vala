@@ -10,7 +10,7 @@ public class Iide.PythonHighlighter : BaseTreeSitterHighlighter {
     return get_lang_python ();
   }
 
-  protected override BaseTreeSitterIndenter ? create_indenter () {
+  protected override BaseTreeSitterIndenter ? create_ts_indenter () {
     return new PythonTreeSitterIndenter (get_ts_language ());
   }
 
@@ -162,5 +162,9 @@ public class Iide.PythonHighlighter : BaseTreeSitterHighlighter {
     return node_type in new string[] {
              "function_definition", "class_definition", "module_definition"
     };
+  }
+
+  public override GtkSource.Indenter? create_indenter() {
+    return new PythonIndenter(this, get_ts_language ());
   }
 }

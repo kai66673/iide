@@ -15,7 +15,11 @@ public class Iide.TreeSitterDocument: SourceDocument {
         ((GtkSource.Buffer) (source_view.buffer)).highlight_syntax = false;
 
         // Отключаем встроенный indenter если реализован кастомный
-        source_view.auto_indent = ts_highlighter.ts_indenter == null;
+        //  source_view.auto_indent = ts_highlighter.ts_indenter == null;
+        var indenter = ts_highlighter.create_indenter ();
+        if (indenter != null)
+            source_view.set_indenter (indenter);
+        source_view.auto_indent = true;
     }
 
     protected override void handle_insert_text (Gtk.TextIter iter, string text, int len_bytes) {

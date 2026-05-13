@@ -64,6 +64,7 @@ iide_sources = [
     'Services/TreeSitter/vala/ValaTSHighlighter.vala',
     'Services/TreeSitter/rust/RustHighlighter.vala',
     'Services/TreeSitter/python/PythonTSIndenter.vala',
+    'Services/TreeSitter/python/PythonIndenter.vala',
     'Services/TreeSitter/python/PythonTSHighlighter.vala',
     'Services/TreeSitter/BaseTreeSitterIndenter.vala',
     'Services/Actions/Action.vala',

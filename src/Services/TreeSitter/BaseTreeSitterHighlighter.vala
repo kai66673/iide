@@ -113,7 +113,7 @@ public abstract class Iide.BaseTreeSitterHighlighter : Object {
         // Подготавливаем индексный мост сразу после загрузки Query
         prepare_capture_mapping ();
 
-        this.ts_indenter = this.create_indenter ();
+        this.ts_indenter = this.create_ts_indenter ();
         if (ts_indenter != null) {
             view.auto_indent = false;
         }
@@ -139,13 +139,18 @@ public abstract class Iide.BaseTreeSitterHighlighter : Object {
     // Абстрактный метод для фильтрации узлов Breadcrumbs
     protected abstract bool is_container_node (string node_type);
 
+    // TODO: remove... Виртуальный метод создания индентера
+    public virtual BaseTreeSitterIndenter ? create_ts_indenter () {
+        return null;
+    }
+
     // Виртуальный метод создания индентера
-    public virtual BaseTreeSitterIndenter ? create_indenter () {
+    public virtual GtkSource.Indenter? create_indenter() {
         return null;
     }
 
     public unowned TreeSitter.Tree? get_tree () {
-        return tree;
+        return tree; 
     }
 
     private void load_query (Language lang) {
@@ -197,7 +202,7 @@ public abstract class Iide.BaseTreeSitterHighlighter : Object {
         });
     }
 
-    private void flush_changes() {
+    public void flush_changes() {
         if (highlight_timeout_id > 0) {
             Source.remove (highlight_timeout_id);
         }
@@ -467,42 +472,42 @@ public abstract class Iide.BaseTreeSitterHighlighter : Object {
             return;
 
         // 2. АСИНХРОННО: Обработка Enter
-        if (ts_indenter != null && text == "\n") {
-            // Считаем пробелы СЛЕВА от места вставки Enter
-            int trim_count = 0;
-            Gtk.TextIter ws_check = iter;
+        //  if (ts_indenter != null && text == "\n") {
+        //      // Считаем пробелы СЛЕВА от места вставки Enter
+        //      int trim_count = 0;
+        //      Gtk.TextIter ws_check = iter;
 
-            // Пока символ слева — пробел и мы не вышли за начало строки
-            while (ws_check.backward_char () && ws_check.get_char ().isspace () && !ws_check.ends_line ()) {
-                trim_count++;
-            }
+        //      // Пока символ слева — пробел и мы не вышли за начало строки
+        //      while (ws_check.backward_char () && ws_check.get_char ().isspace () && !ws_check.ends_line ()) {
+        //          trim_count++;
+        //      }
 
-            pending_indents++;
+        //      pending_indents++;
 
-            // Сохраняем позицию СРАЗУ ПОСЛЕ вставленного \n
-            int offset_after_newline = iter.get_offset () + 1;
+        //      // Сохраняем позицию СРАЗУ ПОСЛЕ вставленного \n
+        //      int offset_after_newline = iter.get_offset () + 1;
 
-            Idle.add (() => {
-                if (pending_indents == 0)return false;
+        //      Idle.add (() => {
+        //          if (pending_indents == 0)return false;
 
-                // Обновляем дерево (парсинг кусков буфера)
-                this.sync_and_render ();
+        //          // Обновляем дерево (парсинг кусков буфера)
+        //          this.sync_and_render ();
 
-                Gtk.TextIter fresh_iter;
-                buffer.get_iter_at_offset (out fresh_iter, offset_after_newline);
+        //          Gtk.TextIter fresh_iter;
+        //          buffer.get_iter_at_offset (out fresh_iter, offset_after_newline);
 
-                // РАСЧЕТ И ИСПОЛНЕНИЕ
-                var instr = ts_indenter.need_indent (this.tree, fresh_iter);
-                var indent_width = view.indent_width > 0 ? view.indent_width : 4;
-                instr.trim_chars = trim_count;
-                apply_indent (fresh_iter, instr, indent_width);
+        //          // РАСЧЕТ И ИСПОЛНЕНИЕ
+        //          var instr = ts_indenter.need_indent (this.tree, fresh_iter);
+        //          var indent_width = view.indent_width > 0 ? view.indent_width : 4;
+        //          instr.trim_chars = trim_count;
+        //          apply_indent (fresh_iter, instr, indent_width);
 
-                pending_indents--;
-                on_buffer_changed (); // Запуск перекраски
-                return false;
-            });
-            return;
-        }
+        //          pending_indents--;
+        //          on_buffer_changed (); // Запуск перекраски
+        //          return false;
+        //      });
+        //      return;
+        //  }
 
         // Обычный ввод - просто дебаунс перекраски
         on_buffer_changed ();
