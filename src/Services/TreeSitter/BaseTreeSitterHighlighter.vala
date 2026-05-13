@@ -444,8 +444,6 @@ public abstract class Iide.BaseTreeSitterHighlighter : Object {
         uint32 last_line_bytes;
         calculate_text_stats (text, out lines_added, out last_line_bytes);
 
-        //  LoggerService.get_instance ().info ("CTS", "lines_added = %u --- last_line_bytes = %u".printf (lines_added, last_line_bytes));
-
         // 3. Формируем Edit
         InputEdit edit = {};
         edit.start_byte = start_byte;
