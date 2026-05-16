@@ -123,6 +123,7 @@ public class Iide.TextView : Panel.Widget {
 
         font_zoomer.zoom_changed.connect ((level) => {
             source_view.mark_renderer.set_icons_size (FontSizeHelper.get_size_for_zoom_level (level));
+            source_view.folding_gutter.set_icons_size (FontSizeHelper.get_size_for_zoom_level (level));
         });
 
         var scroll = new Gtk.ScrolledWindow ();

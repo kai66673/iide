@@ -8,6 +8,15 @@ public class Iide.TreeSitterDocument: SourceDocument {
         base(source_view);
         this.ts_highlighter = ts_highlighter;
 
+        source_view.buffer.insert_text.connect ((ref location, text, len) => {
+            ts_highlighter.on_insert_text (location,  text, len);
+        });
+
+        source_view.buffer.delete_range.connect ((start, end) => {
+            ts_highlighter.on_delete_range (start, end);
+        });
+
+
         this.ts_highlighter.breadcrumbs_changed.connect((crumbs) => {
             this.breadcrumbs_changed(crumbs);
         });
@@ -20,13 +29,6 @@ public class Iide.TreeSitterDocument: SourceDocument {
         if (indenter != null)
             source_view.set_indenter (indenter);
         source_view.auto_indent = true;
-    }
-
-    protected override void handle_insert_text (Gtk.TextIter iter, string text, int len_bytes) {
-        ts_highlighter.on_insert_text (iter,  text, len_bytes);
-    }
-    protected override void handle_delete_range (Gtk.TextIter start, Gtk.TextIter end) {
-        ts_highlighter.on_delete_range (start, end);
     }
 
     protected override bool handle_key_pressed(uint keyval, uint keycode, Gdk.ModifierType modifiers) { 

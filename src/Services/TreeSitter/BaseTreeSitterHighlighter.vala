@@ -31,6 +31,12 @@ public abstract class Iide.BaseTreeSitterHighlighter : Object {
     private Gee.List<SourceNodeItem?> last_crumbs = null;
     public signal void breadcrumbs_changed (Gee.List<SourceNodeItem?> crumbs);
 
+    // Сигнал, сообщающий UI-компонентам, что структура блоков изменилась
+    public signal void folding_structure_updated (Gee.List<IndentBlock?> blocks);
+
+    // Внутренний кэш блоков кода
+    protected Gee.List<IndentBlock?> cached_blocks;
+
     private void set_color_theme () {
         var color_scheme = SettingsService.get_instance ().color_scheme;
         current_theme_index = color_scheme != ColorScheme.LIGHT ? 1 : 0;
@@ -100,6 +106,8 @@ public abstract class Iide.BaseTreeSitterHighlighter : Object {
 
         this.parser = new Parser ();
         this.cursor = new QueryCursor ();
+        
+        this.cached_blocks = new Gee.ArrayList<IndentBlock?> ();
 
         // Определяем язык
         unowned Language lang = get_ts_language ();
@@ -123,12 +131,81 @@ public abstract class Iide.BaseTreeSitterHighlighter : Object {
         buffer.notify["cursor-position"].connect (update_breadcrumbs);
     }
 
+    public Gee.List<IndentBlock?> get_cached_indent_blocks () {
+        return this.cached_blocks;
+    }
+
     // Абстрактные методы для реализации в подклассах (Vala, Cpp и т.д.)
     protected abstract unowned Language get_ts_language ();
     protected abstract string query_source ();
 
     // Абстрактный метод для фильтрации узлов Breadcrumbs
     protected abstract bool is_container_node (string node_type);
+
+    // Точка входа для обновления структуры документа
+    protected void update_document_structure () {
+        this.cached_blocks.clear ();
+
+        // Получаем корневой узел дерева через имеющиеся биндинги
+        var root = this.tree.root_node ();
+        if (root.is_null ()) return;
+
+        // Запускаем рекурсивный обход с начальным уровнем отступа 0
+        this.collect_foldable_blocks (root, 0);
+
+        // Генерируем сигнал для Gutter и Overlay
+        this.folding_structure_updated (this.cached_blocks);
+    }
+
+    private void collect_foldable_blocks (TreeSitter.Node parent, int current_indent) {
+        // Используем ваш паттерн итерации по именованным узлам
+        for (uint32 i = 0; i < parent.named_child_count (); i++) {
+            var child = parent.named_child (i);
+
+            if (child.is_null ()) continue;
+
+            string type = child.type ();
+            bool is_foldable = false;
+
+            // Проверяем, нужно ли сворачивать этот тип узла
+            if (this.is_foldable_node_type (type)) {
+                var start_point = child.start_point ();
+                var end_point = child.end_point ();
+
+                // Блок имеет смысл сворачивать, только если он занимает больше 1 строки
+                if (end_point.row > start_point.row) {
+                    var block = IndentBlock () {
+                        start_line = (int) start_point.row,
+                        end_line = (int) end_point.row,
+                        indent_level = current_indent
+                    };
+                    
+                    // Добавляем в плоский кэш для UI
+                    this.cached_blocks.add (block);
+                    is_foldable = true;
+                }
+            }
+
+            // КЛЮЧЕВОЙ МОМЕНТ СИНХРОНИЗАЦИИ ОТСТУПОВ:
+            // Если текущий узел оказался сворачиваемым (например, класс или функция),
+            // все его внутренние дочерние блоки должны получить уровень отступа на 1 больше.
+            int next_indent = is_foldable ? current_indent + 1 : current_indent;
+
+            // Рекурсивно идем вглубь дочернего узла
+            if (child.named_child_count () > 0) {
+                this.collect_foldable_blocks (child, next_indent);
+            }
+        }
+    }
+
+    // Виртуальный метод, переопределяемый в конкретных языковых подсвечниках (например, PythonHighlighter)
+    protected virtual bool is_foldable_node_type (string type) {
+        // Базовый дефолтный список для C-подобных языков
+        return type == "compound_statement" || 
+               type == "function_definition" || 
+               type == "class_definition" ||
+               type == "block";
+    }
 
     // Виртуальный метод создания индентера
     public virtual GtkSource.Indenter? create_indenter() {
@@ -203,13 +280,60 @@ public abstract class Iide.BaseTreeSitterHighlighter : Object {
         this.tree = parser.parse (null, ts_input);
 
         update_breadcrumbs ();
+        update_document_structure ();
 
         // Удаляем старые теги
-        buffer.remove_all_tags (start, end);
+        clear_highlighter_tags (start, end);
 
         this.cursor = new QueryCursor ();
         cursor.exec (query, tree.root_node ());
         render_matches ();
+    }
+
+    private void clear_highlighter_tags (Gtk.TextIter start, Gtk.TextIter end) {
+        Gtk.TextBuffer buffer = this.view.get_buffer();
+        
+        // Создаем рабочий итератор и встаем на начало диапазона очистки
+        Gtk.TextIter it = start;
+        
+        // Оптимизация: если в начальной точке уже есть теги, обрабатываем их сразу
+        this.remove_syntax_tags_at_iter (buffer, it, start, end);
+
+        // Прыгаем только по точкам, где состояние тегов меняется (Toggle Points)
+        // Это избавляет от посимвольного перебора текста
+        while (it.forward_to_tag_toggle (null) && it.compare (end) < 0) {
+            this.remove_syntax_tags_at_iter (buffer, it, start, end);
+        }
+    }
+
+    private void remove_syntax_tags_at_iter (Gtk.TextBuffer buffer, Gtk.TextIter it, Gtk.TextIter range_start, Gtk.TextIter range_end) {
+        // Получаем список всех тегов, активных в ДАННОЙ точке итератора
+        var active_tags = it.get_tags();
+        
+        foreach (var tag in active_tags) {
+            // Проверяем имя тега. Если он относится к раскраске Tree-sitter (все теги, кроме начинающихся с "$"):
+            if (tag.name != null && !tag.name.has_prefix ("$")) {
+                
+                // Находим, где этот конкретный тег начался или закончился в буфере
+                Gtk.TextIter toggle_start = it;
+                Gtk.TextIter toggle_end = it;
+                
+                // Нам нужно определить границы применения этого тега вокруг текущей точки
+                // Сдвигаемся назад к началу тега и вперед к его концу, но ОГРАНИЧИВАЕМСЯ рамками range_start/range_end
+                if (!toggle_start.has_tag (tag) || toggle_start.compare (range_start) < 0) {
+                    toggle_start = range_start;
+                }
+                
+                // Ищем конец тега
+                toggle_end.forward_to_tag_toggle (tag);
+                if (toggle_end.compare (range_end) > 0) {
+                    toggle_end = range_end;
+                }
+                
+                // Удаляем точечно
+                buffer.remove_tag (tag, toggle_start, toggle_end);
+            }
+        }
     }
 
     private void sync_and_render () {
@@ -217,6 +341,7 @@ public abstract class Iide.BaseTreeSitterHighlighter : Object {
         unowned TreeSitter.Tree? old_tree = this.tree;
         var new_tree = parser.parse (old_tree, ts_input);
         update_breadcrumbs ();
+        update_document_structure ();
 
         TreeSitter.Range[] changed_ranges = old_tree.get_changed_ranges (new_tree);
         this.tree = (owned) new_tree;
@@ -226,9 +351,10 @@ public abstract class Iide.BaseTreeSitterHighlighter : Object {
             // Используем твой рабочий метод для получения итераторов
             get_iters_from_ts_node_coords (range.start_point, range.end_point, out s, out e);
 
-            // Точечная очистка и перекраска
-            buffer.remove_all_tags (s, e);
+            // Точечная очистка...
+            clear_highlighter_tags(s, e);
 
+            // ... и перекраска
             cursor.set_byte_range (range.start_byte, range.end_byte);
             cursor.exec (query, tree.root_node ());
             render_matches ();

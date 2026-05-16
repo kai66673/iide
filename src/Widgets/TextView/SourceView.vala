@@ -64,6 +64,7 @@ public class Iide.SourceView : GtkSource.View {
     public string uri { get; private set; }
     private Iide.TreeSitterManager ts_manager;
     public GutterMarkRenderer mark_renderer;
+    public TreeSitterFoldingGutter folding_gutter;
     private Gtk.TextIter? pending_scroll_iter = null;
 
     private WordRange? last_hover_range = null;
@@ -125,6 +126,10 @@ public class Iide.SourceView : GtkSource.View {
         mark_renderer = new GutterMarkRenderer ();
         mark_renderer.set_icons_size (FontSizeHelper.get_size_for_zoom_level (settings.editor_font_size));
         left_gutter.insert (mark_renderer, 0);
+
+        this.folding_gutter = new TreeSitterFoldingGutter ();
+        this.folding_gutter.set_icons_size (FontSizeHelper.get_size_for_zoom_level (settings.editor_font_size));
+        left_gutter.insert (this.folding_gutter, 10);
 
         LspDiagnosticsMark.set_mark_attributes (this);
 
@@ -190,8 +195,15 @@ public class Iide.SourceView : GtkSource.View {
         var ts_highlighter = ts_manager.get_ts_highlighter (this);
         if (ts_highlighter != null) {
             this.document = new TreeSitterDocument(this, ts_highlighter);
+                ts_highlighter.folding_structure_updated.connect ((blocks) => {
+                // Передаем актуальный список блоков прямиком в наш Gutter renderer
+                this.folding_gutter.update_blocks_data (blocks);
+            });
+            this.folding_gutter.update_blocks_data (ts_highlighter.get_cached_indent_blocks ());
         } else {
             this.document = new SourceDocument (this);
+            this.folding_gutter.visible = false;
+            this.mark_renderer.visible = false;
         }
 
         this.lsp_doclument_client = new LspDocumentClient (this);

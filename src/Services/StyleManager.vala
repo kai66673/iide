@@ -27,6 +27,10 @@ public class Iide.StyleService : Object {
         shared_table = new Gtk.TextTagTable ();
         registry = new Gee.HashMap<string, TagPair> ();
 
+        var folding_tag = new Gtk.TextTag ("$FOLD_HIDE");
+        folding_tag.invisible = true; // Главный атрибут скрытия текста
+        shared_table.add (folding_tag);
+
         // --- Основы ---
         setup_tag ("function", "#1a5fb4", "#62a0ea", true);
         setup_tag ("keyword", "#a51d2d", "#ff7b72", true);

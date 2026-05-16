@@ -160,6 +160,16 @@ public class Iide.PythonHighlighter : BaseTreeSitterHighlighter {
     };
   }
 
+  protected override bool is_foldable_node_type (string type) {
+    // Специфика AST Python
+    return type == "function_definition" || 
+           type == "class_definition" || 
+           type == "if_statement" || 
+           type == "for_statement" || 
+           type == "while_statement" || 
+           type == "try_statement";
+  }
+
   public override GtkSource.Indenter? create_indenter() {
     return new PythonIndenter(this, get_ts_language ());
   }
