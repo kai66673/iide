@@ -43,11 +43,30 @@ namespace Iide {
                 .replace(">", "&gt;");
     }
 
-    private uint32 get_byte_offset_safe(Gtk.TextIter iter) {
-        Gtk.TextIter start;
-        iter.get_buffer().get_start_iter(out start);
-        // Используем get_text вместо get_slice для гарантии чистого UTF-8
-        string text = iter.get_buffer().get_text(start, iter, false);
-        return (uint32) text.length;
+    private uint32 get_byte_offset_safe (Gtk.TextIter iter) {
+        int target_line = iter.get_line ();
+        int current_line_bytes = iter.get_line_index (); // Байты от начала текущей строки (O(1))
+
+        // Если мы на первой строке, оффсет равен индексу внутри строки
+        if (target_line == 0) {
+            return (uint32) current_line_bytes;
+        }
+
+        uint32 total_bytes = 0;
+        Gtk.TextIter line_runner;
+        iter.get_buffer ().get_start_iter (out line_runner);
+
+        // Быстро прыгаем по строкам вперед до нашей целевой строки.
+        // Метод get_bytes_in_line() у TextIter выполняется мгновенно внутри B-дерева GTK, 
+        // возвращая длину строки в байтах (включая \n) БЕЗ выделения памяти и копирования текста!
+        for (int i = 0; i < target_line; i++) {
+            total_bytes += (uint32) line_runner.get_bytes_in_line ();
+            if (!line_runner.forward_line ()) break;
+        }
+
+        // Прибавляем байты внутри целевой строки
+        total_bytes += (uint32) current_line_bytes;
+
+        return total_bytes;
     }
 }
