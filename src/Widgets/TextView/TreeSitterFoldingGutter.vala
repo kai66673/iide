@@ -123,51 +123,59 @@ public class Iide.TreeSitterFoldingGutter : GtkSource.GutterRenderer {
     }
 
     public override void activate (Gtk.TextIter iter, Gdk.Rectangle area, uint button, Gdk.ModifierType state, int n_presses) {
-        // Обрабатываем только одиночный клик (n_presses == 1) левой кнопкой мыши (button == 1)
         if (button != 1 || n_presses != 1) return;
 
         int clicked_line = iter.get_line ();
-        var buffer = this.view.get_buffer ();
+        var view = this.get_view ();
+        var buffer = view.get_buffer ();
 
         int start_line, end_line;
-        // Запрашиваем границы блока (пока работает демо-заглушка)
         if (!this.get_block_bounds (clicked_line, out start_line, out end_line)) {
             return; 
         }
 
-        // Итераторы начала и конца скрытия
+        // ИДЕАЛЬНЫЕ ГРАНИЦЫ ДЛЯ GTK 4:
+        // Начало скрытия: первый символ первой строки тела блока (start_line + 1)
         Gtk.TextIter fold_start;
-        buffer.get_iter_at_line (out fold_start, start_line);
-        fold_start.forward_to_line_end (); // Оставляем видимым заголовок ("def foo():")
+        buffer.get_iter_at_line (out fold_start, start_line + 1);
 
+        // Конец скрытия: первый символ строки, ИДУЩЕЙ ЗА БЛОКОМ (end_line + 1)
+        // Это гарантирует, что \n строки end_line спрячется, и пустая строка исчезнет!
         Gtk.TextIter fold_end;
-        buffer.get_iter_at_line (out fold_end, end_line);
-        fold_end.forward_to_line_end ();
+        buffer.get_iter_at_line (out fold_end, end_line + 1);
+
+        if (fold_end.is_end()) {
+            buffer.get_end_iter (out fold_end);
+        }
 
         var tag_table = buffer.get_tag_table ();
         var invisible_tag = tag_table.lookup (this.folding_tag_name);
         if (invisible_tag == null) return;
 
-        // Переключаем состояние тега невидимости
         if (fold_start.has_tag (invisible_tag)) {
             buffer.remove_tag (invisible_tag, fold_start, fold_end);
         } else {
             buffer.apply_tag (invisible_tag, fold_start, fold_end);
         }
 
-        // Принудительно заставляем панель обновить маркеры [+] / [-]
+        // ХОТФИКС ДЛЯ НУМЕРАТОРА СТРОК (Важнейший шаг в GTK 4):
+        // Просто вызвать queue_draw() для View недостаточно. Нумератор строк использует кэш макета.
+        // Пересчет разметки (GtkTextLayout) форсируется через временное уведомление об изменении размера.
+        view.queue_resize (); 
         this.queue_draw ();
     }
 
     private bool is_line_collapsed_by_number (int line_num) {
-        var buffer = this.view.get_buffer ();
-        Gtk.TextIter iter;
-        buffer.get_iter_at_line (out iter, line_num);
-        if (iter.forward_char ()) {
-            var invisible_tag = buffer.get_tag_table ().lookup (this.folding_tag_name);
-            return invisible_tag != null && iter.has_tag (invisible_tag);
-        }
-        return false;
+        var buffer = this.get_view ().get_buffer ();
+        
+        // Блок свернут, если его первая внутренняя строка имеет тег скрытия
+        Gtk.TextIter next_line_iter;
+        buffer.get_iter_at_line (out next_line_iter, line_num + 1);
+        
+        if (next_line_iter.is_end ()) return false;
+
+        var invisible_tag = buffer.get_tag_table ().lookup (this.folding_tag_name);
+        return invisible_tag != null && next_line_iter.has_tag (invisible_tag);
     }
 
     private bool check_if_block_starts (int line) {
@@ -179,13 +187,15 @@ public class Iide.TreeSitterFoldingGutter : GtkSource.GutterRenderer {
 
     private bool check_if_inside_foldable_block (int line) {
         foreach (var block in this.file_blocks) {
+            // Линия должна честно рисоваться на всех внутренних строках, 
+            // включая последнюю строку блока (end_line)
             if (line > block.start_line && line <= block.end_line) {
                 return true;
             }
         }
         return false;
     }
-
+    
     private bool get_block_bounds (int line, out int start, out int end) {
         foreach (var block in this.file_blocks) {
             if (block.start_line == line) {
