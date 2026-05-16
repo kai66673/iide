@@ -11,10 +11,63 @@ public class Iide.TreeSitterFoldingGutter : GtkSource.GutterRenderer {
     // Локальная копия структуры блоков файла
     private Gee.List<IndentBlock?> file_blocks;
 
+    private bool is_pointer_inside = false; // Наведена ли мышь на гутер вообще
+    private int hover_line = -1;            // Номер строки, над которой сейчас курсор
+
     public TreeSitterFoldingGutter () {
         Object ();
         this.file_blocks = new Gee.ArrayList<IndentBlock?> ();
         this.set_alignment_mode (GtkSource.GutterRendererAlignmentMode.CELL);
+
+        // Включаем интерактивность, чтобы ловить события
+        this.query_activatable.connect ((iter, area) => { return true; }); 
+    }
+
+    // ВАЖНО: В GtkSourceView 5 используем change_view вместо realized
+    protected override void change_view (GtkSource.View? old_view) {
+        base.change_view (old_view);
+
+        var view = this.get_view ();
+        
+        // Если view == null, значит рендерер удаляют из виджета
+        if (view == null) return;
+
+        // Инициализируем контроллер движений мыши прямо на самом виджете TextView
+        var motion_controller = new Gtk.EventControllerMotion ();
+        
+        motion_controller.enter.connect ((x, y) => {
+            this.is_pointer_inside = true;
+            this.update_hover_position (x, y);
+        });
+
+        motion_controller.motion.connect ((x, y) => {
+            this.update_hover_position (x, y);
+        });
+
+        motion_controller.leave.connect (() => {
+            this.is_pointer_inside = false;
+            this.hover_line = -1;
+            this.queue_draw (); // Скрываем маркеры [-] при уходе мыши
+        });
+
+        // Добавляем контроллер событий на физический виджет текстового поля
+        view.add_controller (motion_controller);
+    }
+
+    private void update_hover_position (double x, double y) {
+        var view = this.get_view ();
+        Gtk.TextIter iter;
+        
+        // Переводим Y-координату мыши из координат гутера во внутренние координаты строк
+        int buffer_y;
+        view.window_to_buffer_coords (Gtk.TextWindowType.TEXT, 0, (int) y, null, out buffer_y);
+        view.get_iter_at_location (out iter, 0, buffer_y);
+
+        int new_hover_line = iter.get_line ();
+        if (this.hover_line != new_hover_line) {
+            this.hover_line = new_hover_line;
+            this.queue_draw (); // Запускаем точечную перерисовку панели при движении мыши
+        }
     }
 
     public void set_icons_size (int size) {
@@ -39,10 +92,8 @@ public class Iide.TreeSitterFoldingGutter : GtkSource.GutterRenderer {
 
     public override bool query_activatable (Gtk.TextIter iter, Gdk.Rectangle area) {
         int line = iter.get_line ();
-        
-        // Метод разрешает кликать ТОЛЬКО по тем строкам, где реально начинается блок.
-        // Это предотвращает ложные клики по пустым местам транзитных линий.
-        return this.check_if_block_starts (line);
+        // Разрешаем клик, если для строки существует хотя бы один блок
+        return this.find_deepest_block_for_line (line) != null;
     }
 
     public override void measure (Gtk.Orientation orientation, int for_size, out int minimum, out int natural, out int minimum_baseline, out int natural_baseline) {
@@ -70,21 +121,72 @@ public class Iide.TreeSitterFoldingGutter : GtkSource.GutterRenderer {
         base.snapshot (snapshot);
     }
 
-    public override void snapshot_line (Gtk.Snapshot snapshot, GtkSource.GutterLines lines, uint line) {
-        // 1. Извлекаем реальный номер строки в текстовом буфере
-        int current_line = (int) line;
+    // Вспомогательный метод для подсветки всей вертикальной линии свернутого/развернутого блока
+    private bool check_if_line_belongs_to_hovered_block (int line) {
+        if (this.hover_line == -1) return false;
 
-        // Запрашиваем структуру блоков (пока демо-заглушки)
-        bool is_block_start = this.check_if_block_starts (current_line);
-        if (!is_block_start && !this.check_if_inside_foldable_block (current_line)) {
-            return; 
+        // Находим минимальный блок, над которым сейчас находится курсор мыши
+        var hovered_block = this.find_deepest_block_for_line (this.hover_line);
+        if (hovered_block == null) return false;
+
+        // Вместо поиска одного глубокого блока для текущей строки, мы проверяем:
+        // входит ли текущая отрисовываемая строка в диапазон блока, подсвеченного мышью?
+        if (line >= hovered_block.start_line && line <= hovered_block.end_line) {
+            
+            // Дополнительная полировка в стиле QtCreator:
+            // Если мышь наведена на глубокий вложенный блок (например, if), 
+            // мы подсвечиваем ТОЛЬКО его (линии внешних функций не загораются синим).
+            // Для этого проверяем, совпадает ли минимальный блок текущей строки с блоком мыши,
+            // ИЛИ текущая строка является заголовком/хвостом, который ведет к этому блоку.
+            var current_deepest = this.find_deepest_block_for_line (line);
+            if (current_deepest != null && current_deepest.indent_level > hovered_block.indent_level) {
+                // Если текущая строка ушла еще глубже во вложенность, чем курсор мыши,
+                // внешнюю линию hovered_block мы все равно продолжаем подсвечивать синим,
+                // чтобы она не разрывалась!
+                return true;
+            }
+            
+            return true;
         }
+
+        return false;
+    }
+
+    private Iide.IndentBlock? find_deepest_block_for_line (int line) {
+        Iide.IndentBlock? deepest_block = null;
+        int max_indent = -1;
+
+        foreach (var block in this.file_blocks) {
+            // Проверяем, входит ли строка в диапазон блока
+            if (line >= block.start_line && line <= block.end_line) {
+                // Ищем блок с наибольшим уровнем вложенности
+                if (block.indent_level > max_indent) {
+                    max_indent = block.indent_level;
+                    deepest_block = block;
+                }
+            }
+        }
+        return deepest_block;
+    }
+
+    public override void snapshot_line (Gtk.Snapshot snapshot, GtkSource.GutterLines lines, uint line) {
+        // 1. ИСПРАВЛЕНИЕ: Извлекаем итератор текущего визуального ряда
+        Gtk.TextIter current_line_iter;
+        lines.get_iter_at_line (out current_line_iter, line);
+
+        // 2. Получаем честный номер строки в документе (0-indexed)
+        int current_line = current_line_iter.get_line ();
+
+        // Проверяем структуру блоков Tree-sitter по честному номеру строки
+        bool is_block_start = this.check_if_block_starts (current_line);
+        bool is_inside_block = this.check_if_inside_foldable_block (current_line);
+
+        if (!is_block_start && !is_inside_block) return;
 
         // 2. Проверяем, свернута ли текущая строка
         bool is_collapsed = this.is_line_collapsed_by_number (current_line);
 
-        // 3. ПОЛУЧЕНИЕ ГЕОМЕТРИИ (Решает проблему get_bounds)
-        // В GtkSourceView 5 метод lines.get_line_yrange возвращает Y-координату и высоту ячейки
+        // 3. ПОЛУЧЕНИЕ ГЕОМЕТРИИ И МАСШТАБА
         int cell_y, cell_height;
         lines.get_line_yrange (line, GtkSource.GutterRendererAlignmentMode.CELL, out cell_y, out cell_height);
 
@@ -92,34 +194,59 @@ public class Iide.TreeSitterFoldingGutter : GtkSource.GutterRenderer {
             return;
         }
 
-        // Границы отрисовки для Cairo
+        // Границы отрисовки для Cairo с учетом масштабируемого размера иконки
         var bounds = Graphene.Rect ();
         bounds.init (0.0f, (float) cell_y, (float) current_icon_size, (float) cell_height);
 
-        // 4. Инициализация Cairo контекста (теперь без конфликтов get_bounds)
+        // 4. Инициализация Cairo контекста
         var cr = snapshot.append_cairo (bounds);
         cr.set_line_width (1.0);
-        cr.set_source_rgba (0.5, 0.5, 0.5, 0.6);
 
-        double mid_x = current_icon_size / 2.0f; // Центр панели
+        // ВЫЧИСЛЕНИЕ ДИНАМИЧЕСКОГО ЦВЕТА (QtCreator Scope Highlight)
+        bool is_current_scope_hovered = this.check_if_line_belongs_to_hovered_block (current_line);
+        if (is_current_scope_hovered) {
+            cr.set_source_rgba (0.2, 0.6, 1.0, 0.9); // Подсвеченный синий для активного scope
+        } else {
+            cr.set_source_rgba (0.5, 0.5, 0.5, 0.4); // Полупрозрачный серый по умолчанию
+        }
+
+        // Динамический расчёт центра и пропорций иконки для draw_plus/minus
+        double mid_x = current_icon_size / 2.0; 
         double mid_y = cell_y + (cell_height / 2.0);
+        double r = double.max (3.0, current_icon_size / 4.0); // Радиус/полуразмер квадрата иконки
 
         if (is_block_start) {
             if (is_collapsed) {
-                this.draw_plus_icon (cr, mid_x, mid_y);
+                // В стиле QtCreator: [+] виден ВСЕГДА
+                this.draw_plus_icon_scaled (cr, mid_x, mid_y, r);
             } else {
-                this.draw_minus_icon (cr, mid_x, mid_y);
-                // Направляющая линия вниз до конца текущей строки-заголовка
-                cr.move_to (mid_x, mid_y + 5);
+                // В стиле QtCreator: [-] виден ТОЛЬКО когда мышь находится над панелью гутера
+                if (this.is_pointer_inside) {
+                    this.draw_minus_icon_scaled (cr, mid_x, mid_y, r);
+                }
+                // Направляющая линия вниз от центра иконки до конца текущего ряда
+                cr.move_to (mid_x, mid_y + r + 1.0);
                 cr.line_to (mid_x, cell_y + cell_height);
                 cr.stroke ();
             }
-        } else {
-            // Транзитная вертикальная линия внутри развернутого блока
+        } else if (is_inside_block && !is_collapsed) {
+            // Транзитная вертикальная линия внутри развернутого блока кода
             cr.move_to (mid_x, cell_y);
             cr.line_to (mid_x, cell_y + cell_height);
             cr.stroke ();
         }
+    }
+
+    // Масштабируемые методы отрисовки (замените ваши draw_plus/minus или адаптируйте их под параметр r)
+    private void draw_plus_icon_scaled (Cairo.Context cr, double x, double y, double r) {
+        cr.rectangle (x - r, y - r, r * 2, r * 2); cr.stroke ();
+        cr.move_to (x - (r - 2.0), y); cr.line_to (x + (r - 2.0), y); cr.stroke ();
+        cr.move_to (x, y - (r - 2.0)); cr.line_to (x, y + (r - 2.0)); cr.stroke ();
+    }
+
+    private void draw_minus_icon_scaled (Cairo.Context cr, double x, double y, double r) {
+        cr.rectangle (x - r, y - r, r * 2, r * 2); cr.stroke ();
+        cr.move_to (x - (r - 2.0), y); cr.line_to (x + (r - 2.0), y); cr.stroke ();
     }
 
     public override void activate (Gtk.TextIter iter, Gdk.Rectangle area, uint button, Gdk.ModifierType state, int n_presses) {
@@ -129,21 +256,23 @@ public class Iide.TreeSitterFoldingGutter : GtkSource.GutterRenderer {
         var view = this.get_view ();
         var buffer = view.get_buffer ();
 
-        int start_line, end_line;
-        if (!this.get_block_bounds (clicked_line, out start_line, out end_line)) {
-            return; 
-        }
+        // Находим самый глубокий блок для строки клика
+        var target_block = this.find_deepest_block_for_line (clicked_line);
+        if (target_block == null) return;
 
-        // ИДЕАЛЬНЫЕ ГРАНИЦЫ ДЛЯ GTK 4:
-        // Начало скрытия: первый символ первой строки тела блока (start_line + 1)
+        int start_line = target_block.start_line;
+        int end_line = target_block.end_line;
+
+        // ТОЧНЫЕ ГРАНИЦЫ ДЛЯ ИСКЛЮЧЕНИЯ ПУСТЫХ СТРОК:
+        // 1. НАЧАЛО: индекс 0 строки start_line + 1
         Gtk.TextIter fold_start;
         buffer.get_iter_at_line (out fold_start, start_line + 1);
 
-        // Конец скрытия: первый символ строки, ИДУЩЕЙ ЗА БЛОКОМ (end_line + 1)
-        // Это гарантирует, что \n строки end_line спрячется, и пустая строка исчезнет!
+        // 2. КОНЕЦ: индекс 0 строки end_line + 1 (захватываем финальный \n строки end_line)
         Gtk.TextIter fold_end;
         buffer.get_iter_at_line (out fold_end, end_line + 1);
 
+        // Защита: если блок упирается в самый конец файла
         if (fold_end.is_end()) {
             buffer.get_end_iter (out fold_end);
         }
@@ -152,32 +281,18 @@ public class Iide.TreeSitterFoldingGutter : GtkSource.GutterRenderer {
         var invisible_tag = tag_table.lookup (this.folding_tag_name);
         if (invisible_tag == null) return;
 
+        // Проверяем состояние по первой скрытой строке (fold_start)
         if (fold_start.has_tag (invisible_tag)) {
             buffer.remove_tag (invisible_tag, fold_start, fold_end);
         } else {
             buffer.apply_tag (invisible_tag, fold_start, fold_end);
         }
 
-        // ХОТФИКС ДЛЯ НУМЕРАТОРА СТРОК (Важнейший шаг в GTK 4):
-        // Просто вызвать queue_draw() для View недостаточно. Нумератор строк использует кэш макета.
-        // Пересчет разметки (GtkTextLayout) форсируется через временное уведомление об изменении размера.
-        view.queue_resize (); 
+        view.queue_resize ();
         this.queue_draw ();
     }
 
-    private bool is_line_collapsed_by_number (int line_num) {
-        var buffer = this.get_view ().get_buffer ();
-        
-        // Блок свернут, если его первая внутренняя строка имеет тег скрытия
-        Gtk.TextIter next_line_iter;
-        buffer.get_iter_at_line (out next_line_iter, line_num + 1);
-        
-        if (next_line_iter.is_end ()) return false;
-
-        var invisible_tag = buffer.get_tag_table ().lookup (this.folding_tag_name);
-        return invisible_tag != null && next_line_iter.has_tag (invisible_tag);
-    }
-
+    // Проверяет, является ли строка началом какого-либо синтаксического блока
     private bool check_if_block_starts (int line) {
         foreach (var block in this.file_blocks) {
             if (block.start_line == line) return true;
@@ -185,42 +300,23 @@ public class Iide.TreeSitterFoldingGutter : GtkSource.GutterRenderer {
         return false;
     }
 
+    // Проверяет, находится ли строка внутри тела какого-либо развернутого блока
     private bool check_if_inside_foldable_block (int line) {
-        foreach (var block in this.file_blocks) {
-            // Линия должна честно рисоваться на всех внутренних строках, 
-            // включая последнюю строку блока (end_line)
-            if (line > block.start_line && line <= block.end_line) {
-                return true;
-            }
-        }
-        return false;
-    }
-    
-    private bool get_block_bounds (int line, out int start, out int end) {
-        foreach (var block in this.file_blocks) {
-            if (block.start_line == line) {
-                start = block.start_line;
-                end = block.end_line;
-                return true;
-            }
-        }
-        start = 0; end = 0; return false;
+        var block = this.find_deepest_block_for_line (line);
+        // Строка внутри тела, если она больше начала и меньше или равна концу блока
+        return block != null && line > block.start_line && line <= block.end_line;
     }
 
-    private void draw_plus_icon (Cairo.Context cr, double x, double y) {
-        double w8 = current_icon_size / 2.0f;
-        double w4 = current_icon_size / 4.0f;
-        double w2 = current_icon_size / 8.0f;
-        cr.rectangle (x - w4, y - w4, w8, w8); cr.stroke ();
-        cr.move_to (x - w2, y); cr.line_to (x + w2, y); cr.stroke ();
-        cr.move_to (x, y - w2); cr.line_to (x, y + w2); cr.stroke ();
-    }
+    // Проверяет, свернут ли конкретный блок по номеру его начальной строки
+    private bool is_line_collapsed_by_number (int line_num) {
+        var buffer = this.get_view ().get_buffer ();
+        
+        Gtk.TextIter next_line_iter;
+        buffer.get_iter_at_line (out next_line_iter, line_num + 1);
+        
+        if (next_line_iter.is_end ()) return false;
 
-    private void draw_minus_icon (Cairo.Context cr, double x, double y) {
-        double w8 = current_icon_size / 2.0f;
-        double w4 = current_icon_size / 4.0f;
-        double w2 = current_icon_size / 8.0f;
-        cr.rectangle (x - w4, y - w4, w8, w8); cr.stroke ();
-        cr.move_to (x - w2, y); cr.line_to (x + w2, y); cr.stroke ();
+        var invisible_tag = buffer.get_tag_table ().lookup (this.folding_tag_name);
+        return invisible_tag != null && next_line_iter.has_tag (invisible_tag);
     }
 }
