@@ -167,7 +167,7 @@ public abstract class Iide.BaseTreeSitterHighlighter : Object {
     // Абстрактный метод для фильтрации узлов Breadcrumbs
     protected abstract bool is_container_node (string node_type);
 
-    // Точка входа для обновления структуры документа
+    // Точка входа для обновления структуры фолдинга документа
     protected void update_document_structure () {
         this.cached_blocks.clear ();
 
@@ -277,12 +277,67 @@ public abstract class Iide.BaseTreeSitterHighlighter : Object {
         }
     }
 
+    // Легковесный метод сбора блоков без вызова внешних сигналов
+    private void update_document_structure_silent () {
+        this.cached_blocks.clear ();
+        var root = this.tree.root_node ();
+        if (!root.is_null ()) {
+            this.collect_foldable_blocks (root, 0);
+        }
+    }
+
     private void on_buffer_changed () {
         unowned TreeSitter.Tree? old_tree = this.tree;
         var new_tree = this.parser.parse (old_tree, this.ts_input);
         if (new_tree == null) return;
 
         this.tree = (owned) new_tree;
+
+        var buffer = this.view.get_buffer ();
+        var invisible_tag = buffer.get_tag_table ().lookup ("$FOLD_HIDE");
+
+        if (invisible_tag != null && this.view.folding_gutter != null) {
+            // Запрашиваем у Tree-sitter самый свежий плоский список блоков для нового состояния буфера
+            // (Вызываем ваш рекурсивный метод сбора блоков прямо сейчас, чтобы получить актуальные cached_blocks)
+            this.update_document_structure_silent (); 
+
+            // Идем по списку физически свернутых блоков в гутере с конца, чтобы безопасно удалять элементы
+            for (int i = this.view.folding_gutter.active_folds.size - 1; i >= 0; i--) {
+                var fold = this.view.folding_gutter.active_folds[i];
+
+                Gtk.TextIter current_start_iter;
+                buffer.get_iter_at_mark (out current_start_iter, fold.start_mark);
+                
+                // Получаем строку, где СЕЙЧАС (после смещения) находится заголовок этого свернутого блока
+                int current_header_line = current_start_iter.get_line () - 1;
+
+                // Проверяем: видит ли Tree-sitter начало синтаксического блока на этой строке?
+                bool block_still_exists = false;
+                foreach (var block in this.cached_blocks) {
+                    if (block.start_line == current_header_line) {
+                        block_still_exists = true;
+                        break;
+                    }
+                }
+
+                // 2. АВТОРАЗВОРАЧИВАНИЕ: Если блок разрушен (заголовок стерт или изменен отступ)
+                if (!block_still_exists) {
+                    Gtk.TextIter s, e;
+                    buffer.get_iter_at_mark (out s, fold.start_mark);
+                    buffer.get_iter_at_mark (out e, fold.end_mark);
+
+                    // Снимаем тег невидимости — код мгновенно раскрывается на экране!
+                    buffer.remove_tag (invisible_tag, s, e);
+
+                    // Удаляем маркеры из памяти буфера и очищаем список
+                    fold.free_marks (buffer);
+                    this.view.folding_gutter.active_folds.remove_at (i);
+                    
+                    // Форсируем ресайз вьюпорта, так как текст раскрылся
+                    this.view.queue_resize ();
+                }
+            }
+        }
 
         // Перезапускаем дебаунс
         if (this.highlight_timeout_id > 0) {
