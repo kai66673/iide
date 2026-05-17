@@ -6,6 +6,7 @@ iide_sources = [
     'Widgets/TextView/SourceView.vala',
     'Widgets/TextView/FontZoomer.vala',
     'Widgets/TextView/GutterMarkRenderer.vala',
+    'Widgets/TextView/LineNumbersGutter.vala',
     'Widgets/TextView/BreadcrumbFileNavigator.vala',
     'Widgets/TextView/BreadcrumbTreeSitterNavigator.vala',
     'Widgets/TextView/BreadcrumbSymbolOutlineNavigator.vala',

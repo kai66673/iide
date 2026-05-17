@@ -63,6 +63,7 @@ public class Iide.SourceView : GtkSource.View {
     public Window window;
     public string uri { get; private set; }
     private Iide.TreeSitterManager ts_manager;
+    private Iide.LineNumbersGutter custom_line_numbers;
     public GutterMarkRenderer mark_renderer;
     public TreeSitterFoldingGutter folding_gutter;
     private Gtk.TextIter? pending_scroll_iter = null;
@@ -113,23 +114,27 @@ public class Iide.SourceView : GtkSource.View {
 
         var settings = Iide.SettingsService.get_instance ();
 
-        show_line_numbers = settings.show_line_numbers;
         highlight_current_line = settings.highlight_current_line;
         auto_indent = settings.auto_indent;
         indent_on_tab = true;
-
+        
         // Marks gutter
         set_show_line_marks (false);
         var left_gutter = get_gutter (Gtk.TextWindowType.LEFT);
         left_gutter.visible = true;
 
+        show_line_numbers = false;
+        this.custom_line_numbers = new Iide.LineNumbersGutter ();
+        left_gutter.insert (this.custom_line_numbers, 0); // Вес 0 — самая левая позиция
+        custom_line_numbers.visible = settings.show_line_numbers;
+
         mark_renderer = new GutterMarkRenderer ();
         mark_renderer.set_icons_size (FontSizeHelper.get_size_for_zoom_level (settings.editor_font_size));
-        left_gutter.insert (mark_renderer, 0);
+        left_gutter.insert (mark_renderer, 10);
 
         this.folding_gutter = new TreeSitterFoldingGutter ();
         this.folding_gutter.set_icons_size (FontSizeHelper.get_size_for_zoom_level (settings.editor_font_size));
-        left_gutter.insert (this.folding_gutter, 10);
+        left_gutter.insert (this.folding_gutter, 20);
 
         LspDiagnosticsMark.set_mark_attributes (this);
 
