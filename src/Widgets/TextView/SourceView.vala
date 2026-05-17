@@ -72,7 +72,7 @@ public class Iide.SourceView : GtkSource.View {
     private string tooltip_separator = "────────────────────────────────────────";
 
     private LspDocumentClient lsp_doclument_client;
-    private SourceDocument document;
+    public SourceDocument document;
 
     private int last_line = -1;
     private NavigationHistoryService history;

@@ -50,6 +50,9 @@ public class Iide.SaveDelegate : Panel.SaveDelegate {
 
 public class Iide.TextView : Panel.Widget {
     public SourceView source_view;
+    private Gtk.Overlay overlay;
+    private Gtk.DrawingArea indent_lines_canvas;
+
     private GtkSource.Map source_map;
     private FontZoomer font_zoomer;
     private Iide.SettingsService settings;
@@ -139,9 +142,32 @@ public class Iide.TextView : Panel.Widget {
         // 3. Убедитесь, что миникарта не пытается скроллиться сама по себе
         source_map.vexpand = true;
 
+        this.overlay = new Gtk.Overlay ();
+        this.overlay.set_child (scroll);
+        this.indent_lines_canvas = new Gtk.DrawingArea ();
+        this.indent_lines_canvas.can_target = false;
+        this.overlay.add_overlay (this.indent_lines_canvas);
+
+        var doc = this.source_view.document as Iide.TreeSitterDocument;
+        if (doc != null && doc.ts_highlighter != null) {
+            this.indent_lines_canvas.set_draw_func (this.draw_indent_lines);
+            doc.ts_highlighter.folding_structure_updated.connect ((blocks) => {
+                // Дерево обновилось -> принудительно стираем старые линии отступов и чертим новые
+                this.indent_lines_canvas.queue_draw ();
+            });
+            buffer.notify["cursor-position"].connect (() => {
+                // Принудительно заставляем холст линий отступов перерисоваться,
+                // чтобы мгновенно обновить подсвеченную линию
+                this.indent_lines_canvas.queue_draw ();
+            });
+        }
+
+        this.source_view.get_vadjustment ().value_changed.connect (() => { this.indent_lines_canvas.queue_draw (); });
+        this.source_view.get_hadjustment ().value_changed.connect (() => { this.indent_lines_canvas.queue_draw (); });
+
         var subbox = new Gtk.Box (Gtk.Orientation.HORIZONTAL, 0);
         subbox.homogeneous = false;
-        subbox.append (scroll);
+        subbox.append (this.overlay);
         subbox.append (source_map);
 
         var font_map = Pango.CairoFontMap.get_default ();
@@ -209,6 +235,117 @@ public class Iide.TextView : Panel.Widget {
             }
         });
     }
+
+    private void draw_indent_lines (Gtk.DrawingArea drawing_area, Cairo.Context cr, int width, int height) {
+        // Получаем доступ к документу и подсвечнику
+        var doc = this.source_view.document as Iide.TreeSitterDocument;
+        if (doc == null || doc.ts_highlighter == null) return;
+
+        var ts_blocks = doc.ts_highlighter.get_cached_indent_blocks ();
+        if (ts_blocks.size == 0) return;
+
+        // Настройка стиля линий отступов (Тонкий полупрозрачный серый цвет)
+        cr.set_source_rgba (0.5, 0.5, 0.5, 0.25);
+        cr.set_line_width (1.0);
+
+        // Считаем ширину одного таба в пикселях на основе текущего шрифта
+        double tab_width_px = this.calculate_tab_width_pixels ();
+        int left_margin = this.source_view.get_left_margin ();
+        double h_scroll = this.source_view.get_hadjustment ().get_value ();
+
+        // ===================================================================
+        // ХОТФИКС: ВЫЧИСЛЕНИЕ ШИРИНЫ ГУТТЕРОВ
+        // Мы запрашиваем у текстового поля ширину левой служебной панели (Gutter Window)
+        int gutter_width = 0;
+        
+        // В GTK 4 правильный способ получить физическую ширину левой области:
+        // Мы берем левый гутер и запрашиваем его ширину через распределение (allocation)
+        var left_gutter = this.source_view.get_gutter (Gtk.TextWindowType.LEFT);
+        if (left_gutter != null) {
+            // Извлекаем реальную ширину виджета панели на экране
+            gutter_width = left_gutter.get_width ();
+        }
+        // ===================================================================
+
+        // 1. Получаем строку, на которой сейчас стоит курсор
+        Gtk.TextIter cursor_iter;
+        var buffer = this.source_view.get_buffer ();
+        buffer.get_iter_at_mark (out cursor_iter, buffer.get_insert ());
+        int cursor_line = cursor_iter.get_line ();
+
+        // 2. Находим активный блок для строки курсора
+        // Используем публичный метод, который мы уже написали в вашем Gutter
+        var active_highlighter_block = this.source_view.folding_gutter.find_deepest_block_for_line (cursor_line);
+
+        foreach (var block in ts_blocks) {
+            Gtk.TextIter start_iter, end_iter;
+            this.source_view.get_buffer ().get_iter_at_line (out start_iter, block.start_line);
+            this.source_view.get_buffer ().get_iter_at_line (out end_iter, block.end_line);
+
+            // Получаем физические координаты Y внутри буфера
+            int start_y_buf, start_height;
+            int end_y_buf, end_height;
+            
+            this.source_view.get_line_yrange (start_iter, out start_y_buf, out start_height);
+            this.source_view.get_line_yrange (end_iter, out end_y_buf, out end_height);
+
+            // СВЕРНУТЫЙ БЛОК: Если высота строки равна 0 — код скрыт фолдингом.
+            // Пропускаем отрисовку этой линии, чтобы она не торчала из-под свернутого [+]
+            if (start_height <= 0 || end_height <= 0) continue;
+
+            // Переводим внутренние координаты буфера в физические пиксели окна оверлея
+            int win_x, win_y_start, win_y_end;
+            this.source_view.buffer_to_window_coords (Gtk.TextWindowType.TEXT, 0, start_y_buf, out win_x, out win_y_start);
+            this.source_view.buffer_to_window_coords (Gtk.TextWindowType.TEXT, 0, end_y_buf, out win_x, out win_y_end);
+
+            // Расчет X-координаты линии: базовый отступ + (уровень вложенности AST * пиксели таба)
+            // Хотфикс размытия Cairo: добавляем +0.5, чтобы линия легла ровно на сетку пикселей монитора
+            double line_x = gutter_width + left_margin + (block.indent_level * tab_width_px) - h_scroll + 0.5;
+
+            // Оптимизация: не рисуем линии, которые находятся за пределами видимого экрана по вертикали
+            if (win_y_start > height || (win_y_end + end_height) < 0) continue;
+
+            double draw_y_start = double.max (win_y_start, 0.0);
+            double draw_y_end = double.min (win_y_end + end_height, (double) height);
+
+            // ВЫЧИСЛЕНИЕ ДИНАМИЧЕСКОГО ЦВЕТА ЛИННИИ:
+            // Линия подсвечивается ярким цветом, если блок строки курсора совпадает с текущим отрисовываемым блоком
+            // ИЛИ текущий блок является родителем для блока курсора (чтобы линия шла до верха)
+            bool is_active_line = false;
+            if (active_highlighter_block != null) {
+                if (block.start_line == active_highlighter_block.start_line && block.end_line == active_highlighter_block.end_line) {
+                    is_active_line = true;
+                } else if (cursor_line >= block.start_line && cursor_line <= block.end_line && active_highlighter_block.indent_level > block.indent_level) {
+                    // Если курсор ушел глубже во вложенность, внешнюю родительскую линию тоже подсвечиваем
+                    is_active_line = true;
+                }
+            }
+
+            if (is_active_line) {
+                cr.set_source_rgba (0.2, 0.6, 1.0, 0.7); // Контрастный синий для активного отступа
+                cr.set_line_width (1.2); // Делаем активную линию чуть толще для акцента
+            } else {
+                cr.set_source_rgba (0.5, 0.5, 0.5, 0.25); // Блеклый серый по умолчанию
+                cr.set_line_width (1.0);
+            }
+            
+            // Рисуем монолитную вертикальную линию от начала до конца блока кода
+            cr.move_to (line_x, draw_y_start);
+            cr.line_to (line_x, draw_y_end);
+            cr.stroke ();
+        }
+    }
+
+    private double calculate_tab_width_pixels () {
+        // TODO: Implement real metrix char width...
+        double char_width_px = 0.6f * FontSizeHelper.get_size_for_zoom_level (settings.editor_font_size);
+
+        uint tab_width_chars = this.source_view.get_tab_width ();
+        if (tab_width_chars == 0) tab_width_chars = 4;
+
+        return char_width_px * tab_width_chars;
+    }
+
 
     public override void size_allocate (int width, int height, int baseline) {
         base.size_allocate (width, height, baseline);
