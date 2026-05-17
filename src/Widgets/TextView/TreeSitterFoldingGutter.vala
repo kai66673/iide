@@ -39,6 +39,8 @@ namespace Iide {
         private bool is_pointer_inside = false;
         private int hover_line = -1;
 
+        public signal void fold_state_changed ();
+
         public TreeSitterFoldingGutter () {
             Object ();
             this.file_blocks = new Gee.ArrayList<Iide.IndentBlock?> ();
@@ -223,6 +225,7 @@ namespace Iide {
 
             view.queue_resize ();
             this.queue_draw ();
+            this.fold_state_changed ();
         }
 
         public override bool query_activatable (Gtk.TextIter iter, Gdk.Rectangle area) {
@@ -278,7 +281,7 @@ namespace Iide {
             return false;
         }
 
-        private bool is_line_collapsed_by_number (int line_num) {
+        public bool is_line_collapsed_by_number (int line_num) {
             var buffer = this.get_view ().get_buffer ();
             foreach (var fold in this.active_folds) {
                 Gtk.TextIter mark_iter;
