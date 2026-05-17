@@ -53,44 +53,47 @@ public abstract class Iide.BaseTreeSitterHighlighter : Object {
         var buffer = self.buffer;
         bytes_read = 0;
 
-        // Проверка на выход за границы количества строк в буфере
-        if ((int) position.row >= buffer.get_line_count ()) return null;
-
         Gtk.TextIter iter;
-        buffer.get_iter_at_line (out iter, (int) position.row);
+        buffer.get_start_iter (out iter);
 
-        // Вычисляем длину всей строки в байтах (включая \n)
-        int total_line_bytes = iter.get_bytes_in_line ();
-
-        // Если Tree-sitter просит байт за пределами текущей строки
-        if ((int) position.column > total_line_bytes) return null;
-
-        // Встаем на нужный байтовый индекс внутри строки
-        iter.set_line_index ((int) position.column);
-        if (iter.is_end ()) return null;
-
-        Gtk.TextIter end = iter;
-        
-        // ВАЖНОЕ ИСПРАВЛЕНИЕ:
-        // Вместо forward_to_line_end(), который откидывает \n, мы берем честный физический конец строки:
-        // Продвигаемся вперед по строке до конца её байтового диапазона.
-        int current_byte_idx = iter.get_line_index ();
-        int bytes_to_read = total_line_bytes - current_byte_idx;
-
-        if (bytes_to_read <= 0) {
-            // Если мы стоим в самом конце строки и читать нечего, 
-            // пробуем сделать шаг на следующую строку (или прочесть \n, если мы перед ним)
-            if (!end.is_end ()) {
-                end.forward_char ();
+        // 1. ИЩЕМ ИТЕРАТОР ПО АБСОЛЮТНОМУ БАЙТОВОМУ ИНДЕКСУ
+        // Вместо капризного get_iter_at_line по структуре Point, мы используем 
+        // внутренний постраничный/построчный поиск самого GTK, замеряя байты.
+        // Чтобы сделать это максимально быстро, прыгаем по строкам через get_bytes_in_line
+        uint32 accumulated_bytes = 0;
+        while (accumulated_bytes + (uint32) iter.get_bytes_in_line () <= byte_index) {
+            accumulated_bytes += (uint32) iter.get_bytes_in_line ();
+            if (!iter.forward_line ()) {
+                break; // Дошли до конца файла
             }
-        } else {
-            // Смещаем конечный итератор на конец этой строки (включая \n)
-            end.set_line_index (total_line_bytes);
         }
 
-        // Запрашиваем текст. get_text стабилен в UTF-8
+        // Добираемся до точного байта внутри найденной строки посимвольно
+        // (Этот внутренний хвостик обычно равен всего нескольким байтам)
+        while (accumulated_bytes < byte_index) {
+            int current_char_bytes = iter.get_bytes_in_line () - iter.get_line_index ();
+            // Защита от бесконечного цикла на краю строки
+            if (current_char_bytes <= 0) break; 
+            
+            // Продвигаем итератор вперед на один символ буфера (включая невидимые!)
+            if (!iter.forward_char ()) break;
+            
+            // Пересчитываем глобальный байтовый оффсет через наш get_byte_offset_safe
+            accumulated_bytes = get_byte_offset_safe (iter);
+        }
+
+        if (iter.is_end ()) return null;
+
+        // 2. ОПРЕДЕЛЯЕМ КОНЕЦ ЧТЕНИЯ ЧАНКА (Блока текста)
+        // Читаем текст порциями — от текущей позиции до конца текущей строки (включая \n)
+        Gtk.TextIter end = iter;
+        int total_line_bytes = end.get_bytes_in_line ();
+        end.set_line_index (total_line_bytes); // Встаем строго в конец физической строки памяти буфера
+
+        // Запрашиваем текст. Метод get_text (в отличие от get_slice) 
+        // ГАРАНТИРОВАННО вернет все символы, включая скрытые тегом $FOLD_HIDE!
         string chunk = buffer.get_text (iter, end, false);
-        bytes_read = (uint32) chunk.length; // В Vala это длина в байтах
+        bytes_read = (uint32) chunk.length; // В Vala это длина в байтах UTF-8
 
         return bytes_read > 0 ? chunk : null;
     }
