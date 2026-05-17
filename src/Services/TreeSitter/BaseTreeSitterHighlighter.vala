@@ -197,8 +197,12 @@ public abstract class Iide.BaseTreeSitterHighlighter : Object {
 
             // Проверяем, нужно ли сворачивать этот тип узла
             if (this.is_foldable_node_type (type)) {
+                var start_fold_point = child.start_point ();
+                child = body_node_for_foldable_node(child);
                 var start_point = child.start_point ();
                 var end_point = child.end_point ();
+                if (start_point.row > start_fold_point.row)
+                    start_point.row--;
 
                 // Блок имеет смысл сворачивать, только если он занимает больше 1 строки
                 if (end_point.row > start_point.row) {
@@ -233,6 +237,10 @@ public abstract class Iide.BaseTreeSitterHighlighter : Object {
                type == "function_definition" || 
                type == "class_definition" ||
                type == "block";
+    }
+
+    protected virtual TreeSitter.Node body_node_for_foldable_node(TreeSitter.Node foldable_node) {
+        return foldable_node;
     }
 
     // Виртуальный метод создания индентера
@@ -291,30 +299,32 @@ public abstract class Iide.BaseTreeSitterHighlighter : Object {
 
     private void on_buffer_changed () {
         unowned TreeSitter.Tree? old_tree = this.tree;
+        
+        // 1. Первичный инкрементальный парсинг изменений ввода (Буфер стабилен)
         var new_tree = this.parser.parse (old_tree, this.ts_input);
         if (new_tree == null) return;
-
         this.tree = (owned) new_tree;
 
         var buffer = this.view.get_buffer ();
         var invisible_tag = buffer.get_tag_table ().lookup ("$FOLD_HIDE");
 
-        if (invisible_tag != null && this.view.folding_gutter != null) {
-            // Запрашиваем у Tree-sitter самый свежий плоский список блоков для нового состояния буфера
-            // (Вызываем ваш рекурсивный метод сбора блоков прямо сейчас, чтобы получить актуальные cached_blocks)
+        // Легковесный список для сохранения маркеров, которые нужно раскрыть асинхронно
+        var folds_to_unfold = new Gee.ArrayList<FoldedMarkRange> ();
+
+        var folding_gutter = this.view.folding_gutter;
+
+        if (invisible_tag != null && folding_gutter != null) {
+            // Запрашиваем структуру блоков по только что полученному дереву
             this.update_document_structure_silent (); 
 
-            // Идем по списку физически свернутых блоков в гутере с конца, чтобы безопасно удалять элементы
-            for (int i = this.view.folding_gutter.active_folds.size - 1; i >= 0; i--) {
-                var fold = this.view.folding_gutter.active_folds[i];
+            // Сканируем свернутые маркеры и ищем разрушенные блоки
+            for (int i = folding_gutter.active_folds.size - 1; i >= 0; i--) {
+                var fold = folding_gutter.active_folds[i];
 
                 Gtk.TextIter current_start_iter;
                 buffer.get_iter_at_mark (out current_start_iter, fold.start_mark);
-                
-                // Получаем строку, где СЕЙЧАС (после смещения) находится заголовок этого свернутого блока
                 int current_header_line = current_start_iter.get_line () - 1;
 
-                // Проверяем: видит ли Tree-sitter начало синтаксического блока на этой строке?
                 bool block_still_exists = false;
                 foreach (var block in this.cached_blocks) {
                     if (block.start_line == current_header_line) {
@@ -323,26 +333,51 @@ public abstract class Iide.BaseTreeSitterHighlighter : Object {
                     }
                 }
 
-                // 2. АВТОРАЗВОРАЧИВАНИЕ: Если блок разрушен (заголовок стерт или изменен отступ)
+                // Если блок разрушен, откладываем его для удаления
                 if (!block_still_exists) {
-                    Gtk.TextIter s, e;
-                    buffer.get_iter_at_mark (out s, fold.start_mark);
-                    buffer.get_iter_at_mark (out e, fold.end_mark);
-
-                    // Снимаем тег невидимости — код мгновенно раскрывается на экране!
-                    buffer.remove_tag (invisible_tag, s, e);
-
-                    // Удаляем маркеры из памяти буфера и очищаем список
-                    fold.free_marks (buffer);
-                    this.view.folding_gutter.active_folds.remove_at (i);
-                    
-                    // Форсируем ресайз вьюпорта, так как текст раскрылся
-                    this.view.queue_resize ();
+                    folds_to_unfold.add (fold);
+                    folding_gutter.active_folds.remove_at (i);
                 }
             }
         }
 
-        // Перезапускаем дебаунс
+        // ===================================================================
+        // 2. АСИНХРОННОЕ АВТОРАЗВОРАЧИВАНИЕ ЧЕРЕЗ IDLE (Защита от краша)
+        if (folds_to_unfold.size > 0) {
+            GLib.Idle.add (() => {
+                // МЫ ВЫШЛИ ИЗ СИГНАЛА. Модификация буфера теперь на 100% безопасна!
+                buffer.begin_user_action ();
+
+                foreach (var fold in folds_to_unfold) {
+                    Gtk.TextIter s, e;
+                    buffer.get_iter_at_mark (out s, fold.start_mark);
+                    buffer.get_iter_at_mark (out e, fold.end_mark);
+
+                    // Снимаем тег невидимости — код чисто раскрывается на экране
+                    buffer.remove_tag (invisible_tag, s, e);
+                    fold.free_marks (buffer);
+                }
+
+                buffer.end_user_action ();
+
+                // Выполняем повторный парсинг, так как в буфер вернулись скрытые символы
+                var final_tree = this.parser.parse (this.tree, this.ts_input);
+                this.tree = (owned) final_tree;
+                
+                // Пересобираем структуру и форсируем перерисовку оверлея, линий и гутера
+                this.update_document_structure_silent (); 
+                this.view.queue_resize ();
+                this.view.queue_draw ();
+                
+                // Запускаем мгновенную перекраску вьюпорта для раскрывшихся строк
+                this.render_viewport_only ();
+
+                return GLib.Source.REMOVE; // Выполнить ровно один раз
+            });
+        }
+        // ===================================================================
+
+        // 3. Перезапускаем дебаунс-таймер для стандартной подсветки токенов ввода
         if (this.highlight_timeout_id > 0) {
             GLib.Source.remove (this.highlight_timeout_id);
         }

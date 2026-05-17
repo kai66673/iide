@@ -167,7 +167,17 @@ public class Iide.PythonHighlighter : BaseTreeSitterHighlighter {
            type == "if_statement" || 
            type == "for_statement" || 
            type == "while_statement" || 
-           type == "try_statement";
+           type == "try_statement" ||
+           type == "with_statement";
+  }
+
+  protected override TreeSitter.Node body_node_for_foldable_node(TreeSitter.Node foldable_node) {
+    for (uint32 j = 0; j < foldable_node.named_child_count (); j++) {
+      var inner_child = foldable_node.named_child (j);
+      if (inner_child.type () == "block")
+        return inner_child;
+    }
+    return foldable_node;
   }
 
   public override GtkSource.Indenter? create_indenter() {
