@@ -171,13 +171,13 @@ public class Iide.PythonHighlighter : BaseTreeSitterHighlighter {
            type == "with_statement";
   }
 
-  protected override TreeSitter.Node body_node_for_foldable_node(TreeSitter.Node foldable_node) {
-    for (uint32 j = 0; j < foldable_node.named_child_count (); j++) {
-      var inner_child = foldable_node.named_child (j);
-      if (inner_child.type () == "block")
-        return inner_child;
+  protected override TreeSitter.Point body_start_point(TreeSitter.Node foldable_node) {
+    for (uint32 j = 0; j < foldable_node.child_count (); j++) {
+      var inner_child = foldable_node.child (j);
+      if (inner_child.type () == ":")
+        return inner_child.start_point ();
     }
-    return foldable_node;
+    return foldable_node.start_point ();
   }
 
   public override GtkSource.Indenter? create_indenter() {

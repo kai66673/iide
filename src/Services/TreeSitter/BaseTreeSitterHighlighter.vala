@@ -11,7 +11,7 @@ public abstract class Iide.BaseTreeSitterHighlighter : Object {
     protected GtkSource.Buffer buffer;
     protected SourceView view;
 
-    private TreeSitter.Input ts_input;
+    //  private TreeSitter.Input ts_input;
 
     // Оптимизированный кэш: [capture_index, theme_index]
     // theme_index: 1 - Light, 0 - Dark
@@ -48,6 +48,7 @@ public abstract class Iide.BaseTreeSitterHighlighter : Object {
         initial_rehighlight ();
     }
 
+    /* TODO: максимально неоптимальная реализация... Подумать над оптимизацией и вовзвратом...
     private static string ? ts_read_callback (void* payload, uint32 byte_index, Point position, out uint32 bytes_read) {
         var self = (BaseTreeSitterHighlighter) payload;
         var buffer = self.buffer;
@@ -96,7 +97,7 @@ public abstract class Iide.BaseTreeSitterHighlighter : Object {
         bytes_read = (uint32) chunk.length; // В Vala это длина в байтах UTF-8
 
         return bytes_read > 0 ? chunk : null;
-    }
+    } */
 
     protected BaseTreeSitterHighlighter (SourceView view) {
         view.set_insert_spaces_instead_of_tabs (true);
@@ -107,10 +108,10 @@ public abstract class Iide.BaseTreeSitterHighlighter : Object {
         this.buffer = (GtkSource.Buffer) view.get_buffer ();
 
         // Заполняем структуру один раз
-        this.ts_input = {};
-        this.ts_input.payload = (void*) this;
-        this.ts_input.read = ts_read_callback;
-        this.ts_input.encoding = TreeSitter.InputEncoding.UTF8;
+        //  this.ts_input = {};
+        //  this.ts_input.payload = (void*) this;
+        //  this.ts_input.read = ts_read_callback;
+        //  this.ts_input.encoding = TreeSitter.InputEncoding.UTF8;
 
         this.parser = new Parser ();
         this.cursor = new QueryCursor ();
@@ -197,12 +198,8 @@ public abstract class Iide.BaseTreeSitterHighlighter : Object {
 
             // Проверяем, нужно ли сворачивать этот тип узла
             if (this.is_foldable_node_type (type)) {
-                var start_fold_point = child.start_point ();
-                child = body_node_for_foldable_node(child);
-                var start_point = child.start_point ();
+                var start_point = this.body_start_point (child);
                 var end_point = child.end_point ();
-                if (start_point.row > start_fold_point.row)
-                    start_point.row--;
 
                 // Блок имеет смысл сворачивать, только если он занимает больше 1 строки
                 if (end_point.row > start_point.row) {
@@ -239,8 +236,8 @@ public abstract class Iide.BaseTreeSitterHighlighter : Object {
                type == "block";
     }
 
-    protected virtual TreeSitter.Node body_node_for_foldable_node(TreeSitter.Node foldable_node) {
-        return foldable_node;
+    protected virtual TreeSitter.Point body_start_point(TreeSitter.Node foldable_node) {
+        return foldable_node.start_point ();
     }
 
     // Виртуальный метод создания индентера
@@ -301,7 +298,8 @@ public abstract class Iide.BaseTreeSitterHighlighter : Object {
         unowned TreeSitter.Tree? old_tree = this.tree;
         
         // 1. Первичный инкрементальный парсинг изменений ввода (Буфер стабилен)
-        var new_tree = this.parser.parse (old_tree, this.ts_input);
+        var new_tree = this.parser.parse_string (old_tree, buffer.text.data);
+        //var new_tree = this.parser.parse (old_tree, this.ts_input);
         if (new_tree == null) return;
         this.tree = (owned) new_tree;
 
@@ -361,7 +359,8 @@ public abstract class Iide.BaseTreeSitterHighlighter : Object {
                 buffer.end_user_action ();
 
                 // Выполняем повторный парсинг, так как в буфер вернулись скрытые символы
-                var final_tree = this.parser.parse (this.tree, this.ts_input);
+                //  var final_tree = this.parser.parse (this.tree, this.ts_input);
+                var final_tree = this.parser.parse_string (this.tree, buffer.text.data);
                 this.tree = (owned) final_tree;
                 
                 // Пересобираем структуру и форсируем перерисовку оверлея, линий и гутера
@@ -401,7 +400,8 @@ public abstract class Iide.BaseTreeSitterHighlighter : Object {
         Gtk.TextIter start, end;
         buffer.get_bounds (out start, out end);
 
-        this.tree = parser.parse (null, ts_input);
+        //  this.tree = parser.parse (null, ts_input);
+        this.tree = parser.parse_string (null, buffer.text.data);
 
         update_breadcrumbs ();
         update_document_structure ();
