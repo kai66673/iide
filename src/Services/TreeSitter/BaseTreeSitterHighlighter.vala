@@ -298,9 +298,13 @@ public abstract class Iide.BaseTreeSitterHighlighter : Object {
         unowned TreeSitter.Tree? old_tree = this.tree;
         
         // 1. Первичный инкрементальный парсинг изменений ввода (Буфер стабилен)
-        var new_tree = this.parser.parse_string (old_tree, buffer.text.data);
+        Gtk.TextIter start, end;
+        buffer.get_bounds (out start, out end);
+        var new_tree = this.parser.parse_string (old_tree, buffer.get_text (start, end, true).data);
         //var new_tree = this.parser.parse (old_tree, this.ts_input);
-        if (new_tree == null) return;
+
+        if (new_tree == null)
+            return;
         this.tree = (owned) new_tree;
 
         var buffer = this.view.get_buffer ();
@@ -360,7 +364,9 @@ public abstract class Iide.BaseTreeSitterHighlighter : Object {
 
                 // Выполняем повторный парсинг, так как в буфер вернулись скрытые символы
                 //  var final_tree = this.parser.parse (this.tree, this.ts_input);
-                var final_tree = this.parser.parse_string (this.tree, buffer.text.data);
+                Gtk.TextIter start1, end1;
+                buffer.get_bounds (out start1, out end1);
+                var final_tree = this.parser.parse_string (this.tree, buffer.get_text(start1, end1, true).data);
                 this.tree = (owned) final_tree;
                 
                 // Пересобираем структуру и форсируем перерисовку оверлея, линий и гутера
@@ -399,15 +405,16 @@ public abstract class Iide.BaseTreeSitterHighlighter : Object {
     private void initial_rehighlight () {
         Gtk.TextIter start, end;
         buffer.get_bounds (out start, out end);
+        buffer.remove_all_tags (start, end);
 
         //  this.tree = parser.parse (null, ts_input);
-        this.tree = parser.parse_string (null, buffer.text.data);
+        this.tree = parser.parse_string (null, buffer.get_text (start, end, true).data);
 
         update_breadcrumbs ();
         update_document_structure ();
 
         // Удаляем старые теги
-        clear_highlighter_tags (start, end);
+        //  clear_highlighter_tags (start, end);
 
         this.cursor = new QueryCursor ();
         cursor.exec (query, tree.root_node ());
