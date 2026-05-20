@@ -416,9 +416,6 @@ public abstract class Iide.BaseTreeSitterHighlighter : Object {
         update_breadcrumbs ();
         update_document_structure ();
 
-        // Удаляем старые теги
-        //  clear_highlighter_tags (start, end);
-
         this.cursor = new QueryCursor ();
         cursor.exec (query, tree.root_node ());
         render_matches ();
