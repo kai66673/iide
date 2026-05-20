@@ -405,7 +405,10 @@ public abstract class Iide.BaseTreeSitterHighlighter : Object {
     private void initial_rehighlight () {
         Gtk.TextIter start, end;
         buffer.get_bounds (out start, out end);
-        buffer.remove_all_tags (start, end);
+
+        // Удаляем старые теги
+        clear_highlighter_tags (start, end);
+        //  buffer.remove_all_tags (start, end);
 
         //  this.tree = parser.parse (null, ts_input);
         this.tree = parser.parse_string (null, buffer.get_text (start, end, true).data);
