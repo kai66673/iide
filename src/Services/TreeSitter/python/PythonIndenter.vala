@@ -13,6 +13,8 @@ public class Iide.PythonIndenter: GtkSource.Indenter, Object {
         (for_statement) @indent.begin
         (while_statement) @indent.begin
         (with_statement) @indent.begin
+        (match_statement) @indent.begin
+        (case_clause) @indent.begin
         (try_statement) @indent.begin
         (except_clause) @indent.begin
         (finally_clause) @indent.begin
@@ -136,5 +138,4 @@ public class Iide.PythonIndenter: GtkSource.Indenter, Object {
     public bool is_trigger (GtkSource.View view, Gtk.TextIter location, Gdk.ModifierType state, uint keyval) {
         return (keyval == Gdk.Key.Return || keyval == Gdk.Key.KP_Enter);
     }
-
 }

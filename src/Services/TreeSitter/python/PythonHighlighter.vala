@@ -168,7 +168,9 @@ public class Iide.PythonHighlighter : BaseTreeSitterHighlighter {
            type == "for_statement" || 
            type == "while_statement" || 
            type == "try_statement" ||
-           type == "with_statement";
+           type == "with_statement" ||
+           type == "match_statement" ||
+           type == "case_clause";
   }
 
   protected override TreeSitter.Point body_start_point(TreeSitter.Node foldable_node) {

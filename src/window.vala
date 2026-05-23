@@ -71,9 +71,10 @@ public class Iide.Window : Panel.DocumentWorkspace {
         menu_button.icon_name = "open-menu-symbolic";
 
         var menu = new GLib.Menu ();
-        menu.append (_("Open Project"), "app.open_project");
-        menu.append (_("Quick Open"), "app.fuzzy_finder");
-        menu.append (_("Search in Files"), "app.search_in_files");
+        menu.append (_("Open Project"), "app.open-project");
+        menu.append (_("Quick Open"), "app.fuzzy-finder");
+        menu.append (_("Search Symbol"), "app.search-symbol");
+        menu.append (_("Search in Files"), "app.search-in-files");
         menu.append (_("Save All"), "app.save");
         menu.append (_("Preferences"), "app.preferences");
         menu.append (_("About"), "app.about");

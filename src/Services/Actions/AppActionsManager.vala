@@ -10,7 +10,7 @@ public class Iide.AppActionsManager: Object {
     public static AppActionsManager get_instance () {
         if (_instance == null) {
             _instance = new AppActionsManager ();
-        }
+        }       
         return _instance;
     }
 
@@ -19,6 +19,14 @@ public class Iide.AppActionsManager: Object {
         actions = new Gee.HashMap<string, Iide.AppAction> ();
         shortcuts = new Gee.HashMap<string, string> ();
         load_shortcuts_from_gsettings();
+    }
+
+    public Gee.Collection<Iide.AppAction> get_all_actions () {
+        return actions.values;
+    }
+
+    public Iide.AppAction get_action(string action_id) {
+        return actions.get(action_id);
     }
 
     private void load_shortcuts_from_gsettings () {

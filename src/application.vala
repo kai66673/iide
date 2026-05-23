@@ -23,7 +23,7 @@ extern void add_provider_to_display (Gdk.Display display, Gtk.StyleProvider prov
 
 public class Iide.Application : Adw.Application {
     private Iide.SettingsService settings;
-    private Iide.ActionManager action_manager;
+    private Iide.AppActionsManager action_manager;
     private SimpleActionGroup simple_action_group = new SimpleActionGroup ();
 
     public signal void zoom_changed (int zoom_level);
@@ -38,28 +38,27 @@ public class Iide.Application : Adw.Application {
 
     construct {
         settings = Iide.SettingsService.get_instance ();
-        action_manager = Iide.ActionManager.get_instance ();
+        action_manager = Iide.AppActionsManager.get_instance ();
 
         register_builtin_actions ();
-        apply_shortcuts ();
     }
 
     private void register_builtin_actions () {
-        action_manager.register_action (new SaveAllAction (this));
-        action_manager.register_action (new OpenProjectAction (this));
-        action_manager.register_action (new PreferencesAction (this));
-        action_manager.register_action (new ToggleMinimapAction (this));
-        action_manager.register_action (new FuzzyFinderAction (this));
-        action_manager.register_action (new SearchSymbolAction (this));
-        action_manager.register_action (new SearchInFilesAction (this));
-        action_manager.register_action (new ZoomInAction ());
-        action_manager.register_action (new ZoomOutAction ());
-        action_manager.register_action (new ZoomResetAction ());
-        action_manager.register_action (new ExpandSelectionAction ());
-        action_manager.register_action (new ShrinkSelectionAction ());
-        action_manager.register_action (new QuitAction ());
-        action_manager.register_action (new NavigationBackAction (this));
-        action_manager.register_action (new NavigationForwardAction (this));
+        action_manager.register_action (this, new SaveAllAction (this));
+        action_manager.register_action (this, new OpenProjectAction (this));
+        action_manager.register_action (this, new PreferencesAction (this));
+        action_manager.register_action (this, new ToggleMinimapAction (this));
+        action_manager.register_action (this, new FuzzyFinderAction (this));
+        action_manager.register_action (this, new SearchSymbolAction (this));
+        action_manager.register_action (this, new SearchInFilesAction (this));
+        action_manager.register_action (this, new ZoomInAction ());
+        action_manager.register_action (this, new ZoomOutAction ());
+        action_manager.register_action (this, new ZoomResetAction ());
+        action_manager.register_action (this, new ExpandSelectionAction ());
+        action_manager.register_action (this, new ShrinkSelectionAction ());
+        action_manager.register_action (this, new QuitAction ());
+        action_manager.register_action (this, new NavigationBackAction (this));
+        action_manager.register_action (this, new NavigationForwardAction (this));
 
         // Ins/Ovr toggle
         // Действие переключения режима
@@ -76,25 +75,6 @@ public class Iide.Application : Adw.Application {
         });
         simple_action_group.add_action (toggle_overwrite);
         set_accels_for_action ("editor.toggle-overwrite", { "Insert" });
-    }
-
-    private void apply_shortcuts () {
-        action_manager.apply_shortcuts_to_application (this);
-
-        action_manager.get_all_actions ().foreach ((action) => {
-            action.shortcut_changed.connect ((new_shortcut) => {
-                if (new_shortcut != null && new_shortcut != "") {
-                    this.set_accels_for_action ("app." + action.id, { new_shortcut });
-                } else {
-                    this.set_accels_for_action ("app." + action.id, {});
-                }
-            });
-            return true;
-        });
-    }
-
-    public Iide.ActionManager get_action_manager () {
-        return action_manager;
     }
 
     public Iide.SettingsService get_settings () {
@@ -155,7 +135,7 @@ public class Iide.Application : Adw.Application {
     }
 }
 
-private class Iide.SaveAllAction : Iide.Action {
+private class Iide.SaveAllAction : Iide.AppAction {
     private weak Iide.Application app;
 
     public SaveAllAction (Iide.Application app) {
@@ -167,6 +147,7 @@ private class Iide.SaveAllAction : Iide.Action {
     public override string? description { get { return _("Save all open documents"); } }
     public override string? icon_name { get { return "document-save-symbolic"; } }
     public override string? category { get { return "File"; } }
+    public override string? default_shortcut { get { return "<primary>s"; } }
 
     public override bool can_execute () {
         return app ? .active_window is Iide.Window;
@@ -178,18 +159,19 @@ private class Iide.SaveAllAction : Iide.Action {
     }
 }
 
-private class Iide.OpenProjectAction : Iide.Action {
+private class Iide.OpenProjectAction : Iide.AppAction {
     private weak Iide.Application app;
 
     public OpenProjectAction (Iide.Application app) {
         this.app = app;
     }
 
-    public override string id { get { return "open_project"; } }
+    public override string id { get { return "open-project"; } }
     public override string name { get { return _("Open Project"); } }
     public override string? description { get { return _("Open a project folder"); } }
     public override string? icon_name { get { return "folder-open-symbolic"; } }
     public override string? category { get { return "File"; } }
+    public override string? default_shortcut { get { return "<primary>o"; } }
 
     public override bool can_execute () {
         return true;
@@ -201,7 +183,7 @@ private class Iide.OpenProjectAction : Iide.Action {
     }
 }
 
-private class Iide.PreferencesAction : Iide.Action {
+private class Iide.PreferencesAction : Iide.AppAction {
     private weak Iide.Application app;
 
     public PreferencesAction (Iide.Application app) {
@@ -213,6 +195,7 @@ private class Iide.PreferencesAction : Iide.Action {
     public override string? description { get { return _("Open preferences dialog"); } }
     public override string? icon_name { get { return "preferences-system-symbolic"; } }
     public override string? category { get { return "Application"; } }
+    public override string? default_shortcut { get { return "<primary>comma"; } }
 
     public override bool can_execute () {
         return true;
@@ -225,7 +208,7 @@ private class Iide.PreferencesAction : Iide.Action {
     }
 }
 
-private class Iide.ToggleMinimapAction : Iide.Action {
+private class Iide.ToggleMinimapAction : Iide.AppAction {
     private weak Iide.Application app;
 
     public ToggleMinimapAction (Iide.Application app) {
@@ -233,12 +216,13 @@ private class Iide.ToggleMinimapAction : Iide.Action {
         this.state = Iide.SettingsService.get_instance ().show_minimap;
     }
 
-    public override string id { get { return "toggle_minimap"; } }
+    public override string id { get { return "show-minimap"; } }
     public override string name { get { return _("Toggle Minimap"); } }
     public override string? description { get { return _("Show or hide the minimap"); } }
     public override string? icon_name { get { return "view-fullscreen-symbolic"; } }
     public override string? category { get { return "View"; } }
     public override bool is_toggle { get { return true; } }
+    public override string? default_shortcut { get { return "<primary>m"; } }
 
     public override bool can_execute () {
         return true;
@@ -250,18 +234,19 @@ private class Iide.ToggleMinimapAction : Iide.Action {
         settings.show_minimap = state;
 
         state_changed (state);
-        Iide.ActionManager.get_instance ().set_toggle_state (id, state);
+        // TODO: handle changing state from preferences dialog...
     }
 }
 
-private class Iide.ZoomInAction : Iide.Action {
+private class Iide.ZoomInAction : Iide.AppAction {
     private Iide.SettingsService settings;
 
-    public override string id { get { return "zoom_in"; } }
+    public override string id { get { return "zoom-in"; } }
     public override string name { get { return _("Zoom In"); } }
     public override string? description { get { return _("Increase editor font size"); } }
     public override string? icon_name { get { return "zoom-in-symbolic"; } }
     public override string? category { get { return "View"; } }
+    public override string? default_shortcut { get { return "<primary>plus"; } }
 
     public override bool can_execute () {
         settings = Iide.SettingsService.get_instance ();
@@ -276,14 +261,15 @@ private class Iide.ZoomInAction : Iide.Action {
     }
 }
 
-private class Iide.ZoomOutAction : Iide.Action {
+private class Iide.ZoomOutAction : Iide.AppAction {
     private Iide.SettingsService settings;
 
-    public override string id { get { return "zoom_out"; } }
+    public override string id { get { return "zoom-out"; } }
     public override string name { get { return _("Zoom Out"); } }
     public override string? description { get { return _("Decrease editor font size"); } }
     public override string? icon_name { get { return "zoom-out-symbolic"; } }
     public override string? category { get { return "View"; } }
+    public override string? default_shortcut { get { return "<primary>minus"; } }
 
     public override bool can_execute () {
         settings = Iide.SettingsService.get_instance ();
@@ -298,14 +284,15 @@ private class Iide.ZoomOutAction : Iide.Action {
     }
 }
 
-private class Iide.ZoomResetAction : Iide.Action {
+private class Iide.ZoomResetAction : Iide.AppAction {
     private Iide.SettingsService settings;
 
-    public override string id { get { return "zoom_reset"; } }
+    public override string id { get { return "zoom-reset"; } }
     public override string name { get { return _("Zoom Reset"); } }
     public override string? description { get { return _("Reset editor font size to default"); } }
     public override string? icon_name { get { return "zoom-original-symbolic"; } }
     public override string? category { get { return "View"; } }
+    public override string? default_shortcut { get { return "<primary>0"; } }
 
     public override bool can_execute () {
         return true;
@@ -319,12 +306,13 @@ private class Iide.ZoomResetAction : Iide.Action {
     }
 }
 
-private class Iide.ExpandSelectionAction : Iide.Action {
-    public override string id { get { return "expand_selection"; } }
+private class Iide.ExpandSelectionAction : Iide.AppAction {
+    public override string id { get { return "expand-selection"; } }
     public override string name { get { return _("Expand Selection"); } }
     public override string? description { get { return _("Expand the current selection"); } }
     public override string? icon_name { get { return "zoom-original-symbolic"; } }
     public override string? category { get { return "View"; } }
+    public override string? default_shortcut { get { return "<primary>w"; } }
 
     public override bool can_execute () {
         return true;
@@ -339,12 +327,13 @@ private class Iide.ExpandSelectionAction : Iide.Action {
     }
 }
 
-private class Iide.ShrinkSelectionAction : Iide.Action {
-    public override string id { get { return "shrink_selection"; } }
+private class Iide.ShrinkSelectionAction : Iide.AppAction {
+    public override string id { get { return "shrink-selection"; } }
     public override string name { get { return _("Shrink Selection"); } }
     public override string? description { get { return _("Shrink the current selection"); } }
     public override string? icon_name { get { return "zoom-original-symbolic"; } }
     public override string? category { get { return "View"; } }
+    public override string? default_shortcut { get { return "<primary><shift>w"; } }
 
     public override bool can_execute () {
         return true;
@@ -359,12 +348,13 @@ private class Iide.ShrinkSelectionAction : Iide.Action {
     }
 }
 
-private class Iide.QuitAction : Iide.Action {
+private class Iide.QuitAction : Iide.AppAction {
     public override string id { get { return "quit"; } }
     public override string name { get { return _("Quit"); } }
     public override string? description { get { return _("Quit the application"); } }
     public override string? icon_name { get { return "application-exit-symbolic"; } }
     public override string? category { get { return "Application"; } }
+    public override string? default_shortcut { get { return "<primary>q"; } }
 
     public override bool can_execute () {
         return true;
@@ -376,18 +366,19 @@ private class Iide.QuitAction : Iide.Action {
     }
 }
 
-private class Iide.FuzzyFinderAction : Iide.Action {
+private class Iide.FuzzyFinderAction : Iide.AppAction {
     private weak Iide.Application app;
 
     public FuzzyFinderAction (Iide.Application app) {
         this.app = app;
     }
 
-    public override string id { get { return "fuzzy_finder"; } }
+    public override string id { get { return "fuzzy-finder"; } }
     public override string name { get { return _("Quick Open"); } }
     public override string? description { get { return _("Open a file quickly by name"); } }
     public override string? icon_name { get { return "system-search-symbolic"; } }
     public override string? category { get { return "File"; } }
+    public override string? default_shortcut { get { return "<primary>p"; } }
 
     public override bool can_execute () {
         return app ? .active_window is Iide.Window;
@@ -403,18 +394,19 @@ private class Iide.FuzzyFinderAction : Iide.Action {
     }
 }
 
-private class Iide.SearchSymbolAction : Iide.Action {
+private class Iide.SearchSymbolAction : Iide.AppAction {
     private weak Iide.Application app;
 
     public SearchSymbolAction (Iide.Application app) {
         this.app = app;
     }
 
-    public override string id { get { return "search_symbol"; } }
+    public override string id { get { return "search-symbol"; } }
     public override string name { get { return _("Search  Symbol"); } }
     public override string? description { get { return _("Search Symbol in Project"); } }
     public override string? icon_name { get { return "system-search-symbolic"; } }
     public override string? category { get { return "Edit"; } }
+    public override string? default_shortcut { get { return "<primary>t"; } }
 
     public override bool can_execute () {
         return app ? .active_window is Iide.Window;
@@ -430,18 +422,19 @@ private class Iide.SearchSymbolAction : Iide.Action {
     }
 }
 
-private class Iide.SearchInFilesAction : Iide.Action {
+private class Iide.SearchInFilesAction : Iide.AppAction {
     private weak Iide.Application app;
 
     public SearchInFilesAction (Iide.Application app) {
         this.app = app;
     }
 
-    public override string id { get { return "search_in_files"; } }
+    public override string id { get { return "search-in-files"; } }
     public override string name { get { return _("Search in Files"); } }
     public override string? description { get { return _("Search for text in all project files"); } }
     public override string? icon_name { get { return "edit-find-symbolic"; } }
     public override string? category { get { return "Edit"; } }
+    public override string? default_shortcut { get { return "<primary><shift>f"; } }
 
     public override bool can_execute () {
         return app ? .active_window is Iide.Window;
@@ -457,18 +450,19 @@ private class Iide.SearchInFilesAction : Iide.Action {
     }
 }
 
-private class Iide.NavigationBackAction : Iide.Action {
+private class Iide.NavigationBackAction : Iide.AppAction {
     private weak Iide.Application app;
 
     public NavigationBackAction (Iide.Application app) {
         this.app = app;
     }
 
-    public override string id { get { return "navigation_back"; } }
+    public override string id { get { return "navigation-back"; } }
     public override string name { get { return _("Navigation Back"); } }
     public override string? description { get { return _("Navigation Back"); } }
     public override string? icon_name { get { return "go-previous-symbolic"; } }
     public override string? category { get { return "Application"; } }
+    public override string? default_shortcut { get { return "<Alt>Left"; } }
 
     public override bool can_execute () {
         return app ? .active_window is Iide.Window;
@@ -482,18 +476,19 @@ private class Iide.NavigationBackAction : Iide.Action {
     }
 }
 
-private class Iide.NavigationForwardAction : Iide.Action {
+private class Iide.NavigationForwardAction : Iide.AppAction {
     private weak Iide.Application app;
 
     public NavigationForwardAction (Iide.Application app) {
         this.app = app;
     }
 
-    public override string id { get { return "navigation_forward"; } }
+    public override string id { get { return "navigation-forward"; } }
     public override string name { get { return _("Navigation Forward"); } }
     public override string? description { get { return _("Navigation Forward"); } }
     public override string? icon_name { get { return "go-next-symbolic"; } }
     public override string? category { get { return "Application"; } }
+    public override string? default_shortcut { get { return "<Alt>Right"; } }
 
     public override bool can_execute () {
         return app ? .active_window is Iide.Window;

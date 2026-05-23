@@ -100,12 +100,12 @@ public class Iide.SourceView : GtkSource.View {
 
         // Build extra menu for context menu
         var zoom_section = new GLib.Menu ();
-        zoom_section.append (_("Zoom In"), "app.zoom_in");
-        zoom_section.append (_("Zoom Out"), "app.zoom_out");
-        zoom_section.append (_("Reset Zoom"), "app.zoom_reset");
+        zoom_section.append (_("Zoom In"), "app.zoom-in");
+        zoom_section.append (_("Zoom Out"), "app.zoom-out");
+        zoom_section.append (_("Reset Zoom"), "app.zoom-reset");
 
         var view_section = new GLib.Menu ();
-        view_section.append (_("Minimap"), "app.toggle_minimap");
+        view_section.append (_("Minimap"), "app.show-minimap");
 
         var extra_menu = new GLib.Menu ();
         extra_menu.append_section (null, zoom_section);

@@ -43,6 +43,8 @@ public class Iide.PreferencesDialog : Adw.PreferencesWindow {
     }
 
     private void build_ui () {
+        var action_manager = Iide.AppActionsManager.get_instance ();
+
         var appearance_page = new Adw.PreferencesPage () {
             title = _("Appearance"),
             icon_name = "preferences-desktop-appearance-symbolic"
@@ -82,6 +84,7 @@ public class Iide.PreferencesDialog : Adw.PreferencesWindow {
         show_minimap_row.active = settings.show_minimap;
         show_minimap_row.notify["active"].connect (() => {
             settings.show_minimap = show_minimap_row.active;
+            action_manager.get_action ("show-minimap").update_state (show_minimap_row.active);
         });
         editor_group.add (show_minimap_row);
 
@@ -198,7 +201,6 @@ public class Iide.PreferencesDialog : Adw.PreferencesWindow {
             title = _("Keyboard Shortcuts")
         };
 
-        var action_manager = Iide.ActionManager.get_instance ();
         var actions = action_manager.get_all_actions ();
 
         var list_box = new Gtk.ListBox () {
@@ -206,7 +208,7 @@ public class Iide.PreferencesDialog : Adw.PreferencesWindow {
             show_separators = true
         };
 
-        var sorted_actions = new Gee.ArrayList<Iide.Action> ();
+        var sorted_actions = new Gee.ArrayList<Iide.AppAction> ();
         foreach (var action in actions) {
             sorted_actions.add (action);
         }
@@ -255,10 +257,10 @@ public class Iide.PreferencesDialog : Adw.PreferencesWindow {
 }
 
 private class Iide.ShortcutRow : Gtk.ListBoxRow {
-    private Iide.Action action;
+    private Iide.AppAction action;
     private Gtk.Label shortcut_label;
 
-    public ShortcutRow (Iide.Action action) {
+    public ShortcutRow (Iide.AppAction action) {
         this.action = action;
 
         var box = new Gtk.Box (Gtk.Orientation.HORIZONTAL, 12) {
@@ -315,7 +317,7 @@ private class Iide.ShortcutRow : Gtk.ListBoxRow {
     }
 
     private void on_clear_clicked () {
-        Iide.ActionManager.get_instance ().set_shortcut (action.id, null);
+        this.action.set_shortcut (null);
     }
 
     private void on_capture_clicked () {
@@ -326,13 +328,14 @@ private class Iide.ShortcutRow : Gtk.ListBoxRow {
 }
 
 private class Iide.ShortcutCaptureWindow : Gtk.Window {
-    private Iide.Action action;
+    private Iide.AppAction action;
     private Gtk.Label label;
     private uint keyval = 0;
     private Gdk.ModifierType modifiers;
 
-    public ShortcutCaptureWindow (Iide.Action action, Gtk.Window? parent) {
+    public ShortcutCaptureWindow (Iide.AppAction action, Gtk.Window? parent) {
         this.action = action;
+
         title = _("Set Shortcut for %s").printf (action.name);
         modal = true;
         if (parent != null) {
@@ -374,7 +377,7 @@ private class Iide.ShortcutCaptureWindow : Gtk.Window {
             label = _("Clear")
         };
         clear_button.clicked.connect (() => {
-            Iide.ActionManager.get_instance ().set_shortcut (action.id, null);
+            this.action.set_shortcut (null);
             destroy ();
         });
 
@@ -404,7 +407,7 @@ private class Iide.ShortcutCaptureWindow : Gtk.Window {
         }
 
         if (keyval == Gdk.Key.BackSpace && modifiers == 0) {
-            Iide.ActionManager.get_instance ().set_shortcut (action.id, null);
+            this.action.set_shortcut (null);
             destroy ();
             return true;
         }
@@ -443,7 +446,7 @@ private class Iide.ShortcutCaptureWindow : Gtk.Window {
     private void on_save () {
         if (keyval != 0) {
             var shortcut = format_shortcut (keyval, modifiers);
-            Iide.ActionManager.get_instance ().set_shortcut (action.id, shortcut);
+            this.action.set_shortcut (shortcut);
         }
         destroy ();
     }
