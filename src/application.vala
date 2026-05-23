@@ -27,7 +27,6 @@ public class Iide.Application : Adw.Application {
     private SimpleActionGroup simple_action_group = new SimpleActionGroup ();
 
     public signal void zoom_changed (int zoom_level);
-    public signal void minimap_changed (bool visible);
 
     public Application () {
         Object (
@@ -249,7 +248,6 @@ private class Iide.ToggleMinimapAction : Iide.Action {
         var settings = Iide.SettingsService.get_instance ();
         state = !state;
         settings.show_minimap = state;
-        app?.minimap_changed (state);
 
         state_changed (state);
         Iide.ActionManager.get_instance ().set_toggle_state (id, state);

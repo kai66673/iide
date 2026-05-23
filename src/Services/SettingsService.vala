@@ -78,7 +78,9 @@ public class Iide.FontSizeHelper : Object {
 
 public class Iide.SettingsService : Object {
     private static SettingsService? _instance;
-    private Settings settings;
+    private Settings _settings;
+
+    public Settings settings { get { return _settings; } }
 
     public signal void editor_setting_changed (string key);
 
@@ -90,7 +92,7 @@ public class Iide.SettingsService : Object {
     }
 
     private SettingsService () {
-        settings = new Settings ("org.github.kai66673.iide");
+        _settings = new Settings ("org.github.kai66673.iide");
     }
 
     public ColorScheme color_scheme {
@@ -381,6 +383,4 @@ public class Iide.SettingsService : Object {
     public void clear_recent_projects () {
         settings.set_strv ("recent-projects", {});
     }
-
-    public signal void setting_changed (string key);
 }

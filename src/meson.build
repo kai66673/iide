@@ -68,8 +68,10 @@ iide_sources = [
     'Services/TreeSitter/rust/RustHighlighter.vala',
     'Services/TreeSitter/python/PythonIndenter.vala',
     'Services/TreeSitter/python/PythonHighlighter.vala',
+    'Services/Actions/AppAction.vala',
     'Services/Actions/Action.vala',
     'Services/Actions/ActionManager.vala',
+    'Services/Actions/AppActionsManager.vala',
     'Services/Actions/ShortcutSettings.vala',
 ]
 
