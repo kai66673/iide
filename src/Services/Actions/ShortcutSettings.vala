@@ -39,7 +39,8 @@ public class Iide.ShortcutSettings : Object {
     }
 
     private void set_default_toggle_states () {
-        toggle_states_cache.set ("toggle_minimap", true);
+        var settings = Iide.SettingsService.get_instance ();
+        toggle_states_cache.set ("toggle_minimap", settings.show_minimap);
     }
 
     private void load_from_gsettings () {

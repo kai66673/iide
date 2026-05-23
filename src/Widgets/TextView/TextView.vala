@@ -103,17 +103,6 @@ public class Iide.TextView : Panel.Widget {
         set_icon_name (ImageFactory.icon_name_for_file (file));
         font_zoomer = new FontZoomer (source_view);
 
-        // Connect to application-level zoom and minimap changes
-        var app = GLib.Application.get_default () as Iide.Application;
-        if (app != null) {
-            app.zoom_changed.connect ((level) => {
-                font_zoomer.set_zoom_level (level);
-            });
-            app.minimap_changed.connect ((visible) => {
-                toggle_minimap_visible (visible);
-            });
-        }
-
         // Connect to settings changes to apply to all open documents
         settings.editor_setting_changed.connect ((key) => {
             switch (key) {
