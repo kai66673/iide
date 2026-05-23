@@ -63,7 +63,7 @@ public class Iide.SourceView : GtkSource.View {
     public Window window;
     public string uri { get; private set; }
     private Iide.TreeSitterManager ts_manager;
-    private Iide.LineNumbersGutter custom_line_numbers;
+    public Iide.LineNumbersGutter line_numbers_gutter;
     public GutterMarkRenderer mark_renderer;
     public TreeSitterFoldingGutter folding_gutter;
     private Gtk.TextIter? pending_scroll_iter = null;
@@ -124,9 +124,9 @@ public class Iide.SourceView : GtkSource.View {
         left_gutter.visible = true;
 
         show_line_numbers = false;
-        this.custom_line_numbers = new Iide.LineNumbersGutter ();
-        left_gutter.insert (this.custom_line_numbers, 0); // Вес 0 — самая левая позиция
-        custom_line_numbers.visible = settings.show_line_numbers;
+        this.line_numbers_gutter = new Iide.LineNumbersGutter ();
+        left_gutter.insert (this.line_numbers_gutter, 0); // Вес 0 — самая левая позиция
+        line_numbers_gutter.visible = settings.show_line_numbers;
 
         mark_renderer = new GutterMarkRenderer ();
         mark_renderer.set_icons_size (FontSizeHelper.get_size_for_zoom_level (settings.editor_font_size));
@@ -142,7 +142,13 @@ public class Iide.SourceView : GtkSource.View {
         settings.editor_setting_changed.connect ((key) => {
             switch (key) {
                 case "show-line-numbers" :
-                    show_line_numbers = settings.show_line_numbers;
+                    line_numbers_gutter.visible = settings.show_line_numbers;
+                    break;
+                case "show-diagnostics-marks":
+                    mark_renderer.visible = settings.show_diagnostics_marks;
+                    break;
+                case "show-folding-gutter":
+                    folding_gutter.visible = settings.show_folding_gutter;
                     break;
                 case "highlight-current-line" :
                     highlight_current_line = settings.highlight_current_line;

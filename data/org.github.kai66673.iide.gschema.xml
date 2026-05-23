@@ -24,6 +24,18 @@
 			<summary>Show line numbers</summary>
 			<description>Whether to show line numbers in text editors</description>
 		</key>
+		
+		<key name="show-diagnostics-marks" type="b">
+			<default>true</default>
+			<summary>Show diagnostics marks</summary>
+			<description>Whether to show diagnostics marks in text editors</description>
+		</key>
+
+		<key name="show-folding-gutter" type="b">
+			<default>true</default>
+			<summary>Show folding gutter</summary>
+			<description>Whether to show folding gutter in text editors</description>
+		</key>
 
 		<key name="highlight-current-line" type="b">
 			<default>true</default>

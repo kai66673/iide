@@ -26,6 +26,8 @@ public class Iide.PreferencesDialog : Adw.PreferencesWindow {
     private Adw.ComboRow color_scheme_row;
     private Adw.SwitchRow show_minimap_row;
     private Adw.SwitchRow show_line_numbers_row;
+    private Adw.SwitchRow show_marks_gutter_row;
+    private Adw.SwitchRow show_folding_gutter_row;
     private Adw.SwitchRow highlight_current_line_row;
     private Adw.SwitchRow auto_indent_row;
 
@@ -92,6 +94,26 @@ public class Iide.PreferencesDialog : Adw.PreferencesWindow {
             settings.show_line_numbers = show_line_numbers_row.active;
         });
         editor_group.add (show_line_numbers_row);
+
+        show_marks_gutter_row = new Adw.SwitchRow () {
+            title = _("Show Diagnostics Marks"),
+            subtitle = _("Display diagnostics marks on the editor gutter"),
+        };
+        show_marks_gutter_row.active = settings.show_diagnostics_marks;
+        show_marks_gutter_row.notify["active"].connect (() => {
+            settings.show_diagnostics_marks = show_marks_gutter_row.active;
+        });
+        editor_group.add (show_marks_gutter_row);
+        
+        show_folding_gutter_row = new Adw.SwitchRow () {
+            title = _("Show Folding Gutter"),
+            subtitle = _("Display folding gutter on the editor gutter"),
+        };
+        show_folding_gutter_row.active = settings.show_folding_gutter;
+        show_folding_gutter_row.notify["active"].connect (() => {
+            settings.show_folding_gutter = show_folding_gutter_row.active;
+        });
+        editor_group.add (show_folding_gutter_row);
 
         highlight_current_line_row = new Adw.SwitchRow () {
             title = _("Highlight Current Line"),

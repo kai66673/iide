@@ -133,6 +133,27 @@ public class Iide.SettingsService : Object {
         }
     }
 
+    public bool show_diagnostics_marks {
+        get {
+            return settings.get_boolean ("show-diagnostics-marks");
+        }
+        set {
+            settings.set_boolean ("show-diagnostics-marks", value);
+            editor_setting_changed ("show-diagnostics-marks");
+        }
+    }
+
+    public bool show_folding_gutter {
+        get {
+            return settings.get_boolean ("show-folding-gutter");
+        }
+        set {
+            settings.set_boolean ("show-folding-gutter", value);
+            editor_setting_changed ("show-folding-gutter");
+        }
+
+    }
+
     public bool highlight_current_line {
         get {
             return settings.get_boolean ("highlight-current-line");
