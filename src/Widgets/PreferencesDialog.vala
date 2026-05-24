@@ -95,6 +95,7 @@ public class Iide.PreferencesDialog : Adw.PreferencesWindow {
         show_line_numbers_row.active = settings.show_line_numbers;
         show_line_numbers_row.notify["active"].connect (() => {
             settings.show_line_numbers = show_line_numbers_row.active;
+            action_manager.get_action ("show-line-numbers").update_state (show_line_numbers_row.active);
         });
         editor_group.add (show_line_numbers_row);
 
@@ -105,6 +106,7 @@ public class Iide.PreferencesDialog : Adw.PreferencesWindow {
         show_marks_gutter_row.active = settings.show_diagnostics_marks;
         show_marks_gutter_row.notify["active"].connect (() => {
             settings.show_diagnostics_marks = show_marks_gutter_row.active;
+            action_manager.get_action ("show-diagnostics-marks").update_state (show_marks_gutter_row.active);
         });
         editor_group.add (show_marks_gutter_row);
         
@@ -115,6 +117,7 @@ public class Iide.PreferencesDialog : Adw.PreferencesWindow {
         show_folding_gutter_row.active = settings.show_folding_gutter;
         show_folding_gutter_row.notify["active"].connect (() => {
             settings.show_folding_gutter = show_folding_gutter_row.active;
+            action_manager.get_action ("show-folding-gutter").update_state (show_folding_gutter_row.active);
         });
         editor_group.add (show_folding_gutter_row);
 

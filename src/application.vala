@@ -59,6 +59,9 @@ public class Iide.Application : Adw.Application {
         action_manager.register_action (this, new QuitAction ());
         action_manager.register_action (this, new NavigationBackAction (this));
         action_manager.register_action (this, new NavigationForwardAction (this));
+        action_manager.register_action (this, new ShowLineNumbersAction (this));
+        action_manager.register_action (this, new ShowDiagnosticsMarksAction (this));
+        action_manager.register_action (this, new ShowFoldingAction (this));
 
         // Ins/Ovr toggle
         // Действие переключения режима
@@ -499,5 +502,95 @@ private class Iide.NavigationForwardAction : Iide.AppAction {
         if (win != null) {
             Iide.NavigationHistoryService.get_instance ().navigate_forward ();
         }
+    }
+}
+
+private class Iide.ShowLineNumbersAction : Iide.AppAction {
+    private weak Iide.Application app;
+
+    public ShowLineNumbersAction (Iide.Application app) {
+        this.app = app;
+        this.state = Iide.SettingsService.get_instance ().show_minimap;
+    }
+
+    public override string id { get { return "show-line-numbers"; } }
+    public override string name { get { return _("Show Line Numbers"); } }
+    public override string? description { get { return _("Show or hide line numbers gutter"); } }
+    public override string? icon_name { get { return "view-fullscreen-symbolic"; } }
+    public override string? category { get { return "View"; } }
+    public override bool is_toggle { get { return true; } }
+    public override string? default_shortcut { get { return "<primary><Alt>n"; } }
+
+    public override bool can_execute () {
+        return true;
+    }
+
+    public override void execute () {
+        var settings = Iide.SettingsService.get_instance ();
+        state = !state;
+        settings.show_line_numbers = state;
+
+        state_changed (state);
+        // TODO: handle changing state from preferences dialog...
+    }
+}
+
+private class Iide.ShowDiagnosticsMarksAction : Iide.AppAction {
+    private weak Iide.Application app;
+
+    public ShowDiagnosticsMarksAction (Iide.Application app) {
+        this.app = app;
+        this.state = Iide.SettingsService.get_instance ().show_minimap;
+    }
+
+    public override string id { get { return "show-diagnostics-marks"; } }
+    public override string name { get { return _("Show Diagnostics"); } }
+    public override string? description { get { return _("Show or hide diagnostics marks gutter"); } }
+    public override string? icon_name { get { return "view-fullscreen-symbolic"; } }
+    public override string? category { get { return "View"; } }
+    public override bool is_toggle { get { return true; } }
+    public override string? default_shortcut { get { return "<primary><Alt>m"; } }
+
+    public override bool can_execute () {
+        return true;
+    }
+
+    public override void execute () {
+        var settings = Iide.SettingsService.get_instance ();
+        state = !state;
+        settings.show_diagnostics_marks = state;
+
+        state_changed (state);
+        // TODO: handle changing state from preferences dialog...
+    }
+}
+
+private class Iide.ShowFoldingAction : Iide.AppAction {
+    private weak Iide.Application app;
+
+    public ShowFoldingAction (Iide.Application app) {
+        this.app = app;
+        this.state = Iide.SettingsService.get_instance ().show_minimap;
+    }
+
+    public override string id { get { return "show-folding-gutter"; } }
+    public override string name { get { return _("Show Folding Gutter"); } }
+    public override string? description { get { return _("Show or hide folding gutter"); } }
+    public override string? icon_name { get { return "view-fullscreen-symbolic"; } }
+    public override string? category { get { return "View"; } }
+    public override bool is_toggle { get { return true; } }
+    public override string? default_shortcut { get { return "<primary><Alt>f"; } }
+
+    public override bool can_execute () {
+        return true;
+    }
+
+    public override void execute () {
+        var settings = Iide.SettingsService.get_instance ();
+        state = !state;
+        settings.show_folding_gutter = state;
+
+        state_changed (state);
+        // TODO: handle changing state from preferences dialog...
     }
 }
