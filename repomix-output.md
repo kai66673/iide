@@ -62,9 +62,8 @@ src/
     SymbolsNerdFontMono-Regular.ttf
   Services/
     Actions/
-      Action.vala
-      ActionManager.vala
-      ShortcutSettings.vala
+      AppAction.vala
+      AppActionsManager.vala
     LSP/
       config/
         CppLspConfig.vala
@@ -94,6 +93,7 @@ src/
       vala/
         ValaHighlighter.vala
       BaseTreeSitterHighlighter.vala
+      IndentBlock.vala
       TreeSitterDocument.vala
       TreeSitterManager.vala
     DocumentManager.vala
@@ -136,9 +136,11 @@ src/
       EditorStatusBar.vala
       FontZoomer.vala
       GutterMarkRenderer.vala
+      LineNumbersGutter.vala
       LspCompletionProvider.vala
       SourceView.vala
       TextView.vala
+      TreeSitterFoldingGutter.vala
     ToolViews/
       LogView.vala
       ProjectView.vala
@@ -260,158 +262,6 @@ Categories=Utility;
 Keywords=GTK;
 StartupNotify=true
 DBusActivatable=true
-```
-
-## File: data/org.github.kai66673.iide.gschema.xml
-```xml
-<?xml version="1.0" encoding="UTF-8"?>
-<schemalist gettext-domain="iide">
-	<schema id="org.github.kai66673.iide" path="/org/github/kai66673/iide/">
-		<key name="color-scheme" type="s">
-			<default>"system"</default>
-			<summary>Color scheme</summary>
-			<description>Color scheme: light, dark, or system</description>
-		</key>
-
-		<key name="editor-font-size" type="d">
-			<default>6</default>
-			<summary>Editor zoom level</summary>
-			<description>Editor zoom level (1-15)</description>
-		</key>
-
-		<key name="show-minimap" type="b">
-			<default>true</default>
-			<summary>Show minimap</summary>
-			<description>Whether to show the minimap in text editors</description>
-		</key>
-
-		<key name="show-line-numbers" type="b">
-			<default>true</default>
-			<summary>Show line numbers</summary>
-			<description>Whether to show line numbers in text editors</description>
-		</key>
-
-		<key name="highlight-current-line" type="b">
-			<default>true</default>
-			<summary>Highlight current line</summary>
-			<description>Whether to highlight the current line in text editors</description>
-		</key>
-
-		<key name="auto-indent" type="b">
-			<default>true</default>
-			<summary>Auto indent</summary>
-			<description>Whether to enable auto indentation</description>
-		</key>
-
-		<key name="panel-start-width" type="d">
-			<default>250</default>
-			<summary>Start panel width</summary>
-			<description>Width of the start panel (file tree)</description>
-		</key>
-
-		<key name="panel-end-width" type="d">
-			<default>250</default>
-			<summary>End panel width</summary>
-			<description>Width of the end panel</description>
-		</key>
-
-		<key name="panel-bottom-height" type="d">
-			<default>200</default>
-			<summary>Bottom panel height</summary>
-			<description>Height of the bottom panel (terminal)</description>
-		</key>
-
-		<key name="panel-bottom-width" type="d">
-			<default>500</default>
-			<summary>Bottom panel width</summary>
-			<description>Width of the bottom panel split between terminal and log</description>
-		</key>
-
-		<key name="reveal-start-panel" type="b">
-			<default>true</default>
-			<summary>Reveal start panel</summary>
-			<description>Whether the start panel is visible</description>
-		</key>
-
-		<key name="reveal-end-panel" type="b">
-			<default>false</default>
-			<summary>Reveal end panel</summary>
-			<description>Whether the end panel is visible</description>
-		</key>
-
-		<key name="reveal-bottom-panel" type="b">
-			<default>false</default>
-			<summary>Reveal bottom panel</summary>
-			<description>Whether the bottom panel is visible</description>
-		</key>
-
-		<key name="recent-projects" type="as">
-			<default>[]</default>
-			<summary>Recent projects</summary>
-			<description>List of recently opened project paths</description>
-		</key>
-
-		<key name="max-recent-projects" type="d">
-			<default>10</default>
-			<summary>Maximum recent projects</summary>
-			<description>Maximum number of recent projects to remember</description>
-		</key>
-
-		<key name="last-open-directory" type="s">
-			<default>""</default>
-			<summary>Last open directory</summary>
-			<description>Last directory used for opening files or projects</description>
-		</key>
-
-		<key name="current-project-path" type="s">
-			<default>""</default>
-			<summary>Current project path</summary>
-			<description>Path to the currently open project</description>
-		</key>
-
-		<key name="open-documents" type="as">
-			<default>[]</default>
-			<summary>Open documents</summary>
-			<description>List of currently open document URIs</description>
-		</key>
-
-		<key name="panel-layout" type="s">
-			<default>""</default>
-			<summary>Panel layout</summary>
-			<description>JSON string describing panel dock layout</description>
-		</key>
-
-		<key name="grid-layout" type="s">
-			<default>""</default>
-			<summary>Grid layout</summary>
-			<description>JSON string describing grid layout</description>
-		</key>
-
-		<key name="window-width" type="d">
-			<default>1200</default>
-			<summary>Window width</summary>
-			<description>Width of the main window</description>
-		</key>
-
-		<key name="window-height" type="d">
-			<default>800</default>
-			<summary>Window height</summary>
-			<description>Height of the main window</description>
-		</key>
-
-		<key name="window-maximized" type="b">
-			<default>false</default>
-			<summary>Window maximized</summary>
-			<description>Whether the window is maximized</description>
-		</key>
-
-		<key name="shortcuts" type="s">
-			<default>""</default>
-			<summary>Custom shortcuts</summary>
-			<description>JSON string mapping action IDs to keyboard shortcuts</description>
-		</key>
-	</schema>
-</schemalist>
 ```
 
 ## File: data/org.github.kai66673.iide.metainfo.xml.in
@@ -557,160 +407,139 @@ echo "Done! If needed, set:"
 echo "  export XDG_DATA_DIRS=\"\$HOME/.local/share:\$XDG_DATA_DIRS\""
 ```
 
-## File: src/Services/Actions/Action.vala
+## File: src/Services/LSP/config/CppLspConfig.vala
 ```
-public abstract class Iide.Action : Object {
-    public abstract string id { get; }
-    public abstract string name { get; }
-    public abstract string? description { get; }
-    public abstract string? icon_name { get; }
-    public string? shortcut { get; set; }
-
-    public signal void shortcut_changed (string? new_shortcut);
-    public signal void state_changed (bool new_state);
-
-    public virtual bool is_toggle { get; default = false; }
-    public virtual bool state { get; protected set; default = false; }
-
-    public void update_state (bool new_state) {
-        state = new_state;
-        state_changed (new_state);
+public class Iide.CppLspConfig : Iide.LspConfig {
+    public override string command () {
+        return "clangd";
     }
 
-    public abstract bool can_execute ();
-    public abstract void execute ();
-
-    public virtual string? category { get; default = null; }
-}
-```
-
-## File: src/Services/Actions/ActionManager.vala
-```
-public class Iide.ActionManager : Object {
-    private static ActionManager? _instance;
-    private Gee.HashMap<string, Iide.Action> actions;
-    private Gee.HashMap<string, string> shortcuts;
-    private Iide.ShortcutSettings shortcut_settings;
-
-    public static ActionManager get_instance () {
-        if (_instance == null) {
-            _instance = new ActionManager ();
-        }
-        return _instance;
+    public override string[] args () {
+        return {
+                   "--background-index", // Индексация в фоне
+                   "--clang-tidy", // Включает мощный линтер (генерирует тонну сообщений)
+                   "--clang-tidy-checks=*", // Включит вообще все проверки, сообщений будет тысячи
+                   "--background-index-priority=low", // Чтобы не вешать систему, но делать всё
+                   "--all-scopes-completion", // Заставляет сервер глубже копать индексы
+                   "--header-insertion=never"
+        };
     }
 
-    private ActionManager () {
-        actions = new Gee.HashMap<string, Iide.Action> ();
-        shortcuts = new Gee.HashMap<string, string> ();
-        shortcut_settings = Iide.ShortcutSettings.get_instance ();
-        shortcut_settings.shortcut_changed.connect (on_shortcut_changed);
-    }
-
-    public void register_action (Iide.Action action) {
-        actions.set (action.id, action);
-        var saved_shortcut = shortcut_settings.get_shortcut (action.id);
-        action.shortcut = saved_shortcut;
-        shortcuts.set (action.id, saved_shortcut);
-
-        if (action.is_toggle) {
-            var saved_state = shortcut_settings.get_toggle_state (action.id);
-            action.update_state (saved_state);
-        }
-    }
-
-    public void unregister_action (string action_id) {
-        actions.unset (action_id);
-        shortcuts.unset (action_id);
-    }
-
-    public Iide.Action? get_action (string action_id) {
-        return actions.get (action_id);
-    }
-
-    public Gee.Collection<Iide.Action> get_all_actions () {
-        return actions.values;
-    }
-
-    public Gee.ArrayList<Iide.Action> get_actions_by_category (string category) {
-        var result = new Gee.ArrayList<Iide.Action> ();
-        foreach (var action in actions.values) {
-            if (action.category == category) {
-                result.add (action);
+    public override Json.Node initialize_params (string? workspace_root, string? initial_uri) {
+        message ("CPP: initialize_params: " + workspace_root);
+        var root_uri = "file:///home/kai/kaigit/ktexteditor";
+        var params = """{
+            "processId": null,
+            "clientInfo": {
+              "name": "Iide",
+              "version": "1.0.1"
+            },
+            "rootPath": "%s",
+            "rootUri": "%s",
+            "capabilities": {
+              "window": {
+                "workDoneProgress": true
+              },
+              "workspace": {
+                "applyEdit": true,
+                "diagnostic": {
+                  "refreshSupport": true
+                },
+                "workspaceEdit": {
+                  "documentChanges": true
+                },
+                "didChangeConfiguration": {
+                  "dynamicRegistration": true
+                },
+                "didChangeWatchedFiles": {
+                  "dynamicRegistration": true
+                },
+                "symbol": {
+                  "dynamicRegistration": true
+                },
+                "executeCommand": {
+                  "dynamicRegistration": true
+                }
+              },
+              "textDocument": {
+                "diagnostic": {
+                  "dynamicRegistration": true
+                },
+                "synchronization": {
+                  "dynamicRegistration": true,
+                  "willSave": true,
+                  "willSaveWaitUntil": false,
+                  "didSave": true
+                },
+                "completion": {
+                  "dynamicRegistration": true,
+                  "contextSupport": true,
+                  "completionItem": {
+                    "snippetSupport": false,
+                    "commitCharactersSupport": true,
+                    "documentationFormat": ["markdown", "plaintext"],
+                    "deprecatedSupport": true,
+                    "labelDetailsSupport": true
+                  },
+                  "completionItemKind": {
+                    "valueSet": [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25]
+                  }
+                },
+                "hover": {
+                  "dynamicRegistration": true,
+                  "contentFormat": ["markdown", "plaintext"]
+                },
+                "signatureHelp": {
+                  "dynamicRegistration": true,
+                  "signatureInformation": {
+                    "documentationFormat": ["markdown", "plaintext"],
+                    "parameterInformation": {
+                      "labelOffsetSupport": true
+                    }
+                  }
+                },
+                "definition": {
+                  "dynamicRegistration": true,
+                  "linkSupport": true
+                },
+                "references": {
+                  "dynamicRegistration": true
+                },
+                "documentSymbol": {
+                  "dynamicRegistration": true,
+                  "hierarchicalDocumentSymbolSupport": true
+                },
+                "codeAction": {
+                  "dynamicRegistration": true
+                },
+                "publishDiagnostics": {
+                  "relatedInformation": true,
+                  "tagSupport": {
+                    "valueSet": [1, 2]
+                  },
+                  "versionSupport": true
+                }
+              }
+            },
+            "initializationOptions": {
+              "clangdFileStatus": true,
+              "backgroundIndex": true,
+              "compilationDatabasePath": "build",
+              "fallbackFlags": ["-std=c++17", "-Iinclude"]
             }
+          }
+        """.printf (root_uri.replace ("file://", ""), root_uri);
+        var parser = new Json.Parser ();
+        try {
+            parser.load_from_data (params);
+        } catch (GLib.Error e) {
+            return new Json.Node (Json.NodeType.NULL);
         }
-        return result;
+        return parser.get_root ();
     }
 
-    public void execute (string action_id) {
-        var action = actions.get (action_id);
-        if (action != null && action.can_execute ()) {
-            action.execute ();
-        }
-    }
-
-    public bool can_execute (string action_id) {
-        var action = actions.get (action_id);
-        return action != null && action.can_execute ();
-    }
-
-    public string? get_shortcut (string action_id) {
-        return shortcuts.get (action_id);
-    }
-
-    public void set_shortcut (string action_id, string? shortcut) {
-        var action = actions.get (action_id);
-        if (action != null) {
-            action.shortcut = shortcut;
-            shortcuts.set (action_id, shortcut);
-            shortcut_settings.set_shortcut (action_id, shortcut);
-            action.shortcut_changed (shortcut);
-        }
-    }
-
-    public void set_toggle_state (string action_id, bool state) {
-        var action = actions.get (action_id);
-        if (action != null && action.is_toggle) {
-            action.update_state (state);
-            shortcut_settings.set_toggle_state (action_id, state);
-        }
-    }
-
-    private void on_shortcut_changed (string action_id, string? new_shortcut) {
-        var action = actions.get (action_id);
-        if (action != null) {
-            action.shortcut = new_shortcut;
-            shortcuts.set (action_id, new_shortcut);
-            action.shortcut_changed (new_shortcut);
-        }
-    }
-
-    public void apply_shortcuts_to_application (Gtk.Application app) {
-        foreach (var action in actions.values) {
-            if (action.is_toggle) {
-                var toggle_action = new SimpleAction.stateful (
-                    action.id,
-                    null,
-                    new Variant.boolean (action.state)
-                );
-                toggle_action.activate.connect (() => {
-                    execute (action.id);
-                });
-                action.state_changed.connect ((new_state) => {
-                    toggle_action.set_state (new Variant.boolean (new_state));
-                });
-                app.add_action (toggle_action);
-            } else {
-                var simple_action = new SimpleAction (action.id, null);
-                simple_action.activate.connect (() => {
-                    execute (action.id);
-                });
-                app.add_action (simple_action);
-            }
-
-            if (action.shortcut != null && action.shortcut != "") {
-                app.set_accels_for_action ("app." + action.id, { action.shortcut });
-            }
-        }
+    public override Json.Node? server_response_result (Json.Object response) {
+        return new Json.Node (Json.NodeType.NULL);
     }
 }
 ```
@@ -726,6 +555,177 @@ public abstract class Iide.LspConfig {
 
     public abstract Json.Node? server_response_result (Json.Object response);
 }
+```
+
+## File: src/Services/LSP/config/LspRegistry.vala
+```
+public class Iide.LspRegistry {
+    public static string ? get_lsp_id (string language) {
+        switch (language) {
+        case "python":
+            return "basedpyright";
+        case "cpp":
+            return "clangd";
+        default:
+            return null;
+        }
+    }
+
+    public static LspConfig ? get_config (string lsp_id) {
+        switch (lsp_id) {
+        case "basedpyright" :
+            return new PythonLspConfig ();
+        case "clangd":
+            return new CppLspConfig ();
+        default:
+            return null;
+        }
+    }
+}
+```
+
+## File: src/Services/LSP/index/ClangTidy.vala
+```
+using GLib;
+
+public class Iide.ClangTidyRunner : Object {
+    public struct Diagnostic {
+        public string file;
+        public string line;
+        public string type; // "error", "warning", "note"
+        public string message;
+    }
+
+    // Сигналы для связи с основным потоком
+    public signal void diagnostic_found(Diagnostic diag);
+    public signal void finished(bool success, int exit_code, int total_errors, int total_warnings);
+
+    private Subprocess? current_process = null;
+    private Cancellable? cancellable = null;
+
+    // Счётчики
+    private int error_count = 0;
+    private int warning_count = 0;
+
+    public void run_async(string[] command) {
+        this.cancellable = new Cancellable();
+        this.error_count = 0;
+        this.warning_count = 0;
+
+        new Thread<int> ("clang-tidy-worker", () => {
+            bool success = false;
+            int exit_code = -1;
+
+            try {
+                this.current_process = new Subprocess.newv(
+                                                           command,
+                                                           SubprocessFlags.STDOUT_PIPE | SubprocessFlags.STDERR_MERGE
+                );
+
+                var data_stream = new DataInputStream(current_process.get_stdout_pipe());
+
+                string? line;
+                string current_file = "unknown";
+                var regex_full = new Regex(@"^([^:\n\\[]+):(\\d+):(\\d+): (warning|error|note): (.+?)(?: \\[([^\\]]+)\\])?$$");
+                var regex_short = new Regex(@"^(warning|error|note): (.+?)(?: \\[([^\\]]+)\\])?$$");
+
+                while (!cancellable.is_cancelled()) {
+                    line = data_stream.read_line(null, cancellable);
+                    if (line == null)break;
+
+                    process_line(line, regex_full, regex_short, ref current_file);
+                }
+
+                if (!cancellable.is_cancelled()) {
+                    current_process.wait(cancellable);
+                    success = current_process.get_successful();
+                    exit_code = current_process.get_exit_status();
+                }
+            } catch (Error e) {
+                if (!(e is IOError.CANCELLED))stderr.printf("Thread Error: %s\n", e.message);
+            } finally {
+                kill_process();
+                // Отправляем финальную статистику в главный поток
+                Idle.add(() => {
+                    this.finished(success, exit_code, this.error_count, this.warning_count);
+                    return Source.REMOVE;
+                });
+            }
+            return 0;
+        });
+    }
+
+    private void process_line(string line, Regex reg_f, Regex reg_s, ref string current_file) {
+        var sline = line.strip();
+        if (sline.has_prefix("["))return;
+
+        MatchInfo match;
+        Diagnostic? diag = null;
+
+        if (reg_f.match(sline, 0, out match)) {
+            diag = Diagnostic() {
+                file = match.fetch(1),
+                line = match.fetch(2),
+                type = match.fetch(4),
+                message = match.fetch(5)
+            };
+            current_file = diag.file;
+        } else if (reg_s.match(sline, 0, out match)) {
+            diag = Diagnostic() {
+                file = current_file,
+                line = "0",
+                type = match.fetch(1),
+                message = match.fetch(2)
+            };
+        }
+
+        if (diag != null) {
+            // Обновляем статистику
+            if (diag.type == "error")error_count++;
+            else if (diag.type == "warning")warning_count++;
+
+            Idle.add(() => {
+                this.diagnostic_found(diag);
+                return Source.REMOVE;
+            });
+        }
+    }
+
+    public void stop() {
+        if (cancellable != null)cancellable.cancel();
+        kill_process();
+    }
+
+    private void kill_process() {
+        if (current_process != null) {
+            current_process.force_exit();
+            current_process = null;
+        }
+    }
+}
+
+// Пример использования
+// public static int main(string[] args) {
+// var loop = new MainLoop();
+// var runner = new ClangTidyRunner();
+
+// runner.diagnostic_found.connect((d) => {
+// stdout.printf("[%s] %s:%s -> %s\n", d.type.up(), d.file, d.line, d.message);
+// });
+
+// runner.finished.connect((ok, code, errors, warnings) => {
+// stdout.printf("\n--- Итоги анализа ---\n");
+// stdout.printf("Ошибок: %d\n", errors);
+// stdout.printf("Предупреждений: %d\n", warnings);
+// stdout.printf("Статус завершения: %s (код %d)\n", ok ? "Успешно" : "Ошибка/Прервано", code);
+// loop.quit();
+// });
+
+// string[] cmd = { "run-clang-tidy", "-p", "build/", "-checks=-*,clang-diagnostic-*" };
+// runner.run_async(cmd);
+
+// return loop.run();
+// }
 ```
 
 ## File: src/Services/TreeSitter/model/AstItem.vala
@@ -1845,117 +1845,6 @@ public class Iide.PanelLayoutHelper : Object {
         }
 
         return result;
-    }
-}
-```
-
-## File: src/Services/StyleManager.vala
-```
-public class Iide.TagPair : Object {
-    public Gtk.TextTag light { get; construct; }
-    public Gtk.TextTag dark { get; construct; }
-
-    public TagPair (Gtk.TextTag l, Gtk.TextTag d) {
-        Object (light: l, dark: d);
-    }
-
-    public Gtk.TextTag get_by_index (int index) {
-        return (index == 0) ? light : dark;
-    }
-}
-
-public class Iide.StyleService : Object {
-    private static StyleService? instance;
-    public Gtk.TextTagTable shared_table { get; private set; }
-
-    // Теперь Gee.HashMap хранит объекты TagPair
-    private Gee.HashMap<string, TagPair> registry;
-
-    public static StyleService get_instance () {
-        if (instance == null)instance = new StyleService ();
-        return instance;
-    }
-
-    private StyleService () {
-        shared_table = new Gtk.TextTagTable ();
-        registry = new Gee.HashMap<string, TagPair> ();
-
-        // --- Основы ---
-        setup_tag ("function", "#1a5fb4", "#62a0ea", true);
-        setup_tag ("keyword", "#a51d2d", "#ff7b72", true);
-        setup_tag ("string", "#26a269", "#8ff0a4", false);
-        setup_tag ("comment", "#5e5c64", "#94989b", false, true); // Italic
-        setup_tag ("type", "#422d5b", "#f9c06b", true);
-        setup_tag ("constant", "#986a44", "#d0b5f3", false);
-
-        // --- Переменные и параметры ---
-        setup_tag ("variable", "#241f31", "#ffffff", false);
-        setup_tag ("variable.parameter", "#3584e4", "#78aeed", false);
-        setup_tag ("variable.builtin", "#1a5fb4", "#62a0ea", false, true); // self, cls
-
-        // --- Литералы и числа ---
-        setup_tag ("number", "#3071db", "#78aeed", false);
-        setup_tag ("boolean", "#986a44", "#d0b5f3", true);
-
-        // --- Специальные элементы (Rust макросы, Vala атрибуты) ---
-        setup_tag ("function.macro", "#63452c", "#c061cb", false);
-        setup_tag ("attribute", "#63452c", "#c061cb", false);
-        setup_tag ("label", "#422d5b", "#f9c06b", false); // Lifetimes в Rust ('a)
-
-        // --- Пунктуация и операторы ---
-        setup_tag ("operator", "#241f31", "#ffa348", false);
-        setup_tag ("punctuation.bracket", "#241f31", "#d3d3d7", false);
-        setup_tag ("punctuation.delimiter", "#241f31", "#d3d3d7", false);
-
-        // --- Препроцессор и макросы (#include, #define, макросы в C/C++) ---
-        setup_tag ("keyword.directive", "#63452c", "#c061cb", false);
-        setup_tag ("keyword.control.import", "#63452c", "#c061cb", true);
-
-        // --- Специфические для C++ (Namespace, Qualifier) ---
-        setup_tag ("namespace", "#422d5b", "#f9c06b", false);
-        setup_tag ("type.qualifier", "#a51d2d", "#ff7b72", false); // const, static, volatile
-
-        // --- Дополнительные уточнения для функций ---
-        setup_tag ("function.call", "#1c71d8", "#78aeed", false);
-        setup_tag ("function.method", "#1a5fb4", "#62a0ea", true);
-
-        // В конструктор StyleService
-        setup_tag ("bracket.lvl1", "#3584e4", "#78aeed", false); // Синий
-        setup_tag ("bracket.lvl2", "#26a269", "#8ff0a4", false); // Зеленый
-        setup_tag ("bracket.lvl3", "#e66100", "#ffa348", false); // Оранжевый
-        setup_tag ("bracket.lvl4", "#e01b24", "#ff7b72", false); // Красный
-        setup_tag ("bracket.lvl5", "#9141ac", "#c061cb", false); // Фиолетовый
-
-        // Тег для сброса (если в query есть @none)
-        setup_tag ("none", null, null, false);
-    }
-
-    private void setup_tag (string name, string? light_color, string? dark_color, bool bold, bool italic = false) {
-        // Создаем тег для светлой темы
-        var tag_light = new Gtk.TextTag (name + ":light");
-        tag_light.foreground = light_color;
-        if (bold)tag_light.weight = Pango.Weight.BOLD;
-        if (italic)tag_light.style = Pango.Style.ITALIC;
-        shared_table.add (tag_light);
-
-        // Создаем тег для темной темы
-        var tag_dark = new Gtk.TextTag (name + ":dark");
-        tag_dark.foreground = dark_color;
-        if (bold)tag_dark.weight = Pango.Weight.BOLD;
-        if (italic)tag_dark.style = Pango.Style.ITALIC;
-        shared_table.add (tag_dark);
-
-        // Сохраняем пару в реестр
-        var pair = new TagPair (tag_light, tag_dark);
-        registry.set (name, pair);
-    }
-
-    public Gtk.TextTag? get_tag (string name, int theme_index) {
-        var pair = registry.get (name);
-        if (pair != null) {
-            return pair.get_by_index (theme_index);
-        }
-        return null;
     }
 }
 ```
@@ -3951,6 +3840,170 @@ A description of this project.
     /></style-scheme>
 ```
 
+## File: data/org.github.kai66673.iide.gschema.xml
+```xml
+<?xml version="1.0" encoding="UTF-8"?>
+<schemalist gettext-domain="iide">
+	<schema id="org.github.kai66673.iide" path="/org/github/kai66673/iide/">
+		<key name="color-scheme" type="s">
+			<default>"system"</default>
+			<summary>Color scheme</summary>
+			<description>Color scheme: light, dark, or system</description>
+		</key>
+
+		<key name="editor-font-size" type="d">
+			<default>6</default>
+			<summary>Editor zoom level</summary>
+			<description>Editor zoom level (1-15)</description>
+		</key>
+
+		<key name="show-minimap" type="b">
+			<default>true</default>
+			<summary>Show minimap</summary>
+			<description>Whether to show the minimap in text editors</description>
+		</key>
+
+		<key name="show-line-numbers" type="b">
+			<default>true</default>
+			<summary>Show line numbers</summary>
+			<description>Whether to show line numbers in text editors</description>
+		</key>
+		
+		<key name="show-diagnostics-marks" type="b">
+			<default>true</default>
+			<summary>Show diagnostics marks</summary>
+			<description>Whether to show diagnostics marks in text editors</description>
+		</key>
+
+		<key name="show-folding-gutter" type="b">
+			<default>true</default>
+			<summary>Show folding gutter</summary>
+			<description>Whether to show folding gutter in text editors</description>
+		</key>
+
+		<key name="highlight-current-line" type="b">
+			<default>true</default>
+			<summary>Highlight current line</summary>
+			<description>Whether to highlight the current line in text editors</description>
+		</key>
+
+		<key name="auto-indent" type="b">
+			<default>true</default>
+			<summary>Auto indent</summary>
+			<description>Whether to enable auto indentation</description>
+		</key>
+
+		<key name="panel-start-width" type="d">
+			<default>250</default>
+			<summary>Start panel width</summary>
+			<description>Width of the start panel (file tree)</description>
+		</key>
+
+		<key name="panel-end-width" type="d">
+			<default>250</default>
+			<summary>End panel width</summary>
+			<description>Width of the end panel</description>
+		</key>
+
+		<key name="panel-bottom-height" type="d">
+			<default>200</default>
+			<summary>Bottom panel height</summary>
+			<description>Height of the bottom panel (terminal)</description>
+		</key>
+
+		<key name="panel-bottom-width" type="d">
+			<default>500</default>
+			<summary>Bottom panel width</summary>
+			<description>Width of the bottom panel split between terminal and log</description>
+		</key>
+
+		<key name="reveal-start-panel" type="b">
+			<default>true</default>
+			<summary>Reveal start panel</summary>
+			<description>Whether the start panel is visible</description>
+		</key>
+
+		<key name="reveal-end-panel" type="b">
+			<default>false</default>
+			<summary>Reveal end panel</summary>
+			<description>Whether the end panel is visible</description>
+		</key>
+
+		<key name="reveal-bottom-panel" type="b">
+			<default>false</default>
+			<summary>Reveal bottom panel</summary>
+			<description>Whether the bottom panel is visible</description>
+		</key>
+
+		<key name="recent-projects" type="as">
+			<default>[]</default>
+			<summary>Recent projects</summary>
+			<description>List of recently opened project paths</description>
+		</key>
+
+		<key name="max-recent-projects" type="d">
+			<default>10</default>
+			<summary>Maximum recent projects</summary>
+			<description>Maximum number of recent projects to remember</description>
+		</key>
+
+		<key name="last-open-directory" type="s">
+			<default>""</default>
+			<summary>Last open directory</summary>
+			<description>Last directory used for opening files or projects</description>
+		</key>
+
+		<key name="current-project-path" type="s">
+			<default>""</default>
+			<summary>Current project path</summary>
+			<description>Path to the currently open project</description>
+		</key>
+
+		<key name="open-documents" type="as">
+			<default>[]</default>
+			<summary>Open documents</summary>
+			<description>List of currently open document URIs</description>
+		</key>
+
+		<key name="panel-layout" type="s">
+			<default>""</default>
+			<summary>Panel layout</summary>
+			<description>JSON string describing panel dock layout</description>
+		</key>
+
+		<key name="grid-layout" type="s">
+			<default>""</default>
+			<summary>Grid layout</summary>
+			<description>JSON string describing grid layout</description>
+		</key>
+
+		<key name="window-width" type="d">
+			<default>1200</default>
+			<summary>Window width</summary>
+			<description>Width of the main window</description>
+		</key>
+
+		<key name="window-height" type="d">
+			<default>800</default>
+			<summary>Window height</summary>
+			<description>Height of the main window</description>
+		</key>
+
+		<key name="window-maximized" type="b">
+			<default>false</default>
+			<summary>Window maximized</summary>
+			<description>Whether the window is maximized</description>
+		</key>
+
+		<key name="shortcuts" type="s">
+			<default>""</default>
+			<summary>Custom shortcuts</summary>
+			<description>JSON string mapping action IDs to keyboard shortcuts</description>
+		</key>
+	</schema>
+</schemalist>
+```
+
 ## File: scripts/gen-docs.sh
 ```bash
 #!/bin/bash
@@ -3987,167 +4040,43 @@ else
 fi
 ```
 
-## File: src/Services/LSP/config/CppLspConfig.vala
+## File: src/Services/Actions/AppAction.vala
 ```
-public class Iide.CppLspConfig : Iide.LspConfig {
-    public override string command () {
-        return "clangd";
+/*
+*/
+
+public abstract class Iide.AppAction : Object {
+    private string? _current_shortcut = null; 
+
+    public abstract string id { get; }
+    public abstract string name { get; }
+    public abstract string? description { get; }
+    public abstract string? icon_name { get; }
+    public virtual string? category { get; default = null; }
+
+    public abstract string? default_shortcut { get; default = null; }
+    public string? shortcut { get { return _current_shortcut ?? default_shortcut; } }
+    public string? current_shortcut { get { return _current_shortcut; } }
+    public bool is_default_shortcut { get { return _current_shortcut == null || _current_shortcut == default_shortcut; } }
+
+    public signal void shortcut_changed (string? new_shortcut);
+    public signal void state_changed (bool new_state);
+
+    public virtual bool is_toggle { get; default = false; }
+    public virtual bool state { get; protected set; default = false; }
+    
+    public void set_shortcut(string? new_shortcut) {
+        _current_shortcut = new_shortcut;
+        shortcut_changed(shortcut);
     }
 
-    public override string[] args () {
-        return {
-                   "--background-index", // Индексация в фоне
-                   "--clang-tidy", // Включает мощный линтер (генерирует тонну сообщений)
-                   "--clang-tidy-checks=*", // Включит вообще все проверки, сообщений будет тысячи
-                   "--background-index-priority=low", // Чтобы не вешать систему, но делать всё
-                   "--all-scopes-completion", // Заставляет сервер глубже копать индексы
-                   "--header-insertion=never"
-        };
+    public void update_state (bool new_state) {
+        state = new_state;
+        state_changed (new_state);
     }
 
-    public override Json.Node initialize_params (string? workspace_root, string? initial_uri) {
-        message ("CPP: initialize_params: " + workspace_root);
-        var root_uri = "file:///home/kai/kaigit/ktexteditor";
-        var params = """{
-            "processId": null,
-            "clientInfo": {
-              "name": "Iide",
-              "version": "1.0.1"
-            },
-            "rootPath": "%s",
-            "rootUri": "%s",
-            "capabilities": {
-              "window": {
-                "workDoneProgress": true
-              },
-              "workspace": {
-                "applyEdit": true,
-                "diagnostic": {
-                  "refreshSupport": true
-                },
-                "workspaceEdit": {
-                  "documentChanges": true
-                },
-                "didChangeConfiguration": {
-                  "dynamicRegistration": true
-                },
-                "didChangeWatchedFiles": {
-                  "dynamicRegistration": true
-                },
-                "symbol": {
-                  "dynamicRegistration": true
-                },
-                "executeCommand": {
-                  "dynamicRegistration": true
-                }
-              },
-              "textDocument": {
-                "diagnostic": {
-                  "dynamicRegistration": true
-                },
-                "synchronization": {
-                  "dynamicRegistration": true,
-                  "willSave": true,
-                  "willSaveWaitUntil": false,
-                  "didSave": true
-                },
-                "completion": {
-                  "dynamicRegistration": true,
-                  "contextSupport": true,
-                  "completionItem": {
-                    "snippetSupport": false,
-                    "commitCharactersSupport": true,
-                    "documentationFormat": ["markdown", "plaintext"],
-                    "deprecatedSupport": true,
-                    "labelDetailsSupport": true
-                  },
-                  "completionItemKind": {
-                    "valueSet": [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25]
-                  }
-                },
-                "hover": {
-                  "dynamicRegistration": true,
-                  "contentFormat": ["markdown", "plaintext"]
-                },
-                "signatureHelp": {
-                  "dynamicRegistration": true,
-                  "signatureInformation": {
-                    "documentationFormat": ["markdown", "plaintext"],
-                    "parameterInformation": {
-                      "labelOffsetSupport": true
-                    }
-                  }
-                },
-                "definition": {
-                  "dynamicRegistration": true,
-                  "linkSupport": true
-                },
-                "references": {
-                  "dynamicRegistration": true
-                },
-                "documentSymbol": {
-                  "dynamicRegistration": true,
-                  "hierarchicalDocumentSymbolSupport": true
-                },
-                "codeAction": {
-                  "dynamicRegistration": true
-                },
-                "publishDiagnostics": {
-                  "relatedInformation": true,
-                  "tagSupport": {
-                    "valueSet": [1, 2]
-                  },
-                  "versionSupport": true
-                }
-              }
-            },
-            "initializationOptions": {
-              "clangdFileStatus": true,
-              "backgroundIndex": true,
-              "compilationDatabasePath": "build",
-              "fallbackFlags": ["-std=c++17", "-Iinclude"]
-            }
-          }
-        """.printf (root_uri.replace ("file://", ""), root_uri);
-        var parser = new Json.Parser ();
-        try {
-            parser.load_from_data (params);
-        } catch (GLib.Error e) {
-            return new Json.Node (Json.NodeType.NULL);
-        }
-        return parser.get_root ();
-    }
-
-    public override Json.Node? server_response_result (Json.Object response) {
-        return new Json.Node (Json.NodeType.NULL);
-    }
-}
-```
-
-## File: src/Services/LSP/config/LspRegistry.vala
-```
-public class Iide.LspRegistry {
-    public static string ? get_lsp_id (string language) {
-        switch (language) {
-        case "python":
-            return "basedpyright";
-        case "cpp":
-            return "clangd";
-        default:
-            return null;
-        }
-    }
-
-    public static LspConfig ? get_config (string lsp_id) {
-        switch (lsp_id) {
-        case "basedpyright" :
-            return new PythonLspConfig ();
-        case "clangd":
-            return new CppLspConfig ();
-        default:
-            return null;
-        }
-    }
+    public virtual bool can_execute () { return true; }
+    public virtual void execute () {}
 }
 ```
 
@@ -4237,150 +4166,6 @@ public class Iide.PythonLspConfig : Iide.LspConfig {
         return results_node;
     }
 }
-```
-
-## File: src/Services/LSP/index/ClangTidy.vala
-```
-using GLib;
-
-public class Iide.ClangTidyRunner : Object {
-    public struct Diagnostic {
-        public string file;
-        public string line;
-        public string type; // "error", "warning", "note"
-        public string message;
-    }
-
-    // Сигналы для связи с основным потоком
-    public signal void diagnostic_found(Diagnostic diag);
-    public signal void finished(bool success, int exit_code, int total_errors, int total_warnings);
-
-    private Subprocess? current_process = null;
-    private Cancellable? cancellable = null;
-
-    // Счётчики
-    private int error_count = 0;
-    private int warning_count = 0;
-
-    public void run_async(string[] command) {
-        this.cancellable = new Cancellable();
-        this.error_count = 0;
-        this.warning_count = 0;
-
-        new Thread<int> ("clang-tidy-worker", () => {
-            bool success = false;
-            int exit_code = -1;
-
-            try {
-                this.current_process = new Subprocess.newv(
-                                                           command,
-                                                           SubprocessFlags.STDOUT_PIPE | SubprocessFlags.STDERR_MERGE
-                );
-
-                var data_stream = new DataInputStream(current_process.get_stdout_pipe());
-
-                string? line;
-                string current_file = "unknown";
-                var regex_full = new Regex(@"^([^:\n\\[]+):(\\d+):(\\d+): (warning|error|note): (.+?)(?: \\[([^\\]]+)\\])?$$");
-                var regex_short = new Regex(@"^(warning|error|note): (.+?)(?: \\[([^\\]]+)\\])?$$");
-
-                while (!cancellable.is_cancelled()) {
-                    line = data_stream.read_line(null, cancellable);
-                    if (line == null)break;
-
-                    process_line(line, regex_full, regex_short, ref current_file);
-                }
-
-                if (!cancellable.is_cancelled()) {
-                    current_process.wait(cancellable);
-                    success = current_process.get_successful();
-                    exit_code = current_process.get_exit_status();
-                }
-            } catch (Error e) {
-                if (!(e is IOError.CANCELLED))stderr.printf("Thread Error: %s\n", e.message);
-            } finally {
-                kill_process();
-                // Отправляем финальную статистику в главный поток
-                Idle.add(() => {
-                    this.finished(success, exit_code, this.error_count, this.warning_count);
-                    return Source.REMOVE;
-                });
-            }
-            return 0;
-        });
-    }
-
-    private void process_line(string line, Regex reg_f, Regex reg_s, ref string current_file) {
-        var sline = line.strip();
-        if (sline.has_prefix("["))return;
-
-        MatchInfo match;
-        Diagnostic? diag = null;
-
-        if (reg_f.match(sline, 0, out match)) {
-            diag = Diagnostic() {
-                file = match.fetch(1),
-                line = match.fetch(2),
-                type = match.fetch(4),
-                message = match.fetch(5)
-            };
-            current_file = diag.file;
-        } else if (reg_s.match(sline, 0, out match)) {
-            diag = Diagnostic() {
-                file = current_file,
-                line = "0",
-                type = match.fetch(1),
-                message = match.fetch(2)
-            };
-        }
-
-        if (diag != null) {
-            // Обновляем статистику
-            if (diag.type == "error")error_count++;
-            else if (diag.type == "warning")warning_count++;
-
-            Idle.add(() => {
-                this.diagnostic_found(diag);
-                return Source.REMOVE;
-            });
-        }
-    }
-
-    public void stop() {
-        if (cancellable != null)cancellable.cancel();
-        kill_process();
-    }
-
-    private void kill_process() {
-        if (current_process != null) {
-            current_process.force_exit();
-            current_process = null;
-        }
-    }
-}
-
-// Пример использования
-// public static int main(string[] args) {
-// var loop = new MainLoop();
-// var runner = new ClangTidyRunner();
-
-// runner.diagnostic_found.connect((d) => {
-// stdout.printf("[%s] %s:%s -> %s\n", d.type.up(), d.file, d.line, d.message);
-// });
-
-// runner.finished.connect((ok, code, errors, warnings) => {
-// stdout.printf("\n--- Итоги анализа ---\n");
-// stdout.printf("Ошибок: %d\n", errors);
-// stdout.printf("Предупреждений: %d\n", warnings);
-// stdout.printf("Статус завершения: %s (код %d)\n", ok ? "Успешно" : "Ошибка/Прервано", code);
-// loop.quit();
-// });
-
-// string[] cmd = { "run-clang-tidy", "-p", "build/", "-checks=-*,clang-diagnostic-*" };
-// runner.run_async(cmd);
-
-// return loop.run();
-// }
 ```
 
 ## File: src/Services/LSP/LspDiagnosticsMark.vala
@@ -4560,320 +4345,6 @@ public class Iide.CppHighlighter : BaseTreeSitterHighlighter {
                    "class_specifier", "struct_specifier", "function_definition", "namespace_definition"
         };
     }
-}
-```
-
-## File: src/Services/TreeSitter/python/PythonHighlighter.vala
-```
-[CCode (cname = "tree_sitter_python")]
-extern unowned TreeSitter.Language ? get_lang_python ();
-
-public class Iide.PythonHighlighter : BaseTreeSitterHighlighter {
-  public PythonHighlighter (SourceView view) {
-    base (view);
-  }
-
-  protected override unowned TreeSitter.Language get_ts_language () {
-    return get_lang_python ();
-  }
-
-  protected override string query_source () {
-    return """
-        ; Identifier naming conventions
-
-        (identifier) @variable
-
-        ((identifier) @constructor
-         (#match? @constructor "^[A-Z]"))
-
-        ((identifier) @constant
-         (#match? @constant "^[A-Z][A-Z_]*$"))
-
-        ; Function calls
-
-        (decorator) @function
-        (decorator
-          (identifier) @function)
-
-        (call
-          function: (attribute attribute: (identifier) @function.method))
-        (call
-          function: (identifier) @function)
-
-        ; Builtin functions
-
-        ((call
-          function: (identifier) @function.builtin)
-         (#match?
-           @function.builtin
-           "^(abs|all|any|ascii|bin|bool|breakpoint|bytearray|bytes|callable|chr|classmethod|compile|complex|delattr|dict|dir|divmod|enumerate|eval|exec|filter|float|format|frozenset|getattr|globals|hasattr|hash|help|hex|id|input|int|isinstance|issubclass|iter|len|list|locals|map|max|memoryview|min|next|object|oct|open|ord|pow|print|property|range|repr|reversed|round|set|setattr|slice|sorted|staticmethod|str|sum|super|tuple|type|vars|zip|__import__)$"))
-
-        ; Function definitions
-
-        (function_definition
-          name: (identifier) @function)
-
-        (attribute attribute: (identifier) @property)
-        (type (identifier) @type)
-
-        ; Literals
-
-        [
-          (none)
-          (true)
-          (false)
-        ] @constant.builtin
-
-        [
-          (integer)
-          (float)
-        ] @number
-
-        (comment) @comment
-        (string) @string
-        (escape_sequence) @escape
-
-        (interpolation
-          "{" @punctuation.special
-          "}" @punctuation.special) @embedded
-
-        [
-          "-"
-          "-="
-          "!="
-          "*"
-          "**"
-          "**="
-          "*="
-          "/"
-          "//"
-          "//="
-          "/="
-          "&"
-          "&="
-          "%"
-          "%="
-          "^"
-          "^="
-          "+"
-          "->"
-          "+="
-          "<"
-          "<<"
-          "<<="
-          "<="
-          "<>"
-          "="
-          ":="
-          "=="
-          ">"
-          ">="
-          ">>"
-          ">>="
-          "|"
-          "|="
-          "~"
-          "@="
-          "and"
-          "in"
-          "is"
-          "not"
-          "or"
-          "is not"
-          "not in"
-        ] @operators
-
-        ["(" ")" "[" "]" "{" "}"] @punctuation.bracket
-
-        [
-          "as"
-          "assert"
-          "async"
-          "await"
-          "break"
-          "class"
-          "continue"
-          "def"
-          "del"
-          "elif"
-          "else"
-          "except"
-          "exec"
-          "finally"
-          "for"
-          "from"
-          "global"
-          "if"
-          "import"
-          "lambda"
-          "nonlocal"
-          "pass"
-          "print"
-          "raise"
-          "return"
-          "try"
-          "while"
-          "with"
-          "yield"
-          "match"
-          "case"
-        ] @keyword
-        """;
-  }
-
-  protected override bool is_container_node (string node_type) {
-    return node_type in new string[] {
-             "function_definition", "class_definition", "module_definition"
-    };
-  }
-
-  public override GtkSource.Indenter? create_indenter() {
-    return new PythonIndenter(this, get_ts_language ());
-  }
-}
-```
-
-## File: src/Services/TreeSitter/python/PythonIndenter.vala
-```
-/*
-*/
-public class Iide.PythonIndenter: GtkSource.Indenter, Object {
-    private BaseTreeSitterHighlighter ts_highlighter;
-    protected TreeSitter.Query query;
-    public bool is_valid = true;
-    private const string source = """
-        ; Узлы, которые открывают новый уровень отступа (class_definition) @indent.begin
-        (function_definition) @indent.begin
-        (if_statement) @indent.begin
-        (elif_clause) @indent.begin
-        (else_clause) @indent.begin
-        (for_statement) @indent.begin
-        (while_statement) @indent.begin
-        (with_statement) @indent.begin
-        (try_statement) @indent.begin
-        (except_clause) @indent.begin
-        (finally_clause) @indent.begin
-        (parenthesized_expression) @indent.begin
-        (list) @indent.begin
-        (dictionary) @indent.begin
-        (argument_list) @indent.begin
-        (parameters) @indent.begin
-    """;
-
-    public PythonIndenter (BaseTreeSitterHighlighter ts_highlighter, TreeSitter.Language lang) {
-        Object ();
-        this.ts_highlighter = ts_highlighter;
-
-        uint32 error_offset;
-        TreeSitter.QueryError error_type;
-        this.query = new TreeSitter.Query (lang, source, (uint32) source.length, out error_offset, out error_type);
-
-        if (error_type != TreeSitter.QueryError.None) {
-            LoggerService.get_instance ().error ("TS", "TreeSitter Query Error at %u: %s".printf (error_offset, error_type.to_string ()));
-            this.is_valid = false;
-        }
-    }
-
-    // Вспомогательный метод для получения пробелов в начале строки
-    private string get_line_indent_text (Gtk.TextIter line_start) {
-        Gtk.TextIter line_end = line_start;
-        line_end.forward_to_line_end ();
-        string text = line_start.get_buffer ().get_text (line_start, line_end, false);
-
-        string indent = "";
-        // Используем индексацию или явный каст, если компилятор капризничает
-        for (int i = 0; i < text.length; i++) {
-            unichar c = text.get_char (i);
-            if (c.isspace ()) {
-                indent += c.to_string ();
-            } else {
-                break;
-            }
-        }
-        return indent;
-    }
-
-    public void indent (GtkSource.View view, ref Gtk.TextIter iter) {
-        if (!is_valid)
-            return;
-
-        if (ts_highlighter.get_tree () == null)
-            return;
-
-        ts_highlighter. flush_changes();
-
-        // 1. Поиск якоря (ближайшая непустая строка выше)
-        Gtk.TextIter anchor = iter;
-        bool found_anchor = false;
-        while (anchor.backward_line ()) {
-            Gtk.TextIter line_end = anchor;
-            line_end.forward_to_line_end ();
-            if (view.buffer.get_text (anchor, line_end, false).strip ().length > 0) {
-                found_anchor = true;
-                break;
-            }
-        }
-        if (!found_anchor)
-            return;
-
-        // 2. Получаем базовое смещение с якорной строки
-        var base_indent = get_line_indent_text (anchor);
-
-        // 3. Анализ Tree-Sitter
-        Gtk.TextIter anchor_end = anchor;
-        anchor_end.forward_to_line_end ();
-        uint32 end_byte = get_byte_offset_safe (anchor_end);
-
-        if (end_byte > 0) {
-            var cursor = new TreeSitter.QueryCursor ();
-            // Ищем символ ПЕРЕД концом якорной строки (двоеточие или скобка)
-            cursor.set_byte_range (end_byte - 1, end_byte);
-            cursor.exec (this.query, ts_highlighter.get_tree ().root_node ());
-
-            TreeSitter.QueryMatch match;
-            while (cursor.next_match (out match)) {
-                for (int i = 0; i < match.capture_count; i++) {
-                    unowned TreeSitter.Node node = match.captures[i].node;
-
-                    // Условие 1: Блок начался на этой строке
-                    if (node.start_point ().row == (uint32) anchor.get_line ()) {
-
-                        // Условие 2 (ФИКС): Если узел закончился ДО точки разрыва,
-                        // значит мы стоим ПОСЛЕ закрывающей скобки. Индент не нужен.
-                        if (node.end_byte () <= end_byte) {
-                            continue;
-                        }
-
-                        base_indent += "    ";
-                        break;
-                    }
-                }
-            }
-        }
-
-        // 4. Выполняем сдвиг в одной транзакции
-        view.buffer.begin_user_action ();
-
-        view.buffer.insert (ref iter, base_indent, base_indent.length);
-        
-        // Remove space symbols from current position...
-        Gtk.TextIter line_start = iter;
-        Gtk.TextIter line_end = line_start;
-        while (line_end.get_char ().isspace () && !line_end.ends_line ()) {
-            line_end.forward_char ();
-        }
-
-        if (!line_start.equal (line_end)) {
-            view.buffer.delete (ref line_start, ref line_end);
-        }
-
-        view.buffer.end_user_action ();
-    }
-
-    public bool is_trigger (GtkSource.View view, Gtk.TextIter location, Gdk.ModifierType state, uint keyval) {
-        return (keyval == Gdk.Key.Return || keyval == Gdk.Key.KP_Enter);
-    }
-
 }
 ```
 
@@ -5252,6 +4723,18 @@ public class Iide.ValaHighlighter : BaseTreeSitterHighlighter {
 }
 ```
 
+## File: src/Services/TreeSitter/IndentBlock.vala
+```
+/*
+*/
+
+public struct Iide.IndentBlock {
+    public int start_line;
+    public int end_line;
+    public int indent_level;
+}
+```
+
 ## File: src/Services/NavigationHistoryService.vala
 ```
 using Gee;
@@ -5354,375 +4837,6 @@ public class Iide.NavigationHistoryService : Object {
 }
 ```
 
-## File: src/Services/SettingsService.vala
-```
-/*
- * settingsservice.vala
- *
- * Copyright 2026 kai
- *
- * This program is free software: you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation, either version 3 of the License, or
- * (at your option) any later version.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program.  If not, see <https://www.gnu.org/licenses/>.
- *
- * SPDX-License-Identifier: GPL-3.0-or-later
- */
-
-public enum Iide.ColorScheme {
-    SYSTEM,
-    LIGHT,
-    DARK;
-
-    public static ColorScheme from_string (string value) {
-        switch (value) {
-        case "light":
-            return LIGHT;
-        case "dark":
-            return DARK;
-        default:
-            return SYSTEM;
-        }
-    }
-
-    public string to_string () {
-        switch (this) {
-        case LIGHT:
-            return "light";
-        case DARK:
-            return "dark";
-        default:
-            return "system";
-        }
-    }
-
-    public Adw.ColorScheme to_adw_color_scheme () {
-        switch (this) {
-        case LIGHT:
-            return Adw.ColorScheme.FORCE_LIGHT;
-        case DARK:
-            return Adw.ColorScheme.FORCE_DARK;
-        default:
-            return Adw.ColorScheme.DEFAULT;
-        }
-    }
-}
-
-public class Iide.FontSizeHelper : Object {
-    public const int DEFAULT_ZOOM_LEVEL = 6;
-    public const int MIN_ZOOM_LEVEL = 1;
-    public const int MAX_ZOOM_LEVEL = 15;
-    private const int[] FONT_SIZES = { 4, 6, 8, 10, 12, 14, 16, 18, 20, 24, 28, 32, 36, 40, 48 };
-
-    public static int get_size_for_zoom_level (int zoom_level) {
-        if (zoom_level >= MIN_ZOOM_LEVEL && zoom_level <= MAX_ZOOM_LEVEL) {
-            return FONT_SIZES[zoom_level - 1];
-        }
-        return FONT_SIZES[DEFAULT_ZOOM_LEVEL - 1];
-    }
-
-    public static int[] get_available_sizes () {
-        return FONT_SIZES;
-    }
-}
-
-public class Iide.SettingsService : Object {
-    private static SettingsService? _instance;
-    private Settings settings;
-
-    public signal void editor_setting_changed (string key);
-
-    public static SettingsService get_instance () {
-        if (_instance == null) {
-            _instance = new SettingsService ();
-        }
-        return _instance;
-    }
-
-    private SettingsService () {
-        settings = new Settings ("org.github.kai66673.iide");
-    }
-
-    public ColorScheme color_scheme {
-        get {
-            return ColorScheme.from_string (settings.get_string ("color-scheme"));
-        }
-        set {
-            settings.set_string ("color-scheme", value.to_string ());
-            editor_setting_changed ("color-scheme");
-        }
-    }
-
-    public int editor_font_size {
-        get {
-            return (int) settings.get_double ("editor-font-size");
-        }
-        set {
-            settings.set_double ("editor-font-size", (double) value);
-            editor_setting_changed ("editor-font-size");
-        }
-    }
-
-    public bool show_minimap {
-        get {
-            return settings.get_boolean ("show-minimap");
-        }
-        set {
-            settings.set_boolean ("show-minimap", value);
-            editor_setting_changed ("show-minimap");
-        }
-    }
-
-    public bool show_line_numbers {
-        get {
-            return settings.get_boolean ("show-line-numbers");
-        }
-        set {
-            settings.set_boolean ("show-line-numbers", value);
-            editor_setting_changed ("show-line-numbers");
-        }
-    }
-
-    public bool highlight_current_line {
-        get {
-            return settings.get_boolean ("highlight-current-line");
-        }
-        set {
-            settings.set_boolean ("highlight-current-line", value);
-            editor_setting_changed ("highlight-current-line");
-        }
-    }
-
-    public bool auto_indent {
-        get {
-            return settings.get_boolean ("auto-indent");
-        }
-        set {
-            settings.set_boolean ("auto-indent", value);
-            editor_setting_changed ("auto-indent");
-        }
-    }
-
-    public int panel_start_width {
-        get {
-            return (int) settings.get_double ("panel-start-width");
-        }
-        set {
-            settings.set_double ("panel-start-width", (double) value);
-        }
-    }
-
-    public int panel_end_width {
-        get {
-            return (int) settings.get_double ("panel-end-width");
-        }
-        set {
-            settings.set_double ("panel-end-width", (double) value);
-        }
-    }
-
-    public int panel_bottom_height {
-        get {
-            return (int) settings.get_double ("panel-bottom-height");
-        }
-        set {
-            settings.set_double ("panel-bottom-height", (double) value);
-        }
-    }
-
-    public int panel_bottom_width {
-        get {
-            return (int) settings.get_double ("panel-bottom-width");
-        }
-        set {
-            settings.set_double ("panel-bottom-width", (double) value);
-        }
-    }
-
-    public bool reveal_start_panel {
-        get {
-            return settings.get_boolean ("reveal-start-panel");
-        }
-        set {
-            settings.set_boolean ("reveal-start-panel", value);
-        }
-    }
-
-    public bool reveal_end_panel {
-        get {
-            return settings.get_boolean ("reveal-end-panel");
-        }
-        set {
-            settings.set_boolean ("reveal-end-panel", value);
-        }
-    }
-
-    public bool reveal_bottom_panel {
-        get {
-            return settings.get_boolean ("reveal-bottom-panel");
-        }
-        set {
-            settings.set_boolean ("reveal-bottom-panel", value);
-        }
-    }
-
-    public string[] recent_projects {
-        owned get {
-            return settings.get_strv ("recent-projects");
-        }
-    }
-
-    public int max_recent_projects {
-        get {
-            return (int) settings.get_double ("max-recent-projects");
-        }
-        set {
-            settings.set_double ("max-recent-projects", (double) value);
-        }
-    }
-
-    public string last_open_directory {
-        owned get {
-            return settings.get_string ("last-open-directory");
-        }
-        set {
-            settings.set_string ("last-open-directory", value);
-        }
-    }
-
-    public string current_project_path {
-        owned get {
-            return settings.get_string ("current-project-path");
-        }
-        set {
-            settings.set_string ("current-project-path", value);
-        }
-    }
-
-    public Gee.ArrayList<string> open_documents {
-        owned get {
-            var arr = settings.get_strv ("open-documents");
-            var list = new Gee.ArrayList<string> ();
-            foreach (var s in arr) {
-                list.add (s);
-            }
-            return (owned) list;
-        }
-        set {
-            var arr = new string[value.size];
-            int i = 0;
-            foreach (var s in value) {
-                arr[i++] = s;
-            }
-            settings.set_strv ("open-documents", arr);
-        }
-    }
-
-    public string panel_layout {
-        owned get {
-            return settings.get_string ("panel-layout");
-        }
-        set {
-            settings.set_string ("panel-layout", value);
-        }
-    }
-
-    public string grid_layout {
-        owned get {
-            return settings.get_string ("grid-layout");
-        }
-        set {
-            settings.set_string ("grid-layout", value);
-            Settings.sync ();
-        }
-    }
-
-    public int window_width {
-        get {
-            return (int) settings.get_double ("window-width");
-        }
-        set {
-            settings.set_double ("window-width", (double) value);
-        }
-    }
-
-    public int window_height {
-        get {
-            return (int) settings.get_double ("window-height");
-        }
-        set {
-            settings.set_double ("window-height", (double) value);
-        }
-    }
-
-    public bool window_maximized {
-        get {
-            return settings.get_boolean ("window-maximized");
-        }
-        set {
-            settings.set_boolean ("window-maximized", value);
-        }
-    }
-
-    public void add_recent_project (string path) {
-        var projects = new List<string> ();
-        projects.prepend (path);
-
-        foreach (var p in recent_projects) {
-            if (p != path) {
-                bool found = false;
-                foreach (var existing in projects) {
-                    if (existing == path) {
-                        found = true;
-                        break;
-                    }
-                }
-                if (!found) {
-                    projects.append (p);
-                }
-            }
-        }
-
-        var arr = new string[projects.length ()];
-        int i = 0;
-        foreach (var p in projects) {
-            arr[i++] = p;
-        }
-        settings.set_strv ("recent-projects", arr);
-    }
-
-    public void remove_recent_project (string path) {
-        var projects = new List<string> ();
-        foreach (var p in recent_projects) {
-            if (p != path) {
-                projects.append (p);
-            }
-        }
-
-        var arr = new string[projects.length ()];
-        int i = 0;
-        foreach (var p in projects) {
-            arr[i++] = p;
-        }
-        settings.set_strv ("recent-projects", arr);
-    }
-
-    public void clear_recent_projects () {
-        settings.set_strv ("recent-projects", {});
-    }
-
-    public signal void setting_changed (string key);
-}
-```
-
 ## File: src/Services/SourceNodeItem.vala
 ```
 /*
@@ -5738,6 +4852,121 @@ public struct Iide.SourceNodeItem {
     public SourceNodePosition start_point;
     public Gee.List<SourceNodeItem?> siblings; // Добавляем список соседей
     public Gee.List<SourceNodeItem?> children;
+}
+```
+
+## File: src/Services/StyleManager.vala
+```
+public class Iide.TagPair : Object {
+    public Gtk.TextTag light { get; construct; }
+    public Gtk.TextTag dark { get; construct; }
+
+    public TagPair (Gtk.TextTag l, Gtk.TextTag d) {
+        Object (light: l, dark: d);
+    }
+
+    public Gtk.TextTag get_by_index (int index) {
+        return (index == 0) ? light : dark;
+    }
+}
+
+public class Iide.StyleService : Object {
+    private static StyleService? instance;
+    public Gtk.TextTagTable shared_table { get; private set; }
+
+    // Теперь Gee.HashMap хранит объекты TagPair
+    private Gee.HashMap<string, TagPair> registry;
+
+    public static StyleService get_instance () {
+        if (instance == null)instance = new StyleService ();
+        return instance;
+    }
+
+    private StyleService () {
+        shared_table = new Gtk.TextTagTable ();
+        registry = new Gee.HashMap<string, TagPair> ();
+
+        var folding_tag = new Gtk.TextTag ("$FOLD_HIDE");
+        folding_tag.invisible = true; // Главный атрибут скрытия текста
+        shared_table.add (folding_tag);
+
+        // --- Основы ---
+        setup_tag ("function", "#1a5fb4", "#62a0ea", true);
+        setup_tag ("keyword", "#a51d2d", "#ff7b72", true);
+        setup_tag ("string", "#26a269", "#8ff0a4", false);
+        setup_tag ("comment", "#5e5c64", "#94989b", false, true); // Italic
+        setup_tag ("type", "#422d5b", "#f9c06b", true);
+        setup_tag ("constant", "#986a44", "#d0b5f3", false);
+
+        // --- Переменные и параметры ---
+        setup_tag ("variable", "#241f31", "#ffffff", false);
+        setup_tag ("variable.parameter", "#3584e4", "#78aeed", false);
+        setup_tag ("variable.builtin", "#1a5fb4", "#62a0ea", false, true); // self, cls
+
+        // --- Литералы и числа ---
+        setup_tag ("number", "#3071db", "#78aeed", false);
+        setup_tag ("boolean", "#986a44", "#d0b5f3", true);
+
+        // --- Специальные элементы (Rust макросы, Vala атрибуты) ---
+        setup_tag ("function.macro", "#63452c", "#c061cb", false);
+        setup_tag ("attribute", "#63452c", "#c061cb", false);
+        setup_tag ("label", "#422d5b", "#f9c06b", false); // Lifetimes в Rust ('a)
+
+        // --- Пунктуация и операторы ---
+        setup_tag ("operator", "#241f31", "#ffa348", false);
+        setup_tag ("punctuation.bracket", "#241f31", "#d3d3d7", false);
+        setup_tag ("punctuation.delimiter", "#241f31", "#d3d3d7", false);
+
+        // --- Препроцессор и макросы (#include, #define, макросы в C/C++) ---
+        setup_tag ("keyword.directive", "#63452c", "#c061cb", false);
+        setup_tag ("keyword.control.import", "#63452c", "#c061cb", true);
+
+        // --- Специфические для C++ (Namespace, Qualifier) ---
+        setup_tag ("namespace", "#422d5b", "#f9c06b", false);
+        setup_tag ("type.qualifier", "#a51d2d", "#ff7b72", false); // const, static, volatile
+
+        // --- Дополнительные уточнения для функций ---
+        setup_tag ("function.call", "#1c71d8", "#78aeed", false);
+        setup_tag ("function.method", "#1a5fb4", "#62a0ea", true);
+
+        // В конструктор StyleService
+        setup_tag ("bracket.lvl1", "#3584e4", "#78aeed", false); // Синий
+        setup_tag ("bracket.lvl2", "#26a269", "#8ff0a4", false); // Зеленый
+        setup_tag ("bracket.lvl3", "#e66100", "#ffa348", false); // Оранжевый
+        setup_tag ("bracket.lvl4", "#e01b24", "#ff7b72", false); // Красный
+        setup_tag ("bracket.lvl5", "#9141ac", "#c061cb", false); // Фиолетовый
+
+        // Тег для сброса (если в query есть @none)
+        setup_tag ("none", null, null, false);
+    }
+
+    private void setup_tag (string name, string? light_color, string? dark_color, bool bold, bool italic = false) {
+        // Создаем тег для светлой темы
+        var tag_light = new Gtk.TextTag (name + ":light");
+        tag_light.foreground = light_color;
+        if (bold)tag_light.weight = Pango.Weight.BOLD;
+        if (italic)tag_light.style = Pango.Style.ITALIC;
+        shared_table.add (tag_light);
+
+        // Создаем тег для темной темы
+        var tag_dark = new Gtk.TextTag (name + ":dark");
+        tag_dark.foreground = dark_color;
+        if (bold)tag_dark.weight = Pango.Weight.BOLD;
+        if (italic)tag_dark.style = Pango.Style.ITALIC;
+        shared_table.add (tag_dark);
+
+        // Сохраняем пару в реестр
+        var pair = new TagPair (tag_light, tag_dark);
+        registry.set (name, pair);
+    }
+
+    public Gtk.TextTag? get_tag (string name, int theme_index) {
+        var pair = registry.get (name);
+        if (pair != null) {
+            return pair.get_by_index (theme_index);
+        }
+        return null;
+    }
 }
 ```
 
@@ -6866,6 +6095,100 @@ public class Iide.FontZoomer : Object {
 }
 ```
 
+## File: src/Widgets/TextView/LineNumbersGutter.vala
+```
+using Gtk;
+using GtkSource;
+using Cairo;
+
+namespace Iide {
+
+    public class LineNumbersGutter : GtkSource.GutterRenderer {
+        private Pango.Layout? pango_layout = null;
+        private int current_width = 38; // Базовая ширина панели номеров строк
+
+        public LineNumbersGutter () {
+            Object ();
+            // Выравниваем номера по правому краю ячейки (классический вид IDE)
+            this.set_alignment_mode (GtkSource.GutterRendererAlignmentMode.CELL);
+            this.set_xalign (1.0f); 
+        }
+
+        // Автоматический расчет ширины панели в зависимости от масштаба (зума)
+        public override void measure (Gtk.Orientation orientation, int for_size, out int minimum, out int natural, out int minimum_baseline, out int natural_baseline) {
+            minimum_baseline = natural_baseline = -1;
+            if (orientation == Gtk.Orientation.HORIZONTAL) {
+                minimum = natural = this.current_width;
+            } else {
+                minimum = natural = 0;
+            }
+        }
+
+        public override void snapshot_line (Gtk.Snapshot snapshot, GtkSource.GutterLines lines, uint line) {
+            // 1. Извлекаем реальный номер строки в документе (индексы с 0, поэтому для UI делаем +1)
+            Gtk.TextIter current_line_iter;
+            lines.get_iter_at_line (out current_line_iter, line);
+            int real_line_number = current_line_iter.get_line () + 1;
+
+            // 2. Получаем точные Y-координаты и высоту текущей строки на экране
+            int cell_y, cell_height;
+            lines.get_line_yrange (line, GtkSource.GutterRendererAlignmentMode.CELL, out cell_y, out cell_height);
+
+            // Если строка скрыта фолдингом — её высота равна 0. 
+            // Мгновенно выходим, исключая наложение номеров строк друг на друга.
+            if (cell_height <= 0) {
+                return;
+            }
+
+            var view = this.get_view ();
+            if (view == null) return;
+
+            // 3. ИНИЦИАЛИЗАЦИЯ ШРИФТА С УЧЕТОМ ЗУМА
+            this.pango_layout = view.create_pango_layout ("");
+            //  var font_desc = view.get_font_desc ();
+            //  if (font_desc != null) {
+            //      this.pango_layout.set_font_description (font_desc);
+            //  } else {
+            //      this.pango_layout.set_font_description (Pango.FontDescription.from_string ("Monospace 11"));
+            //  }
+
+            // Задаем текст номера строки
+            string num_str = real_line_number.to_string ();
+            this.pango_layout.set_text (num_str, -1);
+
+            // Динамически корректируем ширину панели под разрядность чисел (100, 1000 и т.д.)
+            Pango.Rectangle ink_rect, logical_rect;
+            this.pango_layout.get_extents (out ink_rect, out logical_rect);
+            int text_width_px = logical_rect.width / Pango.SCALE;
+            int text_height_px = logical_rect.height / Pango.SCALE;
+
+            // Ширина текста + аккуратные отступы по краям
+            int calculated_width = text_width_px + 12;
+            if (this.current_width != calculated_width && calculated_width > 38) {
+                this.current_width = calculated_width;
+                view.queue_resize (); // Форсируем пересчет ширины левой панели
+            }
+
+            // 4. ОТРИСОВКА НОМЕРА СТРОКИ ЧЕРЕЗ CAIRO
+            var bounds = Graphene.Rect ();
+            bounds.init (0.0f, (float) cell_y, (float) this.current_width, (float) cell_height);
+
+            var cr = snapshot.append_cairo (bounds);
+            
+            // Цвет номеров строк: неконтрастный серый (Alpha 60%)
+            cr.set_source_rgba (0.5, 0.5, 0.5, 0.6);
+
+            // Координаты рисования с отступом в 6 пикселей от правого края панели
+            double draw_x = (double) this.current_width - text_width_px - 6.0;
+            double draw_y = (double) cell_y + ((cell_height - text_height_px) / 2.0);
+
+            cr.move_to (draw_x, draw_y);
+            Pango.cairo_show_layout (cr, this.pango_layout);
+        }
+    }
+}
+```
+
 ## File: src/Widgets/ToolViews/LogView.vala
 ```
 /*
@@ -7240,438 +6563,6 @@ public class Iide.LogView : Gtk.Box {
         buffer.insert (ref end, "\n", 1);
 
         line_count++;
-    }
-}
-```
-
-## File: src/Widgets/PreferencesDialog.vala
-```
-/*
- * preferencesdialog.vala
- *
- * Copyright 2026 kai
- *
- * This program is free software: you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation, either version 3 of the License, or
- * (at your option) any later version.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program.  If not, see <https://www.gnu.org/licenses/>.
- *
- * SPDX-License-Identifier: GPL-3.0-or-later
- */
-
-public class Iide.PreferencesDialog : Adw.PreferencesWindow {
-    private Iide.SettingsService settings;
-    private Adw.StyleManager style_manager;
-
-    private Adw.ComboRow color_scheme_row;
-    private Adw.SwitchRow show_minimap_row;
-    private Adw.SwitchRow show_line_numbers_row;
-    private Adw.SwitchRow highlight_current_line_row;
-    private Adw.SwitchRow auto_indent_row;
-
-    public PreferencesDialog () {
-        Object (modal: true, destroy_with_parent: true);
-        settings = Iide.SettingsService.get_instance ();
-        style_manager = Adw.StyleManager.get_default ();
-
-        title = _("Preferences");
-        set_default_size (500, 450);
-
-        build_ui ();
-    }
-
-    private void build_ui () {
-        var appearance_page = new Adw.PreferencesPage () {
-            title = _("Appearance"),
-            icon_name = "preferences-desktop-appearance-symbolic"
-        };
-
-        var appearance_group = new Adw.PreferencesGroup () {
-            title = _("Appearance")
-        };
-
-        color_scheme_row = new Adw.ComboRow () {
-            title = _("Color Scheme"),
-            model = new Gtk.StringList ({ "System", "Light", "Dark" })
-        };
-        var scheme_index = settings.color_scheme;
-        color_scheme_row.selected = (uint) scheme_index;
-        color_scheme_row.notify["selected"].connect (() => {
-            var scheme = (ColorScheme) color_scheme_row.selected;
-            settings.color_scheme = scheme;
-            style_manager.color_scheme = scheme.to_adw_color_scheme ();
-        });
-        appearance_group.add (color_scheme_row);
-        appearance_page.add (appearance_group);
-
-        var editor_page = new Adw.PreferencesPage () {
-            title = _("Editor"),
-            icon_name = "accessories-text-editor-symbolic"
-        };
-
-        var editor_group = new Adw.PreferencesGroup () {
-            title = _("Editor")
-        };
-
-        show_minimap_row = new Adw.SwitchRow () {
-            title = _("Show Minimap"),
-            subtitle = _("Display a minimap showing the document overview")
-        };
-        show_minimap_row.active = settings.show_minimap;
-        show_minimap_row.notify["active"].connect (() => {
-            settings.show_minimap = show_minimap_row.active;
-        });
-        editor_group.add (show_minimap_row);
-
-        show_line_numbers_row = new Adw.SwitchRow () {
-            title = _("Show Line Numbers"),
-            subtitle = _("Display line numbers on the editor gutter")
-        };
-        show_line_numbers_row.active = settings.show_line_numbers;
-        show_line_numbers_row.notify["active"].connect (() => {
-            settings.show_line_numbers = show_line_numbers_row.active;
-        });
-        editor_group.add (show_line_numbers_row);
-
-        highlight_current_line_row = new Adw.SwitchRow () {
-            title = _("Highlight Current Line"),
-            subtitle = _("Highlight the line where the cursor is positioned")
-        };
-        highlight_current_line_row.active = settings.highlight_current_line;
-        highlight_current_line_row.notify["active"].connect (() => {
-            settings.highlight_current_line = highlight_current_line_row.active;
-        });
-        editor_group.add (highlight_current_line_row);
-
-        auto_indent_row = new Adw.SwitchRow () {
-            title = _("Auto Indent"),
-            subtitle = _("Automatically indent new lines based on the previous line")
-        };
-        auto_indent_row.active = settings.auto_indent;
-        auto_indent_row.notify["active"].connect (() => {
-            settings.auto_indent = auto_indent_row.active;
-        });
-        editor_group.add (auto_indent_row);
-
-        var sizes = FontSizeHelper.get_available_sizes ();
-        var size_strings = new string[sizes.length];
-        for (int i = 0; i < sizes.length; i++) {
-            size_strings[i] = "%d px".printf (sizes[i]);
-        }
-        var font_size_model = new Gtk.StringList (size_strings);
-        var current_level = settings.editor_font_size;
-        if (current_level < FontSizeHelper.MIN_ZOOM_LEVEL || current_level > FontSizeHelper.MAX_ZOOM_LEVEL) {
-            current_level = FontSizeHelper.DEFAULT_ZOOM_LEVEL;
-        }
-
-        var font_size_row = new Adw.ComboRow () {
-            title = _("Font Size"),
-            model = font_size_model,
-            selected = (uint) (current_level - 1)
-        };
-        font_size_row.notify["selected"].connect (() => {
-            settings.editor_font_size = (int) font_size_row.selected + 1;
-        });
-        editor_group.add (font_size_row);
-        editor_page.add (editor_group);
-
-        var projects_page = new Adw.PreferencesPage () {
-            title = _("Projects"),
-            icon_name = "folder-open-symbolic"
-        };
-
-        var projects_group = new Adw.PreferencesGroup () {
-            title = _("Projects")
-        };
-
-        var recent_projects_row = new Adw.ActionRow () {
-            title = _("Recent Projects")
-        };
-        var recent_projects = settings.recent_projects;
-        if (recent_projects.length > 0) {
-            var subtitle = string.joinv ("\n", recent_projects);
-            recent_projects_row.subtitle = subtitle;
-        } else {
-            recent_projects_row.subtitle = _("No recent projects");
-        }
-        var clear_button = new Gtk.Button () {
-            icon_name = "edit-clear-symbolic",
-            tooltip_text = _("Clear Recent Projects")
-        };
-        clear_button.clicked.connect (() => {
-            settings.clear_recent_projects ();
-            recent_projects_row.subtitle = _("No recent projects");
-        });
-        recent_projects_row.add_suffix (clear_button);
-        recent_projects_row.activatable_widget = clear_button;
-        projects_group.add (recent_projects_row);
-        projects_page.add (projects_group);
-
-        var shortcuts_page = new Adw.PreferencesPage () {
-            title = _("Shortcuts"),
-            icon_name = "input-keyboard-symbolic"
-        };
-
-        var shortcuts_group = new Adw.PreferencesGroup () {
-            title = _("Keyboard Shortcuts")
-        };
-
-        var action_manager = Iide.ActionManager.get_instance ();
-        var actions = action_manager.get_all_actions ();
-
-        var list_box = new Gtk.ListBox () {
-            selection_mode = Gtk.SelectionMode.NONE,
-            show_separators = true
-        };
-
-        var sorted_actions = new Gee.ArrayList<Iide.Action> ();
-        foreach (var action in actions) {
-            sorted_actions.add (action);
-        }
-        sorted_actions.sort ((a, b) => {
-            var cat_cmp = (a.category ?? "").collate (b.category ?? "");
-            if (cat_cmp != 0)return cat_cmp;
-            return a.name.collate (b.name);
-        });
-
-        string? current_category = null;
-        foreach (var action in sorted_actions) {
-            if (action.category != current_category) {
-                current_category = action.category;
-                var header_row = new Gtk.ListBoxRow () {
-                    selectable = false,
-                    activatable = false
-                };
-                var header_label = new Gtk.Label (action.category ?? _("Other")) {
-                    halign = Gtk.Align.START,
-                    margin_top = 8,
-                    margin_bottom = 4
-                };
-                header_label.add_css_class ("title");
-                header_label.add_css_class ("dim-label");
-                header_row.child = header_label;
-                list_box.append (header_row);
-            }
-            var row = new ShortcutRow (action);
-            list_box.append (row);
-        }
-
-        var scrolled = new Gtk.ScrolledWindow () {
-            child = list_box,
-            hexpand = true,
-            vexpand = true
-        };
-        scrolled.set_size_request (-1, 300);
-        shortcuts_group.add (scrolled);
-        shortcuts_page.add (shortcuts_group);
-
-        add (appearance_page);
-        add (editor_page);
-        add (projects_page);
-        add (shortcuts_page);
-    }
-}
-
-private class Iide.ShortcutRow : Gtk.ListBoxRow {
-    private Iide.Action action;
-    private Gtk.Label shortcut_label;
-
-    public ShortcutRow (Iide.Action action) {
-        this.action = action;
-
-        var box = new Gtk.Box (Gtk.Orientation.HORIZONTAL, 12) {
-            margin_start = 12,
-            margin_end = 12,
-            margin_top = 8,
-            margin_bottom = 8
-        };
-
-        var info_box = new Gtk.Box (Gtk.Orientation.VERTICAL, 2);
-        var name_label = new Gtk.Label (action.name) {
-            halign = Gtk.Align.START,
-            hexpand = true
-        };
-        name_label.add_css_class ("title");
-        var desc_label = new Gtk.Label (action.description ?? "") {
-            halign = Gtk.Align.START,
-            hexpand = true
-        };
-        desc_label.add_css_class ("caption");
-        desc_label.add_css_class ("dim-label");
-        info_box.append (name_label);
-        info_box.append (desc_label);
-        box.append (info_box);
-
-        shortcut_label = new Gtk.Label (action.shortcut != null ? action.shortcut : _("None")) {
-            halign = Gtk.Align.END,
-            margin_start = 12
-        };
-        shortcut_label.add_css_class ("caption");
-        shortcut_label.add_css_class ("dim-label");
-        box.append (shortcut_label);
-
-        var clear_button = new Gtk.Button () {
-            icon_name = "edit-clear-symbolic",
-            tooltip_text = _("Clear shortcut"),
-            valign = Gtk.Align.CENTER
-        };
-        clear_button.clicked.connect (on_clear_clicked);
-        box.append (clear_button);
-
-        var capture_button = new Gtk.Button () {
-            label = _("Change"),
-            valign = Gtk.Align.CENTER
-        };
-        capture_button.clicked.connect (on_capture_clicked);
-        box.append (capture_button);
-
-        child = box;
-
-        action.shortcut_changed.connect ((new_shortcut) => {
-            shortcut_label.set_label (new_shortcut != null ? new_shortcut : _("None"));
-        });
-    }
-
-    private void on_clear_clicked () {
-        Iide.ActionManager.get_instance ().set_shortcut (action.id, null);
-    }
-
-    private void on_capture_clicked () {
-        var window = this.get_ancestor (typeof (Gtk.Window)) as Gtk.Window;
-        var dialog = new ShortcutCaptureWindow (action, window);
-        dialog.show ();
-    }
-}
-
-private class Iide.ShortcutCaptureWindow : Gtk.Window {
-    private Iide.Action action;
-    private Gtk.Label label;
-    private uint keyval = 0;
-    private Gdk.ModifierType modifiers;
-
-    public ShortcutCaptureWindow (Iide.Action action, Gtk.Window? parent) {
-        this.action = action;
-        title = _("Set Shortcut for %s").printf (action.name);
-        modal = true;
-        if (parent != null) {
-            set_transient_for (parent);
-        }
-
-        var content_box = new Gtk.Box (Gtk.Orientation.VERTICAL, 12) {
-            margin_top = 20,
-            margin_bottom = 20,
-            margin_start = 20,
-            margin_end = 20
-        };
-
-        label = new Gtk.Label (_("Press a key combination...")) {
-            halign = Gtk.Align.CENTER
-        };
-        content_box.append (label);
-
-        var current = action.shortcut;
-        if (current != null && current != "") {
-            var hint = new Gtk.Label (_("Current: %s").printf (current)) {
-                halign = Gtk.Align.CENTER
-            };
-            hint.add_css_class ("caption");
-            hint.add_css_class ("dim-label");
-            content_box.append (hint);
-        }
-
-        var event_controller = new Gtk.EventControllerKey ();
-        event_controller.key_pressed.connect (on_key_pressed);
-        content_box.add_controller (event_controller);
-
-        var cancel_button = new Gtk.Button () {
-            label = _("Cancel")
-        };
-        cancel_button.clicked.connect (() => destroy ());
-
-        var clear_button = new Gtk.Button () {
-            label = _("Clear")
-        };
-        clear_button.clicked.connect (() => {
-            Iide.ActionManager.get_instance ().set_shortcut (action.id, null);
-            destroy ();
-        });
-
-        var save_button = new Gtk.Button () {
-            label = _("Save")
-        };
-        save_button.add_css_class ("suggested-action");
-        save_button.clicked.connect (on_save);
-
-        var button_box = new Gtk.Box (Gtk.Orientation.HORIZONTAL, 6);
-        button_box.append (cancel_button);
-        button_box.append (clear_button);
-        button_box.append (save_button);
-        button_box.halign = Gtk.Align.END;
-        content_box.append (button_box);
-
-        child = content_box;
-        set_size_request (350, 120);
-    }
-
-    private bool on_key_pressed (uint keyval, uint keycode, Gdk.ModifierType state) {
-        var modifiers = state & (Gdk.ModifierType.SHIFT_MASK | Gdk.ModifierType.CONTROL_MASK | Gdk.ModifierType.ALT_MASK | Gdk.ModifierType.SUPER_MASK);
-
-        if (keyval == Gdk.Key.Escape) {
-            destroy ();
-            return true;
-        }
-
-        if (keyval == Gdk.Key.BackSpace && modifiers == 0) {
-            Iide.ActionManager.get_instance ().set_shortcut (action.id, null);
-            destroy ();
-            return true;
-        }
-
-        if (modifiers == 0 || (modifiers & Gdk.ModifierType.CONTROL_MASK) != 0 ||
-            (modifiers & Gdk.ModifierType.SHIFT_MASK) != 0 ||
-            (modifiers & Gdk.ModifierType.ALT_MASK) != 0 ||
-            (modifiers & Gdk.ModifierType.SUPER_MASK) != 0) {
-
-            if (modifiers != 0) {
-                this.keyval = keyval;
-                this.modifiers = modifiers;
-                label.set_label (format_shortcut (keyval, modifiers));
-            }
-            return true;
-        }
-        return false;
-    }
-
-    private string format_shortcut (uint keyval, Gdk.ModifierType modifiers) {
-        var accel_string = "";
-
-        if ((modifiers & Gdk.ModifierType.CONTROL_MASK) != 0)accel_string += "<primary>";
-        if ((modifiers & Gdk.ModifierType.ALT_MASK) != 0)accel_string += "<Alt>";
-        if ((modifiers & Gdk.ModifierType.SHIFT_MASK) != 0)accel_string += "<Shift>";
-        if ((modifiers & Gdk.ModifierType.SUPER_MASK) != 0)accel_string += "<Super>";
-
-        var key_name = Gdk.keyval_name (keyval);
-        if (key_name != null) {
-            accel_string += key_name;
-        }
-
-        return accel_string;
-    }
-
-    private void on_save () {
-        if (keyval != 0) {
-            var shortcut = format_shortcut (keyval, modifiers);
-            Iide.ActionManager.get_instance ().set_shortcut (action.id, shortcut);
-        }
-        destroy ();
     }
 }
 ```
@@ -10752,56 +9643,43 @@ MSCGEN_TOOL            =
 MSCFILE_DIRS           =
 ```
 
-## File: src/Services/Actions/ShortcutSettings.vala
+## File: src/Services/Actions/AppActionsManager.vala
 ```
-public class Iide.ShortcutSettings : Object {
-    private static ShortcutSettings? _instance;
-    private GLib.Settings settings;
-    private Gee.HashMap<string, string> shortcuts_cache;
-    private Gee.HashMap<string, bool> toggle_states_cache;
+/*
+*/
 
-    public static ShortcutSettings get_instance () {
+public class Iide.AppActionsManager: Object {
+    private static AppActionsManager? _instance;
+    private GLib.Settings settings;
+    private Gee.HashMap<string, Iide.AppAction> actions;
+    private Gee.HashMap<string, string> shortcuts;
+
+    public static AppActionsManager get_instance () {
         if (_instance == null) {
-            _instance = new ShortcutSettings ();
-        }
+            _instance = new AppActionsManager ();
+        }       
         return _instance;
     }
 
-    private ShortcutSettings () {
-        settings = new GLib.Settings ("org.github.kai66673.iide");
-        shortcuts_cache = new Gee.HashMap<string, string> ();
-        toggle_states_cache = new Gee.HashMap<string, bool> ();
-        set_default_shortcuts ();
-        set_default_toggle_states ();
-        load_from_gsettings ();
+    private AppActionsManager () {
+        settings = SettingsService.get_instance ().settings;
+        actions = new Gee.HashMap<string, Iide.AppAction> ();
+        shortcuts = new Gee.HashMap<string, string> ();
+        load_shortcuts_from_gsettings();
     }
 
-    private void set_default_shortcuts () {
-        shortcuts_cache.set ("save", "<primary>s");
-        shortcuts_cache.set ("open_project", "<primary>o");
-        shortcuts_cache.set ("preferences", "<primary>comma");
-        shortcuts_cache.set ("toggle_minimap", "<primary>m");
-        shortcuts_cache.set ("fuzzy_finder", "<primary>p");
-        shortcuts_cache.set ("search_symbol", "<primary>t");
-        shortcuts_cache.set ("search_in_files", "<primary><shift>f");
-        shortcuts_cache.set ("zoom_in", "<primary>plus");
-        shortcuts_cache.set ("zoom_out", "<primary>minus");
-        shortcuts_cache.set ("zoom_reset", "<primary>0");
-        shortcuts_cache.set ("expand_selection", "<primary>w");
-        shortcuts_cache.set ("shrink_selection", "<primary><shift>w");
-        shortcuts_cache.set ("quit", "<primary>q");
-        shortcuts_cache.set ("navigation_back", "<Alt>Left");
-        shortcuts_cache.set ("navigation_forward", "<Alt>Right");
+    public Gee.Collection<Iide.AppAction> get_all_actions () {
+        return actions.values;
     }
 
-    private void set_default_toggle_states () {
-        toggle_states_cache.set ("toggle_minimap", true);
+    public Iide.AppAction get_action(string action_id) {
+        return actions.get(action_id);
     }
 
-    private void load_from_gsettings () {
+    private void load_shortcuts_from_gsettings () {
         var json_str = settings.get_string ("shortcuts");
         if (json_str == null || json_str == "") {
-            save_to_gsettings ();
+            save_shortcuts_to_gsettings ();
             return;
         }
 
@@ -10812,7 +9690,7 @@ public class Iide.ShortcutSettings : Object {
             if (root.get_node_type () == Json.NodeType.OBJECT) {
                 var obj = root.get_object ();
                 obj.foreach_member ((obj, name, node) => {
-                    shortcuts_cache.set (name, node.get_string ());
+                    shortcuts.set (name, node.get_string ());
                 });
             }
         } catch (Error e) {
@@ -10820,10 +9698,10 @@ public class Iide.ShortcutSettings : Object {
         }
     }
 
-    private void save_to_gsettings () {
+    private void save_shortcuts_to_gsettings () {
         var root = new Json.Node (Json.NodeType.OBJECT);
         var obj = new Json.Object ();
-        foreach (var entry in shortcuts_cache.entries) {
+        foreach (var entry in shortcuts.entries) {
             obj.set_string_member (entry.key, entry.value);
         }
         root.set_object (obj);
@@ -10834,50 +9712,66 @@ public class Iide.ShortcutSettings : Object {
         settings.set_string ("shortcuts", json_str);
     }
 
-    public signal void shortcut_changed (string action_id, string? new_shortcut);
-
-    public string ? get_shortcut (string action_id) {
-        return shortcuts_cache.get (action_id);
+    private bool get_boolean_setting_safe (string key_name, bool fallback_value) {
+        if (settings.settings_schema != null && settings.settings_schema.has_key (key_name)) {
+            return settings.get_boolean (key_name);
+        }
+        return fallback_value;
     }
 
-    public void set_shortcut (string action_id, string? shortcut) {
-        if (shortcut == null || shortcut == "") {
-            shortcuts_cache.unset (action_id);
+    public void register_action (Gtk.Application app, Iide.AppAction action) {
+        actions.set (action.id, action);
+        if (shortcuts.has_key (action.id)) {
+            action.set_shortcut (shortcuts.get (action.id));
+        }
+
+        if (action.is_toggle) {
+            bool saved_state = get_boolean_setting_safe (action.id, true);
+            action.update_state (saved_state);
+
+            var toggle_action = new SimpleAction.stateful (
+                action.id,
+                null,
+                new Variant.boolean (action.state)
+            );
+            toggle_action.activate.connect (() => {
+                action.execute ();
+            });
+            action.state_changed.connect ((new_state) => {
+                toggle_action.set_state (new Variant.boolean (new_state));
+                settings.set_boolean (action.id, new_state);
+            });
+            app.add_action (toggle_action);
         } else {
-            shortcuts_cache.set (action_id, shortcut);
+            var simple_action = new SimpleAction (action.id, null);
+            simple_action.activate.connect (() => {
+                action.execute ();
+            });
+            app.add_action (simple_action);
         }
-        save_to_gsettings ();
-        shortcut_changed (action_id, shortcut);
-    }
 
-    public Gee.Map<string, string?> get_all_shortcuts () {
-        var result = new Gee.HashMap<string, string?> ();
-        foreach (var entry in shortcuts_cache.entries) {
-            result.set (entry.key, entry.value);
+        if (action.shortcut != null && action.shortcut != "") {
+            app.set_accels_for_action ("app." + action.id, { action.shortcut });
         }
-        return result;
+
+        action.shortcut_changed.connect ((new_shortcut) => {
+            if (new_shortcut != null && new_shortcut != "") {
+                app.set_accels_for_action ("app." + action.id, { action.shortcut });
+            } else {
+                app.set_accels_for_action ("app." + action.id, {});
+            }
+            if (new_shortcut == null && shortcuts.has_key (action.id)) {
+                shortcuts.unset (action.id);
+            } else {
+                shortcuts.set(action.id, new_shortcut);
+            }
+            save_shortcuts_to_gsettings();
+        });
     }
 
-    public void reset_shortcut (string action_id) {
-        shortcuts_cache.unset (action_id);
-        save_to_gsettings ();
-        shortcut_changed (action_id, null);
-    }
-
-    public void reset_all_shortcuts () {
-        shortcuts_cache.clear ();
-        save_to_gsettings ();
-        foreach (var action_id in shortcuts_cache.keys) {
-            shortcut_changed (action_id, null);
-        }
-    }
-
-    public bool get_toggle_state (string action_id) {
-        return toggle_states_cache.get (action_id);
-    }
-
-    public void set_toggle_state (string action_id, bool state) {
-        toggle_states_cache.set (action_id, state);
+    public void unregister_action (string action_id) {
+        actions.unset (action_id);
+        shortcuts.unset (action_id);
     }
 }
 ```
@@ -10985,6 +9879,151 @@ public class Iide.DiagnosticsService : Object {
 }
 ```
 
+## File: src/Services/TreeSitter/python/PythonIndenter.vala
+```
+/*
+*/
+public class Iide.PythonIndenter: GtkSource.Indenter, Object {
+    private BaseTreeSitterHighlighter ts_highlighter;
+    protected TreeSitter.Query query;
+    public bool is_valid = true;
+    private const string source = """
+        ; Узлы, которые открывают новый уровень отступа (class_definition) @indent.begin
+        (function_definition) @indent.begin
+        (if_statement) @indent.begin
+        (elif_clause) @indent.begin
+        (else_clause) @indent.begin
+        (for_statement) @indent.begin
+        (while_statement) @indent.begin
+        (with_statement) @indent.begin
+        (match_statement) @indent.begin
+        (case_clause) @indent.begin
+        (try_statement) @indent.begin
+        (except_clause) @indent.begin
+        (finally_clause) @indent.begin
+        (parenthesized_expression) @indent.begin
+        (list) @indent.begin
+        (dictionary) @indent.begin
+        (argument_list) @indent.begin
+        (parameters) @indent.begin
+    """;
+
+    public PythonIndenter (BaseTreeSitterHighlighter ts_highlighter, TreeSitter.Language lang) {
+        Object ();
+        this.ts_highlighter = ts_highlighter;
+
+        uint32 error_offset;
+        TreeSitter.QueryError error_type;
+        this.query = new TreeSitter.Query (lang, source, (uint32) source.length, out error_offset, out error_type);
+
+        if (error_type != TreeSitter.QueryError.None) {
+            LoggerService.get_instance ().error ("TS", "TreeSitter Query Error at %u: %s".printf (error_offset, error_type.to_string ()));
+            this.is_valid = false;
+        }
+    }
+
+    // Вспомогательный метод для получения пробелов в начале строки
+    private string get_line_indent_text (Gtk.TextIter line_start) {
+        Gtk.TextIter line_end = line_start;
+        line_end.forward_to_line_end ();
+        string text = line_start.get_buffer ().get_text (line_start, line_end, false);
+
+        string indent = "";
+        // Используем индексацию или явный каст, если компилятор капризничает
+        for (int i = 0; i < text.length; i++) {
+            unichar c = text.get_char (i);
+            if (c.isspace ()) {
+                indent += c.to_string ();
+            } else {
+                break;
+            }
+        }
+        return indent;
+    }
+
+    public void indent (GtkSource.View view, ref Gtk.TextIter iter) {
+        if (!is_valid)
+            return;
+
+        if (ts_highlighter.get_tree () == null)
+            return;
+
+        ts_highlighter. flush_changes();
+
+        // 1. Поиск якоря (ближайшая непустая строка выше)
+        Gtk.TextIter anchor = iter;
+        bool found_anchor = false;
+        while (anchor.backward_line ()) {
+            Gtk.TextIter line_end = anchor;
+            line_end.forward_to_line_end ();
+            if (view.buffer.get_text (anchor, line_end, false).strip ().length > 0) {
+                found_anchor = true;
+                break;
+            }
+        }
+        if (!found_anchor)
+            return;
+
+        // 2. Получаем базовое смещение с якорной строки
+        var base_indent = get_line_indent_text (anchor);
+
+        // 3. Анализ Tree-Sitter
+        Gtk.TextIter anchor_end = anchor;
+        anchor_end.forward_to_line_end ();
+        uint32 end_byte = get_byte_offset_safe (anchor_end);
+
+        if (end_byte > 0) {
+            var cursor = new TreeSitter.QueryCursor ();
+            // Ищем символ ПЕРЕД концом якорной строки (двоеточие или скобка)
+            cursor.set_byte_range (end_byte - 1, end_byte);
+            cursor.exec (this.query, ts_highlighter.get_tree ().root_node ());
+
+            TreeSitter.QueryMatch match;
+            while (cursor.next_match (out match)) {
+                for (int i = 0; i < match.capture_count; i++) {
+                    unowned TreeSitter.Node node = match.captures[i].node;
+
+                    // Условие 1: Блок начался на этой строке
+                    if (node.start_point ().row == (uint32) anchor.get_line ()) {
+
+                        // Условие 2 (ФИКС): Если узел закончился ДО точки разрыва,
+                        // значит мы стоим ПОСЛЕ закрывающей скобки. Индент не нужен.
+                        if (node.end_byte () <= end_byte) {
+                            continue;
+                        }
+
+                        base_indent += "    ";
+                        break;
+                    }
+                }
+            }
+        }
+
+        // 4. Выполняем сдвиг в одной транзакции
+        view.buffer.begin_user_action ();
+
+        view.buffer.insert (ref iter, base_indent, base_indent.length);
+        
+        // Remove space symbols from current position...
+        Gtk.TextIter line_start = iter;
+        Gtk.TextIter line_end = line_start;
+        while (line_end.get_char ().isspace () && !line_end.ends_line ()) {
+            line_end.forward_char ();
+        }
+
+        if (!line_start.equal (line_end)) {
+            view.buffer.delete (ref line_start, ref line_end);
+        }
+
+        view.buffer.end_user_action ();
+    }
+
+    public bool is_trigger (GtkSource.View view, Gtk.TextIter location, Gdk.ModifierType state, uint keyval) {
+        return (keyval == Gdk.Key.Return || keyval == Gdk.Key.KP_Enter);
+    }
+}
+```
+
 ## File: src/Services/PendingChange.vala
 ```
 /*
@@ -11044,63 +10083,6 @@ public class Iide.PendingChange : GLib.Object {
         }
         utf16_char = utf16_count;
         utf8_char = utf8_count;
-    }
-}
-```
-
-## File: src/Services/Utils.vala
-```
-using GLib;
-
-[CCode(cheader_filename = "unistd.h")]
-extern int getpid();
-
-namespace Iide {
-    public string mime_type_for_file(File file) {
-        string mime_type = "text-x";
-        try {
-            var info = file.query_info("standard::*", FileQueryInfoFlags.NONE, null);
-            mime_type = ContentType.get_mime_type(info.get_attribute_as_string(FileAttribute.STANDARD_CONTENT_TYPE));
-        } catch (Error e) {
-        }
-        return mime_type;
-    }
-
-    public int application_pid() {
-        return getpid();
-    }
-
-    public void copy_resource_to_file(string resource_path, string local_path) {
-        // 1. Создаем объект File для ресурса (путь должен начинаться с resource:///)
-        var resource_file = File.new_for_uri(resource_path);
-
-        // 2. Создаем объект File для локального файла на диске
-        var local_file = File.new_for_path(local_path);
-
-        try {
-            // 3. Выполняем копирование. Флаг OVERWRITE перезапишет файл, если он существует.
-            resource_file.copy(local_file, FileCopyFlags.OVERWRITE, null, null);
-            print("Файл успешно скопирован в: %s\n", local_path);
-        } catch (Error e) {
-            stderr.printf("Ошибка при копировании: %s\n", e.message);
-        }
-    }
-
-    public string ? escape_pango(string? text) {
-        if (text == null)
-            return null;
-        return text
-                .replace("&", "&amp;")
-                .replace("<", "&lt;")
-                .replace(">", "&gt;");
-    }
-
-    private uint32 get_byte_offset_safe(Gtk.TextIter iter) {
-        Gtk.TextIter start;
-        iter.get_buffer().get_start_iter(out start);
-        // Используем get_text вместо get_slice для гарантии чистого UTF-8
-        string text = iter.get_buffer().get_text(start, iter, false);
-        return (uint32) text.length;
     }
 }
 ```
@@ -11911,6 +10893,1092 @@ public class Iide.LspDocumentClient: GLib.Object {
 }
 ```
 
+## File: src/Services/DocumentManager.vala
+```
+/*
+ * documentmanager.vala
+ *
+ * Copyright 2026 kai
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see <https://www.gnu.org/licenses/>.
+ *
+ * SPDX-License-Identifier: GPL-3.0-or-later
+ */
+
+using Gee;
+using GLib;
+using Gtk;
+using Panel;
+
+public class Iide.DocumentManager : GLib.Object {
+    public Window window;
+    private IdeLspService lsp_service;
+
+    private string? current_workspace_root;
+
+    private LoggerService logger = LoggerService.get_instance ();
+    private static DocumentManager? _instance;
+
+    public static DocumentManager get_instance () {
+        return _instance;
+    }
+
+    public Gee.HashMap<string, TextView> _documents;
+    public Gee.HashMap<string, TextView> documents {
+        get {
+            _documents = new Gee.HashMap<string, TextView> ();
+            window.grid.foreach_frame ((frame) => {
+                var pages = frame.get_pages ();
+
+                for (uint i = 0; i < pages.get_n_items (); i++) {
+                    var item = pages.get_item (i) as Adw.TabPage;
+                    if (item == null) {
+                        continue;
+                    }
+                    var child = item.get_child ();
+                    if (child == null) {
+                        continue;
+                    }
+                    var text_view = child as TextView;
+                    if (text_view != null) {
+                        _documents.set (text_view.uri, text_view);
+                    }
+                }
+            });
+            return _documents;
+        }
+    }
+
+    public DocumentManager (Window window) {
+        this.window = window;
+        DocumentManager._instance = this;
+        // documents = new Gee.HashMap<string, TextView> ();
+        lsp_service = IdeLspService.get_instance ();
+
+        lsp_service.diagnostics_updated.connect ((uri, diagnostics) => {
+            var doc = documents.get (uri);
+            if (doc != null) {
+                var lsp_diagnostics = new Gee.ArrayList<LspDiagnostic> ();
+                foreach (var diag in diagnostics) {
+                    var d = new LspDiagnostic ();
+                    d.severity = diag.severity;
+                    d.message = diag.message;
+                    d.start_line = diag.start_line;
+                    d.start_column = diag.start_column;
+                    d.end_line = diag.end_line;
+                    d.end_column = diag.end_column;
+                    lsp_diagnostics.add (d);
+                }
+
+                Idle.add (() => {
+                    doc.update_diagnostics (lsp_diagnostics);
+                    return false;
+                });
+            }
+        });
+    }
+
+    public void set_workspace_root (string? root) {
+        current_workspace_root = root;
+    }
+
+    public signal void document_opened (TextView document);
+
+    public Panel.Widget? open_document (GLib.File file, Panel.Position ? pos) {
+        return open_document_with_selection (file, -1, -1, -1, pos);
+    }
+
+    public Panel.Widget? open_document_with_selection (GLib.File file, int line, int start_col, int end_col, Panel.Position ? pos) {
+        string uri = file.get_uri ();
+
+        var docs = documents;
+        if (docs.has_key (uri)) {
+            var widget = docs.get (uri);
+            widget.raise ();
+            widget.view_grab_focus ();
+            if (line >= 0) {
+                widget.select_and_scroll (line, start_col, end_col, false);
+            }
+            return widget;
+        } else {
+            var shared_table = Iide.StyleService.get_instance ().shared_table;
+            var buffer = new GtkSource.Buffer (shared_table);
+            var source_file = new GtkSource.File ();
+            source_file.location = file;
+            var file_loader = new GtkSource.FileLoader (buffer, source_file);
+            Iide.TextView? panel_widget = null;
+            file_loader.load_async.begin (Priority.DEFAULT, null, null, (obj, res) => {
+                try {
+                    file_loader.load_async.end (res);
+                    panel_widget = new Iide.TextView (file, buffer, window);
+
+                    panel_widget.buffer_saved.connect (() => {
+                        string content = ((GtkSource.Buffer) panel_widget.text_view.buffer).text;
+                        lsp_service.change_document.begin (uri, content);
+                    });
+
+                    if (pos == null) {
+                        window.grid.add (panel_widget);
+                    } else {
+                        window.add_widget (panel_widget, pos);
+                    }
+                    panel_widget.raise ();
+                    panel_widget.view_grab_focus ();
+                    logger.debug ("Doc", "Document panel widget created: " + uri);
+
+                    if (line >= 0) {
+                        // TODO: with timeout...
+                        panel_widget.select_and_scroll (line, start_col, end_col, true);
+                    }
+
+                    string content = buffer.text;
+                    string? lang_id = lsp_service.get_language_id_for_file (file);
+                    if (lang_id != null) {
+                        lsp_service.open_document.begin (uri, lang_id, content, current_workspace_root, panel_widget.text_view);
+                    }
+                } catch (Error e) {
+                    logger.error ("Doc", "Error Opening File", "Failed to read file %s: %s".printf (file.get_path (), e.message));
+                }
+            });
+            return panel_widget;
+        }
+    }
+
+    public Panel.Widget? get_document_for_file (GLib.File file) {
+        string uri = file.get_uri ();
+        return documents.get (uri);
+    }
+
+    public bool is_file_open (GLib.File file) {
+        return documents.has_key (file.get_uri ());
+    }
+
+    public Gee.ArrayList<string> get_open_document_uris () {
+        var uris = new Gee.ArrayList<string> ();
+        foreach (var uri in documents.keys) {
+            uris.add (uri);
+        }
+        return uris;
+    }
+
+    public void open_document_by_uri (string uri) {
+        var file = GLib.File.new_for_uri (uri);
+        if (file.query_exists (null)) {
+            open_document (file, null);
+        }
+    }
+
+    public bool navigate_to (NavigationPoint nav_point) {
+        var docs = documents;
+        var uri = nav_point.file.get_uri ();
+        if (docs.has_key (uri)) {
+            var widget = docs.get (uri);
+            widget.raise ();
+            widget.view_grab_focus ();
+            widget.select_and_scroll (nav_point.line, nav_point.column, nav_point.column, false);
+            return true;
+        }
+        return false;
+    }
+}
+```
+
+## File: src/Services/ProjectManager.vala
+```
+using Gtk;
+using GLib;
+using Gee;
+
+public class Iide.FileEntry : Object {
+    public string path { get; construct; }
+    public string name { get; construct; }
+    public bool is_text_file { get; construct; }
+    public string relative_path { get; construct; }
+    public string display_name { get; construct; }
+
+    public FileEntry (string path, string name, bool is_text_file, string relative_path) {
+        Object (
+                path: path,
+                name: name,
+                is_text_file: is_text_file,
+                relative_path: relative_path,
+                display_name: "%s  →  %s".printf (name, relative_path)
+        );
+    }
+}
+
+public class Iide.LanguageConfig : GLib.Object {
+    public string language_id { get; construct set; }
+    public string[] server_command { get; construct set; }
+    public string[] file_patterns { get; construct set; }
+
+    public LanguageConfig (string language_id, string[] server_command, string[] file_patterns) {
+        Object (
+                language_id: language_id,
+                server_command: server_command,
+                file_patterns: file_patterns
+        );
+    }
+}
+
+public class Iide.ProjectManager : Object {
+    private static ProjectManager? _instance;
+    private GLib.File? current_project_root;
+    private string? current_project_name;
+    private Iide.SettingsService settings;
+    private Gee.HashMap<string, LanguageConfig> language_configs;
+
+    private Gee.List<Iide.FileEntry> file_cache;
+    private Gee.List<Iide.FileEntry> text_file_cache;
+    public bool cache_valid = false;
+    private bool cache_loading = false;
+    private FileMonitor? directory_monitor;
+
+    private const string[] EXCLUDED_DIRS = {
+        "node_modules", "target", "build", "__pycache__",
+        ".git", ".svn", ".hg", "vendor", ".cargo",
+        ".cache", ".local", ".config"
+    };
+
+    public signal void project_opened (GLib.File project_root);
+    public signal void project_closed ();
+    public signal void file_cache_updated ();
+    public signal void file_cache_invalidated ();
+
+    public static unowned ProjectManager get_instance () {
+        if (_instance == null) {
+            _instance = new ProjectManager ();
+        }
+        return _instance;
+    }
+
+    public ProjectManager () {
+        current_project_root = null;
+        current_project_name = null;
+        settings = Iide.SettingsService.get_instance ();
+        language_configs = new Gee.HashMap<string, LanguageConfig> ();
+        file_cache = new Gee.ArrayList<Iide.FileEntry> ();
+        text_file_cache = new Gee.ArrayList<Iide.FileEntry> ();
+        init_default_language_configs ();
+    }
+
+    private void init_default_language_configs () {
+        language_configs.set ("c", new LanguageConfig ("c", { "clangd" }, { "*.c", "*.h" }));
+        language_configs.set ("cpp", new LanguageConfig ("cpp", { "clangd" }, { "*.cpp", "*.cc", "*.cxx", "*.hpp", "*.hxx", "*.h" }));
+        language_configs.set ("python", new LanguageConfig ("python", { "basedpyright-langserver", "--stdio" }, { "*.py" }));
+        language_configs.set ("rust", new LanguageConfig ("rust", { "rust-analyzer" }, { "*.rs" }));
+        language_configs.set ("go", new LanguageConfig ("go", { "gopls" }, { "*.go" }));
+        language_configs.set ("typescript", new LanguageConfig ("typescript", { "typescript-language-server", "--stdio" }, { "*.ts", "*.tsx" }));
+        language_configs.set ("javascript", new LanguageConfig ("javascript", { "typescript-language-server", "--stdio" }, { "*.js", "*.jsx" }));
+        language_configs.set ("json", new LanguageConfig ("json", { "vscode-json-languageserver", "--stdio" }, { "*.json" }));
+        language_configs.set ("html", new LanguageConfig ("html", { "vscode-html-language-server", "--stdio" }, { "*.html", "*.htm" }));
+        language_configs.set ("css", new LanguageConfig ("css", { "vscode-css-language-server", "--stdio" }, { "*.css", "*.scss", "*.less" }));
+    }
+
+    private string? last_loaded_config_path;
+
+    public Gee.Collection<LanguageConfig> get_language_configs () {
+        return language_configs.values;
+    }
+
+    public LanguageConfig ? get_language_config (string language_id) {
+        return language_configs.get (language_id);
+    }
+
+    public void load_lsp_config (GLib.File project_root) {
+        string? config_path = project_root.get_path ();
+        if (config_path == null) {
+            config_path = project_root.get_uri ();
+        }
+
+        if (config_path != null && config_path == last_loaded_config_path) {
+            return;
+        }
+
+        init_default_language_configs ();
+
+        var config_dir = project_root.get_child (".iide");
+        var lsp_file = config_dir.get_child ("lsp.json");
+
+        if (!lsp_file.query_exists (null)) {
+            message ("No .iide/lsp.json found at %s", lsp_file.get_path ());
+            last_loaded_config_path = config_path;
+            return;
+        }
+
+        try {
+            var parser = new Json.Parser ();
+            parser.load_from_file (lsp_file.get_path ());
+            var root = parser.get_root ();
+            var obj = (Json.Object) root;
+
+            if (obj.has_member ("languages")) {
+                var languages = obj.get_array_member ("languages");
+                int lang_count = (int) languages.get_length ();
+                for (int j = 0; j < lang_count; j++) {
+                    var node = languages.get_element (j);
+                    var lang_obj = node.get_object ();
+                    if (lang_obj == null)continue;
+
+                    string? lang_id = null;
+                    string[] ? server_cmd = null;
+                    string[] ? patterns = null;
+
+                    if (lang_obj.has_member ("id")) {
+                        lang_id = lang_obj.get_string_member ("id");
+                    }
+                    if (lang_obj.has_member ("server")) {
+                        var server_arr = lang_obj.get_array_member ("server");
+                        int server_count = (int) server_arr.get_length ();
+                        server_cmd = new string[server_count];
+                        for (int i = 0; i < server_count; i++) {
+                            server_cmd[i] = server_arr.get_string_element (i);
+                        }
+                    }
+                    if (lang_obj.has_member ("patterns")) {
+                        var patterns_arr = lang_obj.get_array_member ("patterns");
+                        int patterns_count = (int) patterns_arr.get_length ();
+                        patterns = new string[patterns_count];
+                        for (int i = 0; i < patterns_count; i++) {
+                            patterns[i] = patterns_arr.get_string_element (i);
+                        }
+                    }
+
+                    if (lang_id != null) {
+                        merge_language_config (lang_id, server_cmd, patterns);
+                    }
+                }
+            }
+
+            message ("Loaded LSP config from %s", lsp_file.get_path ());
+            last_loaded_config_path = config_path;
+        } catch (Error e) {
+            warning ("Failed to load LSP config: %s", e.message);
+        }
+    }
+
+    private void merge_language_config (string lang_id, string[]? server_cmd, string[]? patterns) {
+        var config = language_configs.get (lang_id);
+        if (config != null) {
+            if (server_cmd != null && server_cmd.length > 0) {
+                config.server_command = server_cmd;
+            }
+            if (patterns != null && patterns.length > 0) {
+                config.file_patterns = patterns;
+            }
+            message ("Merged LSP config for '%s'", lang_id);
+            return;
+        }
+
+        if (server_cmd != null && patterns != null) {
+            language_configs.set (lang_id, new LanguageConfig (lang_id, server_cmd, patterns));
+            message ("Added new LSP config for '%s'", lang_id);
+        }
+    }
+
+    public void open_project_file (GLib.File project_root) {
+        if (!project_root.query_exists (null)) {
+            stderr.printf ("Project directory does not exist: %s\n", project_root.get_path ());
+            return;
+        }
+
+        if (current_project_root != null) {
+            close_project ();
+        }
+
+        init_default_language_configs ();
+
+        current_project_root = project_root;
+        current_project_name = project_root.get_basename ();
+
+        settings.current_project_path = project_root.get_path ();
+        settings.add_recent_project (project_root.get_path ());
+        settings.last_open_directory = project_root.get_parent ().get_path ();
+
+        load_lsp_config (project_root);
+
+        rebuild_file_cache_async.begin ();
+
+        setup_directory_monitor (project_root);
+
+        project_opened (project_root);
+    }
+
+    private void setup_directory_monitor (GLib.File dir) {
+        if (directory_monitor != null) {
+            directory_monitor.cancel ();
+        }
+
+        try {
+            directory_monitor = dir.monitor_directory (FileMonitorFlags.NONE, null);
+            directory_monitor.changed.connect ((src, dst, event) => {
+                if (event == FileMonitorEvent.CHANGES_DONE_HINT) {
+                    invalidate_file_cache ();
+                }
+            });
+        } catch (Error e) {
+            warning ("Failed to setup directory monitor: %s", e.message);
+        }
+    }
+
+    public void close_project () {
+        if (directory_monitor != null) {
+            directory_monitor.cancel ();
+            directory_monitor = null;
+        }
+
+        if (current_project_root != null) {
+            current_project_root = null;
+            current_project_name = null;
+            cache_valid = false;
+            file_cache.clear ();
+            text_file_cache.clear ();
+            settings.current_project_path = "";
+            project_closed ();
+        }
+    }
+
+    public async void rebuild_file_cache_async () {
+        if (current_project_root == null) {
+            return;
+        }
+
+        if (cache_loading) {
+            return;
+        }
+
+        cache_loading = true;
+        file_cache.clear ();
+        text_file_cache.clear ();
+
+        try {
+            yield scan_directory_async (current_project_root, current_project_root.get_path ());
+
+            file_cache.sort ((a, b) => a.name.collate (b.name));
+            text_file_cache.sort ((a, b) => a.name.collate (b.name));
+            cache_valid = true;
+            file_cache_updated ();
+        } catch (Error e) {
+            warning ("Error rebuilding file cache: %s", e.message);
+        }
+
+        cache_loading = false;
+    }
+
+    private bool is_text_file (GLib.FileInfo file_info) {
+        return ContentType.is_a (file_info.get_content_type (), "text/plain");
+    }
+
+    private async void scan_directory_async (GLib.File dir, string base_path) throws Error {
+        var enumerator = yield dir.enumerate_children_async ("standard::name,standard::type,standard::content-type",
+            FileQueryInfoFlags.NONE,
+            Priority.DEFAULT,
+            null);
+
+        while (true) {
+            var files = yield enumerator.next_files_async (100, Priority.DEFAULT, null);
+
+            if (files == null || files.length () == 0) {
+                break;
+            }
+
+            foreach (var info in files) {
+                var name = info.get_name ();
+                if (name.has_prefix (".")) {
+                    continue;
+                }
+
+                var file_type = info.get_file_type ();
+                if (file_type == FileType.DIRECTORY) {
+                    bool excluded = false;
+                    foreach (var excluded_name in EXCLUDED_DIRS) {
+                        if (name == excluded_name) {
+                            excluded = true;
+                            break;
+                        }
+                    }
+                    if (!excluded) {
+                        var child = dir.get_child (name);
+                        yield scan_directory_async (child, base_path);
+                    }
+                } else if (file_type == FileType.REGULAR) {
+                    var path = dir.get_child (name).get_path ();
+                    if (path != null) {
+                        var relative = path.substring (base_path.length + 1);
+                        bool is_text = is_text_file (info);
+                        file_cache.add (new Iide.FileEntry (
+                                                            path,
+                                                            name,
+                                                            is_text,
+                                                            relative));
+                        if (is_text) {
+                            text_file_cache.add (new Iide.FileEntry (
+                                                                     path,
+                                                                     name,
+                                                                     true,
+                                                                     relative));
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    public Gee.List<Iide.FileEntry>? get_file_cache () {
+        if (!cache_valid) {
+            return null;
+        }
+        return file_cache;
+    }
+
+    public Gee.List<Iide.FileEntry>? get_text_file_cache () {
+        if (!cache_valid) {
+            return null;
+        }
+        return text_file_cache;
+    }
+
+    public async void ensure_file_cache_async () {
+        if (cache_valid || cache_loading) {
+            return;
+        }
+        yield rebuild_file_cache_async ();
+    }
+
+    public void invalidate_file_cache () {
+        cache_valid = false;
+        file_cache_invalidated ();
+    }
+
+    public string ? get_workspace_root_path () {
+        if (current_project_root != null) {
+            return current_project_root.get_path ();
+        }
+        return null;
+    }
+
+    public void open_project_by_path (string path) {
+        if (path != null && path != "") {
+            var file = GLib.File.new_for_path (path);
+            if (file.query_exists (null)) {
+                open_project_file (file);
+            }
+        }
+    }
+
+    public GLib.File? get_current_project_root () {
+        return current_project_root;
+    }
+
+    public string ? get_current_project_name () {
+        return current_project_name;
+    }
+
+    public bool has_open_project () {
+        return current_project_root != null;
+    }
+
+    public async void open_project_dialog (Window parent_window) {
+        var dialog = new FileDialog () {
+            title = _("Open Project"),
+            modal = true
+        };
+
+        var last_dir = settings.last_open_directory;
+        if (last_dir != null && last_dir != "") {
+            dialog.initial_folder = GLib.File.new_for_path (last_dir);
+        }
+
+        try {
+            var file = yield dialog.select_folder (parent_window, null);
+
+            if (file != null) {
+                open_project_file (file);
+            }
+        } catch {
+            // User dismissed dialog or other error - silently ignore
+        }
+    }
+}
+```
+
+## File: src/Services/SettingsService.vala
+```
+/*
+ * settingsservice.vala
+ *
+ * Copyright 2026 kai
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see <https://www.gnu.org/licenses/>.
+ *
+ * SPDX-License-Identifier: GPL-3.0-or-later
+ */
+
+public enum Iide.ColorScheme {
+    SYSTEM,
+    LIGHT,
+    DARK;
+
+    public static ColorScheme from_string (string value) {
+        switch (value) {
+        case "light":
+            return LIGHT;
+        case "dark":
+            return DARK;
+        default:
+            return SYSTEM;
+        }
+    }
+
+    public string to_string () {
+        switch (this) {
+        case LIGHT:
+            return "light";
+        case DARK:
+            return "dark";
+        default:
+            return "system";
+        }
+    }
+
+    public Adw.ColorScheme to_adw_color_scheme () {
+        switch (this) {
+        case LIGHT:
+            return Adw.ColorScheme.FORCE_LIGHT;
+        case DARK:
+            return Adw.ColorScheme.FORCE_DARK;
+        default:
+            return Adw.ColorScheme.DEFAULT;
+        }
+    }
+}
+
+public class Iide.FontSizeHelper : Object {
+    public const int DEFAULT_ZOOM_LEVEL = 6;
+    public const int MIN_ZOOM_LEVEL = 1;
+    public const int MAX_ZOOM_LEVEL = 15;
+    private const int[] FONT_SIZES = { 4, 6, 8, 10, 12, 14, 16, 18, 20, 24, 28, 32, 36, 40, 48 };
+
+    public static int get_size_for_zoom_level (int zoom_level) {
+        if (zoom_level >= MIN_ZOOM_LEVEL && zoom_level <= MAX_ZOOM_LEVEL) {
+            return FONT_SIZES[zoom_level - 1];
+        }
+        return FONT_SIZES[DEFAULT_ZOOM_LEVEL - 1];
+    }
+
+    public static int[] get_available_sizes () {
+        return FONT_SIZES;
+    }
+}
+
+public class Iide.SettingsService : Object {
+    private static SettingsService? _instance;
+    private Settings _settings;
+
+    public Settings settings { get { return _settings; } }
+
+    public signal void editor_setting_changed (string key);
+
+    public static SettingsService get_instance () {
+        if (_instance == null) {
+            _instance = new SettingsService ();
+        }
+        return _instance;
+    }
+
+    private SettingsService () {
+        _settings = new Settings ("org.github.kai66673.iide");
+    }
+
+    public ColorScheme color_scheme {
+        get {
+            return ColorScheme.from_string (settings.get_string ("color-scheme"));
+        }
+        set {
+            settings.set_string ("color-scheme", value.to_string ());
+            editor_setting_changed ("color-scheme");
+        }
+    }
+
+    public int editor_font_size {
+        get {
+            return (int) settings.get_double ("editor-font-size");
+        }
+        set {
+            settings.set_double ("editor-font-size", (double) value);
+            editor_setting_changed ("editor-font-size");
+        }
+    }
+
+    public bool show_minimap {
+        get {
+            return settings.get_boolean ("show-minimap");
+        }
+        set {
+            settings.set_boolean ("show-minimap", value);
+            editor_setting_changed ("show-minimap");
+        }
+    }
+
+    public bool show_line_numbers {
+        get {
+            return settings.get_boolean ("show-line-numbers");
+        }
+        set {
+            settings.set_boolean ("show-line-numbers", value);
+            editor_setting_changed ("show-line-numbers");
+        }
+    }
+
+    public bool show_diagnostics_marks {
+        get {
+            return settings.get_boolean ("show-diagnostics-marks");
+        }
+        set {
+            settings.set_boolean ("show-diagnostics-marks", value);
+            editor_setting_changed ("show-diagnostics-marks");
+        }
+    }
+
+    public bool show_folding_gutter {
+        get {
+            return settings.get_boolean ("show-folding-gutter");
+        }
+        set {
+            settings.set_boolean ("show-folding-gutter", value);
+            editor_setting_changed ("show-folding-gutter");
+        }
+
+    }
+
+    public bool highlight_current_line {
+        get {
+            return settings.get_boolean ("highlight-current-line");
+        }
+        set {
+            settings.set_boolean ("highlight-current-line", value);
+            editor_setting_changed ("highlight-current-line");
+        }
+    }
+
+    public bool auto_indent {
+        get {
+            return settings.get_boolean ("auto-indent");
+        }
+        set {
+            settings.set_boolean ("auto-indent", value);
+            editor_setting_changed ("auto-indent");
+        }
+    }
+
+    public int panel_start_width {
+        get {
+            return (int) settings.get_double ("panel-start-width");
+        }
+        set {
+            settings.set_double ("panel-start-width", (double) value);
+        }
+    }
+
+    public int panel_end_width {
+        get {
+            return (int) settings.get_double ("panel-end-width");
+        }
+        set {
+            settings.set_double ("panel-end-width", (double) value);
+        }
+    }
+
+    public int panel_bottom_height {
+        get {
+            return (int) settings.get_double ("panel-bottom-height");
+        }
+        set {
+            settings.set_double ("panel-bottom-height", (double) value);
+        }
+    }
+
+    public int panel_bottom_width {
+        get {
+            return (int) settings.get_double ("panel-bottom-width");
+        }
+        set {
+            settings.set_double ("panel-bottom-width", (double) value);
+        }
+    }
+
+    public bool reveal_start_panel {
+        get {
+            return settings.get_boolean ("reveal-start-panel");
+        }
+        set {
+            settings.set_boolean ("reveal-start-panel", value);
+        }
+    }
+
+    public bool reveal_end_panel {
+        get {
+            return settings.get_boolean ("reveal-end-panel");
+        }
+        set {
+            settings.set_boolean ("reveal-end-panel", value);
+        }
+    }
+
+    public bool reveal_bottom_panel {
+        get {
+            return settings.get_boolean ("reveal-bottom-panel");
+        }
+        set {
+            settings.set_boolean ("reveal-bottom-panel", value);
+        }
+    }
+
+    public string[] recent_projects {
+        owned get {
+            return settings.get_strv ("recent-projects");
+        }
+    }
+
+    public int max_recent_projects {
+        get {
+            return (int) settings.get_double ("max-recent-projects");
+        }
+        set {
+            settings.set_double ("max-recent-projects", (double) value);
+        }
+    }
+
+    public string last_open_directory {
+        owned get {
+            return settings.get_string ("last-open-directory");
+        }
+        set {
+            settings.set_string ("last-open-directory", value);
+        }
+    }
+
+    public string current_project_path {
+        owned get {
+            return settings.get_string ("current-project-path");
+        }
+        set {
+            settings.set_string ("current-project-path", value);
+        }
+    }
+
+    public Gee.ArrayList<string> open_documents {
+        owned get {
+            var arr = settings.get_strv ("open-documents");
+            var list = new Gee.ArrayList<string> ();
+            foreach (var s in arr) {
+                list.add (s);
+            }
+            return (owned) list;
+        }
+        set {
+            var arr = new string[value.size];
+            int i = 0;
+            foreach (var s in value) {
+                arr[i++] = s;
+            }
+            settings.set_strv ("open-documents", arr);
+        }
+    }
+
+    public string panel_layout {
+        owned get {
+            return settings.get_string ("panel-layout");
+        }
+        set {
+            settings.set_string ("panel-layout", value);
+        }
+    }
+
+    public string grid_layout {
+        owned get {
+            return settings.get_string ("grid-layout");
+        }
+        set {
+            settings.set_string ("grid-layout", value);
+            Settings.sync ();
+        }
+    }
+
+    public int window_width {
+        get {
+            return (int) settings.get_double ("window-width");
+        }
+        set {
+            settings.set_double ("window-width", (double) value);
+        }
+    }
+
+    public int window_height {
+        get {
+            return (int) settings.get_double ("window-height");
+        }
+        set {
+            settings.set_double ("window-height", (double) value);
+        }
+    }
+
+    public bool window_maximized {
+        get {
+            return settings.get_boolean ("window-maximized");
+        }
+        set {
+            settings.set_boolean ("window-maximized", value);
+        }
+    }
+
+    public void add_recent_project (string path) {
+        var projects = new List<string> ();
+        projects.prepend (path);
+
+        foreach (var p in recent_projects) {
+            if (p != path) {
+                bool found = false;
+                foreach (var existing in projects) {
+                    if (existing == path) {
+                        found = true;
+                        break;
+                    }
+                }
+                if (!found) {
+                    projects.append (p);
+                }
+            }
+        }
+
+        var arr = new string[projects.length ()];
+        int i = 0;
+        foreach (var p in projects) {
+            arr[i++] = p;
+        }
+        settings.set_strv ("recent-projects", arr);
+    }
+
+    public void remove_recent_project (string path) {
+        var projects = new List<string> ();
+        foreach (var p in recent_projects) {
+            if (p != path) {
+                projects.append (p);
+            }
+        }
+
+        var arr = new string[projects.length ()];
+        int i = 0;
+        foreach (var p in projects) {
+            arr[i++] = p;
+        }
+        settings.set_strv ("recent-projects", arr);
+    }
+
+    public void clear_recent_projects () {
+        settings.set_strv ("recent-projects", {});
+    }
+}
+```
+
+## File: src/Services/Utils.vala
+```
+using GLib;
+
+[CCode(cheader_filename = "unistd.h")]
+extern int getpid();
+
+namespace Iide {
+    public string mime_type_for_file(File file) {
+        string mime_type = "text-x";
+        try {
+            var info = file.query_info("standard::*", FileQueryInfoFlags.NONE, null);
+            mime_type = ContentType.get_mime_type(info.get_attribute_as_string(FileAttribute.STANDARD_CONTENT_TYPE));
+        } catch (Error e) {
+        }
+        return mime_type;
+    }
+
+    public int application_pid() {
+        return getpid();
+    }
+
+    public void copy_resource_to_file(string resource_path, string local_path) {
+        // 1. Создаем объект File для ресурса (путь должен начинаться с resource:///)
+        var resource_file = File.new_for_uri(resource_path);
+
+        // 2. Создаем объект File для локального файла на диске
+        var local_file = File.new_for_path(local_path);
+
+        try {
+            // 3. Выполняем копирование. Флаг OVERWRITE перезапишет файл, если он существует.
+            resource_file.copy(local_file, FileCopyFlags.OVERWRITE, null, null);
+            print("Файл успешно скопирован в: %s\n", local_path);
+        } catch (Error e) {
+            stderr.printf("Ошибка при копировании: %s\n", e.message);
+        }
+    }
+
+    public string ? escape_pango(string? text) {
+        if (text == null)
+            return null;
+        return text
+                .replace("&", "&amp;")
+                .replace("<", "&lt;")
+                .replace(">", "&gt;");
+    }
+
+    private uint32 get_byte_offset_safe (Gtk.TextIter iter) {
+        int target_line = iter.get_line ();
+        int current_line_bytes = iter.get_line_index (); // Байты от начала текущей строки (O(1))
+
+        // Если мы на первой строке, оффсет равен индексу внутри строки
+        if (target_line == 0) {
+            return (uint32) current_line_bytes;
+        }
+
+        uint32 total_bytes = 0;
+        Gtk.TextIter line_runner;
+        iter.get_buffer ().get_start_iter (out line_runner);
+
+        // Быстро прыгаем по строкам вперед до нашей целевой строки.
+        // Метод get_bytes_in_line() у TextIter выполняется мгновенно внутри B-дерева GTK, 
+        // возвращая длину строки в байтах (включая \n) БЕЗ выделения памяти и копирования текста!
+        for (int i = 0; i < target_line; i++) {
+            total_bytes += (uint32) line_runner.get_bytes_in_line ();
+            if (!line_runner.forward_line ()) break;
+        }
+
+        // Прибавляем байты внутри целевой строки
+        total_bytes += (uint32) current_line_bytes;
+
+        return total_bytes;
+    }
+}
+```
+
 ## File: src/Widgets/Panels/DiagnosticsPanel.vala
 ```
 using Gee;
@@ -12711,677 +12779,6 @@ public class Iide.IdeLspService : GLib.Object {
 }
 ```
 
-## File: src/Services/TreeSitter/TreeSitterDocument.vala
-```
-/*
-*/
-
-public class Iide.TreeSitterDocument: SourceDocument {
-    public BaseTreeSitterHighlighter ts_highlighter;
-
-    public TreeSitterDocument(SourceView source_view, BaseTreeSitterHighlighter ts_highlighter) {
-        base(source_view);
-        this.ts_highlighter = ts_highlighter;
-
-        this.ts_highlighter.breadcrumbs_changed.connect((crumbs) => {
-            this.breadcrumbs_changed(crumbs);
-        });
-        // Отключаем встроенный highlighter
-        ((GtkSource.Buffer) (source_view.buffer)).highlight_syntax = false;
-
-        // Отключаем встроенный indenter если реализован кастомный
-        //  source_view.auto_indent = ts_highlighter.ts_indenter == null;
-        var indenter = ts_highlighter.create_indenter ();
-        if (indenter != null)
-            source_view.set_indenter (indenter);
-        source_view.auto_indent = true;
-    }
-
-    protected override void handle_insert_text (Gtk.TextIter iter, string text, int len_bytes) {
-        ts_highlighter.on_insert_text (iter,  text, len_bytes);
-    }
-    protected override void handle_delete_range (Gtk.TextIter start, Gtk.TextIter end) {
-        ts_highlighter.on_delete_range (start, end);
-    }
-
-    protected override bool handle_key_pressed(uint keyval, uint keycode, Gdk.ModifierType modifiers) { 
-        return ts_highlighter.handle_key_pressed (keyval, keycode, modifiers); 
-    }
-
-    public override void expand_selection() {
-        ts_highlighter.expand_selection ();
-    }
-
-    public override void shrink_selection() {
-        ts_highlighter.shrink_selection ();
-    }
-
-    public override Gee.List<SourceNodeItem?> get_full_outline () {
-        return ts_highlighter.get_full_outline ();
-    }
-}
-```
-
-## File: src/Services/DocumentManager.vala
-```
-/*
- * documentmanager.vala
- *
- * Copyright 2026 kai
- *
- * This program is free software: you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation, either version 3 of the License, or
- * (at your option) any later version.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program.  If not, see <https://www.gnu.org/licenses/>.
- *
- * SPDX-License-Identifier: GPL-3.0-or-later
- */
-
-using Gee;
-using GLib;
-using Gtk;
-using Panel;
-
-public class Iide.DocumentManager : GLib.Object {
-    public Window window;
-    private IdeLspService lsp_service;
-
-    private string? current_workspace_root;
-
-    private LoggerService logger = LoggerService.get_instance ();
-    private static DocumentManager? _instance;
-
-    public static DocumentManager get_instance () {
-        return _instance;
-    }
-
-    public Gee.HashMap<string, TextView> _documents;
-    public Gee.HashMap<string, TextView> documents {
-        get {
-            _documents = new Gee.HashMap<string, TextView> ();
-            window.grid.foreach_frame ((frame) => {
-                var pages = frame.get_pages ();
-
-                for (uint i = 0; i < pages.get_n_items (); i++) {
-                    var item = pages.get_item (i) as Adw.TabPage;
-                    if (item == null) {
-                        continue;
-                    }
-                    var child = item.get_child ();
-                    if (child == null) {
-                        continue;
-                    }
-                    var text_view = child as TextView;
-                    if (text_view != null) {
-                        _documents.set (text_view.uri, text_view);
-                    }
-                }
-            });
-            return _documents;
-        }
-    }
-
-    public DocumentManager (Window window) {
-        this.window = window;
-        DocumentManager._instance = this;
-        // documents = new Gee.HashMap<string, TextView> ();
-        lsp_service = IdeLspService.get_instance ();
-
-        lsp_service.diagnostics_updated.connect ((uri, diagnostics) => {
-            var doc = documents.get (uri);
-            if (doc != null) {
-                var lsp_diagnostics = new Gee.ArrayList<LspDiagnostic> ();
-                foreach (var diag in diagnostics) {
-                    var d = new LspDiagnostic ();
-                    d.severity = diag.severity;
-                    d.message = diag.message;
-                    d.start_line = diag.start_line;
-                    d.start_column = diag.start_column;
-                    d.end_line = diag.end_line;
-                    d.end_column = diag.end_column;
-                    lsp_diagnostics.add (d);
-                }
-
-                Idle.add (() => {
-                    doc.update_diagnostics (lsp_diagnostics);
-                    return false;
-                });
-            }
-        });
-    }
-
-    public void set_workspace_root (string? root) {
-        current_workspace_root = root;
-    }
-
-    public signal void document_opened (TextView document);
-
-    public Panel.Widget? open_document (GLib.File file, Panel.Position ? pos) {
-        return open_document_with_selection (file, -1, -1, -1, pos);
-    }
-
-    public Panel.Widget? open_document_with_selection (GLib.File file, int line, int start_col, int end_col, Panel.Position ? pos) {
-        string uri = file.get_uri ();
-
-        var docs = documents;
-        if (docs.has_key (uri)) {
-            var widget = docs.get (uri);
-            widget.raise ();
-            widget.view_grab_focus ();
-            if (line >= 0) {
-                widget.select_and_scroll (line, start_col, end_col, false);
-            }
-            return widget;
-        } else {
-            var shared_table = Iide.StyleService.get_instance ().shared_table;
-            var buffer = new GtkSource.Buffer (shared_table);
-            var source_file = new GtkSource.File ();
-            source_file.location = file;
-            var file_loader = new GtkSource.FileLoader (buffer, source_file);
-            Iide.TextView? panel_widget = null;
-            file_loader.load_async.begin (Priority.DEFAULT, null, null, (obj, res) => {
-                try {
-                    file_loader.load_async.end (res);
-                    panel_widget = new Iide.TextView (file, buffer, window);
-
-                    panel_widget.buffer_saved.connect (() => {
-                        string content = ((GtkSource.Buffer) panel_widget.text_view.buffer).text;
-                        lsp_service.change_document.begin (uri, content);
-                    });
-
-                    if (pos == null) {
-                        window.grid.add (panel_widget);
-                    } else {
-                        window.add_widget (panel_widget, pos);
-                    }
-                    panel_widget.raise ();
-                    panel_widget.view_grab_focus ();
-                    logger.debug ("Doc", "Document panel widget created: " + uri);
-
-                    if (line >= 0) {
-                        // TODO: with timeout...
-                        panel_widget.select_and_scroll (line, start_col, end_col, true);
-                    }
-
-                    string content = buffer.text;
-                    string? lang_id = lsp_service.get_language_id_for_file (file);
-                    if (lang_id != null) {
-                        lsp_service.open_document.begin (uri, lang_id, content, current_workspace_root, panel_widget.text_view);
-                    }
-                } catch (Error e) {
-                    logger.error ("Doc", "Error Opening File", "Failed to read file %s: %s".printf (file.get_path (), e.message));
-                }
-            });
-            return panel_widget;
-        }
-    }
-
-    public Panel.Widget? get_document_for_file (GLib.File file) {
-        string uri = file.get_uri ();
-        return documents.get (uri);
-    }
-
-    public bool is_file_open (GLib.File file) {
-        return documents.has_key (file.get_uri ());
-    }
-
-    public Gee.ArrayList<string> get_open_document_uris () {
-        var uris = new Gee.ArrayList<string> ();
-        foreach (var uri in documents.keys) {
-            uris.add (uri);
-        }
-        return uris;
-    }
-
-    public void open_document_by_uri (string uri) {
-        var file = GLib.File.new_for_uri (uri);
-        if (file.query_exists (null)) {
-            open_document (file, null);
-        }
-    }
-
-    public bool navigate_to (NavigationPoint nav_point) {
-        var docs = documents;
-        var uri = nav_point.file.get_uri ();
-        if (docs.has_key (uri)) {
-            var widget = docs.get (uri);
-            widget.raise ();
-            widget.view_grab_focus ();
-            widget.select_and_scroll (nav_point.line, nav_point.column, nav_point.column, false);
-            return true;
-        }
-        return false;
-    }
-}
-```
-
-## File: src/Services/ProjectManager.vala
-```
-using Gtk;
-using GLib;
-using Gee;
-
-public class Iide.FileEntry : Object {
-    public string path { get; construct; }
-    public string name { get; construct; }
-    public bool is_text_file { get; construct; }
-    public string relative_path { get; construct; }
-    public string display_name { get; construct; }
-
-    public FileEntry (string path, string name, bool is_text_file, string relative_path) {
-        Object (
-                path: path,
-                name: name,
-                is_text_file: is_text_file,
-                relative_path: relative_path,
-                display_name: "%s  →  %s".printf (name, relative_path)
-        );
-    }
-}
-
-public class Iide.LanguageConfig : GLib.Object {
-    public string language_id { get; construct set; }
-    public string[] server_command { get; construct set; }
-    public string[] file_patterns { get; construct set; }
-
-    public LanguageConfig (string language_id, string[] server_command, string[] file_patterns) {
-        Object (
-                language_id: language_id,
-                server_command: server_command,
-                file_patterns: file_patterns
-        );
-    }
-}
-
-public class Iide.ProjectManager : Object {
-    private static ProjectManager? _instance;
-    private GLib.File? current_project_root;
-    private string? current_project_name;
-    private Iide.SettingsService settings;
-    private Gee.HashMap<string, LanguageConfig> language_configs;
-
-    private Gee.List<Iide.FileEntry> file_cache;
-    private Gee.List<Iide.FileEntry> text_file_cache;
-    public bool cache_valid = false;
-    private bool cache_loading = false;
-    private FileMonitor? directory_monitor;
-
-    private const string[] EXCLUDED_DIRS = {
-        "node_modules", "target", "build", "__pycache__",
-        ".git", ".svn", ".hg", "vendor", ".cargo",
-        ".cache", ".local", ".config"
-    };
-
-    public signal void project_opened (GLib.File project_root);
-    public signal void project_closed ();
-    public signal void file_cache_updated ();
-    public signal void file_cache_invalidated ();
-
-    public static unowned ProjectManager get_instance () {
-        if (_instance == null) {
-            _instance = new ProjectManager ();
-        }
-        return _instance;
-    }
-
-    public ProjectManager () {
-        current_project_root = null;
-        current_project_name = null;
-        settings = Iide.SettingsService.get_instance ();
-        language_configs = new Gee.HashMap<string, LanguageConfig> ();
-        file_cache = new Gee.ArrayList<Iide.FileEntry> ();
-        text_file_cache = new Gee.ArrayList<Iide.FileEntry> ();
-        init_default_language_configs ();
-    }
-
-    private void init_default_language_configs () {
-        language_configs.set ("c", new LanguageConfig ("c", { "clangd" }, { "*.c", "*.h" }));
-        language_configs.set ("cpp", new LanguageConfig ("cpp", { "clangd" }, { "*.cpp", "*.cc", "*.cxx", "*.hpp", "*.hxx", "*.h" }));
-        language_configs.set ("python", new LanguageConfig ("python", { "basedpyright-langserver", "--stdio" }, { "*.py" }));
-        language_configs.set ("rust", new LanguageConfig ("rust", { "rust-analyzer" }, { "*.rs" }));
-        language_configs.set ("go", new LanguageConfig ("go", { "gopls" }, { "*.go" }));
-        language_configs.set ("typescript", new LanguageConfig ("typescript", { "typescript-language-server", "--stdio" }, { "*.ts", "*.tsx" }));
-        language_configs.set ("javascript", new LanguageConfig ("javascript", { "typescript-language-server", "--stdio" }, { "*.js", "*.jsx" }));
-        language_configs.set ("json", new LanguageConfig ("json", { "vscode-json-languageserver", "--stdio" }, { "*.json" }));
-        language_configs.set ("html", new LanguageConfig ("html", { "vscode-html-language-server", "--stdio" }, { "*.html", "*.htm" }));
-        language_configs.set ("css", new LanguageConfig ("css", { "vscode-css-language-server", "--stdio" }, { "*.css", "*.scss", "*.less" }));
-    }
-
-    private string? last_loaded_config_path;
-
-    public Gee.Collection<LanguageConfig> get_language_configs () {
-        return language_configs.values;
-    }
-
-    public LanguageConfig ? get_language_config (string language_id) {
-        return language_configs.get (language_id);
-    }
-
-    public void load_lsp_config (GLib.File project_root) {
-        string? config_path = project_root.get_path ();
-        if (config_path == null) {
-            config_path = project_root.get_uri ();
-        }
-
-        if (config_path != null && config_path == last_loaded_config_path) {
-            return;
-        }
-
-        init_default_language_configs ();
-
-        var config_dir = project_root.get_child (".iide");
-        var lsp_file = config_dir.get_child ("lsp.json");
-
-        if (!lsp_file.query_exists (null)) {
-            message ("No .iide/lsp.json found at %s", lsp_file.get_path ());
-            last_loaded_config_path = config_path;
-            return;
-        }
-
-        try {
-            var parser = new Json.Parser ();
-            parser.load_from_file (lsp_file.get_path ());
-            var root = parser.get_root ();
-            var obj = (Json.Object) root;
-
-            if (obj.has_member ("languages")) {
-                var languages = obj.get_array_member ("languages");
-                int lang_count = (int) languages.get_length ();
-                for (int j = 0; j < lang_count; j++) {
-                    var node = languages.get_element (j);
-                    var lang_obj = node.get_object ();
-                    if (lang_obj == null)continue;
-
-                    string? lang_id = null;
-                    string[] ? server_cmd = null;
-                    string[] ? patterns = null;
-
-                    if (lang_obj.has_member ("id")) {
-                        lang_id = lang_obj.get_string_member ("id");
-                    }
-                    if (lang_obj.has_member ("server")) {
-                        var server_arr = lang_obj.get_array_member ("server");
-                        int server_count = (int) server_arr.get_length ();
-                        server_cmd = new string[server_count];
-                        for (int i = 0; i < server_count; i++) {
-                            server_cmd[i] = server_arr.get_string_element (i);
-                        }
-                    }
-                    if (lang_obj.has_member ("patterns")) {
-                        var patterns_arr = lang_obj.get_array_member ("patterns");
-                        int patterns_count = (int) patterns_arr.get_length ();
-                        patterns = new string[patterns_count];
-                        for (int i = 0; i < patterns_count; i++) {
-                            patterns[i] = patterns_arr.get_string_element (i);
-                        }
-                    }
-
-                    if (lang_id != null) {
-                        merge_language_config (lang_id, server_cmd, patterns);
-                    }
-                }
-            }
-
-            message ("Loaded LSP config from %s", lsp_file.get_path ());
-            last_loaded_config_path = config_path;
-        } catch (Error e) {
-            warning ("Failed to load LSP config: %s", e.message);
-        }
-    }
-
-    private void merge_language_config (string lang_id, string[]? server_cmd, string[]? patterns) {
-        var config = language_configs.get (lang_id);
-        if (config != null) {
-            if (server_cmd != null && server_cmd.length > 0) {
-                config.server_command = server_cmd;
-            }
-            if (patterns != null && patterns.length > 0) {
-                config.file_patterns = patterns;
-            }
-            message ("Merged LSP config for '%s'", lang_id);
-            return;
-        }
-
-        if (server_cmd != null && patterns != null) {
-            language_configs.set (lang_id, new LanguageConfig (lang_id, server_cmd, patterns));
-            message ("Added new LSP config for '%s'", lang_id);
-        }
-    }
-
-    public void open_project_file (GLib.File project_root) {
-        if (!project_root.query_exists (null)) {
-            stderr.printf ("Project directory does not exist: %s\n", project_root.get_path ());
-            return;
-        }
-
-        if (current_project_root != null) {
-            close_project ();
-        }
-
-        init_default_language_configs ();
-
-        current_project_root = project_root;
-        current_project_name = project_root.get_basename ();
-
-        settings.current_project_path = project_root.get_path ();
-        settings.add_recent_project (project_root.get_path ());
-        settings.last_open_directory = project_root.get_parent ().get_path ();
-
-        load_lsp_config (project_root);
-
-        rebuild_file_cache_async.begin ();
-
-        setup_directory_monitor (project_root);
-
-        project_opened (project_root);
-    }
-
-    private void setup_directory_monitor (GLib.File dir) {
-        if (directory_monitor != null) {
-            directory_monitor.cancel ();
-        }
-
-        try {
-            directory_monitor = dir.monitor_directory (FileMonitorFlags.NONE, null);
-            directory_monitor.changed.connect ((src, dst, event) => {
-                if (event == FileMonitorEvent.CHANGES_DONE_HINT) {
-                    invalidate_file_cache ();
-                }
-            });
-        } catch (Error e) {
-            warning ("Failed to setup directory monitor: %s", e.message);
-        }
-    }
-
-    public void close_project () {
-        if (directory_monitor != null) {
-            directory_monitor.cancel ();
-            directory_monitor = null;
-        }
-
-        if (current_project_root != null) {
-            current_project_root = null;
-            current_project_name = null;
-            cache_valid = false;
-            file_cache.clear ();
-            text_file_cache.clear ();
-            settings.current_project_path = "";
-            project_closed ();
-        }
-    }
-
-    public async void rebuild_file_cache_async () {
-        if (current_project_root == null) {
-            return;
-        }
-
-        if (cache_loading) {
-            return;
-        }
-
-        cache_loading = true;
-        file_cache.clear ();
-        text_file_cache.clear ();
-
-        try {
-            yield scan_directory_async (current_project_root, current_project_root.get_path ());
-
-            file_cache.sort ((a, b) => a.name.collate (b.name));
-            text_file_cache.sort ((a, b) => a.name.collate (b.name));
-            cache_valid = true;
-            file_cache_updated ();
-        } catch (Error e) {
-            warning ("Error rebuilding file cache: %s", e.message);
-        }
-
-        cache_loading = false;
-    }
-
-    private bool is_text_file (GLib.FileInfo file_info) {
-        return ContentType.is_a (file_info.get_content_type (), "text/plain");
-    }
-
-    private async void scan_directory_async (GLib.File dir, string base_path) throws Error {
-        var enumerator = yield dir.enumerate_children_async ("standard::name,standard::type,standard::content-type",
-            FileQueryInfoFlags.NONE,
-            Priority.DEFAULT,
-            null);
-
-        while (true) {
-            var files = yield enumerator.next_files_async (100, Priority.DEFAULT, null);
-
-            if (files == null || files.length () == 0) {
-                break;
-            }
-
-            foreach (var info in files) {
-                var name = info.get_name ();
-                if (name.has_prefix (".")) {
-                    continue;
-                }
-
-                var file_type = info.get_file_type ();
-                if (file_type == FileType.DIRECTORY) {
-                    bool excluded = false;
-                    foreach (var excluded_name in EXCLUDED_DIRS) {
-                        if (name == excluded_name) {
-                            excluded = true;
-                            break;
-                        }
-                    }
-                    if (!excluded) {
-                        var child = dir.get_child (name);
-                        yield scan_directory_async (child, base_path);
-                    }
-                } else if (file_type == FileType.REGULAR) {
-                    var path = dir.get_child (name).get_path ();
-                    if (path != null) {
-                        var relative = path.substring (base_path.length + 1);
-                        bool is_text = is_text_file (info);
-                        file_cache.add (new Iide.FileEntry (
-                                                            path,
-                                                            name,
-                                                            is_text,
-                                                            relative));
-                        if (is_text) {
-                            text_file_cache.add (new Iide.FileEntry (
-                                                                     path,
-                                                                     name,
-                                                                     true,
-                                                                     relative));
-                        }
-                    }
-                }
-            }
-        }
-    }
-
-    public Gee.List<Iide.FileEntry>? get_file_cache () {
-        if (!cache_valid) {
-            return null;
-        }
-        return file_cache;
-    }
-
-    public Gee.List<Iide.FileEntry>? get_text_file_cache () {
-        if (!cache_valid) {
-            return null;
-        }
-        return text_file_cache;
-    }
-
-    public async void ensure_file_cache_async () {
-        if (cache_valid || cache_loading) {
-            return;
-        }
-        yield rebuild_file_cache_async ();
-    }
-
-    public void invalidate_file_cache () {
-        cache_valid = false;
-        file_cache_invalidated ();
-    }
-
-    public string ? get_workspace_root_path () {
-        if (current_project_root != null) {
-            return current_project_root.get_path ();
-        }
-        return null;
-    }
-
-    public void open_project_by_path (string path) {
-        if (path != null && path != "") {
-            var file = GLib.File.new_for_path (path);
-            if (file.query_exists (null)) {
-                open_project_file (file);
-            }
-        }
-    }
-
-    public GLib.File? get_current_project_root () {
-        return current_project_root;
-    }
-
-    public string ? get_current_project_name () {
-        return current_project_name;
-    }
-
-    public bool has_open_project () {
-        return current_project_root != null;
-    }
-
-    public async void open_project_dialog (Window parent_window) {
-        var dialog = new FileDialog () {
-            title = _("Open Project"),
-            modal = true
-        };
-
-        var last_dir = settings.last_open_directory;
-        if (last_dir != null && last_dir != "") {
-            dialog.initial_folder = GLib.File.new_for_path (last_dir);
-        }
-
-        try {
-            var file = yield dialog.select_folder (parent_window, null);
-
-            if (file != null) {
-                open_project_file (file);
-            }
-        } catch {
-            // User dismissed dialog or other error - silently ignore
-        }
-    }
-}
-```
-
 ## File: src/Widgets/Find/Engines/SymbolsSearchEngine.vala
 ```
 public class Iide.SymbolsSearchEngine : SearchEngine, Object {
@@ -13903,6 +13300,466 @@ public class Iide.FileItem : Object {
 }
 ```
 
+## File: src/Widgets/PreferencesDialog.vala
+```
+/*
+ * preferencesdialog.vala
+ *
+ * Copyright 2026 kai
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see <https://www.gnu.org/licenses/>.
+ *
+ * SPDX-License-Identifier: GPL-3.0-or-later
+ */
+
+public class Iide.PreferencesDialog : Adw.PreferencesWindow {
+    private Iide.SettingsService settings;
+    private Adw.StyleManager style_manager;
+
+    private Adw.ComboRow color_scheme_row;
+    private Adw.SwitchRow show_minimap_row;
+    private Adw.SwitchRow show_line_numbers_row;
+    private Adw.SwitchRow show_marks_gutter_row;
+    private Adw.SwitchRow show_folding_gutter_row;
+    private Adw.SwitchRow highlight_current_line_row;
+    private Adw.SwitchRow auto_indent_row;
+
+    public PreferencesDialog () {
+        Object (modal: true, destroy_with_parent: true);
+        settings = Iide.SettingsService.get_instance ();
+        style_manager = Adw.StyleManager.get_default ();
+
+        title = _("Preferences");
+        set_default_size (500, 450);
+
+        build_ui ();
+    }
+
+    private void build_ui () {
+        var action_manager = Iide.AppActionsManager.get_instance ();
+
+        var appearance_page = new Adw.PreferencesPage () {
+            title = _("Appearance"),
+            icon_name = "preferences-desktop-appearance-symbolic"
+        };
+
+        var appearance_group = new Adw.PreferencesGroup () {
+            title = _("Appearance")
+        };
+
+        color_scheme_row = new Adw.ComboRow () {
+            title = _("Color Scheme"),
+            model = new Gtk.StringList ({ "System", "Light", "Dark" })
+        };
+        var scheme_index = settings.color_scheme;
+        color_scheme_row.selected = (uint) scheme_index;
+        color_scheme_row.notify["selected"].connect (() => {
+            var scheme = (ColorScheme) color_scheme_row.selected;
+            settings.color_scheme = scheme;
+            style_manager.color_scheme = scheme.to_adw_color_scheme ();
+        });
+        appearance_group.add (color_scheme_row);
+        appearance_page.add (appearance_group);
+
+        var editor_page = new Adw.PreferencesPage () {
+            title = _("Editor"),
+            icon_name = "accessories-text-editor-symbolic"
+        };
+
+        var editor_group = new Adw.PreferencesGroup () {
+            title = _("Editor")
+        };
+
+        show_minimap_row = new Adw.SwitchRow () {
+            title = _("Show Minimap"),
+            subtitle = _("Display a minimap showing the document overview")
+        };
+        show_minimap_row.active = settings.show_minimap;
+        show_minimap_row.notify["active"].connect (() => {
+            settings.show_minimap = show_minimap_row.active;
+            action_manager.get_action ("show-minimap").update_state (show_minimap_row.active);
+        });
+        editor_group.add (show_minimap_row);
+
+        show_line_numbers_row = new Adw.SwitchRow () {
+            title = _("Show Line Numbers"),
+            subtitle = _("Display line numbers on the editor gutter")
+        };
+        show_line_numbers_row.active = settings.show_line_numbers;
+        show_line_numbers_row.notify["active"].connect (() => {
+            settings.show_line_numbers = show_line_numbers_row.active;
+            action_manager.get_action ("show-line-numbers").update_state (show_line_numbers_row.active);
+        });
+        editor_group.add (show_line_numbers_row);
+
+        show_marks_gutter_row = new Adw.SwitchRow () {
+            title = _("Show Diagnostics Marks"),
+            subtitle = _("Display diagnostics marks on the editor gutter"),
+        };
+        show_marks_gutter_row.active = settings.show_diagnostics_marks;
+        show_marks_gutter_row.notify["active"].connect (() => {
+            settings.show_diagnostics_marks = show_marks_gutter_row.active;
+            action_manager.get_action ("show-diagnostics-marks").update_state (show_marks_gutter_row.active);
+        });
+        editor_group.add (show_marks_gutter_row);
+        
+        show_folding_gutter_row = new Adw.SwitchRow () {
+            title = _("Show Folding Gutter"),
+            subtitle = _("Display folding gutter on the editor gutter"),
+        };
+        show_folding_gutter_row.active = settings.show_folding_gutter;
+        show_folding_gutter_row.notify["active"].connect (() => {
+            settings.show_folding_gutter = show_folding_gutter_row.active;
+            action_manager.get_action ("show-folding-gutter").update_state (show_folding_gutter_row.active);
+        });
+        editor_group.add (show_folding_gutter_row);
+
+        highlight_current_line_row = new Adw.SwitchRow () {
+            title = _("Highlight Current Line"),
+            subtitle = _("Highlight the line where the cursor is positioned")
+        };
+        highlight_current_line_row.active = settings.highlight_current_line;
+        highlight_current_line_row.notify["active"].connect (() => {
+            settings.highlight_current_line = highlight_current_line_row.active;
+        });
+        editor_group.add (highlight_current_line_row);
+
+        auto_indent_row = new Adw.SwitchRow () {
+            title = _("Auto Indent"),
+            subtitle = _("Automatically indent new lines based on the previous line")
+        };
+        auto_indent_row.active = settings.auto_indent;
+        auto_indent_row.notify["active"].connect (() => {
+            settings.auto_indent = auto_indent_row.active;
+        });
+        editor_group.add (auto_indent_row);
+
+        var sizes = FontSizeHelper.get_available_sizes ();
+        var size_strings = new string[sizes.length];
+        for (int i = 0; i < sizes.length; i++) {
+            size_strings[i] = "%d px".printf (sizes[i]);
+        }
+        var font_size_model = new Gtk.StringList (size_strings);
+        var current_level = settings.editor_font_size;
+        if (current_level < FontSizeHelper.MIN_ZOOM_LEVEL || current_level > FontSizeHelper.MAX_ZOOM_LEVEL) {
+            current_level = FontSizeHelper.DEFAULT_ZOOM_LEVEL;
+        }
+
+        var font_size_row = new Adw.ComboRow () {
+            title = _("Font Size"),
+            model = font_size_model,
+            selected = (uint) (current_level - 1)
+        };
+        font_size_row.notify["selected"].connect (() => {
+            settings.editor_font_size = (int) font_size_row.selected + 1;
+        });
+        editor_group.add (font_size_row);
+        editor_page.add (editor_group);
+
+        var projects_page = new Adw.PreferencesPage () {
+            title = _("Projects"),
+            icon_name = "folder-open-symbolic"
+        };
+
+        var projects_group = new Adw.PreferencesGroup () {
+            title = _("Projects")
+        };
+
+        var recent_projects_row = new Adw.ActionRow () {
+            title = _("Recent Projects")
+        };
+        var recent_projects = settings.recent_projects;
+        if (recent_projects.length > 0) {
+            var subtitle = string.joinv ("\n", recent_projects);
+            recent_projects_row.subtitle = subtitle;
+        } else {
+            recent_projects_row.subtitle = _("No recent projects");
+        }
+        var clear_button = new Gtk.Button () {
+            icon_name = "edit-clear-symbolic",
+            tooltip_text = _("Clear Recent Projects")
+        };
+        clear_button.clicked.connect (() => {
+            settings.clear_recent_projects ();
+            recent_projects_row.subtitle = _("No recent projects");
+        });
+        recent_projects_row.add_suffix (clear_button);
+        recent_projects_row.activatable_widget = clear_button;
+        projects_group.add (recent_projects_row);
+        projects_page.add (projects_group);
+
+        var shortcuts_page = new Adw.PreferencesPage () {
+            title = _("Shortcuts"),
+            icon_name = "input-keyboard-symbolic"
+        };
+
+        var shortcuts_group = new Adw.PreferencesGroup () {
+            title = _("Keyboard Shortcuts")
+        };
+
+        var actions = action_manager.get_all_actions ();
+
+        var list_box = new Gtk.ListBox () {
+            selection_mode = Gtk.SelectionMode.NONE,
+            show_separators = true
+        };
+
+        var sorted_actions = new Gee.ArrayList<Iide.AppAction> ();
+        foreach (var action in actions) {
+            sorted_actions.add (action);
+        }
+        sorted_actions.sort ((a, b) => {
+            var cat_cmp = (a.category ?? "").collate (b.category ?? "");
+            if (cat_cmp != 0)return cat_cmp;
+            return a.name.collate (b.name);
+        });
+
+        string? current_category = null;
+        foreach (var action in sorted_actions) {
+            if (action.category != current_category) {
+                current_category = action.category;
+                var header_row = new Gtk.ListBoxRow () {
+                    selectable = false,
+                    activatable = false
+                };
+                var header_label = new Gtk.Label (action.category ?? _("Other")) {
+                    halign = Gtk.Align.START,
+                    margin_top = 8,
+                    margin_bottom = 4
+                };
+                header_label.add_css_class ("title");
+                header_label.add_css_class ("dim-label");
+                header_row.child = header_label;
+                list_box.append (header_row);
+            }
+            var row = new ShortcutRow (action);
+            list_box.append (row);
+        }
+
+        var scrolled = new Gtk.ScrolledWindow () {
+            child = list_box,
+            hexpand = true,
+            vexpand = true
+        };
+        scrolled.set_size_request (-1, 300);
+        shortcuts_group.add (scrolled);
+        shortcuts_page.add (shortcuts_group);
+
+        add (appearance_page);
+        add (editor_page);
+        add (projects_page);
+        add (shortcuts_page);
+    }
+}
+
+private class Iide.ShortcutRow : Gtk.ListBoxRow {
+    private Iide.AppAction action;
+    private Gtk.Label shortcut_label;
+
+    public ShortcutRow (Iide.AppAction action) {
+        this.action = action;
+
+        var box = new Gtk.Box (Gtk.Orientation.HORIZONTAL, 12) {
+            margin_start = 12,
+            margin_end = 12,
+            margin_top = 8,
+            margin_bottom = 8
+        };
+
+        var info_box = new Gtk.Box (Gtk.Orientation.VERTICAL, 2);
+        var name_label = new Gtk.Label (action.name) {
+            halign = Gtk.Align.START,
+            hexpand = true
+        };
+        name_label.add_css_class ("title");
+        var desc_label = new Gtk.Label (action.description ?? "") {
+            halign = Gtk.Align.START,
+            hexpand = true
+        };
+        desc_label.add_css_class ("caption");
+        desc_label.add_css_class ("dim-label");
+        info_box.append (name_label);
+        info_box.append (desc_label);
+        box.append (info_box);
+
+        shortcut_label = new Gtk.Label (action.shortcut != null ? action.shortcut : _("None")) {
+            halign = Gtk.Align.END,
+            margin_start = 12
+        };
+        shortcut_label.add_css_class ("caption");
+        shortcut_label.add_css_class ("dim-label");
+        box.append (shortcut_label);
+
+        var clear_button = new Gtk.Button () {
+            icon_name = "edit-clear-symbolic",
+            tooltip_text = _("Clear shortcut"),
+            valign = Gtk.Align.CENTER
+        };
+        clear_button.clicked.connect (on_clear_clicked);
+        box.append (clear_button);
+
+        var capture_button = new Gtk.Button () {
+            label = _("Change"),
+            valign = Gtk.Align.CENTER
+        };
+        capture_button.clicked.connect (on_capture_clicked);
+        box.append (capture_button);
+
+        child = box;
+
+        action.shortcut_changed.connect ((new_shortcut) => {
+            shortcut_label.set_label (new_shortcut != null ? new_shortcut : _("None"));
+        });
+    }
+
+    private void on_clear_clicked () {
+        this.action.set_shortcut (null);
+    }
+
+    private void on_capture_clicked () {
+        var window = this.get_ancestor (typeof (Gtk.Window)) as Gtk.Window;
+        var dialog = new ShortcutCaptureWindow (action, window);
+        dialog.show ();
+    }
+}
+
+private class Iide.ShortcutCaptureWindow : Gtk.Window {
+    private Iide.AppAction action;
+    private Gtk.Label label;
+    private uint keyval = 0;
+    private Gdk.ModifierType modifiers;
+
+    public ShortcutCaptureWindow (Iide.AppAction action, Gtk.Window? parent) {
+        this.action = action;
+
+        title = _("Set Shortcut for %s").printf (action.name);
+        modal = true;
+        if (parent != null) {
+            set_transient_for (parent);
+        }
+
+        var content_box = new Gtk.Box (Gtk.Orientation.VERTICAL, 12) {
+            margin_top = 20,
+            margin_bottom = 20,
+            margin_start = 20,
+            margin_end = 20
+        };
+
+        label = new Gtk.Label (_("Press a key combination...")) {
+            halign = Gtk.Align.CENTER
+        };
+        content_box.append (label);
+
+        var current = action.shortcut;
+        if (current != null && current != "") {
+            var hint = new Gtk.Label (_("Current: %s").printf (current)) {
+                halign = Gtk.Align.CENTER
+            };
+            hint.add_css_class ("caption");
+            hint.add_css_class ("dim-label");
+            content_box.append (hint);
+        }
+
+        var event_controller = new Gtk.EventControllerKey ();
+        event_controller.key_pressed.connect (on_key_pressed);
+        content_box.add_controller (event_controller);
+
+        var cancel_button = new Gtk.Button () {
+            label = _("Cancel")
+        };
+        cancel_button.clicked.connect (() => destroy ());
+
+        var clear_button = new Gtk.Button () {
+            label = _("Clear")
+        };
+        clear_button.clicked.connect (() => {
+            this.action.set_shortcut (null);
+            destroy ();
+        });
+
+        var save_button = new Gtk.Button () {
+            label = _("Save")
+        };
+        save_button.add_css_class ("suggested-action");
+        save_button.clicked.connect (on_save);
+
+        var button_box = new Gtk.Box (Gtk.Orientation.HORIZONTAL, 6);
+        button_box.append (cancel_button);
+        button_box.append (clear_button);
+        button_box.append (save_button);
+        button_box.halign = Gtk.Align.END;
+        content_box.append (button_box);
+
+        child = content_box;
+        set_size_request (350, 120);
+    }
+
+    private bool on_key_pressed (uint keyval, uint keycode, Gdk.ModifierType state) {
+        var modifiers = state & (Gdk.ModifierType.SHIFT_MASK | Gdk.ModifierType.CONTROL_MASK | Gdk.ModifierType.ALT_MASK | Gdk.ModifierType.SUPER_MASK);
+
+        if (keyval == Gdk.Key.Escape) {
+            destroy ();
+            return true;
+        }
+
+        if (keyval == Gdk.Key.BackSpace && modifiers == 0) {
+            this.action.set_shortcut (null);
+            destroy ();
+            return true;
+        }
+
+        if (modifiers == 0 || (modifiers & Gdk.ModifierType.CONTROL_MASK) != 0 ||
+            (modifiers & Gdk.ModifierType.SHIFT_MASK) != 0 ||
+            (modifiers & Gdk.ModifierType.ALT_MASK) != 0 ||
+            (modifiers & Gdk.ModifierType.SUPER_MASK) != 0) {
+
+            if (modifiers != 0) {
+                this.keyval = keyval;
+                this.modifiers = modifiers;
+                label.set_label (format_shortcut (keyval, modifiers));
+            }
+            return true;
+        }
+        return false;
+    }
+
+    private string format_shortcut (uint keyval, Gdk.ModifierType modifiers) {
+        var accel_string = "";
+
+        if ((modifiers & Gdk.ModifierType.CONTROL_MASK) != 0)accel_string += "<primary>";
+        if ((modifiers & Gdk.ModifierType.ALT_MASK) != 0)accel_string += "<Alt>";
+        if ((modifiers & Gdk.ModifierType.SHIFT_MASK) != 0)accel_string += "<Shift>";
+        if ((modifiers & Gdk.ModifierType.SUPER_MASK) != 0)accel_string += "<Super>";
+
+        var key_name = Gdk.keyval_name (keyval);
+        if (key_name != null) {
+            accel_string += key_name;
+        }
+
+        return accel_string;
+    }
+
+    private void on_save () {
+        if (keyval != 0) {
+            var shortcut = format_shortcut (keyval, modifiers);
+            this.action.set_shortcut (shortcut);
+        }
+        destroy ();
+    }
+}
+```
+
 ## File: symbols/symbols.css
 ```css
 /*
@@ -14050,6 +13907,251 @@ public class Iide.FileItem : Object {
 ⋮----
 .def-cod-info { color: #66ccff; }
 .dark .def-cod-info { color: #66ccff; }
+```
+
+## File: src/Services/TreeSitter/python/PythonHighlighter.vala
+```
+[CCode (cname = "tree_sitter_python")]
+extern unowned TreeSitter.Language ? get_lang_python ();
+
+public class Iide.PythonHighlighter : BaseTreeSitterHighlighter {
+  public PythonHighlighter (SourceView view) {
+    base (view);
+  }
+
+  protected override unowned TreeSitter.Language get_ts_language () {
+    return get_lang_python ();
+  }
+
+  protected override string query_source () {
+    return """
+        ; Identifier naming conventions
+
+        (identifier) @variable
+
+        ((identifier) @constructor
+         (#match? @constructor "^[A-Z]"))
+
+        ((identifier) @constant
+         (#match? @constant "^[A-Z][A-Z_]*$"))
+
+        ; Function calls
+
+        (decorator) @function
+        (decorator
+          (identifier) @function)
+
+        (call
+          function: (attribute attribute: (identifier) @function.method))
+        (call
+          function: (identifier) @function)
+
+        ; Builtin functions
+
+        ((call
+          function: (identifier) @function.builtin)
+         (#match?
+           @function.builtin
+           "^(abs|all|any|ascii|bin|bool|breakpoint|bytearray|bytes|callable|chr|classmethod|compile|complex|delattr|dict|dir|divmod|enumerate|eval|exec|filter|float|format|frozenset|getattr|globals|hasattr|hash|help|hex|id|input|int|isinstance|issubclass|iter|len|list|locals|map|max|memoryview|min|next|object|oct|open|ord|pow|print|property|range|repr|reversed|round|set|setattr|slice|sorted|staticmethod|str|sum|super|tuple|type|vars|zip|__import__)$"))
+
+        ; Function definitions
+
+        (function_definition
+          name: (identifier) @function)
+
+        (attribute attribute: (identifier) @property)
+        (type (identifier) @type)
+
+        ; Literals
+
+        [
+          (none)
+          (true)
+          (false)
+        ] @constant.builtin
+
+        [
+          (integer)
+          (float)
+        ] @number
+
+        (comment) @comment
+        (string) @string
+        (escape_sequence) @escape
+
+        (interpolation
+          "{" @punctuation.special
+          "}" @punctuation.special) @embedded
+
+        [
+          "-"
+          "-="
+          "!="
+          "*"
+          "**"
+          "**="
+          "*="
+          "/"
+          "//"
+          "//="
+          "/="
+          "&"
+          "&="
+          "%"
+          "%="
+          "^"
+          "^="
+          "+"
+          "->"
+          "+="
+          "<"
+          "<<"
+          "<<="
+          "<="
+          "<>"
+          "="
+          ":="
+          "=="
+          ">"
+          ">="
+          ">>"
+          ">>="
+          "|"
+          "|="
+          "~"
+          "@="
+          "and"
+          "in"
+          "is"
+          "not"
+          "or"
+          "is not"
+          "not in"
+        ] @operators
+
+        ["(" ")" "[" "]" "{" "}"] @punctuation.bracket
+
+        [
+          "as"
+          "assert"
+          "async"
+          "await"
+          "break"
+          "class"
+          "continue"
+          "def"
+          "del"
+          "elif"
+          "else"
+          "except"
+          "exec"
+          "finally"
+          "for"
+          "from"
+          "global"
+          "if"
+          "import"
+          "lambda"
+          "nonlocal"
+          "pass"
+          "print"
+          "raise"
+          "return"
+          "try"
+          "while"
+          "with"
+          "yield"
+          "match"
+          "case"
+        ] @keyword
+        """;
+  }
+
+  protected override bool is_container_node (string node_type) {
+    return node_type in new string[] {
+             "function_definition", "class_definition", "module_definition"
+    };
+  }
+
+  protected override bool is_foldable_node_type (string type) {
+    // Специфика AST Python
+    return type == "function_definition" || 
+           type == "class_definition" || 
+           type == "if_statement" || 
+           type == "for_statement" || 
+           type == "while_statement" || 
+           type == "try_statement" ||
+           type == "with_statement" ||
+           type == "match_statement" ||
+           type == "case_clause";
+  }
+
+  protected override TreeSitter.Point body_start_point(TreeSitter.Node foldable_node) {
+    for (uint32 j = 0; j < foldable_node.child_count (); j++) {
+      var inner_child = foldable_node.child (j);
+      if (inner_child.type () == ":")
+        return inner_child.start_point ();
+    }
+    return foldable_node.start_point ();
+  }
+
+  public override GtkSource.Indenter? create_indenter() {
+    return new PythonIndenter(this, get_ts_language ());
+  }
+}
+```
+
+## File: src/Services/TreeSitter/TreeSitterDocument.vala
+```
+/*
+*/
+
+public class Iide.TreeSitterDocument: SourceDocument {
+    public BaseTreeSitterHighlighter ts_highlighter;
+
+    public TreeSitterDocument(SourceView source_view, BaseTreeSitterHighlighter ts_highlighter) {
+        base(source_view);
+        this.ts_highlighter = ts_highlighter;
+
+        source_view.buffer.insert_text.connect ((ref location, text, len) => {
+            ts_highlighter.on_insert_text (location,  text, len);
+        });
+
+        source_view.buffer.delete_range.connect ((start, end) => {
+            ts_highlighter.on_delete_range (start, end);
+        });
+
+
+        this.ts_highlighter.breadcrumbs_changed.connect((crumbs) => {
+            this.breadcrumbs_changed(crumbs);
+        });
+        // Отключаем встроенный highlighter
+        ((GtkSource.Buffer) (source_view.buffer)).highlight_syntax = false;
+
+        // Отключаем встроенный indenter если реализован кастомный
+        //  source_view.auto_indent = ts_highlighter.ts_indenter == null;
+        var indenter = ts_highlighter.create_indenter ();
+        if (indenter != null)
+            source_view.set_indenter (indenter);
+        source_view.auto_indent = true;
+    }
+
+    protected override bool handle_key_pressed(uint keyval, uint keycode, Gdk.ModifierType modifiers) { 
+        return ts_highlighter.handle_key_pressed (keyval, keycode, modifiers); 
+    }
+
+    public override void expand_selection() {
+        ts_highlighter.expand_selection ();
+    }
+
+    public override void shrink_selection() {
+        ts_highlighter.shrink_selection ();
+    }
+
+    public override Gee.List<SourceNodeItem?> get_full_outline () {
+        return ts_highlighter.get_full_outline ();
+    }
+}
 ```
 
 ## File: src/Services/SourceDocument.vala
@@ -14345,2301 +14447,313 @@ namespace Iide {
 }
 ```
 
-## File: src/Services/ImageFactory.vala
+## File: src/Widgets/TextView/TreeSitterFoldingGutter.vala
 ```
 /*
- */
-
-public class Iide.ImageFactory {
-    public static Gtk.Widget create_for_ts (string type) {
-        SymbIconProvider _provider = SymbIconProvider.get_instance ();
-
-        // Мапинг для Tree-sitter
-        if (type.contains ("class")) {
-            return _provider.image (IconID.LS_CLASS);
-        } else if (type.contains ("struct")) {
-            return _provider.image (IconID.LS_STRUCT);
-        } else if (type.contains ("method") || type.contains ("function")) {
-            return _provider.image (IconID.LS_METHOD);
-        } else if (type.contains ("field") || type.contains ("variable") || type.contains ("parameter")) {
-            return _provider.image (IconID.LS_FIELD);
-        } else if (type.contains ("enum")) {
-            return _provider.image (IconID.LS_ENUM);
-        } else if (type.contains ("interface")) {
-            return _provider.image (IconID.LS_INTERFACE);
-        }
-
-        return _provider.image (IconID.LS_DEFAULT);
-    }
-
-    public static Gtk.Widget create_for_completion (Iide.LspCompletionKind kind) {
-        SymbIconProvider _provider = SymbIconProvider.get_instance ();
-
-        switch (kind) {
-        case TEXT:
-            return _provider.image (IconID.LS_TEXT);
-        case METHOD: case FUNCTION:
-            return _provider.image (IconID.LS_METHOD);
-        case CONSTRUCTOR:
-            return _provider.image (IconID.LS_CONSTRUCTOR);
-        case FIELD: case VARIABLE:
-            return _provider.image (IconID.LS_FIELD);
-        case CLASS:
-            return _provider.image (IconID.LS_CLASS);
-        case INTERFACE:
-            return _provider.image (IconID.LS_INTERFACE);
-        case MODULE:
-            return _provider.image (IconID.LS_MODULE);
-        case PROPERTY:
-            return _provider.image (IconID.LS_PROPERTY);
-        case ENUM:
-            return _provider.image (IconID.LS_ENUM);
-        case KEYWORD:
-            return _provider.image (IconID.LS_KEYWORD);
-        case SNIPPET:
-            return _provider.image (IconID.LS_SNIPPET);
-        case COLOR:
-            return _provider.image (IconID.LS_COLOR);
-        case FILE:
-            return _provider.image (IconID.LS_FILE);
-        case FOLDER:
-            return _provider.image (IconID.LS_FOLDER);
-        case CONSTANT:
-            return _provider.image (IconID.LS_CONSTANT);
-        case STRUCT:
-            return _provider.image (IconID.LS_STRUCT);
-        case OPERATOR:
-            return _provider.image (IconID.LS_OPERATOR);
-        default:
-            return _provider.image (IconID.LS_DEFAULT);
-        }
-    }
-
-    public static Gtk.Widget create_for_symbol (Iide.SymbolKind kind) {
-        SymbIconProvider _provider = SymbIconProvider.get_instance ();
-
-        switch (kind) {
-        case FILE:
-            return _provider.image (IconID.LS_FILE);
-        case MODULE: case NAMESPACE: case PACKAGE:
-            return _provider.image (IconID.LS_MODULE);
-        case CLASS:
-            return _provider.image (IconID.LS_CLASS);
-        case METHOD: case FUNCTION:
-            return _provider.image (IconID.LS_METHOD);
-        case CONSTRUCTOR:
-            return _provider.image (IconID.LS_CONSTRUCTOR);
-        case PROPERTY: case FIELD:
-            return _provider.image (IconID.LS_PROPERTY);
-        case VARIABLE: case CONSTANT:
-            return _provider.image (IconID.LS_CONSTANT);
-        case STRING: case NUMBER: case BOOLEAN:
-            return _provider.image (IconID.LS_LITERAL);
-        case ENUM:
-            return _provider.image (IconID.LS_ENUM);
-        case ENUM_MEMBER:
-            return _provider.image (IconID.LS_ENUM_MEMBER);
-        case STRUCT:
-            return _provider.image (IconID.LS_STRUCT);
-        case OPERATOR:
-            return _provider.image (IconID.LS_OPERATOR);
-        case TYPE_PARAMETER:
-            return _provider.image (IconID.LS_TYPE_PARAMETER);
-        default:
-            return _provider.image (IconID.LS_DEFAULT);
-        }
-    }
-
-    public static Gtk.Image folder_image () {
-        SymbIconProvider _provider = SymbIconProvider.get_instance ();
-        return _provider.image (IconID.FOLDER);
-    }
-
-    private static string filename_extension (string basename) {
-        // Находим позицию последней точки
-        int dot_index = basename.last_index_of_char ('.');
-        if (dot_index != -1) {
-            return basename.substring (dot_index);
-        }
-        return basename;
-    }
-
-    private static string get_mime_type (GLib.File file) {
-        try {
-            // Запрашиваем только нужный атрибут для скорости
-            var info = file.query_info (FileAttribute.STANDARD_CONTENT_TYPE, FileQueryInfoFlags.NONE, null);
-            var content_type = info.get_content_type ();
-            return ContentType.get_mime_type (content_type);
-        } catch (Error e) {
-            return "application/octet-stream";
-        }
-    }
-
-    public static Gtk.Image create_for_file (GLib.File file) {
-        SymbIconProvider _provider = SymbIconProvider.get_instance ();
-        return _provider.image (icon_id_for_file (file));
-    }
-
-    public static Gtk.Image create_for_file_info (GLib.FileInfo info) {
-        SymbIconProvider _provider = SymbIconProvider.get_instance ();
-        return _provider.image (icon_id_for_file_info (info));
-    }
-
-    public static string icon_name_for_file (GLib.File file) {
-        SymbIconProvider _provider = SymbIconProvider.get_instance ();
-        return _provider.icon_name (icon_id_for_file (file));
-    }
-
-    public static string icon_name_for_id (IconID icon_id) {
-        SymbIconProvider _provider = SymbIconProvider.get_instance ();
-        return _provider.icon_name (icon_id);
-    }
-
-    private static IconID ? icon_id_for_extension (string extension) {
-        switch (extension) {
-        // --- Системные / Конфиги ---
-        case "makefile" : case ".mk": case ".build":
-            return IconID.MT_MAKE;
-        case "dockerfile": case ".dockerfile":
-            return IconID.MT_DOCKER;
-        case ".json":
-            return IconID.MT_JSON;
-        case ".xml": case ".ui": case ".glade":
-            return IconID.MT_XML;
-        case ".yaml": case ".yml":
-            return IconID.MT_YAML;
-        case ".conf": case ".ini":
-            return IconID.MT_INI;
-        case ".md": case ".markdown":
-            return IconID.MT_MARKDOWN;
-        case ".toml":
-            return IconID.MT_TOML;
-        // --- Языки программирования ---
-        case ".vala": case ".vapi":
-            return IconID.MT_VALA;
-        case ".c":
-            return IconID.MT_C;
-        case ".h": case ".hh": case ".hpp":
-            return IconID.MT_H;
-        case ".cpp": case ".cc":
-            return IconID.MT_CPP;
-        case ".py": case ".pyi": case ".pyw":
-            return IconID.MT_PY;
-        case ".js":
-            return IconID.MT_JS;
-        case ".ts":
-            return IconID.MT_TS;
-        case ".css":
-            return IconID.MT_CSS;
-        case ".html":
-            return IconID.MT_HTML;
-        case ".sh": case ".zsh": case ".bash":
-            return IconID.MT_BASH;
-        case ".rs":
-            return IconID.MT_RUST;
-        case ".go":
-            return IconID.MT_GO;
-        case ".lua":
-            return IconID.MT_MAKE;
-        }
-        return null;
-    }
-
-    private static IconID icon_id_for_file_info (GLib.FileInfo info) {
-        string extension = filename_extension (info.get_name ());
-        return icon_id_for_extension (extension) ?? IconID.MT_DEFAULT;
-    }
-
-    private static IconID icon_id_for_file (GLib.File file) {
-        string basename = file.get_basename ().down ();
-        string extension = filename_extension (basename);
-
-        var icon_id = icon_id_for_extension (extension);
-        if (icon_id != null) {
-            return icon_id;
-        }
-
-        // --- Мультимедиа (MIME-базировано) ---
-        string mime = get_mime_type (file);
-        if (mime.has_prefix ("text/")) {
-            return IconID.MT_X_TEXT;
-        } else if (mime.has_prefix ("image/")) {
-            return IconID.MT_X_IMAGE;
-        } else if (mime.has_prefix ("audio/")) {
-            return IconID.MT_X_AUDIO;
-        } else if (mime.has_prefix ("video/")) {
-            return IconID.MT_X_VIDEO;
-        } else if (mime.has_prefix ("application/")) {
-            return IconID.MT_X_APP;
-        }
-
-        return IconID.MT_DEFAULT;
-    }
-}
-```
-
-## File: src/Widgets/Find/SearchResultsView.vala
-```
-public class Iide.SearchResultItem : Gtk.Box {
-    private Gtk.Label name_label;
-    private Gtk.Label path_label;
-    private Gtk.Box icon_box;
-
-    public SearchResultItem() {
-        Object(orientation: Gtk.Orientation.HORIZONTAL, spacing: 12);
-        this.margin_start = 8;
-        this.margin_end = 8;
-        this.margin_top = 6;
-        this.margin_bottom = 6;
-
-        icon_box = new Gtk.Box(Gtk.Orientation.VERTICAL, 0);
-        icon_box.set_size_request(20, 20);
-
-        var text_box = new Gtk.Box(Gtk.Orientation.VERTICAL, 2);
-        text_box.hexpand = true;
-
-        name_label = new Gtk.Label(null);
-        name_label.xalign = 0;
-        name_label.add_css_class("title-5");
-        name_label.hexpand = true;
-
-        path_label = new Gtk.Label(null);
-        path_label.add_css_class("dim-label");
-        path_label.add_css_class("caption");
-        path_label.xalign = 0;
-        path_label.ellipsize = Pango.EllipsizeMode.START;
-        path_label.hexpand = true;
-
-        text_box.append(name_label);
-        text_box.append(path_label);
-
-        this.append(icon_box);
-        this.append(text_box);
-    }
-
-    private string highlight_matches(string text, Gee.List<MatchRange>? matches) {
-        var escaped = escape_pango(text);
-
-        if (matches == null || matches.size == 0) {
-            return escaped;
-        }
-
-        var sb = new StringBuilder();
-        int pos = 0;
-
-        foreach (var m in matches) {
-            if (m.start > pos) {
-                sb.append(escaped.substring(pos, m.start - pos));
-            }
-            if (m.end > m.start && m.end <= (int) escaped.length) {
-                sb.append("<span weight=\"bold\" background=\"#ffd700\" color=\"#000000\">");
-                sb.append(escaped.substring(m.start, m.end - m.start));
-                sb.append("</span>");
-            }
-            pos = m.end;
-        }
-
-        if (pos < (int) escaped.length) {
-            sb.append(escaped.substring(pos));
-        }
-
-        return sb.str;
-    }
-
-    public void bind_search_result(SearchResult result) {
-        var highlighted_name = highlight_matches(result.line_content, result.matches);
-        var line_prefix = result.line_number == -1 ? "" : (result.line_number + 1).to_string() + ": ";
-        name_label.set_markup(line_prefix + highlighted_name);
-        path_label.set_label(result.relative_path);
-        if (result.icon_widget == null) {
-            icon_box.hide();
-        } else {
-            icon_box.append(result.icon_widget);
-        }
-    }
-}
-
-// Наследуемся от Box — это безопаснее и проще
-public class Iide.SearchResultsView : Gtk.Box {
-    private DocumentManager document_manager = DocumentManager.get_instance();
-    public Gtk.ListView list_view; // ListView теперь ВНУТРИ
-    public Gtk.SingleSelection selection;
-    private GLib.ListStore results;
-
-    private const int MAX_RESULTS = 100;
-
-    public SearchResultsView() {
-        Object(orientation: Gtk.Orientation.VERTICAL, spacing: 0);
-
-        results = new GLib.ListStore(typeof (SearchResult));
-        selection = new Gtk.SingleSelection(results);
-
-        var factory = new Gtk.SignalListItemFactory();
-        factory.setup.connect((item) => {
-            var list_item = item as Gtk.ListItem;
-            list_item.child = new SearchResultItem();
-        });
-
-        factory.bind.connect((item) => {
-            var list_item = item as Gtk.ListItem;
-            var item_box = list_item.child as SearchResultItem;
-            var result = (SearchResult) list_item.item;
-            item_box.bind_search_result(result);
-        });
-
-        // Создаем ListView как внутренний элемент
-        list_view = new Gtk.ListView(selection, factory);
-        list_view.hexpand = true;
-        list_view.vexpand = true;
-        list_view.show_separators = true;
-
-        // Добавляем ListView в наш Box
-        var scrolled = new Gtk.ScrolledWindow();
-        scrolled.child = list_view;
-        this.append(scrolled);
-    }
-
-    // В методах навигации просто меняем 'this' на 'list_view'
-    public void select_up() {
-        if (selection.selected > 0) {
-            selection.selected -= 1;
-            list_view.scroll_to(selection.selected, Gtk.ListScrollFlags.NONE, null);
-        }
-    }
-
-    public void select_down() {
-        if (selection.selected < (int) results.n_items - 1) {
-            selection.selected += 1;
-            list_view.scroll_to(selection.selected, Gtk.ListScrollFlags.NONE, null);
-        }
-    }
-
-    public void update_results(Gee.List<SearchResult>? new_results) {
-        if (new_results == null || new_results.size == 0) {
-            results.splice(0, results.n_items, new SearchResult[0]);
-            return;
-        }
-
-        var show_count = new_results.size;
-        if (show_count > MAX_RESULTS) {
-            show_count = MAX_RESULTS;
-        }
-
-        var items = new SearchResult[show_count];
-        for (var i = 0; i < show_count; i++) {
-            items[i] = new_results[i];
-        }
-        update_result_list(items);
-    }
-
-    public void update_result_list(SearchResult[] items) {
-        results.splice(0, results.n_items, items);
-        if (items.length > 0) {
-            selection.selected = 0;
-        }
-    }
-
-    public bool open_selected() {
-        var index = (int) selection.selected;
-        if (index >= 0 && index < results.n_items) {
-            var result = results.get_item(index) as SearchResult;
-            var file = GLib.File.new_for_path(result.file_path);
-
-            int start_col = 0;
-            int end_col = 0;
-            if (result.matches != null && result.matches.size > 0) {
-                start_col = result.matches[0].start;
-                end_col = result.matches[0].end;
-            }
-
-            document_manager.open_document_with_selection(file, result.line_number, start_col, end_col, null);
-            return true;
-        }
-        return false;
-    }
-}
-```
-
-## File: src/window.vala
-```
-/* window.vala
- *
- * Copyright 2026 kai
- *
- * This program is free software: you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation, either version 3 of the License, or
- * (at your option) any later version.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program.  If not, see <https://www.gnu.org/licenses/>.
- *
- * SPDX-License-Identifier: GPL-3.0-or-later
- */
-
+*/
 using Gtk;
-using Adw;
-using Panel;
+using GtkSource;
+using Cairo;
 
-public class Iide.Window : Panel.DocumentWorkspace {
+namespace Iide {
 
-    private Iide.DocumentManager document_manager;
-    private Iide.ProjectManager project_manager;
-    private Iide.SettingsService settings;
+    // Класс-обертка для хранения свернутых диапазонов на базе плавающих маркеров
+    public class FoldedMarkRange : GLib.Object {
+        public Gtk.TextMark start_mark;
+        public Gtk.TextMark end_mark;
 
-    private Gtk.Button lsp_btn;
-    private Gtk.Spinner lsp_spin;
-    private Gtk.Label lsp_count;
-    private Gtk.Popover lsp_popover;
-    private Gtk.Box lsp_list_box;
+        public FoldedMarkRange (Gtk.TextBuffer buffer, Gtk.TextIter start, Gtk.TextIter end) {
+            Object ();
+            // left_gravity = true заставляет маркеры автоматически сдвигаться 
+            // вместе с текстом при вставках/удалениях строк выше блока
+            this.start_mark = buffer.create_mark (null, start, true);
+            this.end_mark = buffer.create_mark (null, end, true);
+        }
 
-    private Gtk.Button global_diag_btn;
-    private Gtk.Label global_diag_label;
-    private Gtk.Image global_diag_icon;
-    private DiagnosticsPanel panel_widget_diagnostics;
-    private string app_error_icon_name;
-
-    private BasePanel[] panel_widgets;
-
-    public Window (Gtk.Application app) {
-        Object (application: app);
-        GtkSource.init ();
+        public void free_marks (Gtk.TextBuffer buffer) {
+            buffer.delete_mark (this.start_mark);
+            buffer.delete_mark (this.end_mark);
+        }
     }
 
-    construct {
-        settings = Iide.SettingsService.get_instance ();
-        document_manager = new Iide.DocumentManager (this);
-        project_manager = Iide.ProjectManager.get_instance ();
-        document_manager.document_opened.connect ((widget) => {
-            grid.add (widget);
-            widget.raise ();
-            widget.view_grab_focus ();
-        });
+    public class TreeSitterFoldingGutter : GtkSource.GutterRenderer {
+        // Динамический список реально свернутых в данный момент блоков
+        public Gee.ArrayList<FoldedMarkRange> active_folds = new Gee.ArrayList<FoldedMarkRange> ();
+        
+        // Актуальный кэш структуры документа от Tree-sitter
+        private Gee.List<Iide.IndentBlock?> file_blocks;
+        
+        private string folding_tag_name = "$FOLD_HIDE";
+        private int current_icon_size = 16;
 
-        project_manager.project_opened.connect ((project_root) => {
-            document_manager.set_workspace_root (project_root.get_uri ());
-        });
+        // Состояние мыши для эффектов в стиле QtCreator
+        private bool is_pointer_inside = false;
+        private int hover_line = -1;
 
-        project_manager.project_closed.connect (() => {
-            document_manager.set_workspace_root (null);
-        });
+        public signal void fold_state_changed ();
 
-        // Header
-        var header = new Adw.HeaderBar ();
-        var menu_button = new Gtk.MenuButton ();
-        menu_button.icon_name = "open-menu-symbolic";
-
-        var menu = new GLib.Menu ();
-        menu.append (_("Open Project"), "app.open_project");
-        menu.append (_("Quick Open"), "app.fuzzy_finder");
-        menu.append (_("Search in Files"), "app.search_in_files");
-        menu.append (_("Save All"), "app.save");
-        menu.append (_("Preferences"), "app.preferences");
-        menu.append (_("About"), "app.about");
-        menu.append (_("Quit"), "app.quit");
-        menu_button.set_menu_model (menu);
-
-        header.pack_end (menu_button);
-
-        var panel_layout = settings.panel_layout;
-        if (panel_layout != null && panel_layout != "") {
-            Iide.PanelLayoutHelper.deserialize_dock (panel_layout, dock);
-        } else {
-            dock.reveal_start = settings.reveal_start_panel;
-            dock.start_width = settings.panel_start_width;
-            dock.reveal_end = settings.reveal_end_panel;
-            dock.end_width = settings.panel_end_width;
-            dock.reveal_bottom = settings.reveal_bottom_panel;
-            dock.bottom_height = settings.panel_bottom_height;
+        public TreeSitterFoldingGutter () {
+            Object ();
+            this.file_blocks = new Gee.ArrayList<Iide.IndentBlock?> ();
+            this.set_alignment_mode (GtkSource.GutterRendererAlignmentMode.CELL);
         }
-        var start_toggle_btn = new Panel.ToggleButton (dock, Panel.Area.START);
-        header.pack_start (start_toggle_btn);
 
-        setup_navigation_buttons (header);
+        // Вызывается из SourceView.vala при обновлении синтаксического дерева
+        public void update_blocks_data (Gee.List<Iide.IndentBlock?> blocks) {
+            this.file_blocks = blocks;
+            this.queue_draw ();
+        }
 
-        var end_toggle_btn = new Panel.ToggleButton (dock, Panel.Area.END);
-        header.pack_end (end_toggle_btn);
+        // Интеграция EventController-ов для GTK 4
+        protected override void change_view (GtkSource.View? old_view) {
+            base.change_view (old_view);
+            var view = this.get_view ();
+            if (view == null) return;
 
-        set_titlebar (header);
+            var motion_controller = new Gtk.EventControllerMotion ();
+            
+            motion_controller.enter.connect ((x, y) => {
+                this.is_pointer_inside = true;
+                this.update_hover_position (x, y);
+            });
 
-        // Theme switcher
-        var style_manager = Adw.StyleManager.get_default ();
-        style_manager.color_scheme = settings.color_scheme.to_adw_color_scheme ();
+            motion_controller.motion.connect ((x, y) => {
+                this.update_hover_position (x, y);
+            });
 
-        var theme_list = new Gtk.StringList ({ "System", "Light", "Dark" });
-        var expr = new Gtk.PropertyExpression (typeof (Gtk.StringObject), null, "string");
-        var theme_dropdown = new Gtk.DropDown (theme_list, expr) {
-            selected = (uint) settings.color_scheme,
-            tooltip_text = _("Color Scheme"),
-            show_arrow = false
-        };
+            motion_controller.leave.connect (() => {
+                this.is_pointer_inside = false;
+                this.hover_line = -1;
+                this.queue_draw ();
+            });
 
-        var factory = new Gtk.SignalListItemFactory ();
-        factory.setup.connect ((item) => {
-            var list_item = item as Gtk.ListItem;
-            var box = new Gtk.Box (Gtk.Orientation.HORIZONTAL, 6);
-            var icon = new Gtk.Image ();
-            var label = new Gtk.Label (null);
-            label.xalign = 0;
-            box.append (icon);
-            box.append (label);
-            list_item.set_child (box);
-        });
-        factory.bind.connect ((item) => {
-            var list_item = item as Gtk.ListItem;
-            var box = list_item.get_child () as Gtk.Box;
-            var icon = box.get_first_child () as Gtk.Image;
-            var label = icon.get_next_sibling () as Gtk.Label;
-            var obj = list_item.get_item () as Gtk.StringObject;
-            var text = obj.get_string ();
-            label.set_label (text);
+            view.add_controller (motion_controller);
+        }
 
-            string icon_name;
-            switch (text) {
-                case "System":
-                    icon_name = "weather-overcast-symbolic";
-                    break;
-                case "Light":
-                    icon_name = "weather-clear-symbolic";
-                    break;
-                case "Dark":
-                    icon_name = "weather-clear-night-symbolic";
-                    break;
-                default:
-                    icon_name = "image-missing-symbolic";
-                    break;
+        private void update_hover_position (double x, double y) {
+            var view = this.get_view ();
+            Gtk.TextIter iter;
+            int buffer_y;
+            view.window_to_buffer_coords (Gtk.TextWindowType.TEXT, 0, (int) y, null, out buffer_y);
+            view.get_iter_at_location (out iter, 0, buffer_y);
+
+            int new_hover_line = iter.get_line ();
+            if (this.hover_line != new_hover_line) {
+                this.hover_line = new_hover_line;
+                this.queue_draw ();
             }
-            icon.icon_name = icon_name;
-        });
-        theme_dropdown.set_factory (factory);
+        }
 
-        theme_dropdown.notify["selected"].connect (() => {
-            var scheme = (ColorScheme) theme_dropdown.selected;
-            settings.color_scheme = scheme;
-            style_manager.color_scheme = scheme.to_adw_color_scheme ();
+        public void set_icons_size (int size) {
+            if (current_icon_size == size) {
+                return;
+            }
+            current_icon_size = size;
+            queue_resize ();
 
-            // ПРИНУДИТЕЛЬНО добавляем класс на окно, чтобы CSS его увидел
-            if (scheme == ColorScheme.DARK) {
-                this.add_css_class ("dark");
+            var gutter = (Gutter) get_parent ();
+            if (gutter != null) {
+                gutter.queue_allocate ();
+            }
+        }
+
+
+        public override void measure (Gtk.Orientation orientation, int for_size, out int minimum, out int natural, out int minimum_baseline, out int natural_baseline) {
+            minimum_baseline = natural_baseline = -1;
+            if (orientation == Gtk.Orientation.HORIZONTAL) {
+                minimum = natural = this.current_icon_size;
             } else {
-                this.remove_css_class ("dark");
+                minimum = natural = 0;
             }
-        });
-        if (settings.color_scheme == ColorScheme.DARK) {
-            this.add_css_class ("dark");
         }
 
-        header.pack_end (theme_dropdown);
+        // ОТРИСОВКА В СТИЛЕ QtCreator (GtkSourceView 5)
+        public override void snapshot_line (Gtk.Snapshot snapshot, GtkSource.GutterLines lines, uint line) {
+            Gtk.TextIter current_line_iter;
+            lines.get_iter_at_line (out current_line_iter, line);
+            int current_line = current_line_iter.get_line ();
 
-        // statusbar (создаётся после восстановления layout)
+            bool is_block_start = this.check_if_block_starts (current_line);
+            bool is_inside_block = this.check_if_inside_foldable_block (current_line);
 
-        create_panels ();
+            if (!is_block_start && !is_inside_block) return;
 
-        // Восстанавливаем виджеты из сохранённого layout
-        restore_panels_layout ();
+            bool is_collapsed = this.is_line_collapsed_by_number (current_line);
 
-        // Создаём toggle button для BOTTOM после восстановления layout
-        var bottom_toggle_btn = new Panel.ToggleButton (dock, Panel.Area.BOTTOM);
-        statusbar.add_suffix (1, bottom_toggle_btn);
+            int cell_y, cell_height;
+            lines.get_line_yrange (line, GtkSource.GutterRendererAlignmentMode.CELL, out cell_y, out cell_height);
+            if (cell_height <= 0) return;
 
-        setup_lsp_status ();
-        setup_global_diag_widget ();
+            var bounds = Graphene.Rect ();
+            bounds.init (0.0f, (float) cell_y, (float) this.current_icon_size, (float) cell_height);
 
-        project_manager.open_project_by_path (settings.current_project_path);
-        restore_opened_documents ();
+            var cr = snapshot.append_cairo (bounds);
+            cr.set_line_width (1.0);
 
-        // Handle window close
-        this.close_request.connect (() => {
-            save_window_settings ();
-            settings.open_documents = document_manager.get_open_document_uris ();
-            bool has_unsaved = false;
-            foreach (var entry in document_manager.documents.entries) {
-                if (entry.value is Iide.TextView) {
-                    var tv = (Iide.TextView) entry.value;
-                    if (tv.is_modified) {
-                        has_unsaved = true;
-                        break;
+            // Scope Подсветка минимального региона
+            bool is_current_scope_hovered = this.check_if_line_belongs_to_hovered_block (current_line);
+            if (is_current_scope_hovered) {
+                cr.set_source_rgba (0.2, 0.6, 1.0, 0.9); // Синий
+            } else {
+                cr.set_source_rgba (0.5, 0.5, 0.5, 0.4); // Серый полупрозрачный
+            }
+
+            double mid_x = this.current_icon_size / 2.0; 
+            double mid_y = cell_y + (cell_height / 2.0);
+            double r = double.max (3.0, this.current_icon_size / 4.0);
+
+            if (is_block_start) {
+                if (is_collapsed) {
+                    // [+] виден всегда
+                    this.draw_plus_icon_scaled (cr, mid_x, mid_y, r);
+                } else {
+                    // [-] виден только при наведении мыши на панель
+                    if (this.is_pointer_inside) {
+                        this.draw_minus_icon_scaled (cr, mid_x, mid_y, r);
+                    }
+                    cr.move_to (mid_x, mid_y + r + 1.0);
+                    cr.line_to (mid_x, cell_y + cell_height);
+                    cr.stroke ();
+                }
+            } else if (is_inside_block && !is_collapsed) {
+                cr.move_to (mid_x, cell_y);
+                cr.line_to (mid_x, cell_y + cell_height);
+                cr.stroke ();
+            }
+        }
+
+        // ОБРАБОТКА КЛИКА ПО ВСЕМУ РЕГИОНУ НА БАЗЕ TEXTMARK (GTK 4)
+        public override void activate (Gtk.TextIter iter, Gdk.Rectangle area, uint button, Gdk.ModifierType state, int n_presses) {
+            if (button != 1 || n_presses != 1) return;
+
+            int clicked_line = iter.get_line ();
+            var view = this.get_view ();
+            var buffer = view.get_buffer ();
+
+            var target_block = this.find_deepest_block_for_line (clicked_line);
+            if (target_block == null) return;
+
+            int start_line = target_block.start_line;
+            int end_line = target_block.end_line;
+
+            // Идеальная проверенная математика границ для схлопывания без лишних пустых строк
+            Gtk.TextIter fold_start;
+            buffer.get_iter_at_line (out fold_start, start_line + 1);
+
+            Gtk.TextIter fold_end;
+            buffer.get_iter_at_line (out fold_end, end_line + 1);
+            if (fold_end.is_end()) buffer.get_end_iter (out fold_end);
+
+            var invisible_tag = buffer.get_tag_table ().lookup (this.folding_tag_name);
+            if (invisible_tag == null) return;
+
+            // Ищем маркер свернутости
+            FoldedMarkRange? existing_fold = null;
+            foreach (var fold in this.active_folds) {
+                Gtk.TextIter mark_iter;
+                buffer.get_iter_at_mark (out mark_iter, fold.start_mark);
+                if (mark_iter.get_line () - 1 == start_line) {
+                    existing_fold = fold;
+                    break;
+                }
+            }
+
+            if (existing_fold != null) {
+                // Разворачиваем
+                Gtk.TextIter s, e;
+                buffer.get_iter_at_mark (out s, existing_fold.start_mark);
+                buffer.get_iter_at_mark (out e, existing_fold.end_mark);
+                
+                buffer.remove_tag (invisible_tag, s, e);
+                existing_fold.free_marks (buffer);
+                this.active_folds.remove (existing_fold);
+            } else {
+                // Сворачиваем
+                buffer.apply_tag (invisible_tag, fold_start, fold_end);
+                var new_fold = new FoldedMarkRange (buffer, fold_start, fold_end);
+                this.active_folds.add (new_fold);
+            }
+
+            view.queue_resize ();
+            this.queue_draw ();
+            this.fold_state_changed ();
+        }
+
+        public override bool query_activatable (Gtk.TextIter iter, Gdk.Rectangle area) {
+            int line = iter.get_line ();
+            return this.find_deepest_block_for_line (line) != null;
+        }
+
+        // ВСПОМОГАТЕЛЬНЫЕ ПОИСКОВЫЕ МЕТОДЫ (ИСТОЧНИК ПРАВДЫ — ТREE-SITTER)
+        
+        public Iide.IndentBlock? find_deepest_block_for_line (int line) {
+            Iide.IndentBlock? deepest_block = null;
+            int max_indent = -1;
+
+            foreach (var block in this.file_blocks) {
+                if (line >= block.start_line && line <= block.end_line) {
+                    if (block.indent_level > max_indent) {
+                        max_indent = block.indent_level;
+                        deepest_block = block;
                     }
                 }
             }
-            if (has_unsaved) {
-                var dialog = new Adw.AlertDialog (_("Unsaved Changes"), _("You have unsaved documents. Save before closing?"));
-                dialog.add_response ("cancel", _("Cancel"));
-                dialog.add_response ("discard", _("Discard"));
-                dialog.add_response ("save", _("Save"));
-                dialog.set_response_appearance ("save", Adw.ResponseAppearance.SUGGESTED);
-                dialog.response.connect ((response) => {
-                    if (response == "save") {
-                        foreach (var entry in document_manager.documents.entries) {
-                            if (entry.value is Iide.TextView) {
-                                var tv = (Iide.TextView) entry.value;
-                                if (tv.is_modified) {
-                                    tv.save ();
-                                }
-                            }
-                        }
-                        settings.open_documents = document_manager.get_open_document_uris ();
-                        this.destroy ();
-                    } else if (response == "discard") {
-                        settings.open_documents = document_manager.get_open_document_uris ();
-                        this.destroy ();
-                    }
-                });
-                dialog.present (this);
-                return true;
+            return deepest_block;
+        }
+
+        private bool check_if_block_starts (int line) {
+            foreach (var block in this.file_blocks) {
+                if (block.start_line == line) return true;
             }
             return false;
-        });
+        }
 
-        repair_empty_areas ();
-    }
+        private bool check_if_inside_foldable_block (int line) {
+            var block = this.find_deepest_block_for_line (line);
+            return block != null && line > block.start_line && line <= block.end_line;
+        }
 
-    private void restore_opened_documents () {
-        var grid_data = settings.grid_layout;
-        bool has_grid_docs = grid_data != null && grid_data != "";
-        if (has_grid_docs) {
-            restore_documents_from_grid_data (grid_data);
-        } else {
-            var open_docs = settings.open_documents;
-            bool has_open_docs = open_docs.size > 0;
-            if (has_open_docs) {
-                foreach (var uri in open_docs) {
-                    document_manager.open_document_by_uri (uri);
+        private bool check_if_line_belongs_to_hovered_block (int line) {
+            if (this.hover_line == -1) return false;
+
+            var hovered_block = this.find_deepest_block_for_line (this.hover_line);
+            if (hovered_block == null) return false;
+
+            var current_block = this.find_deepest_block_for_line (line);
+            if (current_block == null) return false;
+
+            if (line >= hovered_block.start_line && line <= hovered_block.end_line) {
+                if (current_block.indent_level > hovered_block.indent_level) {
+                    return true;
+                }
+                return hovered_block.start_line == current_block.start_line && 
+                       hovered_block.end_line == current_block.end_line;
+            }
+            return false;
+        }
+
+        public bool is_line_collapsed_by_number (int line_num) {
+            var buffer = this.get_view ().get_buffer ();
+            foreach (var fold in this.active_folds) {
+                Gtk.TextIter mark_iter;
+                buffer.get_iter_at_mark (out mark_iter, fold.start_mark);
+                if (mark_iter.get_line () - 1 == line_num) {
+                    return true;
                 }
             }
+            return false;
         }
 
-        Timeout.add (300, () => {
-            NavigationHistoryService.get_instance ().start_navigation ();
-            return Source.REMOVE;
-        });
-    }
-
-    private void setup_navigation_buttons (Adw.HeaderBar header) {
-        // Кнопка Назад
-        var back_btn = new Gtk.Button.from_icon_name ("go-previous-symbolic");
-        back_btn.tooltip_text = "Назад (Alt+Left)";
-        back_btn.action_name = "app.navigation_back"; // Привязываем к Action
-
-        // Кнопка Вперед
-        var forward_btn = new Gtk.Button.from_icon_name ("go-next-symbolic");
-        forward_btn.tooltip_text = "Вперед (Alt+Right)";
-        forward_btn.action_name = "app.navigation_forward";
-
-        header.pack_start (back_btn);
-        header.pack_start (forward_btn);
-    }
-
-    private void repair_empty_areas () {
-        bool empty_start = true;
-        bool empty_bottom = true;
-        bool empty_end = true;
-        dock.foreach_frame ((frame) => {
-            var position = frame.get_position ();
-            switch (position.area) {
-                case Panel.Area.START:
-                    empty_start = false;
-                    break;
-                case Panel.Area.BOTTOM:
-                    empty_bottom = false;
-                    break;
-                case Panel.Area.END:
-                    empty_end = false;
-                    break;
-                default:
-                    break;
-            }
-        });
-
-        if (empty_start) {
-            var position = new Panel.Position () {
-                area = Panel.Area.START
-            };
-            var tmp_panel = new Panel.Widget ();
-            add_widget (tmp_panel, position);
-            dock.remove (tmp_panel);
+        // ОТРИСОВКА ИКОНОК CAIRO
+        private void draw_plus_icon_scaled (Cairo.Context cr, double x, double y, double r) {
+            cr.rectangle (x - r, y - r, r * 2, r * 2); cr.stroke ();
+            cr.move_to (x - (r - 2.0), y); cr.line_to (x + (r - 2.0), y); cr.stroke ();
+            cr.move_to (x, y - (r - 2.0)); cr.line_to (x, y + (r - 2.0)); cr.stroke ();
         }
 
-        if (empty_bottom) {
-            var position = new Panel.Position () {
-                area = Panel.Area.BOTTOM
-            };
-            var tmp_panel = new Panel.Widget ();
-            add_widget (tmp_panel, position);
-            dock.remove (tmp_panel);
-        }
-
-        if (empty_end) {
-            var position = new Panel.Position () {
-                area = Panel.Area.END
-            };
-            var tmp_panel = new Panel.Widget ();
-            add_widget (tmp_panel, position);
-            dock.remove (tmp_panel);
-        }
-    }
-
-    private void create_panels () {
-        panel_widget_diagnostics = new DiagnosticsPanel ();
-
-        panel_widgets = {
-            new ProjectPanel (),
-            new TerminalPanel (),
-            new LogPanel (),
-            panel_widget_diagnostics
-        };
-    }
-
-    private void initialize_panels () {
-        foreach (var panel in panel_widgets) {
-            add_widget (panel, panel.initial_pos ());
-        }
-    }
-
-    private void restore_panels_layout () {
-        var dock_layout = settings.panel_layout;
-        if (dock_layout == null || dock_layout == "") {
-            initialize_panels ();
-            return;
-        }
-
-        var widget_layouts = Iide.PanelLayoutHelper.parse_widgets (dock_layout);
-
-        foreach (var panel_widget in panel_widgets) {
-            var widget_layout = widget_layouts.get (panel_widget.panel_id ());
-            var pos = widget_layout != null? widget_layout.to_pos () : panel_widget.initial_pos ();
-
-            add_widget (panel_widget, pos);
-        }
-    }
-
-    private void save_window_settings () {
-        settings.panel_layout = Iide.PanelLayoutHelper.serialize_dock (dock);
-        var grid_json = Iide.PanelLayoutHelper.serialize_grid (grid);
-        settings.grid_layout = grid_json;
-
-        bool maximized = false;
-        var surface = this.get_surface ();
-        if (surface != null) {
-            var toplevel = surface as Gdk.Toplevel;
-            if (toplevel != null) {
-                var state = toplevel.get_state ();
-                maximized = (state & Gdk.ToplevelState.MAXIMIZED) != 0;
-            }
-        }
-
-        if (!maximized) {
-            settings.window_width = (int) this.get_width ();
-            settings.window_height = (int) this.get_height ();
-        }
-        settings.window_maximized = maximized;
-    }
-
-    private void restore_grid_documents (Gee.ArrayList<Iide.PanelLayoutHelper.DocumentInfo> sorted_docs) {
-        uint last_col = 0;
-        foreach (var doc_info in sorted_docs) {
-            if (doc_info.column > last_col) {
-                last_col = doc_info.column;
-            }
-        }
-
-        for (uint i = 1; i <= last_col; i++) {
-            grid.insert_column (i);
-        }
-
-        foreach (var doc_info in sorted_docs) {
-            var file = GLib.File.new_for_uri (doc_info.uri);
-            var pos = new Panel.Position ();
-            pos.area = Panel.Area.CENTER;
-            pos.column = doc_info.column;
-            pos.row = doc_info.row;
-            document_manager.open_document (file, pos);
-        }
-    }
-
-    private void restore_documents_from_grid_data (string grid_data) {
-        var docs = Iide.PanelLayoutHelper.parse_grid_documents (grid_data);
-        if (docs.size == 0) {
-            return;
-        }
-
-        var sorted_docs = new Gee.ArrayList<Iide.PanelLayoutHelper.DocumentInfo> ();
-        foreach (var doc in docs) {
-            sorted_docs.add (doc);
-        }
-        sorted_docs.sort ((a, b) => {
-            int col_cmp = (int) (a.column - b.column);
-            if (col_cmp != 0)return col_cmp;
-            return (int) (a.row - b.row);
-        });
-
-        restore_grid_documents (sorted_docs);
-    }
-
-    public void save_modified () {
-        foreach (var entry in document_manager.documents.entries) {
-            var widget = entry.value;
-            if (widget is Iide.TextView) {
-                var tv = widget as Iide.TextView;
-                if (tv.is_modified) {
-                    tv.save ();
-                }
-            }
-        }
-    }
-
-    public void open_project_dialog () {
-        project_manager.open_project_dialog.begin (this);
-    }
-
-    public Iide.DocumentManager get_document_manager () {
-        return document_manager;
-    }
-
-    public SourceView ? get_active_source_view () {
-        // 1. Получаем последний сфокусированный виджет в сетке панелей
-        Panel.Widget? active_widget = this.get_grid ().get_most_recent_frame ().get_visible_child ();
-
-        if (active_widget == null)return null;
-
-        return (active_widget as TextView) ? .source_view;
-    }
-
-    private void setup_lsp_status () {
-        // 1. Создаем кнопку для Statusbar
-        var btn_content = new Gtk.Box (Gtk.Orientation.HORIZONTAL, 6);
-        lsp_spin = new Gtk.Spinner ();
-        lsp_count = new Gtk.Label ("0");
-        btn_content.append (lsp_spin);
-        btn_content.append (lsp_count);
-
-        lsp_btn = new Gtk.Button () { child = btn_content, visible = false };
-        lsp_btn.add_css_class ("flat");
-        this.statusbar.add_prefix (100, lsp_btn);
-
-        // 2. Создаем Popover
-        lsp_popover = new Gtk.Popover ();
-        lsp_popover.set_parent (lsp_btn);
-        var scroll = new Gtk.ScrolledWindow () {
-            max_content_height = 300,
-            propagate_natural_height = true,
-            width_request = 350 // Добавляем фиксированную минимальную ширину
-        };
-        lsp_list_box = new Gtk.Box (Gtk.Orientation.VERTICAL, 0);
-        lsp_list_box.add_css_class ("boxed-list"); // Стиль Adwaita для связанных строк
-
-        scroll.set_child (lsp_list_box);
-        lsp_popover.set_child (scroll);
-
-        lsp_btn.clicked.connect (() => lsp_popover.popup ());
-
-        // 3. Подписка на сервис
-        IdeLspService.get_instance ().tasks_changed.connect (update_lsp_ui);
-    }
-
-    private void update_lsp_ui (Gee.List<LspTaskInfo?> tasks) {
-        // Очистка списка
-        Gtk.Widget? child;
-        while ((child = lsp_list_box.get_first_child ()) != null)
-            lsp_list_box.remove (child);
-
-        if (tasks.size == 0) {
-            lsp_btn.hide ();
-            lsp_popover.popdown ();
-            return;
-        }
-
-        lsp_btn.show ();
-        lsp_spin.start ();
-        lsp_count.label = tasks.size.to_string ();
-
-        foreach (var task in tasks) {
-            var row = new Adw.ActionRow () {
-                title = task.server_name,
-                subtitle = task.message
-            };
-
-            if (task.percentage >= 0) {
-                var progress = new Gtk.ProgressBar () {
-                    fraction = task.percentage / 100.0,
-                    valign = Gtk.Align.CENTER
-                };
-                progress.add_css_class ("osd"); // Делает полоску тоньше и аккуратнее
-                row.add_suffix (progress);
-            }
-
-            lsp_list_box.append (row);
-        }
-    }
-
-    private void setup_global_diag_widget () {
-        app_error_icon_name = SymbIconProvider.get_instance ().icon_name (IconID.APP_ERROR);
-        var content = new Gtk.Box (Gtk.Orientation.HORIZONTAL, 6);
-        global_diag_icon = new Gtk.Image.from_icon_name ("emblem-ok-symbolic");
-        global_diag_label = new Gtk.Label ("OK");        
-
-        content.append (global_diag_icon);
-        content.append (global_diag_label);
-
-        global_diag_btn = new Gtk.Button ();
-        global_diag_btn.set_child (content);
-        global_diag_btn.add_css_class ("flat");
-
-        // Привязываем действие переключения панели
-        global_diag_btn.clicked.connect (() => {
-            panel_widget_diagnostics.raise ();
-        });
-
-        this.statusbar.add_prefix (50, global_diag_btn);
-
-        // Подключаемся к сервису для обновления состояния
-        DiagnosticsService.get_instance ().total_count_changed.connect (update_global_diag_status);
-    }
-
-    private void update_global_diag_status (int errors, int warns) {
-        if (errors == 0 && warns == 0) {
-            global_diag_icon.icon_name = "emblem-ok-symbolic";
-            global_diag_label.label = "OK";
-            global_diag_btn.remove_css_class ("error-state"); // Можно добавить для цвета
-        } else {
-            global_diag_icon.icon_name = app_error_icon_name;
-            global_diag_label.label = @"$errors / $warns";
-            global_diag_btn.add_css_class ("error-state");
-        }
-    }
-}
-```
-
-## File: src/Services/LSP/LspTypes.vala
-```
-public enum Iide.CompletionTriggerKind {
-    /**
-     * Дополнение вызвано вручную (например, Ctrl+Space)
-     * или обычным набором текста, не являющегося триггером.
-     */
-    INVOKED = 1,
-
-    /**
-     * Дополнение вызвано вводом специфического символа-триггера
-     * (например, '.', ':', '->').
-     */
-    TRIGGER_CHARACTER = 2,
-
-    /**
-     * Дополнение вызвано повторным запросом (например, когда
-     * список был помечен как 'incomplete').
-     */
-    TRIGGER_FOR_INCOMPLETE_COMPLETIONS = 3
-}
-
-public enum Iide.LspCompletionKind {
-    TEXT = 1,
-    METHOD = 2,
-    FUNCTION = 3,
-    CONSTRUCTOR = 4,
-    FIELD = 5,
-    VARIABLE = 6,
-    CLASS = 7,
-    INTERFACE = 8,
-    MODULE = 9,
-    PROPERTY = 10,
-    UNIT = 11,
-    VALUE = 12,
-    ENUM = 13,
-    KEYWORD = 14,
-    SNIPPET = 15,
-    COLOR = 16,
-    FILE = 17,
-    REFERENCE = 18,
-    FOLDER = 19,
-    ENUM_MEMBER = 20,
-    CONSTANT = 21,
-    STRUCT = 22,
-    EVENT = 23,
-    OPERATOR = 24,
-    TYPE_PARAMETER = 25;
-}
-
-public class Iide.LspCompletionItem : GLib.Object {
-    public string label { get; set; default = ""; }
-    public string? detail { get; set; }
-    public string? documentation { get; set; }
-    public int sort_text_priority { get; set; default = 0; }
-    public int insert_text_priority { get; set; default = 0; }
-    public string insert_text { get; set; default = ""; }
-    public string? text_edit { get; set; }
-    public int start_line { get; set; default = 0; }
-    public int start_column { get; set; default = 0; }
-    public int end_line { get; set; default = 0; }
-    public int end_column { get; set; default = 0; }
-    public LspCompletionKind kind { get; set; default = LspCompletionKind.TEXT; }
-}
-
-public class Iide.LspDiagnostic : GLib.Object {
-    public int severity { get; set; default = 1; }
-    public string message { get; set; default = ""; }
-    public int start_line { get; set; default = 0; }
-    public int start_column { get; set; default = 0; }
-    public int end_line { get; set; default = 0; }
-    public int end_column { get; set; default = 0; }
-
-    public string to_string () {
-        return "Diagnostic: (%d:%d-%d:%d) %s".printf (start_line, start_column, end_line, end_column, message);
-    }
-}
-
-public class Iide.LspLocation : GLib.Object {
-    public string uri { get; set; }
-    public int start_line { get; set; }
-    public int start_column { get; set; }
-    public int end_line { get; set; }
-    public int end_column { get; set; }
-}
-
-public class Iide.LspCompletionResult : GLib.Object {
-    public Gee.ArrayList<LspCompletionItem> items { get; set; }
-    public bool is_incomplete { get; set; default = false; }
-}
-
-public enum Iide.SymbolKind {
-    FILE = 1, MODULE = 2, NAMESPACE = 3, PACKAGE = 4,
-    CLASS = 5, METHOD = 6, PROPERTY = 7, FIELD = 8,
-    CONSTRUCTOR = 9, ENUM = 10, INTERFACE = 11,
-    FUNCTION = 12, VARIABLE = 13, CONSTANT = 14,
-    STRING = 15, NUMBER = 16, BOOLEAN = 17,
-    ARRAY = 18, OBJECT = 19, KEY = 20, NULL = 21,
-    ENUM_MEMBER = 22, STRUCT = 23, EVENT = 24,
-    OPERATOR = 25, TYPE_PARAMETER = 26;
-}
-
-public class Iide.WorkspaceLspSymbol : Object {
-    public string name { get; set; }
-    public SymbolKind kind { get; set; }
-    public string uri { get; set; }
-    public int start_line { get; set; }
-    public int start_char { get; set; }
-    public string? container_name { get; set; }
-}
-
-public class Iide.DocumentLspSymbol : Object {
-    public string name { get; set; }
-    public SymbolKind kind { get; set; }
-    public int start_line { get; set; }
-    public int start_char { get; set; }
-    public string? container_name { get; set; }
-    public Gee.List<DocumentLspSymbol> children { get; set; default = new Gee.ArrayList<DocumentLspSymbol> (); }
-}
-```
-
-## File: src/Services/SymbIconProvider.vala
-```
-/*
- * WARNING: THIS FILE IS GENERATED AUTOMATICALLY.
- * DO NOT EDIT THIS FILE MANUALLY.
- * ALL CHANGES WILL BE LOST UPON REGENERATION.
- */
-
-public enum Iide.IconID {
-    FOLDER = 0,
-    LS_CLASS = 1,
-    LS_METHOD = 2,
-    LS_FIELD = 3,
-    LS_ENUM = 4,
-    LS_INTERFACE = 5,
-    LS_TEXT = 6,
-    LS_CONSTRUCTOR = 7,
-    LS_MODULE = 8,
-    LS_KEYWORD = 9,
-    LS_SNIPPET = 10,
-    LS_COLOR = 11,
-    LS_FILE = 12,
-    LS_FOLDER = 13,
-    LS_CONSTANT = 14,
-    LS_STRUCT = 15,
-    LS_OPERATOR = 16,
-    LS_PROPERTY = 17,
-    LS_ENUM_MEMBER = 18,
-    LS_TYPE_PARAMETER = 19,
-    LS_LITERAL = 20,
-    LS_DEFAULT = 21,
-    MT_MAKE = 22,
-    MT_DOCKER = 23,
-    MT_JSON = 24,
-    MT_XML = 25,
-    MT_YAML = 26,
-    MT_INI = 27,
-    MT_MARKDOWN = 28,
-    MT_TOML = 29,
-    MT_VALA = 30,
-    MT_C = 31,
-    MT_H = 32,
-    MT_CPP = 33,
-    MT_PY = 34,
-    MT_JS = 35,
-    MT_TS = 36,
-    MT_CSS = 37,
-    MT_HTML = 38,
-    MT_BASH = 39,
-    MT_RUST = 40,
-    MT_GO = 41,
-    MT_LUA = 42,
-    MT_X_IMAGE = 43,
-    MT_X_AUDIO = 44,
-    MT_X_VIDEO = 45,
-    MT_X_TEXT = 46,
-    MT_X_APP = 47,
-    MT_DEFAULT = 48,
-    APP_PROJECT = 49,
-    APP_LOG = 50,
-    APP_TERMINAL = 51,
-    APP_ISSUES = 52,
-    APP_ERROR = 53,
-    APP_WARNING = 54,
-    APP_INFO = 55,
-    TXT_WRAP = 56,
-    LOG_ERASE = 57,
-    COD_ERROR = 58,
-    COD_WARNING = 59,
-    COD_INFO = 60;
-}
-
-public class Iide.SymbIconProvider {
-    private static SymbIconProvider? instance = null;
-    public static SymbIconProvider get_instance () {
-        if (instance == null) {
-            instance = new SymbIconProvider ();
-        }
-        return instance;
-    }
-
-    private string[,] _icon_indexes;
-    private string _prefix = "def-";
-
-    private SymbIconProvider () {
-        _icon_indexes = {
-            { "folder", "folder" },
-            { "ls-class", "ls-class" },
-            { "ls-method", "ls-method" },
-            { "ls-field", "ls-field" },
-            { "ls-enum", "ls-class" },
-            { "ls-interface", "ls-interface" },
-            { "ls-text", "" },
-            { "ls-constructor", "ls-constructor" },
-            { "ls-module", "ls-module" },
-            { "ls-keyword", "" },
-            { "ls-snippet", "ls-snippet" },
-            { "ls-color", "ls-color" },
-            { "ls-file", "" },
-            { "ls-folder", "ls-folder" },
-            { "ls-constant", "" },
-            { "ls-struct", "ls-struct" },
-            { "ls-operator", "" },
-            { "ls-property", "ls-property" },
-            { "ls-enum-member", "ls-enum-member" },
-            { "ls-type-parameter", "ls-type-parameter" },
-            { "ls-literal", "ls-literal" },
-            { "ls-default", "" },
-            { "mt-make", "mt-make" },
-            { "mt-docker", "mt-docker" },
-            { "mt-json", "mt-json" },
-            { "mt-xml", "mt-xml" },
-            { "mt-yaml", "mt-xml" },
-            { "mt-ini", "mt-ini" },
-            { "mt-markdown", "mt-markdown" },
-            { "mt-toml", "mt-toml" },
-            { "mt-vala", "mt-vala" },
-            { "mt-c", "mt-c" },
-            { "mt-h", "mt-h" },
-            { "mt-cpp", "mt-cpp" },
-            { "mt-py", "mt-py" },
-            { "mt-js", "mt-js" },
-            { "mt-ts", "mt-ts" },
-            { "mt-css", "mt-css" },
-            { "mt-html", "mt-html" },
-            { "mt-bash", "mt-bash" },
-            { "mt-rust", "mt-rust" },
-            { "mt-go", "mt-go" },
-            { "mt-lua", "mt-lua" },
-            { "mt-x-image", "mt-x-image" },
-            { "mt-x-audio", "mt-x-audio" },
-            { "mt-x-video", "mt-x-video" },
-            { "mt-x-text", "mt-x-text" },
-            { "mt-x-app", "mt-x-app" },
-            { "mt-default", "mt-default" },
-            { "app-project", "" },
-            { "app-log", "" },
-            { "app-terminal", "" },
-            { "app-issues", "" },
-            { "app-error", "" },
-            { "app-warning", "" },
-            { "app-info", "" },
-            { "txt-wrap", "" },
-            { "log-erase", "" },
-            { "cod-error", "cod-error" },
-            { "cod-warning", "cod-warning" },
-            { "cod-info", "cod-info" },
-        };
-    }
-    public Gtk.Image image (IconID icon_id, bool colorize = true, int? pixel_size = null) {
-        var icon_name = _icon_indexes[(int) icon_id, 0];
-        Gtk.Image img = new Gtk.Image.from_icon_name (_prefix + icon_name + "-symbolic");
-        if (colorize) {
-            var class_name = _icon_indexes[(int) icon_id, 1];
-            if (class_name.length > 0) {
-                img.add_css_class (_prefix + class_name);
-            }
-        }
-        if (pixel_size != null) {
-            img.pixel_size = pixel_size;
-        }
-        return img;
-    }
-
-    public string icon_name (IconID icon_id) {
-        var icon_name = _icon_indexes[(int) icon_id, 0];
-        return _prefix + icon_name + "-symbolic";
-    }
-}
-```
-
-## File: src/Widgets/TextView/EditorStatusBar.vala
-```
-public class Iide.EditorStatusBar : Gtk.Box {
-    private SourceView source_view;
-    private Gtk.Label pos_label;
-    private Gtk.Label mode_label;
-
-    private Gtk.Label error_label;
-    private Gtk.Label warn_label;
-    private Gtk.Box diagnostic_box;
-
-    private BreadcrumbsBar new_breadcrumps;
-
-    private Iide.DiagnosticsPopover diag_popover = null;
-
-    public EditorStatusBar (SourceView source_view) {
-        Object (orientation: Gtk.Orientation.HORIZONTAL, spacing: 12);
-        this.source_view = source_view;
-        this.add_css_class ("editor-status-bar");
-
-        // Левая часть: Breadcrumbs
-        new_breadcrumps = new BreadcrumbsBar (source_view);
-        this.append (new_breadcrumps);
-        new_breadcrumps.update_file_path (GLib.File.new_for_uri (source_view.uri),
-                                          GLib.File.new_for_path (ProjectManager.get_instance ().get_workspace_root_path ()));
-
-        // spacer
-        var spacer_box = new Gtk.Box (Gtk.Orientation.HORIZONTAL, 2);
-        spacer_box.hexpand = true;
-        this.append (spacer_box);
-
-        // Правая часть: Статистика
-        var info_box = new Gtk.Box (Gtk.Orientation.HORIZONTAL, 12);
-
-        mode_label = new Gtk.Label ("INS");
-        mode_label.add_css_class ("dim-label");
-        mode_label.height_request = 24;
-
-        pos_label = new Gtk.Label ("1:1");
-
-        info_box.append (mode_label);
-        info_box.append (pos_label);
-        this.append (info_box);
-
-        diagnostic_box = new Gtk.Box (Gtk.Orientation.HORIZONTAL, 8);
-
-        // Ошибки (Красный)
-        error_label = new Gtk.Label ("0");
-        error_label.add_css_class ("error-label"); // Настроим цвет в CSS
-
-        // Предупреждения (Желтый)
-        warn_label = new Gtk.Label ("0");
-        warn_label.add_css_class ("warning-label");
-
-        var icon_provider = SymbIconProvider.get_instance ();
-
-        diagnostic_box.append (icon_provider.image (IconID.COD_ERROR));
-        diagnostic_box.append (error_label);
-        diagnostic_box.append (icon_provider.image (IconID.COD_WARNING));
-        diagnostic_box.append (warn_label);
-
-        // Добавляем в инфо-бокс перед позицией курсора
-        info_box.prepend (diagnostic_box);
-        diagnostic_box.hide (); // Скрываем, если ошибок нет
-
-        init_diagnostics_interaction ();
-        this.diagnostic_box.add_css_class ("diagnostic-box");
-    }
-
-    private void init_diagnostics_interaction () {
-        // Создаем контроллер жеста клика
-        var click_gesture = new Gtk.GestureClick ();
-
-        // Подключаемся к событию нажатия (pressed)
-        click_gesture.pressed.connect ((n_press, x, y) => {
-            // Мы вызываем метод, который создаст или обновит Popover
-            show_diagnostics_popup ();
-        });
-
-        // Привязываем жест к вашему боксу
-        this.diagnostic_box.add_controller (click_gesture);
-
-        // (Опционально) Добавим визуальный отклик: смена курсора при наведении
-        this.diagnostic_box.set_cursor (new Gdk.Cursor.from_name ("pointer", null));
-
-        // --- 2. Контроллер наведения (Hover) ---
-        var motion_controller = new Gtk.EventControllerMotion ();
-
-        // Когда мышь заходит в область
-        motion_controller.enter.connect ((x, y) => {
-            this.diagnostic_box.add_css_class ("hover");
-            // Меняем курсор на "руку"
-            this.diagnostic_box.set_cursor (new Gdk.Cursor.from_name ("pointer", null));
-        });
-
-        // Когда мышь покидает область
-        motion_controller.leave.connect (() => {
-            this.diagnostic_box.remove_css_class ("hover");
-            // Возвращаем обычный курсор
-            this.diagnostic_box.set_cursor (null);
-        });
-
-        this.diagnostic_box.add_controller (motion_controller);
-    }
-
-    private void show_diagnostics_popup () {
-        if (this.diag_popover == null) {
-            // Создаем попап, привязывая его к diagnostic_box
-            this.diag_popover = new Iide.DiagnosticsPopover (this.diagnostic_box, this.source_view);
-        }
-
-        // Обновляем список ошибок из буфера перед показом
-        this.diag_popover.refresh ();
-        this.diag_popover.popup ();
-    }
-
-    public void update_diagnostics (int errors, int warnings) {
-        if (errors == 0 && warnings == 0) {
-            diagnostic_box.hide ();
-            return;
-        }
-
-        diagnostic_box.show ();
-        error_label.label = errors.to_string ();
-        warn_label.label = warnings.to_string ();
-    }
-
-    public void update_breadcrumbs (Gee.List<SourceNodeItem?> crumbs) {
-        new_breadcrumps.update_breadcrumbs (crumbs);
-    }
-
-    public void update_position (int line, int col, int selection_len = 0) {
-        if (selection_len > 0) {
-            pos_label.label = "%d:%d (%d selected)".printf (line + 1, col + 1, selection_len);
-        } else {
-            pos_label.label = "%d:%d".printf (line + 1, col + 1);
-        }
-    }
-
-    public void update_mode (bool overwrite) {
-        mode_label.label = overwrite ? "OVR" : "INS";
-    }
-}
-```
-
-## File: src/Widgets/TextView/BreadcrumbTreeSitterNavigator.vala
-```
-public class Iide.BreadcrumbTreeSitterNavigator : Gtk.Box {
-    private SourceView source_view;
-    private Gee.List<SourceNodeItem?> siblings;
-    public Gtk.SearchEntry search_entry;
-    private Gtk.ListBox list_box;
-
-    public signal void close_requested ();
-
-    private class BreadcrumbObject : Object {
-        public SourceNodeItem item;
-        public BreadcrumbObject (SourceNodeItem item) {
-            Object ();
-            this.item = item;
-        }
-    }
-
-    public BreadcrumbTreeSitterNavigator (SourceView source_view, Gee.List<SourceNodeItem?> siblings) {
-        Object (orientation: Gtk.Orientation.VERTICAL, spacing: 6);
-        this.source_view = source_view;
-        this.siblings = siblings;
-        this.set_size_request (280, -1);
-        this.margin_top = 6;
-        this.margin_bottom = 6;
-        this.margin_start = 6;
-        this.margin_end = 6;
-
-        // --- Поиск ---
-        search_entry = new Gtk.SearchEntry ();
-        search_entry.hexpand = true;
-        this.append (search_entry);
-
-        // --- Список элементов ---
-        list_box = new Gtk.ListBox ();
-        list_box.add_css_class ("navigation-sidebar");
-
-        foreach (var item in siblings) {
-            list_box.append (create_row (item));
-        }
-
-        // Фильтрация
-        list_box.set_filter_func ((row) => {
-            var text = search_entry.get_text ().down ();
-            if (text == "")return true;
-
-            var obj = row.get_data<BreadcrumbObject> ("item");
-            var name = obj.item.name.down ();
-            return name.contains (text);
-        });
-        search_entry.search_changed.connect (() => {
-            list_box.invalidate_filter ();
-            refresh_state ();
-        });
-
-        list_box.row_activated.connect (on_row_activated);
-        search_entry.activate.connect (() => {
-            on_row_activated (list_box.get_selected_row ());
-        });
-
-        var scroll = new Gtk.ScrolledWindow ();
-        scroll.propagate_natural_height = true;
-        scroll.set_max_content_height (400);
-        scroll.set_child (list_box);
-        this.append (scroll);
-
-        var key_controller = new Gtk.EventControllerKey ();
-        key_controller.key_pressed.connect (on_key_pressed);
-        search_entry.add_controller (key_controller);
-        list_box.set_selection_mode (Gtk.SelectionMode.SINGLE);
-
-        this.refresh_state ();
-    }
-
-    private void select_first_visible_row () {
-        var row = list_box.get_first_child ();
-        while (row != null) {
-            var list_row = row as Gtk.ListBoxRow;
-            if (list_row.get_child_visible ()) {
-                list_box.select_row (list_row);
-                break;
-            }
-            row = row.get_next_sibling ();
-        }
-    }
-
-    private void refresh_state () {
-        this.search_entry.grab_focus ();
-        select_first_visible_row ();
-    }
-
-    private bool on_key_pressed (Gtk.EventControllerKey controller, uint keyval, uint keycode, Gdk.ModifierType modifiers) {
-        if (keyval == Gdk.Key.Escape) {
-            close_requested ();
-            return true;
-        } else if (keyval == Gdk.Key.Up || keyval == Gdk.Key.KP_Up) {
-            move_selection_up ();
-            return true;
-        } else if (keyval == Gdk.Key.Down || keyval == Gdk.Key.KP_Down) {
-            move_selection_down ();
-            return true;
-        }
-        return false;
-    }
-
-    private void move_selection_down () {
-        var selected_row = list_box.get_selected_row ();
-        if (selected_row == null) {
-            select_first_visible_row ();
-            return;
-        }
-
-        var next_row_widget = selected_row.get_next_sibling ();
-        while (next_row_widget != null) {
-            var list_row = next_row_widget as Gtk.ListBoxRow;
-            if (list_row.get_child_visible ()) {
-                list_box.select_row (list_row);
-                return;
-            }
-            next_row_widget = next_row_widget.get_next_sibling ();
-        }
-
-        if (!selected_row.get_child_visible ())
-            select_first_visible_row ();
-    }
-
-    private void move_selection_up () {
-        var selected_row = list_box.get_selected_row ();
-        if (selected_row == null) {
-            select_first_visible_row ();
-            return;
-        }
-
-        var prev_row_widget = selected_row.get_prev_sibling ();
-        while (prev_row_widget != null) {
-            var list_row = prev_row_widget as Gtk.ListBoxRow;
-            if (list_row.get_child_visible ()) {
-                list_box.select_row (list_row);
-                return;
-            }
-            prev_row_widget = prev_row_widget.get_prev_sibling ();
-        }
-
-        if (!selected_row.get_child_visible ())
-            select_first_visible_row ();
-    }
-
-    private Gtk.ListBoxRow create_row (SourceNodeItem item) {
-        var row = new Gtk.ListBoxRow ();
-        var box = new Gtk.Box (Gtk.Orientation.HORIZONTAL, 8);
-        box.margin_bottom = 4;
-        box.margin_top = 4;
-        box.margin_start = 4;
-        box.margin_end = 4;
-
-        var icon = ImageFactory.create_for_ts (item.type);
-
-        var label = new Gtk.Label (item.name);
-        label.ellipsize = Pango.EllipsizeMode.END;
-
-        box.append (icon);
-        box.append (label);
-        row.set_child (box);
-
-        // Сохраняем данные для поиска и активации
-        row.set_data ("item", new BreadcrumbObject (item));
-
-        return row;
-    }
-
-    private void on_row_activated (Gtk.ListBoxRow row) {
-        var obj = row.get_data<BreadcrumbObject> ("item");
-        source_view.goto ((int) obj.item.start_point.row,
-                          (int) obj.item.start_point.column);
-    }
-}
-```
-
-## File: src/Widgets/TextView/TextView.vala
-```
-/*
- * textdocument.vala
- *
- * Copyright 2026 kai
- *
- * This program is free software: you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation, either version 3 of the License, or
- * (at your option) any later version.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program.  If not, see <https://www.gnu.org/licenses/>.
- *
- * SPDX-License-Identifier: GPL-3.0-or-later
- */
-
-
-
-public class Iide.SaveDelegate : Panel.SaveDelegate {
-    private Iide.TextView view;
-    public SaveDelegate (Iide.TextView view) {
-        Object ();
-        this.view = view;
-
-        var file = GLib.File.new_for_uri (view.uri);
-        title = view.title;
-        subtitle = file.get_path ();
-    }
-
-    public override bool save (GLib.Task task) {
-        message ("Saving in delegate...");
-        var result = view.save ();
-        task.return_boolean (result);
-        return result;
-    }
-
-    public override void close () {
-        view.force_close ();
-    }
-
-    public override void discard () {
-        view.force_close ();
-    }
-}
-
-public class Iide.TextView : Panel.Widget {
-    public SourceView source_view;
-    private GtkSource.Map source_map;
-    private FontZoomer font_zoomer;
-    private Iide.SettingsService settings;
-    private EditorStatusBar editor_status_bar;
-
-    public Window window;
-    public string uri { get; private set; }
-    public SourceView text_view { get { return source_view; } }
-
-    public bool is_modified { get { return ((GtkSource.Buffer) source_view.buffer).get_modified (); } }
-
-    public signal void buffer_saved ();
-
-    public TextView (GLib.File file, GtkSource.Buffer buffer, Window window) {
-        Object ();
-        this.uri = file.get_uri ();
-        this.window = window;
-        this.settings = Iide.SettingsService.get_instance ();
-
-        var adw_style_manager = Adw.StyleManager.get_default ();
-
-        var style_manager = GtkSource.StyleSchemeManager.get_default ();
-        if (adw_style_manager.color_scheme == Adw.ColorScheme.FORCE_LIGHT) {
-            buffer.set_style_scheme (style_manager.get_scheme ("Adwaita"));
-        } else {
-            buffer.set_style_scheme (style_manager.get_scheme ("Adwaita-dark"));
-        }
-
-        adw_style_manager.notify["color-scheme"].connect (() => {
-            if (adw_style_manager.color_scheme == Adw.ColorScheme.FORCE_LIGHT) {
-                buffer.set_style_scheme (style_manager.get_scheme ("Adwaita"));
-            } else {
-                buffer.set_style_scheme (style_manager.get_scheme ("Adwaita-dark"));
-            }
-        });
-
-        source_view = new SourceView (window, uri, buffer);
-        source_view.bottom_margin = 400;
-
-        // icon_name = source_view.icon_name;
-        set_icon_name (ImageFactory.icon_name_for_file (file));
-        font_zoomer = new FontZoomer (source_view);
-
-        // Connect to application-level zoom and minimap changes
-        var app = GLib.Application.get_default () as Iide.Application;
-        if (app != null) {
-            app.zoom_changed.connect ((level) => {
-                font_zoomer.set_zoom_level (level);
-            });
-            app.minimap_changed.connect ((visible) => {
-                toggle_minimap_visible (visible);
-            });
-        }
-
-        // Connect to settings changes to apply to all open documents
-        settings.editor_setting_changed.connect ((key) => {
-            switch (key) {
-                case "editor-font-size":
-                    font_zoomer.set_zoom_level (settings.editor_font_size);
-                    break;
-                case "show-minimap":
-                    toggle_minimap_visible (settings.show_minimap);
-                    break;
-            }
-        });
-
-        source_map = new GtkSource.Map ();
-        // source_map.set_view (source_view);
-        source_map.add_css_class ("textview-map");
-        source_map.visible = settings.show_minimap;
-
-        font_zoomer.zoom_changed.connect ((level) => {
-            source_view.mark_renderer.set_icons_size (FontSizeHelper.get_size_for_zoom_level (level));
-        });
-
-        var scroll = new Gtk.ScrolledWindow ();
-        scroll.hexpand = true;
-        scroll.vexpand = true;
-
-        scroll.set_child (source_view);
-
-        // Чтобы миникарта понимала масштаб и положение,
-        // она должна использовать тот же VAdjustment, что и ScrolledWindow редактора.
-        source_map.set_view (source_view);
-
-        // 3. Убедитесь, что миникарта не пытается скроллиться сама по себе
-        source_map.vexpand = true;
-
-        var subbox = new Gtk.Box (Gtk.Orientation.HORIZONTAL, 0);
-        subbox.homogeneous = false;
-        subbox.append (scroll);
-        subbox.append (source_map);
-
-        var font_map = Pango.CairoFontMap.get_default ();
-        source_map.set_font_map (font_map);
-
-        var box = new Gtk.Box (Gtk.Orientation.VERTICAL, 0);
-
-        box.append (subbox);
-
-        this.editor_status_bar = new EditorStatusBar (source_view);
-        box.append (this.editor_status_bar);
-        source_view.breadcrumbs_changed.connect (this.editor_status_bar.update_breadcrumbs);
-
-        child = box;
-
-        title = file.get_basename ();
-
-        save_delegate = new Iide.SaveDelegate (this);
-        modified = false;
-
-        buffer.modified_changed.connect_after (() => {
-            modified = buffer.get_modified ();
-        });
-        buffer.notify["cursor-position"].connect (() => {
-            Gtk.TextIter insert, selection;
-            buffer.get_selection_bounds (out insert, out selection);
-
-            // 1. Обновляем позицию
-            int line = insert.get_line ();
-            int col = insert.get_line_index (); // Используем байтовый индекс для честности
-            int sel_len = insert.get_offset () - selection.get_offset ();
-
-            editor_status_bar.update_position (line, col, sel_len);
-        });
-
-        // Режим вставки (Insert/Overwrite)
-        source_view.notify["overwrite"].connect (() => {
-            editor_status_bar.update_mode (source_view.overwrite);
-        });
-
-        var main_adj = scroll.get_vadjustment ();
-        var map_adj = source_map.get_vadjustment ();
-
-        // 1. Связываем только ЗНАЧЕНИЕ (позицию), но не масштаб
-        // Мы используем формулу пропорции, чтобы слайдер стоял там, где нужно
-        main_adj.value_changed.connect (() => {
-            // Рассчитываем процент прокрутки
-            double main_range = main_adj.upper - main_adj.page_size;
-            double map_range = map_adj.upper - map_adj.page_size;
-
-            // Проверяем, что нам есть куда скроллить в основном вьювере
-            if (main_range > 0) {
-                // 1. Рассчитываем процент прокрутки (от 0.0 до 1.0)
-                double percentage = main_adj.value / main_range;
-
-                // 2. Рассчитываем целевое значение для миникарты
-                double target_value = percentage * map_range;
-
-                // 3. Применяем значение с ограничением (clamp),
-                // чтобы избежать вылетов за границы при резком ресайзе
-                map_adj.set_value (target_value.clamp (0, map_range));
-            } else {
-                // Если текст целиком влезает в экран, сбрасываем карту в начало
-                map_adj.set_value (0);
-            }
-        });
-    }
-
-    public override void size_allocate (int width, int height, int baseline) {
-        base.size_allocate (width, height, baseline);
-        source_map.visible = settings.show_minimap && width >= 600;
-    }
-
-    public void toggle_minimap_visible (bool visible) {
-        source_map.visible = visible;
-    }
-
-    public void view_grab_focus () {
-        source_view.grab_focus ();
-    }
-
-    public bool save () {
-        try {
-            var text = source_view.buffer.text;
-            var file = GLib.File.new_for_uri (uri);
-            file.replace_contents (text.data, null, false, GLib.FileCreateFlags.NONE, null);
-            ((GtkSource.Buffer) source_view.buffer).set_modified (false);
-            buffer_saved ();
-        } catch (Error e) {
-            critical (e.message);
-        }
-        return true;
-    }
-
-    public void update_diagnostics (Gee.ArrayList<LspDiagnostic> diagnostics) {
-        var text_buffer = (Gtk.TextBuffer) source_view.buffer;
-
-        text_buffer.begin_user_action ();
-
-        LspDiagnosticsMark.clear_mark_attributes (source_view);
-
-        int line_count = text_buffer.get_line_count ();
-
-        int lsp_error_count = 0;
-        int lsp_warning_count = 0;
-
-        foreach (var diag in diagnostics) {
-            if (diag.start_line >= line_count) {
-                continue;
-            }
-
-            Gtk.TextIter start_iter;
-            text_buffer.get_iter_at_line (out start_iter, diag.start_line);
-
-            var mark = new LspDiagnosticsMark.from_lsp_diagnostic (diag);
-            text_buffer.add_mark (mark, start_iter); // Добавляем в буфер вручную
-
-            switch (diag.severity) {
-            case 1:
-                lsp_error_count++;
-                break;
-            case 2: case 3: case 4:
-                lsp_warning_count++;
-                break;
-            }
-        }
-
-        text_buffer.end_user_action ();
-
-        this.editor_status_bar.update_diagnostics (lsp_error_count, lsp_warning_count);
-    }
-
-    public void select_and_scroll (int line, int start_col, int end_col, bool is_new) {
-        source_view.select_and_scroll (line, start_col, end_col, is_new);
-    }
-}
-```
-
-## File: symbols/icons.json
-```json
-{
-    "font_file": "fonts/SYMBOLIC.ttf",
-    "font_name": "Symbols Nerd Font",
-    "output_dir": "gen_icons",
-    "styles": {
-        "folder": [
-            "#5f23b3",
-            "#7fcfc9"
-        ],
-        "ls-class": [
-            "#f57900",
-            "#f57900"
-        ],
-        "ls-method": [
-            "#9141ac",
-            "#9141ac"
-        ],
-        "ls-field": [
-            "#3584e4",
-            "#3584e4"
-        ],
-        "ls-interface": [
-            "#33d17a",
-            "#33d17a"
-        ],
-        "ls-constructor": [
-            "#3584e4",
-            "#3584e4"
-        ],
-        "ls-module": [
-            "#3584e4",
-            "#3584e4"
-        ],
-        "ls-snippet": [
-            "#33d17a",
-            "#33d17a"
-        ],
-        "ls-color": [
-            "#c0bfb1",
-            "#c0bfb1"
-        ],
-        "ls-folder": [
-            "#c0bfb1",
-            "#c0bfb1"
-        ],
-        "ls-constant": [
-            "#3584e4",
-            "#3584e4"
-        ],
-        "ls-struct": [
-            "#f57900",
-            "#f57900"
-        ],
-        "ls-operator": [
-            "#2aa1b3",
-            "#2aa1b3"
-        ],
-        "ls-property": [
-            "#3584e4",
-            "#3584e4"
-        ],
-        "ls-enum-member": [
-            "#3584e4",
-            "#3584e4"
-        ],
-        "ls-type-parameter": [
-            "#2aa1b3",
-            "#2aa1b3"
-        ],
-        "ls-literal": [
-            "#33d17a",
-            "#33d17a"
-        ],
-        "mt-make": [
-            "#6d8086",
-            "#6d8086"
-        ],
-        "mt-docker": [
-            "#384d54",
-            "#384d54"
-        ],
-        "mt-json": [
-            "#cbcb41",
-            "#cbcb41"
-        ],
-        "mt-xml": [
-            "#e37933",
-            "#e37933"
-        ],
-        "mt-yaml": [
-            "#cb3e20",
-            "#cb3e20"
-        ],
-        "mt-ini": [
-            "#6d8086",
-            "#6d8086"
-        ],
-        "mt-markdown": [
-            "#519aba",
-            "#519aba"
-        ],
-        "mt-toml": [
-            "#cb3e20",
-            "#cb3e20"
-        ],
-        "mt-vala": [
-            "#6e44b3",
-            "#6e44b3"
-        ],
-        "mt-c": [
-            "#599eff",
-            "#599eff"
-        ],
-        "mt-h": [
-            "#599eff",
-            "#599eff"
-        ],
-        "mt-cpp": [
-            "#00599c",
-            "#00599c"
-        ],
-        "mt-py": [
-            "#306998",
-            "#306998"
-        ],
-        "mt-js": [
-            "#f1e05a",
-            "#f1e05a"
-        ],
-        "mt-ts": [
-            "#2b7489",
-            "#2b7489"
-        ],
-        "mt-css": [
-            "#563d7c",
-            "#563d7c"
-        ],
-        "mt-html": [
-            "#e34c26",
-            "#e34c26"
-        ],
-        "mt-bash": [
-            "#4ebd4e",
-            "#4ebd4e"
-        ],
-        "mt-rust": [
-            "#dea584",
-            "#dea584"
-        ],
-        "mt-go": [
-            "#00add8",
-            "#00add8"
-        ],
-        "mt-lua": [
-            "#000080",
-            "#000080"
-        ],
-        "mt-x-image": [
-            "#a074c4",
-            "#a074c4"
-        ],
-        "mt-x-audio": [
-            "#2b7489",
-            "#2b7489"
-        ],
-        "mt-x-video": [
-            "#2b7489",
-            "#2b7489"
-        ],
-        "mt-x-text": [
-            "#858585",
-            "#858585"
-        ],
-        "mt-default": [
-            "#858585",
-            "#858585"
-        ],
-        "mt-x-app": [
-            "#858585",
-            "#858585"
-        ],
-        "cod-error": [
-            "#ff3300",
-            "#ff3300"
-        ],
-        "cod-warning": [
-            "#cccc00",
-            "#cccc00"
-        ],
-        "cod-info": [
-            "#66ccff",
-            "#66ccff"
-        ]
-    },
-    "icons": {
-        "folder": {
-            "char": "0xeaf7",
-            "style": "folder"
-        },
-        "ls-class": {
-            "char": "0xeb5b",
-            "style": "ls-class"
-        },
-        "ls-method": {
-            "char": "0xea8c",
-            "style": "ls-method"
-        },
-        "ls-field": {
-            "char": "0xeb5f",
-            "style": "ls-field"
-        },
-        "ls-enum": {
-            "char": "0xea95",
-            "style": "ls-class"
-        },
-        "ls-interface": {
-            "char": "0xeb61",
-            "style": "ls-interface"
-        },
-        "ls-text": {
-            "char": "0xeb69"
-        },
-        "ls-constructor": {
-            "char": "0xeb44",
-            "style": "ls-constructor"
-        },
-        "ls-module": {
-            "char": "0xeb29",
-            "style": "ls-module"
-        },
-        "ls-keyword": {
-            "char": "0xeb62"
-        },
-        "ls-snippet": {
-            "char": "0xeb66",
-            "style": "ls-snippet"
-        },
-        "ls-color": {
-            "char": "0xf024b",
-            "style": "ls-color"
-        },
-        "ls-file": {
-            "char": "0xf0214"
-        },
-        "ls-folder": {
-            "char": "0xf024b",
-            "style": "ls-folder"
-        },
-        "ls-constant": {
-            "char": "0xeb5d",
-            "symbol": "ls-constant"
-        },
-        "ls-struct": {
-            "char": "0xea91",
-            "style": "ls-struct"
-        },
-        "ls-operator": {
-            "char": "0xeb64",
-            "style": ""
-        },
-        "ls-property": {
-            "char": "0xeb65",
-            "style": "ls-property"
-        },
-        "ls-enum-member": {
-            "char": "0xeb5e",
-            "style": "ls-enum-member"
-        },
-        "ls-type-parameter": {
-            "char": "0xea92",
-            "style": "ls-type-parameter"
-        },
-        "ls-literal": {
-            "char": "0xea90",
-            "style": "ls-literal"
-        },
-        "ls-default": {
-            "char": "0xea8b"
-        },
-        "mt-make": {
-            "char": "0xe673",
-            "style": "mt-make"
-        },
-        "mt-docker": {
-            "char": "0xf308",
-            "style": "mt-docker"
-        },
-        "mt-json": {
-            "char": "0xe60b",
-            "style": "mt-json"
-        },
-        "mt-xml": {
-            "char": "0xf05c0",
-            "style": "mt-xml"
-        },
-        "mt-yaml": {
-            "char": "0xe8eb",
-            "style": "mt-xml"
-        },
-        "mt-ini": {
-            "char": "0xe615",
-            "style": "mt-ini"
-        },
-        "mt-markdown": {
-            "char": "0xeb1d",
-            "style": "mt-markdown"
-        },
-        "mt-toml": {
-            "char": "0xe6b2",
-            "style": "mt-toml"
-        },
-        "mt-vala": {
-            "char": "0xe69e",
-            "style": "mt-vala"
-        },
-        "mt-c": {
-            "char": "0xe61e",
-            "style": "mt-c"
-        },
-        "mt-h": {
-            "char": "0xe7fe",
-            "style": "mt-h"
-        },
-        "mt-cpp": {
-            "char": "0xe61d",
-            "style": "mt-cpp"
-        },
-        "mt-py": {
-            "char": "0xe73c",
-            "style": "mt-py"
-        },
-        "mt-js": {
-            "char": "0xe74e",
-            "style": "mt-js"
-        },
-        "mt-ts": {
-            "char": "0xe628",
-            "style": "mt-ts"
-        },
-        "mt-css": {
-            "char": "0xe749",
-            "style": "mt-css"
-        },
-        "mt-html": {
-            "char": "0xe736",
-            "style": "mt-html"
-        },
-        "mt-bash": {
-            "char": "0xe736",
-            "style": "mt-bash"
-        },
-        "mt-rust": {
-            "char": "0xe7a8",
-            "style": "mt-rust"
-        },
-        "mt-go": {
-            "char": "0xe627",
-            "style": "mt-go"
-        },
-        "mt-lua": {
-            "char": "0xe620",
-            "style": "mt-lua"
-        },
-        "mt-x-image": {
-            "char": "0xf024f",
-            "style": "mt-x-image"
-        },
-        "mt-x-audio": {
-            "char": "0xf1c7",
-            "style": "mt-x-audio"
-        },
-        "mt-x-video": {
-            "char": "0xf1c8",
-            "style": "mt-x-video"
-        },
-        "mt-x-text": {
-            "char": "0xf0f6",
-            "style": "mt-x-text"
-        },
-        "mt-x-app": {
-            "char": "0xf1c3",
-            "style": "mt-x-app"
-        },
-        "mt-default": {
-            "char": "0xf016",
-            "style": "mt-default"
-        },
-        "app-project": {
-            "char": "0xf13d2"
-        },
-        "app-log": {
-            "char": "0xf4ed"
-        },
-        "app-terminal": {
-            "char": "0xf489"
-        },
-        "app-issues": {
-            "char": "0xf0a04"
-        },
-        "app-error": {
-            "char": "0xea87"
-        },
-        "app-warning": {
-            "char": "0xea6c"
-        },
-        "app-info": {
-            "char": "0xea74"
-        },
-        "txt-wrap": {
-            "char": "0xf05b6"
-        },
-        "log-erase": {
-            "char": "0xf12d"
-        },
-        "cod-error": {
-            "char": "0xea87",
-            "style": "cod-error"
-        },
-        "cod-warning": {
-            "char": "0xea6c",
-            "style": "cod-warning"
-        },
-        "cod-info": {
-            "char": "0xea74",
-            "style": "cod-info"
+        private void draw_minus_icon_scaled (Cairo.Context cr, double x, double y, double r) {
+            cr.rectangle (x - r, y - r, r * 2, r * 2); cr.stroke ();
+            cr.move_to (x - (r - 2.0), y); cr.line_to (x + (r - 2.0), y); cr.stroke ();
         }
     }
 }
@@ -17574,6 +15688,2024 @@ public class Iide.LspClient : Object {
 }
 ```
 
+## File: src/Services/LSP/LspTypes.vala
+```
+public enum Iide.CompletionTriggerKind {
+    /**
+     * Дополнение вызвано вручную (например, Ctrl+Space)
+     * или обычным набором текста, не являющегося триггером.
+     */
+    INVOKED = 1,
+
+    /**
+     * Дополнение вызвано вводом специфического символа-триггера
+     * (например, '.', ':', '->').
+     */
+    TRIGGER_CHARACTER = 2,
+
+    /**
+     * Дополнение вызвано повторным запросом (например, когда
+     * список был помечен как 'incomplete').
+     */
+    TRIGGER_FOR_INCOMPLETE_COMPLETIONS = 3
+}
+
+public enum Iide.LspCompletionKind {
+    TEXT = 1,
+    METHOD = 2,
+    FUNCTION = 3,
+    CONSTRUCTOR = 4,
+    FIELD = 5,
+    VARIABLE = 6,
+    CLASS = 7,
+    INTERFACE = 8,
+    MODULE = 9,
+    PROPERTY = 10,
+    UNIT = 11,
+    VALUE = 12,
+    ENUM = 13,
+    KEYWORD = 14,
+    SNIPPET = 15,
+    COLOR = 16,
+    FILE = 17,
+    REFERENCE = 18,
+    FOLDER = 19,
+    ENUM_MEMBER = 20,
+    CONSTANT = 21,
+    STRUCT = 22,
+    EVENT = 23,
+    OPERATOR = 24,
+    TYPE_PARAMETER = 25;
+}
+
+public class Iide.LspCompletionItem : GLib.Object {
+    public string label { get; set; default = ""; }
+    public string? detail { get; set; }
+    public string? documentation { get; set; }
+    public int sort_text_priority { get; set; default = 0; }
+    public int insert_text_priority { get; set; default = 0; }
+    public string insert_text { get; set; default = ""; }
+    public string? text_edit { get; set; }
+    public int start_line { get; set; default = 0; }
+    public int start_column { get; set; default = 0; }
+    public int end_line { get; set; default = 0; }
+    public int end_column { get; set; default = 0; }
+    public LspCompletionKind kind { get; set; default = LspCompletionKind.TEXT; }
+}
+
+public class Iide.LspDiagnostic : GLib.Object {
+    public int severity { get; set; default = 1; }
+    public string message { get; set; default = ""; }
+    public int start_line { get; set; default = 0; }
+    public int start_column { get; set; default = 0; }
+    public int end_line { get; set; default = 0; }
+    public int end_column { get; set; default = 0; }
+
+    public string to_string () {
+        return "Diagnostic: (%d:%d-%d:%d) %s".printf (start_line, start_column, end_line, end_column, message);
+    }
+}
+
+public class Iide.LspLocation : GLib.Object {
+    public string uri { get; set; }
+    public int start_line { get; set; }
+    public int start_column { get; set; }
+    public int end_line { get; set; }
+    public int end_column { get; set; }
+}
+
+public class Iide.LspCompletionResult : GLib.Object {
+    public Gee.ArrayList<LspCompletionItem> items { get; set; }
+    public bool is_incomplete { get; set; default = false; }
+}
+
+public enum Iide.SymbolKind {
+    FILE = 1, MODULE = 2, NAMESPACE = 3, PACKAGE = 4,
+    CLASS = 5, METHOD = 6, PROPERTY = 7, FIELD = 8,
+    CONSTRUCTOR = 9, ENUM = 10, INTERFACE = 11,
+    FUNCTION = 12, VARIABLE = 13, CONSTANT = 14,
+    STRING = 15, NUMBER = 16, BOOLEAN = 17,
+    ARRAY = 18, OBJECT = 19, KEY = 20, NULL = 21,
+    ENUM_MEMBER = 22, STRUCT = 23, EVENT = 24,
+    OPERATOR = 25, TYPE_PARAMETER = 26;
+}
+
+public class Iide.WorkspaceLspSymbol : Object {
+    public string name { get; set; }
+    public SymbolKind kind { get; set; }
+    public string uri { get; set; }
+    public int start_line { get; set; }
+    public int start_char { get; set; }
+    public string? container_name { get; set; }
+}
+
+public class Iide.DocumentLspSymbol : Object {
+    public string name { get; set; }
+    public SymbolKind kind { get; set; }
+    public int start_line { get; set; }
+    public int start_char { get; set; }
+    public string? container_name { get; set; }
+    public Gee.List<DocumentLspSymbol> children { get; set; default = new Gee.ArrayList<DocumentLspSymbol> (); }
+}
+```
+
+## File: src/Services/ImageFactory.vala
+```
+/*
+ */
+
+public class Iide.ImageFactory {
+    public static Gtk.Widget create_for_ts (string type) {
+        SymbIconProvider _provider = SymbIconProvider.get_instance ();
+
+        // Мапинг для Tree-sitter
+        if (type.contains ("class")) {
+            return _provider.image (IconID.LS_CLASS);
+        } else if (type.contains ("struct")) {
+            return _provider.image (IconID.LS_STRUCT);
+        } else if (type.contains ("method") || type.contains ("function")) {
+            return _provider.image (IconID.LS_METHOD);
+        } else if (type.contains ("field") || type.contains ("variable") || type.contains ("parameter")) {
+            return _provider.image (IconID.LS_FIELD);
+        } else if (type.contains ("enum")) {
+            return _provider.image (IconID.LS_ENUM);
+        } else if (type.contains ("interface")) {
+            return _provider.image (IconID.LS_INTERFACE);
+        }
+
+        return _provider.image (IconID.LS_DEFAULT);
+    }
+
+    public static Gtk.Widget create_for_completion (Iide.LspCompletionKind kind) {
+        SymbIconProvider _provider = SymbIconProvider.get_instance ();
+
+        switch (kind) {
+        case TEXT:
+            return _provider.image (IconID.LS_TEXT);
+        case METHOD: case FUNCTION:
+            return _provider.image (IconID.LS_METHOD);
+        case CONSTRUCTOR:
+            return _provider.image (IconID.LS_CONSTRUCTOR);
+        case FIELD: case VARIABLE:
+            return _provider.image (IconID.LS_FIELD);
+        case CLASS:
+            return _provider.image (IconID.LS_CLASS);
+        case INTERFACE:
+            return _provider.image (IconID.LS_INTERFACE);
+        case MODULE:
+            return _provider.image (IconID.LS_MODULE);
+        case PROPERTY:
+            return _provider.image (IconID.LS_PROPERTY);
+        case ENUM:
+            return _provider.image (IconID.LS_ENUM);
+        case KEYWORD:
+            return _provider.image (IconID.LS_KEYWORD);
+        case SNIPPET:
+            return _provider.image (IconID.LS_SNIPPET);
+        case COLOR:
+            return _provider.image (IconID.LS_COLOR);
+        case FILE:
+            return _provider.image (IconID.LS_FILE);
+        case FOLDER:
+            return _provider.image (IconID.LS_FOLDER);
+        case CONSTANT:
+            return _provider.image (IconID.LS_CONSTANT);
+        case STRUCT:
+            return _provider.image (IconID.LS_STRUCT);
+        case OPERATOR:
+            return _provider.image (IconID.LS_OPERATOR);
+        default:
+            return _provider.image (IconID.LS_DEFAULT);
+        }
+    }
+
+    public static Gtk.Widget create_for_symbol (Iide.SymbolKind kind) {
+        SymbIconProvider _provider = SymbIconProvider.get_instance ();
+
+        switch (kind) {
+        case FILE:
+            return _provider.image (IconID.LS_FILE);
+        case MODULE: case NAMESPACE: case PACKAGE:
+            return _provider.image (IconID.LS_MODULE);
+        case CLASS:
+            return _provider.image (IconID.LS_CLASS);
+        case METHOD: case FUNCTION:
+            return _provider.image (IconID.LS_METHOD);
+        case CONSTRUCTOR:
+            return _provider.image (IconID.LS_CONSTRUCTOR);
+        case PROPERTY: case FIELD:
+            return _provider.image (IconID.LS_PROPERTY);
+        case VARIABLE: case CONSTANT:
+            return _provider.image (IconID.LS_CONSTANT);
+        case STRING: case NUMBER: case BOOLEAN:
+            return _provider.image (IconID.LS_LITERAL);
+        case ENUM:
+            return _provider.image (IconID.LS_ENUM);
+        case ENUM_MEMBER:
+            return _provider.image (IconID.LS_ENUM_MEMBER);
+        case STRUCT:
+            return _provider.image (IconID.LS_STRUCT);
+        case OPERATOR:
+            return _provider.image (IconID.LS_OPERATOR);
+        case TYPE_PARAMETER:
+            return _provider.image (IconID.LS_TYPE_PARAMETER);
+        default:
+            return _provider.image (IconID.LS_DEFAULT);
+        }
+    }
+
+    public static Gtk.Image folder_image () {
+        SymbIconProvider _provider = SymbIconProvider.get_instance ();
+        return _provider.image (IconID.FOLDER);
+    }
+
+    private static string filename_extension (string basename) {
+        // Находим позицию последней точки
+        int dot_index = basename.last_index_of_char ('.');
+        if (dot_index != -1) {
+            return basename.substring (dot_index);
+        }
+        return basename;
+    }
+
+    private static string get_mime_type (GLib.File file) {
+        try {
+            // Запрашиваем только нужный атрибут для скорости
+            var info = file.query_info (FileAttribute.STANDARD_CONTENT_TYPE, FileQueryInfoFlags.NONE, null);
+            var content_type = info.get_content_type ();
+            return ContentType.get_mime_type (content_type);
+        } catch (Error e) {
+            return "application/octet-stream";
+        }
+    }
+
+    public static Gtk.Image create_for_file (GLib.File file) {
+        SymbIconProvider _provider = SymbIconProvider.get_instance ();
+        return _provider.image (icon_id_for_file (file));
+    }
+
+    public static Gtk.Image create_for_file_info (GLib.FileInfo info) {
+        SymbIconProvider _provider = SymbIconProvider.get_instance ();
+        return _provider.image (icon_id_for_file_info (info));
+    }
+
+    public static string icon_name_for_file (GLib.File file) {
+        SymbIconProvider _provider = SymbIconProvider.get_instance ();
+        return _provider.icon_name (icon_id_for_file (file));
+    }
+
+    public static string icon_name_for_id (IconID icon_id) {
+        SymbIconProvider _provider = SymbIconProvider.get_instance ();
+        return _provider.icon_name (icon_id);
+    }
+
+    private static IconID ? icon_id_for_extension (string extension) {
+        switch (extension) {
+        // --- Системные / Конфиги ---
+        case "makefile" : case ".mk": case ".build":
+            return IconID.MT_MAKE;
+        case "dockerfile": case ".dockerfile":
+            return IconID.MT_DOCKER;
+        case ".json":
+            return IconID.MT_JSON;
+        case ".xml": case ".ui": case ".glade":
+            return IconID.MT_XML;
+        case ".yaml": case ".yml":
+            return IconID.MT_YAML;
+        case ".conf": case ".ini":
+            return IconID.MT_INI;
+        case ".md": case ".markdown":
+            return IconID.MT_MARKDOWN;
+        case ".toml":
+            return IconID.MT_TOML;
+        // --- Языки программирования ---
+        case ".vala": case ".vapi":
+            return IconID.MT_VALA;
+        case ".c":
+            return IconID.MT_C;
+        case ".h": case ".hh": case ".hpp":
+            return IconID.MT_H;
+        case ".cpp": case ".cc":
+            return IconID.MT_CPP;
+        case ".py": case ".pyi": case ".pyw":
+            return IconID.MT_PY;
+        case ".js":
+            return IconID.MT_JS;
+        case ".ts":
+            return IconID.MT_TS;
+        case ".css":
+            return IconID.MT_CSS;
+        case ".html":
+            return IconID.MT_HTML;
+        case ".sh": case ".zsh": case ".bash":
+            return IconID.MT_BASH;
+        case ".rs":
+            return IconID.MT_RUST;
+        case ".go":
+            return IconID.MT_GO;
+        case ".lua":
+            return IconID.MT_MAKE;
+        }
+        return null;
+    }
+
+    private static IconID icon_id_for_file_info (GLib.FileInfo info) {
+        string extension = filename_extension (info.get_name ());
+        return icon_id_for_extension (extension) ?? IconID.MT_DEFAULT;
+    }
+
+    private static IconID icon_id_for_file (GLib.File file) {
+        string basename = file.get_basename ().down ();
+        string extension = filename_extension (basename);
+
+        var icon_id = icon_id_for_extension (extension);
+        if (icon_id != null) {
+            return icon_id;
+        }
+
+        // --- Мультимедиа (MIME-базировано) ---
+        string mime = get_mime_type (file);
+        if (mime.has_prefix ("text/")) {
+            return IconID.MT_X_TEXT;
+        } else if (mime.has_prefix ("image/")) {
+            return IconID.MT_X_IMAGE;
+        } else if (mime.has_prefix ("audio/")) {
+            return IconID.MT_X_AUDIO;
+        } else if (mime.has_prefix ("video/")) {
+            return IconID.MT_X_VIDEO;
+        } else if (mime.has_prefix ("application/")) {
+            return IconID.MT_X_APP;
+        }
+
+        return IconID.MT_DEFAULT;
+    }
+}
+```
+
+## File: src/Widgets/Find/SearchResultsView.vala
+```
+public class Iide.SearchResultItem : Gtk.Box {
+    private Gtk.Label name_label;
+    private Gtk.Label path_label;
+    private Gtk.Box icon_box;
+
+    public SearchResultItem() {
+        Object(orientation: Gtk.Orientation.HORIZONTAL, spacing: 12);
+        this.margin_start = 8;
+        this.margin_end = 8;
+        this.margin_top = 6;
+        this.margin_bottom = 6;
+
+        icon_box = new Gtk.Box(Gtk.Orientation.VERTICAL, 0);
+        icon_box.set_size_request(20, 20);
+
+        var text_box = new Gtk.Box(Gtk.Orientation.VERTICAL, 2);
+        text_box.hexpand = true;
+
+        name_label = new Gtk.Label(null);
+        name_label.xalign = 0;
+        name_label.add_css_class("title-5");
+        name_label.hexpand = true;
+
+        path_label = new Gtk.Label(null);
+        path_label.add_css_class("dim-label");
+        path_label.add_css_class("caption");
+        path_label.xalign = 0;
+        path_label.ellipsize = Pango.EllipsizeMode.START;
+        path_label.hexpand = true;
+
+        text_box.append(name_label);
+        text_box.append(path_label);
+
+        this.append(icon_box);
+        this.append(text_box);
+    }
+
+    private string highlight_matches(string text, Gee.List<MatchRange>? matches) {
+        var escaped = escape_pango(text);
+
+        if (matches == null || matches.size == 0) {
+            return escaped;
+        }
+
+        var sb = new StringBuilder();
+        int pos = 0;
+
+        foreach (var m in matches) {
+            if (m.start > pos) {
+                sb.append(escaped.substring(pos, m.start - pos));
+            }
+            if (m.end > m.start && m.end <= (int) escaped.length) {
+                sb.append("<span weight=\"bold\" background=\"#ffd700\" color=\"#000000\">");
+                sb.append(escaped.substring(m.start, m.end - m.start));
+                sb.append("</span>");
+            }
+            pos = m.end;
+        }
+
+        if (pos < (int) escaped.length) {
+            sb.append(escaped.substring(pos));
+        }
+
+        return sb.str;
+    }
+
+    public void bind_search_result(SearchResult result) {
+        var highlighted_name = highlight_matches(result.line_content, result.matches);
+        var line_prefix = result.line_number == -1 ? "" : (result.line_number + 1).to_string() + ": ";
+        name_label.set_markup(line_prefix + highlighted_name);
+        path_label.set_label(result.relative_path);
+        if (result.icon_widget == null) {
+            icon_box.hide();
+        } else {
+            icon_box.append(result.icon_widget);
+        }
+    }
+}
+
+// Наследуемся от Box — это безопаснее и проще
+public class Iide.SearchResultsView : Gtk.Box {
+    private DocumentManager document_manager = DocumentManager.get_instance();
+    public Gtk.ListView list_view; // ListView теперь ВНУТРИ
+    public Gtk.SingleSelection selection;
+    private GLib.ListStore results;
+
+    private const int MAX_RESULTS = 100;
+
+    public SearchResultsView() {
+        Object(orientation: Gtk.Orientation.VERTICAL, spacing: 0);
+
+        results = new GLib.ListStore(typeof (SearchResult));
+        selection = new Gtk.SingleSelection(results);
+
+        var factory = new Gtk.SignalListItemFactory();
+        factory.setup.connect((item) => {
+            var list_item = item as Gtk.ListItem;
+            list_item.child = new SearchResultItem();
+        });
+
+        factory.bind.connect((item) => {
+            var list_item = item as Gtk.ListItem;
+            var item_box = list_item.child as SearchResultItem;
+            var result = (SearchResult) list_item.item;
+            item_box.bind_search_result(result);
+        });
+
+        // Создаем ListView как внутренний элемент
+        list_view = new Gtk.ListView(selection, factory);
+        list_view.hexpand = true;
+        list_view.vexpand = true;
+        list_view.show_separators = true;
+
+        // Добавляем ListView в наш Box
+        var scrolled = new Gtk.ScrolledWindow();
+        scrolled.child = list_view;
+        this.append(scrolled);
+    }
+
+    // В методах навигации просто меняем 'this' на 'list_view'
+    public void select_up() {
+        if (selection.selected > 0) {
+            selection.selected -= 1;
+            list_view.scroll_to(selection.selected, Gtk.ListScrollFlags.NONE, null);
+        }
+    }
+
+    public void select_down() {
+        if (selection.selected < (int) results.n_items - 1) {
+            selection.selected += 1;
+            list_view.scroll_to(selection.selected, Gtk.ListScrollFlags.NONE, null);
+        }
+    }
+
+    public void update_results(Gee.List<SearchResult>? new_results) {
+        if (new_results == null || new_results.size == 0) {
+            results.splice(0, results.n_items, new SearchResult[0]);
+            return;
+        }
+
+        var show_count = new_results.size;
+        if (show_count > MAX_RESULTS) {
+            show_count = MAX_RESULTS;
+        }
+
+        var items = new SearchResult[show_count];
+        for (var i = 0; i < show_count; i++) {
+            items[i] = new_results[i];
+        }
+        update_result_list(items);
+    }
+
+    public void update_result_list(SearchResult[] items) {
+        results.splice(0, results.n_items, items);
+        if (items.length > 0) {
+            selection.selected = 0;
+        }
+    }
+
+    public bool open_selected() {
+        var index = (int) selection.selected;
+        if (index >= 0 && index < results.n_items) {
+            var result = results.get_item(index) as SearchResult;
+            var file = GLib.File.new_for_path(result.file_path);
+
+            int start_col = 0;
+            int end_col = 0;
+            if (result.matches != null && result.matches.size > 0) {
+                start_col = result.matches[0].start;
+                end_col = result.matches[0].end;
+            }
+
+            document_manager.open_document_with_selection(file, result.line_number, start_col, end_col, null);
+            return true;
+        }
+        return false;
+    }
+}
+```
+
+## File: src/window.vala
+```
+/* window.vala
+ *
+ * Copyright 2026 kai
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see <https://www.gnu.org/licenses/>.
+ *
+ * SPDX-License-Identifier: GPL-3.0-or-later
+ */
+
+using Gtk;
+using Adw;
+using Panel;
+
+public class Iide.Window : Panel.DocumentWorkspace {
+
+    private Iide.DocumentManager document_manager;
+    private Iide.ProjectManager project_manager;
+    private Iide.SettingsService settings;
+
+    private Gtk.Button lsp_btn;
+    private Gtk.Spinner lsp_spin;
+    private Gtk.Label lsp_count;
+    private Gtk.Popover lsp_popover;
+    private Gtk.Box lsp_list_box;
+
+    private Gtk.Button global_diag_btn;
+    private Gtk.Label global_diag_label;
+    private Gtk.Image global_diag_icon;
+    private DiagnosticsPanel panel_widget_diagnostics;
+    private string app_error_icon_name;
+
+    private BasePanel[] panel_widgets;
+
+    public Window (Gtk.Application app) {
+        Object (application: app);
+        GtkSource.init ();
+    }
+
+    construct {
+        settings = Iide.SettingsService.get_instance ();
+        document_manager = new Iide.DocumentManager (this);
+        project_manager = Iide.ProjectManager.get_instance ();
+        document_manager.document_opened.connect ((widget) => {
+            grid.add (widget);
+            widget.raise ();
+            widget.view_grab_focus ();
+        });
+
+        project_manager.project_opened.connect ((project_root) => {
+            document_manager.set_workspace_root (project_root.get_uri ());
+        });
+
+        project_manager.project_closed.connect (() => {
+            document_manager.set_workspace_root (null);
+        });
+
+        // Header
+        var header = new Adw.HeaderBar ();
+        var menu_button = new Gtk.MenuButton ();
+        menu_button.icon_name = "open-menu-symbolic";
+
+        var menu = new GLib.Menu ();
+        menu.append (_("Open Project"), "app.open-project");
+        menu.append (_("Quick Open"), "app.fuzzy-finder");
+        menu.append (_("Search Symbol"), "app.search-symbol");
+        menu.append (_("Search in Files"), "app.search-in-files");
+        menu.append (_("Save All"), "app.save");
+        menu.append (_("Preferences"), "app.preferences");
+        menu.append (_("About"), "app.about");
+        menu.append (_("Quit"), "app.quit");
+        menu_button.set_menu_model (menu);
+
+        header.pack_end (menu_button);
+
+        var panel_layout = settings.panel_layout;
+        if (panel_layout != null && panel_layout != "") {
+            Iide.PanelLayoutHelper.deserialize_dock (panel_layout, dock);
+        } else {
+            dock.reveal_start = settings.reveal_start_panel;
+            dock.start_width = settings.panel_start_width;
+            dock.reveal_end = settings.reveal_end_panel;
+            dock.end_width = settings.panel_end_width;
+            dock.reveal_bottom = settings.reveal_bottom_panel;
+            dock.bottom_height = settings.panel_bottom_height;
+        }
+        var start_toggle_btn = new Panel.ToggleButton (dock, Panel.Area.START);
+        header.pack_start (start_toggle_btn);
+
+        setup_navigation_buttons (header);
+
+        var end_toggle_btn = new Panel.ToggleButton (dock, Panel.Area.END);
+        header.pack_end (end_toggle_btn);
+
+        set_titlebar (header);
+
+        // Theme switcher
+        var style_manager = Adw.StyleManager.get_default ();
+        style_manager.color_scheme = settings.color_scheme.to_adw_color_scheme ();
+
+        var theme_list = new Gtk.StringList ({ "System", "Light", "Dark" });
+        var expr = new Gtk.PropertyExpression (typeof (Gtk.StringObject), null, "string");
+        var theme_dropdown = new Gtk.DropDown (theme_list, expr) {
+            selected = (uint) settings.color_scheme,
+            tooltip_text = _("Color Scheme"),
+            show_arrow = false
+        };
+
+        var factory = new Gtk.SignalListItemFactory ();
+        factory.setup.connect ((item) => {
+            var list_item = item as Gtk.ListItem;
+            var box = new Gtk.Box (Gtk.Orientation.HORIZONTAL, 6);
+            var icon = new Gtk.Image ();
+            var label = new Gtk.Label (null);
+            label.xalign = 0;
+            box.append (icon);
+            box.append (label);
+            list_item.set_child (box);
+        });
+        factory.bind.connect ((item) => {
+            var list_item = item as Gtk.ListItem;
+            var box = list_item.get_child () as Gtk.Box;
+            var icon = box.get_first_child () as Gtk.Image;
+            var label = icon.get_next_sibling () as Gtk.Label;
+            var obj = list_item.get_item () as Gtk.StringObject;
+            var text = obj.get_string ();
+            label.set_label (text);
+
+            string icon_name;
+            switch (text) {
+                case "System":
+                    icon_name = "weather-overcast-symbolic";
+                    break;
+                case "Light":
+                    icon_name = "weather-clear-symbolic";
+                    break;
+                case "Dark":
+                    icon_name = "weather-clear-night-symbolic";
+                    break;
+                default:
+                    icon_name = "image-missing-symbolic";
+                    break;
+            }
+            icon.icon_name = icon_name;
+        });
+        theme_dropdown.set_factory (factory);
+
+        theme_dropdown.notify["selected"].connect (() => {
+            var scheme = (ColorScheme) theme_dropdown.selected;
+            settings.color_scheme = scheme;
+            style_manager.color_scheme = scheme.to_adw_color_scheme ();
+
+            // ПРИНУДИТЕЛЬНО добавляем класс на окно, чтобы CSS его увидел
+            if (scheme == ColorScheme.DARK) {
+                this.add_css_class ("dark");
+            } else {
+                this.remove_css_class ("dark");
+            }
+        });
+        if (settings.color_scheme == ColorScheme.DARK) {
+            this.add_css_class ("dark");
+        }
+
+        header.pack_end (theme_dropdown);
+
+        // statusbar (создаётся после восстановления layout)
+
+        create_panels ();
+
+        // Восстанавливаем виджеты из сохранённого layout
+        restore_panels_layout ();
+
+        // Создаём toggle button для BOTTOM после восстановления layout
+        var bottom_toggle_btn = new Panel.ToggleButton (dock, Panel.Area.BOTTOM);
+        statusbar.add_suffix (1, bottom_toggle_btn);
+
+        setup_lsp_status ();
+        setup_global_diag_widget ();
+
+        project_manager.open_project_by_path (settings.current_project_path);
+        restore_opened_documents ();
+
+        // Handle window close
+        this.close_request.connect (() => {
+            save_window_settings ();
+            settings.open_documents = document_manager.get_open_document_uris ();
+            bool has_unsaved = false;
+            foreach (var entry in document_manager.documents.entries) {
+                if (entry.value is Iide.TextView) {
+                    var tv = (Iide.TextView) entry.value;
+                    if (tv.is_modified) {
+                        has_unsaved = true;
+                        break;
+                    }
+                }
+            }
+            if (has_unsaved) {
+                var dialog = new Adw.AlertDialog (_("Unsaved Changes"), _("You have unsaved documents. Save before closing?"));
+                dialog.add_response ("cancel", _("Cancel"));
+                dialog.add_response ("discard", _("Discard"));
+                dialog.add_response ("save", _("Save"));
+                dialog.set_response_appearance ("save", Adw.ResponseAppearance.SUGGESTED);
+                dialog.response.connect ((response) => {
+                    if (response == "save") {
+                        foreach (var entry in document_manager.documents.entries) {
+                            if (entry.value is Iide.TextView) {
+                                var tv = (Iide.TextView) entry.value;
+                                if (tv.is_modified) {
+                                    tv.save ();
+                                }
+                            }
+                        }
+                        settings.open_documents = document_manager.get_open_document_uris ();
+                        this.destroy ();
+                    } else if (response == "discard") {
+                        settings.open_documents = document_manager.get_open_document_uris ();
+                        this.destroy ();
+                    }
+                });
+                dialog.present (this);
+                return true;
+            }
+            return false;
+        });
+
+        repair_empty_areas ();
+    }
+
+    private void restore_opened_documents () {
+        var grid_data = settings.grid_layout;
+        bool has_grid_docs = grid_data != null && grid_data != "";
+        if (has_grid_docs) {
+            restore_documents_from_grid_data (grid_data);
+        } else {
+            var open_docs = settings.open_documents;
+            bool has_open_docs = open_docs.size > 0;
+            if (has_open_docs) {
+                foreach (var uri in open_docs) {
+                    document_manager.open_document_by_uri (uri);
+                }
+            }
+        }
+
+        Timeout.add (300, () => {
+            NavigationHistoryService.get_instance ().start_navigation ();
+            return Source.REMOVE;
+        });
+    }
+
+    private void setup_navigation_buttons (Adw.HeaderBar header) {
+        // Кнопка Назад
+        var back_btn = new Gtk.Button.from_icon_name ("go-previous-symbolic");
+        back_btn.tooltip_text = "Назад (Alt+Left)";
+        back_btn.action_name = "app.navigation_back"; // Привязываем к Action
+
+        // Кнопка Вперед
+        var forward_btn = new Gtk.Button.from_icon_name ("go-next-symbolic");
+        forward_btn.tooltip_text = "Вперед (Alt+Right)";
+        forward_btn.action_name = "app.navigation_forward";
+
+        header.pack_start (back_btn);
+        header.pack_start (forward_btn);
+    }
+
+    private void repair_empty_areas () {
+        bool empty_start = true;
+        bool empty_bottom = true;
+        bool empty_end = true;
+        dock.foreach_frame ((frame) => {
+            var position = frame.get_position ();
+            switch (position.area) {
+                case Panel.Area.START:
+                    empty_start = false;
+                    break;
+                case Panel.Area.BOTTOM:
+                    empty_bottom = false;
+                    break;
+                case Panel.Area.END:
+                    empty_end = false;
+                    break;
+                default:
+                    break;
+            }
+        });
+
+        if (empty_start) {
+            var position = new Panel.Position () {
+                area = Panel.Area.START
+            };
+            var tmp_panel = new Panel.Widget ();
+            add_widget (tmp_panel, position);
+            dock.remove (tmp_panel);
+        }
+
+        if (empty_bottom) {
+            var position = new Panel.Position () {
+                area = Panel.Area.BOTTOM
+            };
+            var tmp_panel = new Panel.Widget ();
+            add_widget (tmp_panel, position);
+            dock.remove (tmp_panel);
+        }
+
+        if (empty_end) {
+            var position = new Panel.Position () {
+                area = Panel.Area.END
+            };
+            var tmp_panel = new Panel.Widget ();
+            add_widget (tmp_panel, position);
+            dock.remove (tmp_panel);
+        }
+    }
+
+    private void create_panels () {
+        panel_widget_diagnostics = new DiagnosticsPanel ();
+
+        panel_widgets = {
+            new ProjectPanel (),
+            new TerminalPanel (),
+            new LogPanel (),
+            panel_widget_diagnostics
+        };
+    }
+
+    private void initialize_panels () {
+        foreach (var panel in panel_widgets) {
+            add_widget (panel, panel.initial_pos ());
+        }
+    }
+
+    private void restore_panels_layout () {
+        var dock_layout = settings.panel_layout;
+        if (dock_layout == null || dock_layout == "") {
+            initialize_panels ();
+            return;
+        }
+
+        var widget_layouts = Iide.PanelLayoutHelper.parse_widgets (dock_layout);
+
+        foreach (var panel_widget in panel_widgets) {
+            var widget_layout = widget_layouts.get (panel_widget.panel_id ());
+            var pos = widget_layout != null? widget_layout.to_pos () : panel_widget.initial_pos ();
+
+            add_widget (panel_widget, pos);
+        }
+    }
+
+    private void save_window_settings () {
+        settings.panel_layout = Iide.PanelLayoutHelper.serialize_dock (dock);
+        var grid_json = Iide.PanelLayoutHelper.serialize_grid (grid);
+        settings.grid_layout = grid_json;
+
+        bool maximized = false;
+        var surface = this.get_surface ();
+        if (surface != null) {
+            var toplevel = surface as Gdk.Toplevel;
+            if (toplevel != null) {
+                var state = toplevel.get_state ();
+                maximized = (state & Gdk.ToplevelState.MAXIMIZED) != 0;
+            }
+        }
+
+        if (!maximized) {
+            settings.window_width = (int) this.get_width ();
+            settings.window_height = (int) this.get_height ();
+        }
+        settings.window_maximized = maximized;
+    }
+
+    private void restore_grid_documents (Gee.ArrayList<Iide.PanelLayoutHelper.DocumentInfo> sorted_docs) {
+        uint last_col = 0;
+        foreach (var doc_info in sorted_docs) {
+            if (doc_info.column > last_col) {
+                last_col = doc_info.column;
+            }
+        }
+
+        for (uint i = 1; i <= last_col; i++) {
+            grid.insert_column (i);
+        }
+
+        foreach (var doc_info in sorted_docs) {
+            var file = GLib.File.new_for_uri (doc_info.uri);
+            var pos = new Panel.Position ();
+            pos.area = Panel.Area.CENTER;
+            pos.column = doc_info.column;
+            pos.row = doc_info.row;
+            document_manager.open_document (file, pos);
+        }
+    }
+
+    private void restore_documents_from_grid_data (string grid_data) {
+        var docs = Iide.PanelLayoutHelper.parse_grid_documents (grid_data);
+        if (docs.size == 0) {
+            return;
+        }
+
+        var sorted_docs = new Gee.ArrayList<Iide.PanelLayoutHelper.DocumentInfo> ();
+        foreach (var doc in docs) {
+            sorted_docs.add (doc);
+        }
+        sorted_docs.sort ((a, b) => {
+            int col_cmp = (int) (a.column - b.column);
+            if (col_cmp != 0)return col_cmp;
+            return (int) (a.row - b.row);
+        });
+
+        restore_grid_documents (sorted_docs);
+    }
+
+    public void save_modified () {
+        foreach (var entry in document_manager.documents.entries) {
+            var widget = entry.value;
+            if (widget is Iide.TextView) {
+                var tv = widget as Iide.TextView;
+                if (tv.is_modified) {
+                    tv.save ();
+                }
+            }
+        }
+    }
+
+    public void open_project_dialog () {
+        project_manager.open_project_dialog.begin (this);
+    }
+
+    public Iide.DocumentManager get_document_manager () {
+        return document_manager;
+    }
+
+    public SourceView ? get_active_source_view () {
+        // 1. Получаем последний сфокусированный виджет в сетке панелей
+        Panel.Widget? active_widget = this.get_grid ().get_most_recent_frame ().get_visible_child ();
+
+        if (active_widget == null)return null;
+
+        return (active_widget as TextView) ? .source_view;
+    }
+
+    private void setup_lsp_status () {
+        // 1. Создаем кнопку для Statusbar
+        var btn_content = new Gtk.Box (Gtk.Orientation.HORIZONTAL, 6);
+        lsp_spin = new Gtk.Spinner ();
+        lsp_count = new Gtk.Label ("0");
+        btn_content.append (lsp_spin);
+        btn_content.append (lsp_count);
+
+        lsp_btn = new Gtk.Button () { child = btn_content, visible = false };
+        lsp_btn.add_css_class ("flat");
+        this.statusbar.add_prefix (100, lsp_btn);
+
+        // 2. Создаем Popover
+        lsp_popover = new Gtk.Popover ();
+        lsp_popover.set_parent (lsp_btn);
+        var scroll = new Gtk.ScrolledWindow () {
+            max_content_height = 300,
+            propagate_natural_height = true,
+            width_request = 350 // Добавляем фиксированную минимальную ширину
+        };
+        lsp_list_box = new Gtk.Box (Gtk.Orientation.VERTICAL, 0);
+        lsp_list_box.add_css_class ("boxed-list"); // Стиль Adwaita для связанных строк
+
+        scroll.set_child (lsp_list_box);
+        lsp_popover.set_child (scroll);
+
+        lsp_btn.clicked.connect (() => lsp_popover.popup ());
+
+        // 3. Подписка на сервис
+        IdeLspService.get_instance ().tasks_changed.connect (update_lsp_ui);
+    }
+
+    private void update_lsp_ui (Gee.List<LspTaskInfo?> tasks) {
+        // Очистка списка
+        Gtk.Widget? child;
+        while ((child = lsp_list_box.get_first_child ()) != null)
+            lsp_list_box.remove (child);
+
+        if (tasks.size == 0) {
+            lsp_btn.hide ();
+            lsp_popover.popdown ();
+            return;
+        }
+
+        lsp_btn.show ();
+        lsp_spin.start ();
+        lsp_count.label = tasks.size.to_string ();
+
+        foreach (var task in tasks) {
+            var row = new Adw.ActionRow () {
+                title = task.server_name,
+                subtitle = task.message
+            };
+
+            if (task.percentage >= 0) {
+                var progress = new Gtk.ProgressBar () {
+                    fraction = task.percentage / 100.0,
+                    valign = Gtk.Align.CENTER
+                };
+                progress.add_css_class ("osd"); // Делает полоску тоньше и аккуратнее
+                row.add_suffix (progress);
+            }
+
+            lsp_list_box.append (row);
+        }
+    }
+
+    private void setup_global_diag_widget () {
+        app_error_icon_name = SymbIconProvider.get_instance ().icon_name (IconID.APP_ERROR);
+        var content = new Gtk.Box (Gtk.Orientation.HORIZONTAL, 6);
+        global_diag_icon = new Gtk.Image.from_icon_name ("emblem-ok-symbolic");
+        global_diag_label = new Gtk.Label ("OK");        
+
+        content.append (global_diag_icon);
+        content.append (global_diag_label);
+
+        global_diag_btn = new Gtk.Button ();
+        global_diag_btn.set_child (content);
+        global_diag_btn.add_css_class ("flat");
+
+        // Привязываем действие переключения панели
+        global_diag_btn.clicked.connect (() => {
+            panel_widget_diagnostics.raise ();
+        });
+
+        this.statusbar.add_prefix (50, global_diag_btn);
+
+        // Подключаемся к сервису для обновления состояния
+        DiagnosticsService.get_instance ().total_count_changed.connect (update_global_diag_status);
+    }
+
+    private void update_global_diag_status (int errors, int warns) {
+        if (errors == 0 && warns == 0) {
+            global_diag_icon.icon_name = "emblem-ok-symbolic";
+            global_diag_label.label = "OK";
+            global_diag_btn.remove_css_class ("error-state"); // Можно добавить для цвета
+        } else {
+            global_diag_icon.icon_name = app_error_icon_name;
+            global_diag_label.label = @"$errors / $warns";
+            global_diag_btn.add_css_class ("error-state");
+        }
+    }
+}
+```
+
+## File: src/Services/SymbIconProvider.vala
+```
+/*
+ * WARNING: THIS FILE IS GENERATED AUTOMATICALLY.
+ * DO NOT EDIT THIS FILE MANUALLY.
+ * ALL CHANGES WILL BE LOST UPON REGENERATION.
+ */
+
+public enum Iide.IconID {
+    FOLDER = 0,
+    LS_CLASS = 1,
+    LS_METHOD = 2,
+    LS_FIELD = 3,
+    LS_ENUM = 4,
+    LS_INTERFACE = 5,
+    LS_TEXT = 6,
+    LS_CONSTRUCTOR = 7,
+    LS_MODULE = 8,
+    LS_KEYWORD = 9,
+    LS_SNIPPET = 10,
+    LS_COLOR = 11,
+    LS_FILE = 12,
+    LS_FOLDER = 13,
+    LS_CONSTANT = 14,
+    LS_STRUCT = 15,
+    LS_OPERATOR = 16,
+    LS_PROPERTY = 17,
+    LS_ENUM_MEMBER = 18,
+    LS_TYPE_PARAMETER = 19,
+    LS_LITERAL = 20,
+    LS_DEFAULT = 21,
+    MT_MAKE = 22,
+    MT_DOCKER = 23,
+    MT_JSON = 24,
+    MT_XML = 25,
+    MT_YAML = 26,
+    MT_INI = 27,
+    MT_MARKDOWN = 28,
+    MT_TOML = 29,
+    MT_VALA = 30,
+    MT_C = 31,
+    MT_H = 32,
+    MT_CPP = 33,
+    MT_PY = 34,
+    MT_JS = 35,
+    MT_TS = 36,
+    MT_CSS = 37,
+    MT_HTML = 38,
+    MT_BASH = 39,
+    MT_RUST = 40,
+    MT_GO = 41,
+    MT_LUA = 42,
+    MT_X_IMAGE = 43,
+    MT_X_AUDIO = 44,
+    MT_X_VIDEO = 45,
+    MT_X_TEXT = 46,
+    MT_X_APP = 47,
+    MT_DEFAULT = 48,
+    APP_PROJECT = 49,
+    APP_LOG = 50,
+    APP_TERMINAL = 51,
+    APP_ISSUES = 52,
+    APP_ERROR = 53,
+    APP_WARNING = 54,
+    APP_INFO = 55,
+    TXT_WRAP = 56,
+    LOG_ERASE = 57,
+    COD_ERROR = 58,
+    COD_WARNING = 59,
+    COD_INFO = 60;
+}
+
+public class Iide.SymbIconProvider {
+    private static SymbIconProvider? instance = null;
+    public static SymbIconProvider get_instance () {
+        if (instance == null) {
+            instance = new SymbIconProvider ();
+        }
+        return instance;
+    }
+
+    private string[,] _icon_indexes;
+    private string _prefix = "def-";
+
+    private SymbIconProvider () {
+        _icon_indexes = {
+            { "folder", "folder" },
+            { "ls-class", "ls-class" },
+            { "ls-method", "ls-method" },
+            { "ls-field", "ls-field" },
+            { "ls-enum", "ls-class" },
+            { "ls-interface", "ls-interface" },
+            { "ls-text", "" },
+            { "ls-constructor", "ls-constructor" },
+            { "ls-module", "ls-module" },
+            { "ls-keyword", "" },
+            { "ls-snippet", "ls-snippet" },
+            { "ls-color", "ls-color" },
+            { "ls-file", "" },
+            { "ls-folder", "ls-folder" },
+            { "ls-constant", "" },
+            { "ls-struct", "ls-struct" },
+            { "ls-operator", "" },
+            { "ls-property", "ls-property" },
+            { "ls-enum-member", "ls-enum-member" },
+            { "ls-type-parameter", "ls-type-parameter" },
+            { "ls-literal", "ls-literal" },
+            { "ls-default", "" },
+            { "mt-make", "mt-make" },
+            { "mt-docker", "mt-docker" },
+            { "mt-json", "mt-json" },
+            { "mt-xml", "mt-xml" },
+            { "mt-yaml", "mt-xml" },
+            { "mt-ini", "mt-ini" },
+            { "mt-markdown", "mt-markdown" },
+            { "mt-toml", "mt-toml" },
+            { "mt-vala", "mt-vala" },
+            { "mt-c", "mt-c" },
+            { "mt-h", "mt-h" },
+            { "mt-cpp", "mt-cpp" },
+            { "mt-py", "mt-py" },
+            { "mt-js", "mt-js" },
+            { "mt-ts", "mt-ts" },
+            { "mt-css", "mt-css" },
+            { "mt-html", "mt-html" },
+            { "mt-bash", "mt-bash" },
+            { "mt-rust", "mt-rust" },
+            { "mt-go", "mt-go" },
+            { "mt-lua", "mt-lua" },
+            { "mt-x-image", "mt-x-image" },
+            { "mt-x-audio", "mt-x-audio" },
+            { "mt-x-video", "mt-x-video" },
+            { "mt-x-text", "mt-x-text" },
+            { "mt-x-app", "mt-x-app" },
+            { "mt-default", "mt-default" },
+            { "app-project", "" },
+            { "app-log", "" },
+            { "app-terminal", "" },
+            { "app-issues", "" },
+            { "app-error", "" },
+            { "app-warning", "" },
+            { "app-info", "" },
+            { "txt-wrap", "" },
+            { "log-erase", "" },
+            { "cod-error", "cod-error" },
+            { "cod-warning", "cod-warning" },
+            { "cod-info", "cod-info" },
+        };
+    }
+    public Gtk.Image image (IconID icon_id, bool colorize = true, int? pixel_size = null) {
+        var icon_name = _icon_indexes[(int) icon_id, 0];
+        Gtk.Image img = new Gtk.Image.from_icon_name (_prefix + icon_name + "-symbolic");
+        if (colorize) {
+            var class_name = _icon_indexes[(int) icon_id, 1];
+            if (class_name.length > 0) {
+                img.add_css_class (_prefix + class_name);
+            }
+        }
+        if (pixel_size != null) {
+            img.pixel_size = pixel_size;
+        }
+        return img;
+    }
+
+    public string icon_name (IconID icon_id) {
+        var icon_name = _icon_indexes[(int) icon_id, 0];
+        return _prefix + icon_name + "-symbolic";
+    }
+}
+```
+
+## File: src/Widgets/TextView/EditorStatusBar.vala
+```
+public class Iide.EditorStatusBar : Gtk.Box {
+    private SourceView source_view;
+    private Gtk.Label pos_label;
+    private Gtk.Label mode_label;
+
+    private Gtk.Label error_label;
+    private Gtk.Label warn_label;
+    private Gtk.Box diagnostic_box;
+
+    private BreadcrumbsBar new_breadcrumps;
+
+    private Iide.DiagnosticsPopover diag_popover = null;
+
+    public EditorStatusBar (SourceView source_view) {
+        Object (orientation: Gtk.Orientation.HORIZONTAL, spacing: 12);
+        this.source_view = source_view;
+        this.add_css_class ("editor-status-bar");
+
+        // Левая часть: Breadcrumbs
+        new_breadcrumps = new BreadcrumbsBar (source_view);
+        this.append (new_breadcrumps);
+        new_breadcrumps.update_file_path (GLib.File.new_for_uri (source_view.uri),
+                                          GLib.File.new_for_path (ProjectManager.get_instance ().get_workspace_root_path ()));
+
+        // spacer
+        var spacer_box = new Gtk.Box (Gtk.Orientation.HORIZONTAL, 2);
+        spacer_box.hexpand = true;
+        this.append (spacer_box);
+
+        // Правая часть: Статистика
+        var info_box = new Gtk.Box (Gtk.Orientation.HORIZONTAL, 12);
+
+        mode_label = new Gtk.Label ("INS");
+        mode_label.add_css_class ("dim-label");
+        mode_label.height_request = 24;
+
+        pos_label = new Gtk.Label ("1:1");
+
+        info_box.append (mode_label);
+        info_box.append (pos_label);
+        this.append (info_box);
+
+        diagnostic_box = new Gtk.Box (Gtk.Orientation.HORIZONTAL, 8);
+
+        // Ошибки (Красный)
+        error_label = new Gtk.Label ("0");
+        error_label.add_css_class ("error-label"); // Настроим цвет в CSS
+
+        // Предупреждения (Желтый)
+        warn_label = new Gtk.Label ("0");
+        warn_label.add_css_class ("warning-label");
+
+        var icon_provider = SymbIconProvider.get_instance ();
+
+        diagnostic_box.append (icon_provider.image (IconID.COD_ERROR));
+        diagnostic_box.append (error_label);
+        diagnostic_box.append (icon_provider.image (IconID.COD_WARNING));
+        diagnostic_box.append (warn_label);
+
+        // Добавляем в инфо-бокс перед позицией курсора
+        info_box.prepend (diagnostic_box);
+        diagnostic_box.hide (); // Скрываем, если ошибок нет
+
+        init_diagnostics_interaction ();
+        this.diagnostic_box.add_css_class ("diagnostic-box");
+    }
+
+    private void init_diagnostics_interaction () {
+        // Создаем контроллер жеста клика
+        var click_gesture = new Gtk.GestureClick ();
+
+        // Подключаемся к событию нажатия (pressed)
+        click_gesture.pressed.connect ((n_press, x, y) => {
+            // Мы вызываем метод, который создаст или обновит Popover
+            show_diagnostics_popup ();
+        });
+
+        // Привязываем жест к вашему боксу
+        this.diagnostic_box.add_controller (click_gesture);
+
+        // (Опционально) Добавим визуальный отклик: смена курсора при наведении
+        this.diagnostic_box.set_cursor (new Gdk.Cursor.from_name ("pointer", null));
+
+        // --- 2. Контроллер наведения (Hover) ---
+        var motion_controller = new Gtk.EventControllerMotion ();
+
+        // Когда мышь заходит в область
+        motion_controller.enter.connect ((x, y) => {
+            this.diagnostic_box.add_css_class ("hover");
+            // Меняем курсор на "руку"
+            this.diagnostic_box.set_cursor (new Gdk.Cursor.from_name ("pointer", null));
+        });
+
+        // Когда мышь покидает область
+        motion_controller.leave.connect (() => {
+            this.diagnostic_box.remove_css_class ("hover");
+            // Возвращаем обычный курсор
+            this.diagnostic_box.set_cursor (null);
+        });
+
+        this.diagnostic_box.add_controller (motion_controller);
+    }
+
+    private void show_diagnostics_popup () {
+        if (this.diag_popover == null) {
+            // Создаем попап, привязывая его к diagnostic_box
+            this.diag_popover = new Iide.DiagnosticsPopover (this.diagnostic_box, this.source_view);
+        }
+
+        // Обновляем список ошибок из буфера перед показом
+        this.diag_popover.refresh ();
+        this.diag_popover.popup ();
+    }
+
+    public void update_diagnostics (int errors, int warnings) {
+        if (errors == 0 && warnings == 0) {
+            diagnostic_box.hide ();
+            return;
+        }
+
+        diagnostic_box.show ();
+        error_label.label = errors.to_string ();
+        warn_label.label = warnings.to_string ();
+    }
+
+    public void update_breadcrumbs (Gee.List<SourceNodeItem?> crumbs) {
+        new_breadcrumps.update_breadcrumbs (crumbs);
+    }
+
+    public void update_position (int line, int col, int selection_len = 0) {
+        if (selection_len > 0) {
+            pos_label.label = "%d:%d (%d selected)".printf (line + 1, col + 1, selection_len);
+        } else {
+            pos_label.label = "%d:%d".printf (line + 1, col + 1);
+        }
+    }
+
+    public void update_mode (bool overwrite) {
+        mode_label.label = overwrite ? "OVR" : "INS";
+    }
+}
+```
+
+## File: src/Widgets/TextView/BreadcrumbTreeSitterNavigator.vala
+```
+public class Iide.BreadcrumbTreeSitterNavigator : Gtk.Box {
+    private SourceView source_view;
+    private Gee.List<SourceNodeItem?> siblings;
+    public Gtk.SearchEntry search_entry;
+    private Gtk.ListBox list_box;
+
+    public signal void close_requested ();
+
+    private class BreadcrumbObject : Object {
+        public SourceNodeItem item;
+        public BreadcrumbObject (SourceNodeItem item) {
+            Object ();
+            this.item = item;
+        }
+    }
+
+    public BreadcrumbTreeSitterNavigator (SourceView source_view, Gee.List<SourceNodeItem?> siblings) {
+        Object (orientation: Gtk.Orientation.VERTICAL, spacing: 6);
+        this.source_view = source_view;
+        this.siblings = siblings;
+        this.set_size_request (280, -1);
+        this.margin_top = 6;
+        this.margin_bottom = 6;
+        this.margin_start = 6;
+        this.margin_end = 6;
+
+        // --- Поиск ---
+        search_entry = new Gtk.SearchEntry ();
+        search_entry.hexpand = true;
+        this.append (search_entry);
+
+        // --- Список элементов ---
+        list_box = new Gtk.ListBox ();
+        list_box.add_css_class ("navigation-sidebar");
+
+        foreach (var item in siblings) {
+            list_box.append (create_row (item));
+        }
+
+        // Фильтрация
+        list_box.set_filter_func ((row) => {
+            var text = search_entry.get_text ().down ();
+            if (text == "")return true;
+
+            var obj = row.get_data<BreadcrumbObject> ("item");
+            var name = obj.item.name.down ();
+            return name.contains (text);
+        });
+        search_entry.search_changed.connect (() => {
+            list_box.invalidate_filter ();
+            refresh_state ();
+        });
+
+        list_box.row_activated.connect (on_row_activated);
+        search_entry.activate.connect (() => {
+            on_row_activated (list_box.get_selected_row ());
+        });
+
+        var scroll = new Gtk.ScrolledWindow ();
+        scroll.propagate_natural_height = true;
+        scroll.set_max_content_height (400);
+        scroll.set_child (list_box);
+        this.append (scroll);
+
+        var key_controller = new Gtk.EventControllerKey ();
+        key_controller.key_pressed.connect (on_key_pressed);
+        search_entry.add_controller (key_controller);
+        list_box.set_selection_mode (Gtk.SelectionMode.SINGLE);
+
+        this.refresh_state ();
+    }
+
+    private void select_first_visible_row () {
+        var row = list_box.get_first_child ();
+        while (row != null) {
+            var list_row = row as Gtk.ListBoxRow;
+            if (list_row.get_child_visible ()) {
+                list_box.select_row (list_row);
+                break;
+            }
+            row = row.get_next_sibling ();
+        }
+    }
+
+    private void refresh_state () {
+        this.search_entry.grab_focus ();
+        select_first_visible_row ();
+    }
+
+    private bool on_key_pressed (Gtk.EventControllerKey controller, uint keyval, uint keycode, Gdk.ModifierType modifiers) {
+        if (keyval == Gdk.Key.Escape) {
+            close_requested ();
+            return true;
+        } else if (keyval == Gdk.Key.Up || keyval == Gdk.Key.KP_Up) {
+            move_selection_up ();
+            return true;
+        } else if (keyval == Gdk.Key.Down || keyval == Gdk.Key.KP_Down) {
+            move_selection_down ();
+            return true;
+        }
+        return false;
+    }
+
+    private void move_selection_down () {
+        var selected_row = list_box.get_selected_row ();
+        if (selected_row == null) {
+            select_first_visible_row ();
+            return;
+        }
+
+        var next_row_widget = selected_row.get_next_sibling ();
+        while (next_row_widget != null) {
+            var list_row = next_row_widget as Gtk.ListBoxRow;
+            if (list_row.get_child_visible ()) {
+                list_box.select_row (list_row);
+                return;
+            }
+            next_row_widget = next_row_widget.get_next_sibling ();
+        }
+
+        if (!selected_row.get_child_visible ())
+            select_first_visible_row ();
+    }
+
+    private void move_selection_up () {
+        var selected_row = list_box.get_selected_row ();
+        if (selected_row == null) {
+            select_first_visible_row ();
+            return;
+        }
+
+        var prev_row_widget = selected_row.get_prev_sibling ();
+        while (prev_row_widget != null) {
+            var list_row = prev_row_widget as Gtk.ListBoxRow;
+            if (list_row.get_child_visible ()) {
+                list_box.select_row (list_row);
+                return;
+            }
+            prev_row_widget = prev_row_widget.get_prev_sibling ();
+        }
+
+        if (!selected_row.get_child_visible ())
+            select_first_visible_row ();
+    }
+
+    private Gtk.ListBoxRow create_row (SourceNodeItem item) {
+        var row = new Gtk.ListBoxRow ();
+        var box = new Gtk.Box (Gtk.Orientation.HORIZONTAL, 8);
+        box.margin_bottom = 4;
+        box.margin_top = 4;
+        box.margin_start = 4;
+        box.margin_end = 4;
+
+        var icon = ImageFactory.create_for_ts (item.type);
+
+        var label = new Gtk.Label (item.name);
+        label.ellipsize = Pango.EllipsizeMode.END;
+
+        box.append (icon);
+        box.append (label);
+        row.set_child (box);
+
+        // Сохраняем данные для поиска и активации
+        row.set_data ("item", new BreadcrumbObject (item));
+
+        return row;
+    }
+
+    private void on_row_activated (Gtk.ListBoxRow row) {
+        var obj = row.get_data<BreadcrumbObject> ("item");
+        source_view.goto ((int) obj.item.start_point.row,
+                          (int) obj.item.start_point.column);
+    }
+}
+```
+
+## File: symbols/icons.json
+```json
+{
+    "font_file": "fonts/SYMBOLIC.ttf",
+    "font_name": "Symbols Nerd Font",
+    "output_dir": "gen_icons",
+    "styles": {
+        "folder": [
+            "#5f23b3",
+            "#7fcfc9"
+        ],
+        "ls-class": [
+            "#f57900",
+            "#f57900"
+        ],
+        "ls-method": [
+            "#9141ac",
+            "#9141ac"
+        ],
+        "ls-field": [
+            "#3584e4",
+            "#3584e4"
+        ],
+        "ls-interface": [
+            "#33d17a",
+            "#33d17a"
+        ],
+        "ls-constructor": [
+            "#3584e4",
+            "#3584e4"
+        ],
+        "ls-module": [
+            "#3584e4",
+            "#3584e4"
+        ],
+        "ls-snippet": [
+            "#33d17a",
+            "#33d17a"
+        ],
+        "ls-color": [
+            "#c0bfb1",
+            "#c0bfb1"
+        ],
+        "ls-folder": [
+            "#c0bfb1",
+            "#c0bfb1"
+        ],
+        "ls-constant": [
+            "#3584e4",
+            "#3584e4"
+        ],
+        "ls-struct": [
+            "#f57900",
+            "#f57900"
+        ],
+        "ls-operator": [
+            "#2aa1b3",
+            "#2aa1b3"
+        ],
+        "ls-property": [
+            "#3584e4",
+            "#3584e4"
+        ],
+        "ls-enum-member": [
+            "#3584e4",
+            "#3584e4"
+        ],
+        "ls-type-parameter": [
+            "#2aa1b3",
+            "#2aa1b3"
+        ],
+        "ls-literal": [
+            "#33d17a",
+            "#33d17a"
+        ],
+        "mt-make": [
+            "#6d8086",
+            "#6d8086"
+        ],
+        "mt-docker": [
+            "#384d54",
+            "#384d54"
+        ],
+        "mt-json": [
+            "#cbcb41",
+            "#cbcb41"
+        ],
+        "mt-xml": [
+            "#e37933",
+            "#e37933"
+        ],
+        "mt-yaml": [
+            "#cb3e20",
+            "#cb3e20"
+        ],
+        "mt-ini": [
+            "#6d8086",
+            "#6d8086"
+        ],
+        "mt-markdown": [
+            "#519aba",
+            "#519aba"
+        ],
+        "mt-toml": [
+            "#cb3e20",
+            "#cb3e20"
+        ],
+        "mt-vala": [
+            "#6e44b3",
+            "#6e44b3"
+        ],
+        "mt-c": [
+            "#599eff",
+            "#599eff"
+        ],
+        "mt-h": [
+            "#599eff",
+            "#599eff"
+        ],
+        "mt-cpp": [
+            "#00599c",
+            "#00599c"
+        ],
+        "mt-py": [
+            "#306998",
+            "#306998"
+        ],
+        "mt-js": [
+            "#f1e05a",
+            "#f1e05a"
+        ],
+        "mt-ts": [
+            "#2b7489",
+            "#2b7489"
+        ],
+        "mt-css": [
+            "#563d7c",
+            "#563d7c"
+        ],
+        "mt-html": [
+            "#e34c26",
+            "#e34c26"
+        ],
+        "mt-bash": [
+            "#4ebd4e",
+            "#4ebd4e"
+        ],
+        "mt-rust": [
+            "#dea584",
+            "#dea584"
+        ],
+        "mt-go": [
+            "#00add8",
+            "#00add8"
+        ],
+        "mt-lua": [
+            "#000080",
+            "#000080"
+        ],
+        "mt-x-image": [
+            "#a074c4",
+            "#a074c4"
+        ],
+        "mt-x-audio": [
+            "#2b7489",
+            "#2b7489"
+        ],
+        "mt-x-video": [
+            "#2b7489",
+            "#2b7489"
+        ],
+        "mt-x-text": [
+            "#858585",
+            "#858585"
+        ],
+        "mt-default": [
+            "#858585",
+            "#858585"
+        ],
+        "mt-x-app": [
+            "#858585",
+            "#858585"
+        ],
+        "cod-error": [
+            "#ff3300",
+            "#ff3300"
+        ],
+        "cod-warning": [
+            "#cccc00",
+            "#cccc00"
+        ],
+        "cod-info": [
+            "#66ccff",
+            "#66ccff"
+        ]
+    },
+    "icons": {
+        "folder": {
+            "char": "0xeaf7",
+            "style": "folder"
+        },
+        "ls-class": {
+            "char": "0xeb5b",
+            "style": "ls-class"
+        },
+        "ls-method": {
+            "char": "0xea8c",
+            "style": "ls-method"
+        },
+        "ls-field": {
+            "char": "0xeb5f",
+            "style": "ls-field"
+        },
+        "ls-enum": {
+            "char": "0xea95",
+            "style": "ls-class"
+        },
+        "ls-interface": {
+            "char": "0xeb61",
+            "style": "ls-interface"
+        },
+        "ls-text": {
+            "char": "0xeb69"
+        },
+        "ls-constructor": {
+            "char": "0xeb44",
+            "style": "ls-constructor"
+        },
+        "ls-module": {
+            "char": "0xeb29",
+            "style": "ls-module"
+        },
+        "ls-keyword": {
+            "char": "0xeb62"
+        },
+        "ls-snippet": {
+            "char": "0xeb66",
+            "style": "ls-snippet"
+        },
+        "ls-color": {
+            "char": "0xf024b",
+            "style": "ls-color"
+        },
+        "ls-file": {
+            "char": "0xf0214"
+        },
+        "ls-folder": {
+            "char": "0xf024b",
+            "style": "ls-folder"
+        },
+        "ls-constant": {
+            "char": "0xeb5d",
+            "symbol": "ls-constant"
+        },
+        "ls-struct": {
+            "char": "0xea91",
+            "style": "ls-struct"
+        },
+        "ls-operator": {
+            "char": "0xeb64",
+            "style": ""
+        },
+        "ls-property": {
+            "char": "0xeb65",
+            "style": "ls-property"
+        },
+        "ls-enum-member": {
+            "char": "0xeb5e",
+            "style": "ls-enum-member"
+        },
+        "ls-type-parameter": {
+            "char": "0xea92",
+            "style": "ls-type-parameter"
+        },
+        "ls-literal": {
+            "char": "0xea90",
+            "style": "ls-literal"
+        },
+        "ls-default": {
+            "char": "0xea8b"
+        },
+        "mt-make": {
+            "char": "0xe673",
+            "style": "mt-make"
+        },
+        "mt-docker": {
+            "char": "0xf308",
+            "style": "mt-docker"
+        },
+        "mt-json": {
+            "char": "0xe60b",
+            "style": "mt-json"
+        },
+        "mt-xml": {
+            "char": "0xf05c0",
+            "style": "mt-xml"
+        },
+        "mt-yaml": {
+            "char": "0xe8eb",
+            "style": "mt-xml"
+        },
+        "mt-ini": {
+            "char": "0xe615",
+            "style": "mt-ini"
+        },
+        "mt-markdown": {
+            "char": "0xeb1d",
+            "style": "mt-markdown"
+        },
+        "mt-toml": {
+            "char": "0xe6b2",
+            "style": "mt-toml"
+        },
+        "mt-vala": {
+            "char": "0xe69e",
+            "style": "mt-vala"
+        },
+        "mt-c": {
+            "char": "0xe61e",
+            "style": "mt-c"
+        },
+        "mt-h": {
+            "char": "0xe7fe",
+            "style": "mt-h"
+        },
+        "mt-cpp": {
+            "char": "0xe61d",
+            "style": "mt-cpp"
+        },
+        "mt-py": {
+            "char": "0xe73c",
+            "style": "mt-py"
+        },
+        "mt-js": {
+            "char": "0xe74e",
+            "style": "mt-js"
+        },
+        "mt-ts": {
+            "char": "0xe628",
+            "style": "mt-ts"
+        },
+        "mt-css": {
+            "char": "0xe749",
+            "style": "mt-css"
+        },
+        "mt-html": {
+            "char": "0xe736",
+            "style": "mt-html"
+        },
+        "mt-bash": {
+            "char": "0xe736",
+            "style": "mt-bash"
+        },
+        "mt-rust": {
+            "char": "0xe7a8",
+            "style": "mt-rust"
+        },
+        "mt-go": {
+            "char": "0xe627",
+            "style": "mt-go"
+        },
+        "mt-lua": {
+            "char": "0xe620",
+            "style": "mt-lua"
+        },
+        "mt-x-image": {
+            "char": "0xf024f",
+            "style": "mt-x-image"
+        },
+        "mt-x-audio": {
+            "char": "0xf1c7",
+            "style": "mt-x-audio"
+        },
+        "mt-x-video": {
+            "char": "0xf1c8",
+            "style": "mt-x-video"
+        },
+        "mt-x-text": {
+            "char": "0xf0f6",
+            "style": "mt-x-text"
+        },
+        "mt-x-app": {
+            "char": "0xf1c3",
+            "style": "mt-x-app"
+        },
+        "mt-default": {
+            "char": "0xf016",
+            "style": "mt-default"
+        },
+        "app-project": {
+            "char": "0xf13d2"
+        },
+        "app-log": {
+            "char": "0xf4ed"
+        },
+        "app-terminal": {
+            "char": "0xf489"
+        },
+        "app-issues": {
+            "char": "0xf0a04"
+        },
+        "app-error": {
+            "char": "0xea87"
+        },
+        "app-warning": {
+            "char": "0xea6c"
+        },
+        "app-info": {
+            "char": "0xea74"
+        },
+        "txt-wrap": {
+            "char": "0xf05b6"
+        },
+        "log-erase": {
+            "char": "0xf12d"
+        },
+        "cod-error": {
+            "char": "0xea87",
+            "style": "cod-error"
+        },
+        "cod-warning": {
+            "char": "0xea6c",
+            "style": "cod-warning"
+        },
+        "cod-info": {
+            "char": "0xea74",
+            "style": "cod-info"
+        }
+    }
+}
+```
+
 ## File: src/Widgets/TextView/BreadcrumbsBar.vala
 ```
 public class Iide.BreadcrumbFileSegment : Gtk.Box {
@@ -17772,520 +17904,6 @@ public class Iide.BreadcrumbsBar : Gtk.Box {
         foreach (var crumb in crumbs) {
             var ts_segment = new BreadcrumbSymbolSegment (source_view, crumb);
             scope_box.append (ts_segment);
-        }
-    }
-}
-```
-
-## File: src/application.vala
-```
-/* application.vala
- *
- * Copyright 2026 kai
- *
- * This program is free software: you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation, either version 3 of the License, or
- * (at your option) any later version.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program.  If not, see <https://www.gnu.org/licenses/>.
- *
- * SPDX-License-Identifier: GPL-3.0-or-later
- */
-
-[CCode (cname = "gtk_style_context_add_provider_for_display", cheader_filename = "gtk/gtk.h")]
-extern void add_provider_to_display (Gdk.Display display, Gtk.StyleProvider provider, uint priority);
-
-public class Iide.Application : Adw.Application {
-    private Iide.SettingsService settings;
-    private Iide.ActionManager action_manager;
-    private SimpleActionGroup simple_action_group = new SimpleActionGroup ();
-
-    public signal void zoom_changed (int zoom_level);
-    public signal void minimap_changed (bool visible);
-
-    public Application () {
-        Object (
-                application_id: "org.github.kai66673.iide",
-                flags: ApplicationFlags.DEFAULT_FLAGS,
-                resource_base_path: "/org/github/kai66673/iide"
-        );
-    }
-
-    construct {
-        settings = Iide.SettingsService.get_instance ();
-        action_manager = Iide.ActionManager.get_instance ();
-
-        register_builtin_actions ();
-        apply_shortcuts ();
-    }
-
-    private void register_builtin_actions () {
-        action_manager.register_action (new SaveAllAction (this));
-        action_manager.register_action (new OpenProjectAction (this));
-        action_manager.register_action (new PreferencesAction (this));
-        action_manager.register_action (new ToggleMinimapAction (this));
-        action_manager.register_action (new FuzzyFinderAction (this));
-        action_manager.register_action (new SearchSymbolAction (this));
-        action_manager.register_action (new SearchInFilesAction (this));
-        action_manager.register_action (new ZoomInAction ());
-        action_manager.register_action (new ZoomOutAction ());
-        action_manager.register_action (new ZoomResetAction ());
-        action_manager.register_action (new ExpandSelectionAction ());
-        action_manager.register_action (new ShrinkSelectionAction ());
-        action_manager.register_action (new QuitAction ());
-        action_manager.register_action (new NavigationBackAction (this));
-        action_manager.register_action (new NavigationForwardAction (this));
-
-        // Ins/Ovr toggle
-        // Действие переключения режима
-        var toggle_overwrite = new SimpleAction ("toggle-overwrite", null);
-        toggle_overwrite.activate.connect (() => {
-            // Переключаем встроенное свойство SourceView
-            var win = active_window as Iide.Window;
-            if (win != null) {
-                var view = win.get_active_source_view ();
-                if (view != null) {
-                    view.overwrite = !view.overwrite;
-                }
-            }
-        });
-        simple_action_group.add_action (toggle_overwrite);
-        set_accels_for_action ("editor.toggle-overwrite", { "Insert" });
-    }
-
-    private void apply_shortcuts () {
-        action_manager.apply_shortcuts_to_application (this);
-
-        action_manager.get_all_actions ().foreach ((action) => {
-            action.shortcut_changed.connect ((new_shortcut) => {
-                if (new_shortcut != null && new_shortcut != "") {
-                    this.set_accels_for_action ("app." + action.id, { new_shortcut });
-                } else {
-                    this.set_accels_for_action ("app." + action.id, {});
-                }
-            });
-            return true;
-        });
-    }
-
-    public Iide.ActionManager get_action_manager () {
-        return action_manager;
-    }
-
-    public Iide.SettingsService get_settings () {
-        return settings;
-    }
-
-    public void register_embedded_fonts () {
-        // Путь к шрифту в GResource
-        // string font_path = "/org/github/kai66673/iide/fonts/SymbolsNerdFontMono-Regular.ttf";
-        // var bytes = resources_lookup_data (font_path, ResourceLookupFlags.NONE);
-
-        // В GTK4 для кастомных шрифтов из памяти используется PangoCairo и FontConfig
-        // На Linux/Arch самый простой способ - создать временный конфиг
-        // или использовать Fontconfig напрямую.
-
-        // Но есть способ проще для GTK4 через CSS (начиная с новых версий):
-        string css = """
-            @font-face {
-                font-family: "Symbols Nerd Font";
-                src: url("resource:///org/github/kai66673/iide/fonts/SymbolsNerdFont-Regular.ttf");
-            }
-        """;
-        var provider = new Gtk.CssProvider ();
-        provider.load_from_bytes (new GLib.Bytes (css.data));
-        add_provider_to_display (
-                                 Gdk.Display.get_default (),
-                                 provider,
-                                 Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION
-        );
-    }
-
-    public override void activate () {
-        base.activate ();
-
-        var icon_theme = Gtk.IconTheme.get_for_display (Gdk.Display.get_default ());
-        icon_theme.add_resource_path ("/org/github/kai66673/iide/icons");
-
-        var css_provider = new Gtk.CssProvider ();
-        css_provider.load_from_resource ("/org/github/kai66673/iide/style.css");
-        add_provider_to_display (
-                                 Gdk.Display.get_default (),
-                                 css_provider,
-                                 Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION
-        );
-
-        var css_symbol_provider = new Gtk.CssProvider ();
-        css_symbol_provider.load_from_resource ("/org/github/kai66673/iide/symbols/symbols.css");
-        add_provider_to_display (
-                                 Gdk.Display.get_default (),
-                                 css_symbol_provider,
-                                 Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION
-        );
-
-        register_embedded_fonts ();
-
-        var win = this.active_window ?? new Iide.Window (this);
-        win.present ();
-    }
-}
-
-private class Iide.SaveAllAction : Iide.Action {
-    private weak Iide.Application app;
-
-    public SaveAllAction (Iide.Application app) {
-        this.app = app;
-    }
-
-    public override string id { get { return "save"; } }
-    public override string name { get { return _("Save All"); } }
-    public override string? description { get { return _("Save all open documents"); } }
-    public override string? icon_name { get { return "document-save-symbolic"; } }
-    public override string? category { get { return "File"; } }
-
-    public override bool can_execute () {
-        return app ? .active_window is Iide.Window;
-    }
-
-    public override void execute () {
-        var win = app ? .active_window as Iide.Window;
-        win?.save_modified ();
-    }
-}
-
-private class Iide.OpenProjectAction : Iide.Action {
-    private weak Iide.Application app;
-
-    public OpenProjectAction (Iide.Application app) {
-        this.app = app;
-    }
-
-    public override string id { get { return "open_project"; } }
-    public override string name { get { return _("Open Project"); } }
-    public override string? description { get { return _("Open a project folder"); } }
-    public override string? icon_name { get { return "folder-open-symbolic"; } }
-    public override string? category { get { return "File"; } }
-
-    public override bool can_execute () {
-        return true;
-    }
-
-    public override void execute () {
-        var win = app ? .active_window as Iide.Window;
-        win?.open_project_dialog ();
-    }
-}
-
-private class Iide.PreferencesAction : Iide.Action {
-    private weak Iide.Application app;
-
-    public PreferencesAction (Iide.Application app) {
-        this.app = app;
-    }
-
-    public override string id { get { return "preferences"; } }
-    public override string name { get { return _("Preferences"); } }
-    public override string? description { get { return _("Open preferences dialog"); } }
-    public override string? icon_name { get { return "preferences-system-symbolic"; } }
-    public override string? category { get { return "Application"; } }
-
-    public override bool can_execute () {
-        return true;
-    }
-
-    public override void execute () {
-        var dialog = new Iide.PreferencesDialog ();
-        dialog.set_transient_for (app ? .active_window);
-        dialog.present ();
-    }
-}
-
-private class Iide.ToggleMinimapAction : Iide.Action {
-    private weak Iide.Application app;
-
-    public ToggleMinimapAction (Iide.Application app) {
-        this.app = app;
-        this.state = Iide.SettingsService.get_instance ().show_minimap;
-    }
-
-    public override string id { get { return "toggle_minimap"; } }
-    public override string name { get { return _("Toggle Minimap"); } }
-    public override string? description { get { return _("Show or hide the minimap"); } }
-    public override string? icon_name { get { return "view-fullscreen-symbolic"; } }
-    public override string? category { get { return "View"; } }
-    public override bool is_toggle { get { return true; } }
-
-    public override bool can_execute () {
-        return true;
-    }
-
-    public override void execute () {
-        var settings = Iide.SettingsService.get_instance ();
-        state = !state;
-        settings.show_minimap = state;
-        app?.minimap_changed (state);
-
-        state_changed (state);
-        Iide.ActionManager.get_instance ().set_toggle_state (id, state);
-    }
-}
-
-private class Iide.ZoomInAction : Iide.Action {
-    private Iide.SettingsService settings;
-
-    public override string id { get { return "zoom_in"; } }
-    public override string name { get { return _("Zoom In"); } }
-    public override string? description { get { return _("Increase editor font size"); } }
-    public override string? icon_name { get { return "zoom-in-symbolic"; } }
-    public override string? category { get { return "View"; } }
-
-    public override bool can_execute () {
-        settings = Iide.SettingsService.get_instance ();
-        return settings.editor_font_size < Iide.FontSizeHelper.MAX_ZOOM_LEVEL;
-    }
-
-    public override void execute () {
-        settings = Iide.SettingsService.get_instance ();
-        var app = GLib.Application.get_default () as Iide.Application;
-        settings.editor_font_size++;
-        app?.zoom_changed (settings.editor_font_size);
-    }
-}
-
-private class Iide.ZoomOutAction : Iide.Action {
-    private Iide.SettingsService settings;
-
-    public override string id { get { return "zoom_out"; } }
-    public override string name { get { return _("Zoom Out"); } }
-    public override string? description { get { return _("Decrease editor font size"); } }
-    public override string? icon_name { get { return "zoom-out-symbolic"; } }
-    public override string? category { get { return "View"; } }
-
-    public override bool can_execute () {
-        settings = Iide.SettingsService.get_instance ();
-        return settings.editor_font_size > Iide.FontSizeHelper.MIN_ZOOM_LEVEL;
-    }
-
-    public override void execute () {
-        settings = Iide.SettingsService.get_instance ();
-        var app = GLib.Application.get_default () as Iide.Application;
-        settings.editor_font_size--;
-        app?.zoom_changed (settings.editor_font_size);
-    }
-}
-
-private class Iide.ZoomResetAction : Iide.Action {
-    private Iide.SettingsService settings;
-
-    public override string id { get { return "zoom_reset"; } }
-    public override string name { get { return _("Zoom Reset"); } }
-    public override string? description { get { return _("Reset editor font size to default"); } }
-    public override string? icon_name { get { return "zoom-original-symbolic"; } }
-    public override string? category { get { return "View"; } }
-
-    public override bool can_execute () {
-        return true;
-    }
-
-    public override void execute () {
-        settings = Iide.SettingsService.get_instance ();
-        var app = GLib.Application.get_default () as Iide.Application;
-        settings.editor_font_size = Iide.FontSizeHelper.DEFAULT_ZOOM_LEVEL;
-        app?.zoom_changed (settings.editor_font_size);
-    }
-}
-
-private class Iide.ExpandSelectionAction : Iide.Action {
-    public override string id { get { return "expand_selection"; } }
-    public override string name { get { return _("Expand Selection"); } }
-    public override string? description { get { return _("Expand the current selection"); } }
-    public override string? icon_name { get { return "zoom-original-symbolic"; } }
-    public override string? category { get { return "View"; } }
-
-    public override bool can_execute () {
-        return true;
-    }
-
-    public override void execute () {
-        var app = GLib.Application.get_default () as Iide.Application;
-        var win = app ? .active_window as Iide.Window;
-        if (win != null) {
-            win.get_active_source_view () ? .expand_selection ();
-        }
-    }
-}
-
-private class Iide.ShrinkSelectionAction : Iide.Action {
-    public override string id { get { return "shrink_selection"; } }
-    public override string name { get { return _("Shrink Selection"); } }
-    public override string? description { get { return _("Shrink the current selection"); } }
-    public override string? icon_name { get { return "zoom-original-symbolic"; } }
-    public override string? category { get { return "View"; } }
-
-    public override bool can_execute () {
-        return true;
-    }
-
-    public override void execute () {
-        var app = GLib.Application.get_default () as Iide.Application;
-        var win = app ? .active_window as Iide.Window;
-        if (win != null) {
-            win.get_active_source_view () ? .shrink_selection ();
-        }
-    }
-}
-
-private class Iide.QuitAction : Iide.Action {
-    public override string id { get { return "quit"; } }
-    public override string name { get { return _("Quit"); } }
-    public override string? description { get { return _("Quit the application"); } }
-    public override string? icon_name { get { return "application-exit-symbolic"; } }
-    public override string? category { get { return "Application"; } }
-
-    public override bool can_execute () {
-        return true;
-    }
-
-    public override void execute () {
-        var app = GLib.Application.get_default () as Iide.Application;
-        app?.quit ();
-    }
-}
-
-private class Iide.FuzzyFinderAction : Iide.Action {
-    private weak Iide.Application app;
-
-    public FuzzyFinderAction (Iide.Application app) {
-        this.app = app;
-    }
-
-    public override string id { get { return "fuzzy_finder"; } }
-    public override string name { get { return _("Quick Open"); } }
-    public override string? description { get { return _("Open a file quickly by name"); } }
-    public override string? icon_name { get { return "system-search-symbolic"; } }
-    public override string? category { get { return "File"; } }
-
-    public override bool can_execute () {
-        return app ? .active_window is Iide.Window;
-    }
-
-    public override void execute () {
-        var win = app ? .active_window as Iide.Window;
-        if (win != null) {
-            var dialog = new Iide.SearchWindow (win, win.get_document_manager ());
-            dialog.set_active_page ("files");
-            dialog.present ();
-        }
-    }
-}
-
-private class Iide.SearchSymbolAction : Iide.Action {
-    private weak Iide.Application app;
-
-    public SearchSymbolAction (Iide.Application app) {
-        this.app = app;
-    }
-
-    public override string id { get { return "search_symbol"; } }
-    public override string name { get { return _("Search  Symbol"); } }
-    public override string? description { get { return _("Search Symbol in Project"); } }
-    public override string? icon_name { get { return "system-search-symbolic"; } }
-    public override string? category { get { return "Edit"; } }
-
-    public override bool can_execute () {
-        return app ? .active_window is Iide.Window;
-    }
-
-    public override void execute () {
-        var win = app ? .active_window as Iide.Window;
-        if (win != null) {
-            var dialog = new Iide.SearchWindow (win, win.get_document_manager ());
-            dialog.set_active_page ("symbols");
-            dialog.present ();
-        }
-    }
-}
-
-private class Iide.SearchInFilesAction : Iide.Action {
-    private weak Iide.Application app;
-
-    public SearchInFilesAction (Iide.Application app) {
-        this.app = app;
-    }
-
-    public override string id { get { return "search_in_files"; } }
-    public override string name { get { return _("Search in Files"); } }
-    public override string? description { get { return _("Search for text in all project files"); } }
-    public override string? icon_name { get { return "edit-find-symbolic"; } }
-    public override string? category { get { return "Edit"; } }
-
-    public override bool can_execute () {
-        return app ? .active_window is Iide.Window;
-    }
-
-    public override void execute () {
-        var win = app ? .active_window as Iide.Window;
-        if (win != null) {
-            var dialog = new Iide.SearchWindow (win, win.get_document_manager ());
-            dialog.set_active_page ("text");
-            dialog.present ();
-        }
-    }
-}
-
-private class Iide.NavigationBackAction : Iide.Action {
-    private weak Iide.Application app;
-
-    public NavigationBackAction (Iide.Application app) {
-        this.app = app;
-    }
-
-    public override string id { get { return "navigation_back"; } }
-    public override string name { get { return _("Navigation Back"); } }
-    public override string? description { get { return _("Navigation Back"); } }
-    public override string? icon_name { get { return "go-previous-symbolic"; } }
-    public override string? category { get { return "Application"; } }
-
-    public override bool can_execute () {
-        return app ? .active_window is Iide.Window;
-    }
-
-    public override void execute () {
-        var win = app ? .active_window as Iide.Window;
-        if (win != null) {
-            Iide.NavigationHistoryService.get_instance ().navigate_back ();
-        }
-    }
-}
-
-private class Iide.NavigationForwardAction : Iide.Action {
-    private weak Iide.Application app;
-
-    public NavigationForwardAction (Iide.Application app) {
-        this.app = app;
-    }
-
-    public override string id { get { return "navigation_forward"; } }
-    public override string name { get { return _("Navigation Forward"); } }
-    public override string? description { get { return _("Navigation Forward"); } }
-    public override string? icon_name { get { return "go-next-symbolic"; } }
-    public override string? category { get { return "Application"; } }
-
-    public override bool can_execute () {
-        return app ? .active_window is Iide.Window;
-    }
-
-    public override void execute () {
-        var win = app ? .active_window as Iide.Window;
-        if (win != null) {
-            Iide.NavigationHistoryService.get_instance ().navigate_forward ();
         }
     }
 }
@@ -18539,6 +18157,1149 @@ public class Iide.BreadcrumbSymbolOutlineNavigator : Gtk.Box {
 }
 ```
 
+## File: src/Widgets/TextView/TextView.vala
+```
+/*
+ * textdocument.vala
+ *
+ * Copyright 2026 kai
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see <https://www.gnu.org/licenses/>.
+ *
+ * SPDX-License-Identifier: GPL-3.0-or-later
+ */
+
+
+
+public class Iide.SaveDelegate : Panel.SaveDelegate {
+    private Iide.TextView view;
+    public SaveDelegate (Iide.TextView view) {
+        Object ();
+        this.view = view;
+
+        var file = GLib.File.new_for_uri (view.uri);
+        title = view.title;
+        subtitle = file.get_path ();
+    }
+
+    public override bool save (GLib.Task task) {
+        message ("Saving in delegate...");
+        var result = view.save ();
+        task.return_boolean (result);
+        return result;
+    }
+
+    public override void close () {
+        view.force_close ();
+    }
+
+    public override void discard () {
+        view.force_close ();
+    }
+}
+
+// Структура для отслеживания кликабельных зон на холсте оверлея
+private struct Iide.ClickableIndicator {
+    public Gdk.Rectangle rect;
+    public int start_line;
+}
+
+public class Iide.TextView : Panel.Widget {
+    public SourceView source_view;
+    private Gtk.Overlay overlay;
+    private Gtk.DrawingArea indent_lines_canvas;
+    private Gee.ArrayList<ClickableIndicator?> visible_indicators = new Gee.ArrayList<ClickableIndicator?>();
+
+    private GtkSource.Map source_map;
+    private FontZoomer font_zoomer;
+    private Iide.SettingsService settings;
+    private EditorStatusBar editor_status_bar;
+
+    public Window window;
+    public string uri { get; private set; }
+    public SourceView text_view { get { return source_view; } }
+
+    public bool is_modified { get { return ((GtkSource.Buffer) source_view.buffer).get_modified (); } }
+
+    public signal void buffer_saved ();
+
+    public TextView (GLib.File file, GtkSource.Buffer buffer, Window window) {
+        Object ();
+        this.uri = file.get_uri ();
+        this.window = window;
+        this.settings = Iide.SettingsService.get_instance ();
+
+        var adw_style_manager = Adw.StyleManager.get_default ();
+
+        var style_manager = GtkSource.StyleSchemeManager.get_default ();
+        if (adw_style_manager.color_scheme == Adw.ColorScheme.FORCE_LIGHT) {
+            buffer.set_style_scheme (style_manager.get_scheme ("Adwaita"));
+        } else {
+            buffer.set_style_scheme (style_manager.get_scheme ("Adwaita-dark"));
+        }
+
+        adw_style_manager.notify["color-scheme"].connect (() => {
+            if (adw_style_manager.color_scheme == Adw.ColorScheme.FORCE_LIGHT) {
+                buffer.set_style_scheme (style_manager.get_scheme ("Adwaita"));
+            } else {
+                buffer.set_style_scheme (style_manager.get_scheme ("Adwaita-dark"));
+            }
+        });
+
+        source_view = new SourceView (window, uri, buffer);
+        source_view.bottom_margin = 400;
+
+        // icon_name = source_view.icon_name;
+        set_icon_name (ImageFactory.icon_name_for_file (file));
+        font_zoomer = new FontZoomer (source_view);
+
+        // Connect to settings changes to apply to all open documents
+        settings.editor_setting_changed.connect ((key) => {
+            switch (key) {
+                case "editor-font-size":
+                    font_zoomer.set_zoom_level (settings.editor_font_size);
+                    break;
+                case "show-minimap":
+                    toggle_minimap_visible (settings.show_minimap);
+                    break;
+            }
+        });
+
+        source_map = new GtkSource.Map ();
+        // source_map.set_view (source_view);
+        source_map.add_css_class ("textview-map");
+        source_map.visible = settings.show_minimap;
+
+        font_zoomer.zoom_changed.connect ((level) => {
+            source_view.mark_renderer.set_icons_size (FontSizeHelper.get_size_for_zoom_level (level));
+            source_view.folding_gutter.set_icons_size (FontSizeHelper.get_size_for_zoom_level (level));
+        });
+
+        var scroll = new Gtk.ScrolledWindow ();
+        scroll.hexpand = true;
+        scroll.vexpand = true;
+
+        scroll.set_child (source_view);
+
+        // Чтобы миникарта понимала масштаб и положение,
+        // она должна использовать тот же VAdjustment, что и ScrolledWindow редактора.
+        source_map.set_view (source_view);
+
+        // 3. Убедитесь, что миникарта не пытается скроллиться сама по себе
+        source_map.vexpand = true;
+
+        this.overlay = new Gtk.Overlay ();
+        this.overlay.set_child (scroll);
+        this.indent_lines_canvas = new Gtk.DrawingArea ();
+        this.indent_lines_canvas.can_target = false;
+        this.overlay.add_overlay (this.indent_lines_canvas);
+
+        var doc = this.source_view.document as Iide.TreeSitterDocument;
+        if (doc != null && doc.ts_highlighter != null) {
+            this.indent_lines_canvas.set_draw_func (this.draw_indent_lines);
+            doc.ts_highlighter.folding_structure_updated.connect ((blocks) => {
+                // Дерево обновилось -> принудительно стираем старые линии отступов и чертим новые
+                this.indent_lines_canvas.queue_draw ();
+            });
+            buffer.notify["cursor-position"].connect (() => {
+                // Принудительно заставляем холст линий отступов перерисоваться,
+                // чтобы мгновенно обновить подсвеченную линию
+                this.indent_lines_canvas.queue_draw ();
+            });
+            this.source_view.folding_gutter.fold_state_changed.connect (() => {
+                // Мгновенно обновляем линии и плашки "..." при любом клике на панели фолдинга
+                this.indent_lines_canvas.queue_draw ();
+                this.indent_lines_canvas.queue_resize ();
+            });
+
+            // Инициализируем жест клика НА ТЕКСТОВОМ ПОЛЕ, а не на холсте
+            var click_gesture = new Gtk.GestureClick ();
+
+            // КРИТИЧЕСКИЙ ШАГ ДЛЯ GTK 4:
+            // Настраиваем фазу распространения. CAPTURE означает, что наше текстовое поле 
+            // сначала даст шанс этому жесту проверить координаты клика ДО того, 
+            // как включится стандартная логика выделения текста, зума или скролла.
+            click_gesture.set_propagation_phase (Gtk.PropagationPhase.CAPTURE);
+
+            click_gesture.pressed.connect ((n_presses, x, y) => {
+                foreach (var indicator in this.visible_indicators) {
+                    // Проверяем попадание клика в рамки плашки "..."
+                    if (x >= indicator.rect.x && x <= (indicator.rect.x + indicator.rect.width) &&
+                        y >= indicator.rect.y && y <= (indicator.rect.y + indicator.rect.height)) {
+                        // Клик попал в плашку "..." — разворачиваем код!
+                        var folding_gutter = this.source_view.folding_gutter;
+                        
+                        Gtk.TextIter trigger_iter;
+                        this.source_view.get_buffer ().get_iter_at_line (out trigger_iter, indicator.start_line);
+                        
+                        folding_gutter.activate (trigger_iter, Gdk.Rectangle (), 1, Gdk.ModifierType.NO_MODIFIER_MASK, 1);
+                        
+                        // Заставляем оверлей принудительно стереть плашку "..." на этом же кадре
+                        this.indent_lines_canvas.queue_draw ();
+
+                        // Останавливаем дальнейшее распространение клика в GTK, 
+                        // чтобы под плашкой случайно не выделился текст или не прыгнул курсор
+                        click_gesture.set_state (Gtk.EventSequenceState.CLAIMED);
+                        return; 
+                    }
+                }
+
+                // Если клик был мимо плашки "..." — мы просто отпускаем событие.
+                // Благодаря фазе CAPTURE и отсутствию CLAIMED, GTK 4 передаст этот клик 
+                // в штатный движок GtkSourceView. Выделение текста, курсор, зум и скролл 
+                // продолжат работать идеально и нативно!
+                click_gesture.set_state (Gtk.EventSequenceState.DENIED);
+            });
+
+            // Добавляем контроллер на физический виджет текстового поля
+            this.source_view.add_controller (click_gesture);
+
+        }
+
+        this.source_view.get_vadjustment ().value_changed.connect (() => { this.indent_lines_canvas.queue_draw (); });
+        this.source_view.get_hadjustment ().value_changed.connect (() => { this.indent_lines_canvas.queue_draw (); });
+
+        var subbox = new Gtk.Box (Gtk.Orientation.HORIZONTAL, 0);
+        subbox.homogeneous = false;
+        subbox.append (this.overlay);
+        subbox.append (source_map);
+
+        var font_map = Pango.CairoFontMap.get_default ();
+        source_map.set_font_map (font_map);
+
+        var box = new Gtk.Box (Gtk.Orientation.VERTICAL, 0);
+
+        box.append (subbox);
+
+        this.editor_status_bar = new EditorStatusBar (source_view);
+        box.append (this.editor_status_bar);
+        source_view.breadcrumbs_changed.connect (this.editor_status_bar.update_breadcrumbs);
+
+        child = box;
+
+        title = file.get_basename ();
+
+        save_delegate = new Iide.SaveDelegate (this);
+        modified = false;
+
+        buffer.modified_changed.connect_after (() => {
+            modified = buffer.get_modified ();
+        });
+        buffer.notify["cursor-position"].connect (() => {
+            Gtk.TextIter insert, selection;
+            buffer.get_selection_bounds (out insert, out selection);
+
+            // 1. Обновляем позицию
+            int line = insert.get_line ();
+            int col = insert.get_line_index (); // Используем байтовый индекс для честности
+            int sel_len = insert.get_offset () - selection.get_offset ();
+
+            editor_status_bar.update_position (line, col, sel_len);
+        });
+
+        // Режим вставки (Insert/Overwrite)
+        source_view.notify["overwrite"].connect (() => {
+            editor_status_bar.update_mode (source_view.overwrite);
+        });
+
+        var main_adj = scroll.get_vadjustment ();
+        var map_adj = source_map.get_vadjustment ();
+
+        // 1. Связываем только ЗНАЧЕНИЕ (позицию), но не масштаб
+        // Мы используем формулу пропорции, чтобы слайдер стоял там, где нужно
+        main_adj.value_changed.connect (() => {
+            // Рассчитываем процент прокрутки
+            double main_range = main_adj.upper - main_adj.page_size;
+            double map_range = map_adj.upper - map_adj.page_size;
+
+            // Проверяем, что нам есть куда скроллить в основном вьювере
+            if (main_range > 0) {
+                // 1. Рассчитываем процент прокрутки (от 0.0 до 1.0)
+                double percentage = main_adj.value / main_range;
+
+                // 2. Рассчитываем целевое значение для миникарты
+                double target_value = percentage * map_range;
+
+                // 3. Применяем значение с ограничением (clamp),
+                // чтобы избежать вылетов за границы при резком ресайзе
+                map_adj.set_value (target_value.clamp (0, map_range));
+            } else {
+                // Если текст целиком влезает в экран, сбрасываем карту в начало
+                map_adj.set_value (0);
+            }
+        });
+    }
+
+    private void draw_rounded_rectangle (Cairo.Context cr, double x, double y, double width, double height, double radius) {
+        double degrees = Math.PI / 180.0;
+
+        cr.new_sub_path ();
+        cr.arc (x + width - radius, y + radius, radius, -90 * degrees, 0 * degrees);
+        cr.arc (x + width - radius, y + height - radius, radius, 0 * degrees, 90 * degrees);
+        cr.arc (x + radius, y + height - radius, radius, 90 * degrees, 180 * degrees);
+        cr.arc (x + radius, y + radius, radius, 180 * degrees, 270 * degrees);
+        cr.close_path ();
+    }
+
+    private void draw_indent_lines (Gtk.DrawingArea drawing_area, Cairo.Context cr, int width, int height) {
+        this.visible_indicators.clear ();
+        
+        var doc = this.source_view.document as Iide.TreeSitterDocument;
+        if (doc == null || doc.ts_highlighter == null) return;
+
+        var ts_blocks = doc.ts_highlighter.get_cached_indent_blocks ();
+        var folding_gutter = this.source_view.folding_gutter;
+        if (ts_blocks.size == 0) return;
+
+        cr.set_source_rgba (0.5, 0.5, 0.5, 0.25);
+        cr.set_line_width (1.0);
+
+        double tab_width_px = this.calculate_tab_width_pixels ();
+        int left_margin = this.source_view.get_left_margin ();
+        double h_scroll = this.source_view.get_hadjustment ().get_value ();
+
+        int gutter_width = 0;
+        var left_gutter = this.source_view.get_gutter (Gtk.TextWindowType.LEFT);
+        if (left_gutter != null) {
+            gutter_width = left_gutter.get_width ();
+        }
+
+        foreach (var block in ts_blocks) {
+            Gtk.TextIter start_iter;
+            this.source_view.get_buffer ().get_iter_at_line (out start_iter, block.start_line);
+
+            // 1. Проверяем геометрию ТОЛЬКО для строки заголовка
+            int start_y_buf, start_height;
+            this.source_view.get_line_yrange (start_iter, out start_y_buf, out start_height);
+
+            // Если сам заголовок скрыт (находится внутри другого свернутого блока) — полностью пропускаем
+            if (start_height <= 0) continue;
+
+            // Переводим Y-координату начала блока в пиксели окна оверлея
+            int win_x, win_y_start;
+            this.source_view.buffer_to_window_coords (Gtk.TextWindowType.TEXT, 0, start_y_buf, out win_x, out win_y_start);
+
+            // Запрашиваем состояние свернутости из нашего стабильного Gutter-а
+            bool is_collapsed = folding_gutter.is_line_collapsed_by_number (block.start_line);
+
+            // 1. Получаем строку, на которой сейчас стоит курсор
+            Gtk.TextIter cursor_iter;
+            var buffer = this.source_view.get_buffer ();
+            buffer.get_iter_at_mark (out cursor_iter, buffer.get_insert ());
+            int cursor_line = cursor_iter.get_line ();
+
+            // 2. Находим активный блок для строки курсора
+            // Используем публичный метод, который мы уже написали в вашем Gutter
+            var active_highlighter_block = folding_gutter.find_deepest_block_for_line (cursor_line);
+
+            if (is_collapsed) {
+                // === МАСШТАБИРУЕМЫЙ РЕНДЕРИНГ ПЛАШКИ "..." ===
+                
+                Gtk.TextIter eol_iter = start_iter;
+                eol_iter.forward_to_line_end ();
+                
+                Gdk.Rectangle eol_rect;
+                this.source_view.get_iter_location (eol_iter, out eol_rect);
+                
+                int win_eol_x, win_eol_y;
+                this.source_view.buffer_to_window_coords (Gtk.TextWindowType.TEXT, eol_rect.x, eol_rect.y, out win_eol_x, out win_eol_y);
+
+                double line_h = (double) start_height;
+                double btn_h = line_h * 0.65;             
+                double btn_w = btn_h * 1.7;               
+                double font_size = line_h * 0.45;         
+
+                // Физическая координата на оверлее
+                double btn_x = gutter_width + win_eol_x + (line_h * 0.3); 
+                double btn_y = win_eol_y + ((line_h - btn_h) / 2.0);
+
+                // ===================================================================
+                // ИСПРАВЛЕНИЕ: Сохраняем в кэш кликов ПОЛНУЮ координату btn_x (с гутером).
+                // Теперь рамка попадания мыши встанет ровно туда, где плашка отрисована визуально!
+                var click_zone = ClickableIndicator () {
+                    rect = Gdk.Rectangle () { 
+                        x = (int) btn_x, 
+                        y = (int) btn_y, 
+                        width = (int) btn_w, 
+                        height = (int) btn_h 
+                    },
+                    start_line = block.start_line
+                };
+                this.visible_indicators.add (click_zone);
+                // ===================================================================
+
+                cr.save ();
+                
+                // Отрисовка фона плашки
+                cr.set_source_rgba (0.5, 0.5, 0.5, 0.15); 
+                double radius = btn_h * 0.25;
+                this.draw_rounded_rectangle (cr, btn_x, btn_y, btn_w, btn_h, radius);
+                cr.fill ();
+                
+                // Отрисовка границы
+                this.draw_rounded_rectangle (cr, btn_x, btn_y, btn_w, btn_h, radius);
+                cr.set_source_rgba (0.5, 0.5, 0.5, 0.4); 
+                cr.set_line_width (1.0);
+                cr.stroke ();
+
+                // Отрисовка текста "..."
+                cr.set_source_rgba (0.4, 0.4, 0.4, 1.0);
+                cr.select_font_face ("Monospace", Cairo.FontSlant.NORMAL, Cairo.FontWeight.BOLD);
+                cr.set_font_size (font_size);
+
+                Cairo.TextExtents extents;
+                cr.text_extents ("...", out extents);
+                double text_x = btn_x + ((btn_w - extents.width) / 2.0) - extents.x_bearing;
+                double text_y = btn_y + ((btn_h - extents.height) / 2.0) - extents.y_bearing;
+
+                cr.move_to (text_x, text_y);
+                cr.show_text ("...");
+                
+                cr.restore ();
+
+                continue; 
+            }
+
+            // ===================================================================
+            // ОТРИСОВКА ЛИНЕЙ ОТСТУПОВ ДЛЯ РАЗВЕРНУТОГО БЛОКА
+            // ===================================================================
+            Gtk.TextIter end_iter;
+            this.source_view.get_buffer ().get_iter_at_line (out end_iter, block.end_line);
+
+            int end_y_buf, end_height;
+            this.source_view.get_line_yrange (end_iter, out end_y_buf, out end_height);
+
+            // Для РАЗВЕРНУТОГО блока проверяем высоту его конца. 
+            // Если конец скрыт чем-то еще — пропускаем линию.
+            if (end_height <= 0) continue;
+
+            int win_y_end;
+            this.source_view.buffer_to_window_coords (Gtk.TextWindowType.TEXT, 0, end_y_buf, out win_x, out win_y_end);
+
+            // Логика цвета (активная/пассивная линия из предыдущего шага)
+            bool is_active_line = false;
+            if (active_highlighter_block != null) {
+                if (block.start_line == active_highlighter_block.start_line && block.end_line == active_highlighter_block.end_line) {
+                    is_active_line = true;
+                } else if (cursor_line >= block.start_line && cursor_line <= block.end_line && active_highlighter_block.indent_level > block.indent_level) {
+                    is_active_line = true;
+                }
+            }
+
+            if (is_active_line) {
+                cr.set_source_rgba (0.2, 0.6, 1.0, 0.7); 
+                cr.set_line_width (1.2); 
+            } else {
+                cr.set_source_rgba (0.5, 0.5, 0.5, 0.25); 
+                cr.set_line_width (1.0);
+            }
+
+            double line_x = gutter_width + left_margin + (block.indent_level * tab_width_px) - h_scroll + 0.5;
+            if (line_x < gutter_width) continue;
+
+            if (win_y_start > height || (win_y_end + end_height) < 0) continue;
+
+            double draw_y_start = double.max (win_y_start, 0.0);
+            double draw_y_end = double.min (win_y_end + end_height, (double) height);
+
+            cr.move_to (line_x, draw_y_start);
+            cr.line_to (line_x, draw_y_end);
+            cr.stroke ();
+        }
+    }
+
+    private double calculate_tab_width_pixels () {
+        // TODO: Implement real metrix char width...
+        double char_width_px = 0.6f * FontSizeHelper.get_size_for_zoom_level (settings.editor_font_size);
+
+        uint tab_width_chars = this.source_view.get_tab_width ();
+        if (tab_width_chars == 0) tab_width_chars = 4;
+
+        return char_width_px * tab_width_chars;
+    }
+
+
+    public override void size_allocate (int width, int height, int baseline) {
+        base.size_allocate (width, height, baseline);
+        source_map.visible = settings.show_minimap && width >= 600;
+    }
+
+    public void toggle_minimap_visible (bool visible) {
+        source_map.visible = visible;
+    }
+
+    public void view_grab_focus () {
+        source_view.grab_focus ();
+    }
+
+    public bool save () {
+        try {
+            var text = source_view.buffer.text;
+            var file = GLib.File.new_for_uri (uri);
+            file.replace_contents (text.data, null, false, GLib.FileCreateFlags.NONE, null);
+            ((GtkSource.Buffer) source_view.buffer).set_modified (false);
+            buffer_saved ();
+        } catch (Error e) {
+            critical (e.message);
+        }
+        return true;
+    }
+
+    public void update_diagnostics (Gee.ArrayList<LspDiagnostic> diagnostics) {
+        var text_buffer = (Gtk.TextBuffer) source_view.buffer;
+
+        text_buffer.begin_user_action ();
+
+        LspDiagnosticsMark.clear_mark_attributes (source_view);
+
+        int line_count = text_buffer.get_line_count ();
+
+        int lsp_error_count = 0;
+        int lsp_warning_count = 0;
+
+        foreach (var diag in diagnostics) {
+            if (diag.start_line >= line_count) {
+                continue;
+            }
+
+            Gtk.TextIter start_iter;
+            text_buffer.get_iter_at_line (out start_iter, diag.start_line);
+
+            var mark = new LspDiagnosticsMark.from_lsp_diagnostic (diag);
+            text_buffer.add_mark (mark, start_iter); // Добавляем в буфер вручную
+
+            switch (diag.severity) {
+            case 1:
+                lsp_error_count++;
+                break;
+            case 2: case 3: case 4:
+                lsp_warning_count++;
+                break;
+            }
+        }
+
+        text_buffer.end_user_action ();
+
+        this.editor_status_bar.update_diagnostics (lsp_error_count, lsp_warning_count);
+    }
+
+    public void select_and_scroll (int line, int start_col, int end_col, bool is_new) {
+        source_view.select_and_scroll (line, start_col, end_col, is_new);
+    }
+}
+```
+
+## File: src/application.vala
+```
+/* application.vala
+ *
+ * Copyright 2026 kai
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see <https://www.gnu.org/licenses/>.
+ *
+ * SPDX-License-Identifier: GPL-3.0-or-later
+ */
+
+[CCode (cname = "gtk_style_context_add_provider_for_display", cheader_filename = "gtk/gtk.h")]
+extern void add_provider_to_display (Gdk.Display display, Gtk.StyleProvider provider, uint priority);
+
+public class Iide.Application : Adw.Application {
+    private Iide.SettingsService settings;
+    private Iide.AppActionsManager action_manager;
+    private SimpleActionGroup simple_action_group = new SimpleActionGroup ();
+
+    public signal void zoom_changed (int zoom_level);
+
+    public Application () {
+        Object (
+                application_id: "org.github.kai66673.iide",
+                flags: ApplicationFlags.DEFAULT_FLAGS,
+                resource_base_path: "/org/github/kai66673/iide"
+        );
+    }
+
+    construct {
+        settings = Iide.SettingsService.get_instance ();
+        action_manager = Iide.AppActionsManager.get_instance ();
+
+        register_builtin_actions ();
+    }
+
+    private void register_builtin_actions () {
+        action_manager.register_action (this, new SaveAllAction (this));
+        action_manager.register_action (this, new OpenProjectAction (this));
+        action_manager.register_action (this, new PreferencesAction (this));
+        action_manager.register_action (this, new ToggleMinimapAction (this));
+        action_manager.register_action (this, new FuzzyFinderAction (this));
+        action_manager.register_action (this, new SearchSymbolAction (this));
+        action_manager.register_action (this, new SearchInFilesAction (this));
+        action_manager.register_action (this, new ZoomInAction ());
+        action_manager.register_action (this, new ZoomOutAction ());
+        action_manager.register_action (this, new ZoomResetAction ());
+        action_manager.register_action (this, new ExpandSelectionAction ());
+        action_manager.register_action (this, new ShrinkSelectionAction ());
+        action_manager.register_action (this, new QuitAction ());
+        action_manager.register_action (this, new NavigationBackAction (this));
+        action_manager.register_action (this, new NavigationForwardAction (this));
+        action_manager.register_action (this, new ShowLineNumbersAction (this));
+        action_manager.register_action (this, new ShowDiagnosticsMarksAction (this));
+        action_manager.register_action (this, new ShowFoldingAction (this));
+
+        // Ins/Ovr toggle
+        // Действие переключения режима
+        var toggle_overwrite = new SimpleAction ("toggle-overwrite", null);
+        toggle_overwrite.activate.connect (() => {
+            // Переключаем встроенное свойство SourceView
+            var win = active_window as Iide.Window;
+            if (win != null) {
+                var view = win.get_active_source_view ();
+                if (view != null) {
+                    view.overwrite = !view.overwrite;
+                }
+            }
+        });
+        simple_action_group.add_action (toggle_overwrite);
+        set_accels_for_action ("editor.toggle-overwrite", { "Insert" });
+    }
+
+    public Iide.SettingsService get_settings () {
+        return settings;
+    }
+
+    public void register_embedded_fonts () {
+        // Путь к шрифту в GResource
+        // string font_path = "/org/github/kai66673/iide/fonts/SymbolsNerdFontMono-Regular.ttf";
+        // var bytes = resources_lookup_data (font_path, ResourceLookupFlags.NONE);
+
+        // В GTK4 для кастомных шрифтов из памяти используется PangoCairo и FontConfig
+        // На Linux/Arch самый простой способ - создать временный конфиг
+        // или использовать Fontconfig напрямую.
+
+        // Но есть способ проще для GTK4 через CSS (начиная с новых версий):
+        string css = """
+            @font-face {
+                font-family: "Symbols Nerd Font";
+                src: url("resource:///org/github/kai66673/iide/fonts/SymbolsNerdFont-Regular.ttf");
+            }
+        """;
+        var provider = new Gtk.CssProvider ();
+        provider.load_from_bytes (new GLib.Bytes (css.data));
+        add_provider_to_display (
+                                 Gdk.Display.get_default (),
+                                 provider,
+                                 Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION
+        );
+    }
+
+    public override void activate () {
+        base.activate ();
+
+        var icon_theme = Gtk.IconTheme.get_for_display (Gdk.Display.get_default ());
+        icon_theme.add_resource_path ("/org/github/kai66673/iide/icons");
+
+        var css_provider = new Gtk.CssProvider ();
+        css_provider.load_from_resource ("/org/github/kai66673/iide/style.css");
+        add_provider_to_display (
+                                 Gdk.Display.get_default (),
+                                 css_provider,
+                                 Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION
+        );
+
+        var css_symbol_provider = new Gtk.CssProvider ();
+        css_symbol_provider.load_from_resource ("/org/github/kai66673/iide/symbols/symbols.css");
+        add_provider_to_display (
+                                 Gdk.Display.get_default (),
+                                 css_symbol_provider,
+                                 Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION
+        );
+
+        register_embedded_fonts ();
+
+        var win = this.active_window ?? new Iide.Window (this);
+        win.present ();
+    }
+}
+
+private class Iide.SaveAllAction : Iide.AppAction {
+    private weak Iide.Application app;
+
+    public SaveAllAction (Iide.Application app) {
+        this.app = app;
+    }
+
+    public override string id { get { return "save"; } }
+    public override string name { get { return _("Save All"); } }
+    public override string? description { get { return _("Save all open documents"); } }
+    public override string? icon_name { get { return "document-save-symbolic"; } }
+    public override string? category { get { return "File"; } }
+    public override string? default_shortcut { get { return "<primary>s"; } }
+
+    public override bool can_execute () {
+        return app ? .active_window is Iide.Window;
+    }
+
+    public override void execute () {
+        var win = app ? .active_window as Iide.Window;
+        win?.save_modified ();
+    }
+}
+
+private class Iide.OpenProjectAction : Iide.AppAction {
+    private weak Iide.Application app;
+
+    public OpenProjectAction (Iide.Application app) {
+        this.app = app;
+    }
+
+    public override string id { get { return "open-project"; } }
+    public override string name { get { return _("Open Project"); } }
+    public override string? description { get { return _("Open a project folder"); } }
+    public override string? icon_name { get { return "folder-open-symbolic"; } }
+    public override string? category { get { return "File"; } }
+    public override string? default_shortcut { get { return "<primary>o"; } }
+
+    public override bool can_execute () {
+        return true;
+    }
+
+    public override void execute () {
+        var win = app ? .active_window as Iide.Window;
+        win?.open_project_dialog ();
+    }
+}
+
+private class Iide.PreferencesAction : Iide.AppAction {
+    private weak Iide.Application app;
+
+    public PreferencesAction (Iide.Application app) {
+        this.app = app;
+    }
+
+    public override string id { get { return "preferences"; } }
+    public override string name { get { return _("Preferences"); } }
+    public override string? description { get { return _("Open preferences dialog"); } }
+    public override string? icon_name { get { return "preferences-system-symbolic"; } }
+    public override string? category { get { return "Application"; } }
+    public override string? default_shortcut { get { return "<primary>comma"; } }
+
+    public override bool can_execute () {
+        return true;
+    }
+
+    public override void execute () {
+        var dialog = new Iide.PreferencesDialog ();
+        dialog.set_transient_for (app ? .active_window);
+        dialog.present ();
+    }
+}
+
+private class Iide.ToggleMinimapAction : Iide.AppAction {
+    private weak Iide.Application app;
+
+    public ToggleMinimapAction (Iide.Application app) {
+        this.app = app;
+        this.state = Iide.SettingsService.get_instance ().show_minimap;
+    }
+
+    public override string id { get { return "show-minimap"; } }
+    public override string name { get { return _("Toggle Minimap"); } }
+    public override string? description { get { return _("Show or hide the minimap"); } }
+    public override string? icon_name { get { return "view-fullscreen-symbolic"; } }
+    public override string? category { get { return "View"; } }
+    public override bool is_toggle { get { return true; } }
+    public override string? default_shortcut { get { return "<primary>m"; } }
+
+    public override bool can_execute () {
+        return true;
+    }
+
+    public override void execute () {
+        var settings = Iide.SettingsService.get_instance ();
+        state = !state;
+        settings.show_minimap = state;
+
+        state_changed (state);
+        // TODO: handle changing state from preferences dialog...
+    }
+}
+
+private class Iide.ZoomInAction : Iide.AppAction {
+    private Iide.SettingsService settings;
+
+    public override string id { get { return "zoom-in"; } }
+    public override string name { get { return _("Zoom In"); } }
+    public override string? description { get { return _("Increase editor font size"); } }
+    public override string? icon_name { get { return "zoom-in-symbolic"; } }
+    public override string? category { get { return "View"; } }
+    public override string? default_shortcut { get { return "<primary>plus"; } }
+
+    public override bool can_execute () {
+        settings = Iide.SettingsService.get_instance ();
+        return settings.editor_font_size < Iide.FontSizeHelper.MAX_ZOOM_LEVEL;
+    }
+
+    public override void execute () {
+        settings = Iide.SettingsService.get_instance ();
+        var app = GLib.Application.get_default () as Iide.Application;
+        settings.editor_font_size++;
+        app?.zoom_changed (settings.editor_font_size);
+    }
+}
+
+private class Iide.ZoomOutAction : Iide.AppAction {
+    private Iide.SettingsService settings;
+
+    public override string id { get { return "zoom-out"; } }
+    public override string name { get { return _("Zoom Out"); } }
+    public override string? description { get { return _("Decrease editor font size"); } }
+    public override string? icon_name { get { return "zoom-out-symbolic"; } }
+    public override string? category { get { return "View"; } }
+    public override string? default_shortcut { get { return "<primary>minus"; } }
+
+    public override bool can_execute () {
+        settings = Iide.SettingsService.get_instance ();
+        return settings.editor_font_size > Iide.FontSizeHelper.MIN_ZOOM_LEVEL;
+    }
+
+    public override void execute () {
+        settings = Iide.SettingsService.get_instance ();
+        var app = GLib.Application.get_default () as Iide.Application;
+        settings.editor_font_size--;
+        app?.zoom_changed (settings.editor_font_size);
+    }
+}
+
+private class Iide.ZoomResetAction : Iide.AppAction {
+    private Iide.SettingsService settings;
+
+    public override string id { get { return "zoom-reset"; } }
+    public override string name { get { return _("Zoom Reset"); } }
+    public override string? description { get { return _("Reset editor font size to default"); } }
+    public override string? icon_name { get { return "zoom-original-symbolic"; } }
+    public override string? category { get { return "View"; } }
+    public override string? default_shortcut { get { return "<primary>0"; } }
+
+    public override bool can_execute () {
+        return true;
+    }
+
+    public override void execute () {
+        settings = Iide.SettingsService.get_instance ();
+        var app = GLib.Application.get_default () as Iide.Application;
+        settings.editor_font_size = Iide.FontSizeHelper.DEFAULT_ZOOM_LEVEL;
+        app?.zoom_changed (settings.editor_font_size);
+    }
+}
+
+private class Iide.ExpandSelectionAction : Iide.AppAction {
+    public override string id { get { return "expand-selection"; } }
+    public override string name { get { return _("Expand Selection"); } }
+    public override string? description { get { return _("Expand the current selection"); } }
+    public override string? icon_name { get { return "zoom-original-symbolic"; } }
+    public override string? category { get { return "View"; } }
+    public override string? default_shortcut { get { return "<primary>w"; } }
+
+    public override bool can_execute () {
+        return true;
+    }
+
+    public override void execute () {
+        var app = GLib.Application.get_default () as Iide.Application;
+        var win = app ? .active_window as Iide.Window;
+        if (win != null) {
+            win.get_active_source_view () ? .expand_selection ();
+        }
+    }
+}
+
+private class Iide.ShrinkSelectionAction : Iide.AppAction {
+    public override string id { get { return "shrink-selection"; } }
+    public override string name { get { return _("Shrink Selection"); } }
+    public override string? description { get { return _("Shrink the current selection"); } }
+    public override string? icon_name { get { return "zoom-original-symbolic"; } }
+    public override string? category { get { return "View"; } }
+    public override string? default_shortcut { get { return "<primary><shift>w"; } }
+
+    public override bool can_execute () {
+        return true;
+    }
+
+    public override void execute () {
+        var app = GLib.Application.get_default () as Iide.Application;
+        var win = app ? .active_window as Iide.Window;
+        if (win != null) {
+            win.get_active_source_view () ? .shrink_selection ();
+        }
+    }
+}
+
+private class Iide.QuitAction : Iide.AppAction {
+    public override string id { get { return "quit"; } }
+    public override string name { get { return _("Quit"); } }
+    public override string? description { get { return _("Quit the application"); } }
+    public override string? icon_name { get { return "application-exit-symbolic"; } }
+    public override string? category { get { return "Application"; } }
+    public override string? default_shortcut { get { return "<primary>q"; } }
+
+    public override bool can_execute () {
+        return true;
+    }
+
+    public override void execute () {
+        var app = GLib.Application.get_default () as Iide.Application;
+        app?.quit ();
+    }
+}
+
+private class Iide.FuzzyFinderAction : Iide.AppAction {
+    private weak Iide.Application app;
+
+    public FuzzyFinderAction (Iide.Application app) {
+        this.app = app;
+    }
+
+    public override string id { get { return "fuzzy-finder"; } }
+    public override string name { get { return _("Quick Open"); } }
+    public override string? description { get { return _("Open a file quickly by name"); } }
+    public override string? icon_name { get { return "system-search-symbolic"; } }
+    public override string? category { get { return "File"; } }
+    public override string? default_shortcut { get { return "<primary>p"; } }
+
+    public override bool can_execute () {
+        return app ? .active_window is Iide.Window;
+    }
+
+    public override void execute () {
+        var win = app ? .active_window as Iide.Window;
+        if (win != null) {
+            var dialog = new Iide.SearchWindow (win, win.get_document_manager ());
+            dialog.set_active_page ("files");
+            dialog.present ();
+        }
+    }
+}
+
+private class Iide.SearchSymbolAction : Iide.AppAction {
+    private weak Iide.Application app;
+
+    public SearchSymbolAction (Iide.Application app) {
+        this.app = app;
+    }
+
+    public override string id { get { return "search-symbol"; } }
+    public override string name { get { return _("Search  Symbol"); } }
+    public override string? description { get { return _("Search Symbol in Project"); } }
+    public override string? icon_name { get { return "system-search-symbolic"; } }
+    public override string? category { get { return "Edit"; } }
+    public override string? default_shortcut { get { return "<primary>t"; } }
+
+    public override bool can_execute () {
+        return app ? .active_window is Iide.Window;
+    }
+
+    public override void execute () {
+        var win = app ? .active_window as Iide.Window;
+        if (win != null) {
+            var dialog = new Iide.SearchWindow (win, win.get_document_manager ());
+            dialog.set_active_page ("symbols");
+            dialog.present ();
+        }
+    }
+}
+
+private class Iide.SearchInFilesAction : Iide.AppAction {
+    private weak Iide.Application app;
+
+    public SearchInFilesAction (Iide.Application app) {
+        this.app = app;
+    }
+
+    public override string id { get { return "search-in-files"; } }
+    public override string name { get { return _("Search in Files"); } }
+    public override string? description { get { return _("Search for text in all project files"); } }
+    public override string? icon_name { get { return "edit-find-symbolic"; } }
+    public override string? category { get { return "Edit"; } }
+    public override string? default_shortcut { get { return "<primary><shift>f"; } }
+
+    public override bool can_execute () {
+        return app ? .active_window is Iide.Window;
+    }
+
+    public override void execute () {
+        var win = app ? .active_window as Iide.Window;
+        if (win != null) {
+            var dialog = new Iide.SearchWindow (win, win.get_document_manager ());
+            dialog.set_active_page ("text");
+            dialog.present ();
+        }
+    }
+}
+
+private class Iide.NavigationBackAction : Iide.AppAction {
+    private weak Iide.Application app;
+
+    public NavigationBackAction (Iide.Application app) {
+        this.app = app;
+    }
+
+    public override string id { get { return "navigation-back"; } }
+    public override string name { get { return _("Navigation Back"); } }
+    public override string? description { get { return _("Navigation Back"); } }
+    public override string? icon_name { get { return "go-previous-symbolic"; } }
+    public override string? category { get { return "Application"; } }
+    public override string? default_shortcut { get { return "<Alt>Left"; } }
+
+    public override bool can_execute () {
+        return app ? .active_window is Iide.Window;
+    }
+
+    public override void execute () {
+        var win = app ? .active_window as Iide.Window;
+        if (win != null) {
+            Iide.NavigationHistoryService.get_instance ().navigate_back ();
+        }
+    }
+}
+
+private class Iide.NavigationForwardAction : Iide.AppAction {
+    private weak Iide.Application app;
+
+    public NavigationForwardAction (Iide.Application app) {
+        this.app = app;
+    }
+
+    public override string id { get { return "navigation-forward"; } }
+    public override string name { get { return _("Navigation Forward"); } }
+    public override string? description { get { return _("Navigation Forward"); } }
+    public override string? icon_name { get { return "go-next-symbolic"; } }
+    public override string? category { get { return "Application"; } }
+    public override string? default_shortcut { get { return "<Alt>Right"; } }
+
+    public override bool can_execute () {
+        return app ? .active_window is Iide.Window;
+    }
+
+    public override void execute () {
+        var win = app ? .active_window as Iide.Window;
+        if (win != null) {
+            Iide.NavigationHistoryService.get_instance ().navigate_forward ();
+        }
+    }
+}
+
+private class Iide.ShowLineNumbersAction : Iide.AppAction {
+    private weak Iide.Application app;
+
+    public ShowLineNumbersAction (Iide.Application app) {
+        this.app = app;
+        this.state = Iide.SettingsService.get_instance ().show_minimap;
+    }
+
+    public override string id { get { return "show-line-numbers"; } }
+    public override string name { get { return _("Show Line Numbers"); } }
+    public override string? description { get { return _("Show or hide line numbers gutter"); } }
+    public override string? icon_name { get { return "view-fullscreen-symbolic"; } }
+    public override string? category { get { return "View"; } }
+    public override bool is_toggle { get { return true; } }
+    public override string? default_shortcut { get { return "<primary><Alt>n"; } }
+
+    public override bool can_execute () {
+        return true;
+    }
+
+    public override void execute () {
+        var settings = Iide.SettingsService.get_instance ();
+        state = !state;
+        settings.show_line_numbers = state;
+
+        state_changed (state);
+        // TODO: handle changing state from preferences dialog...
+    }
+}
+
+private class Iide.ShowDiagnosticsMarksAction : Iide.AppAction {
+    private weak Iide.Application app;
+
+    public ShowDiagnosticsMarksAction (Iide.Application app) {
+        this.app = app;
+        this.state = Iide.SettingsService.get_instance ().show_minimap;
+    }
+
+    public override string id { get { return "show-diagnostics-marks"; } }
+    public override string name { get { return _("Show Diagnostics"); } }
+    public override string? description { get { return _("Show or hide diagnostics marks gutter"); } }
+    public override string? icon_name { get { return "view-fullscreen-symbolic"; } }
+    public override string? category { get { return "View"; } }
+    public override bool is_toggle { get { return true; } }
+    public override string? default_shortcut { get { return "<primary><Alt>m"; } }
+
+    public override bool can_execute () {
+        return true;
+    }
+
+    public override void execute () {
+        var settings = Iide.SettingsService.get_instance ();
+        state = !state;
+        settings.show_diagnostics_marks = state;
+
+        state_changed (state);
+        // TODO: handle changing state from preferences dialog...
+    }
+}
+
+private class Iide.ShowFoldingAction : Iide.AppAction {
+    private weak Iide.Application app;
+
+    public ShowFoldingAction (Iide.Application app) {
+        this.app = app;
+        this.state = Iide.SettingsService.get_instance ().show_minimap;
+    }
+
+    public override string id { get { return "show-folding-gutter"; } }
+    public override string name { get { return _("Show Folding Gutter"); } }
+    public override string? description { get { return _("Show or hide folding gutter"); } }
+    public override string? icon_name { get { return "view-fullscreen-symbolic"; } }
+    public override string? category { get { return "View"; } }
+    public override bool is_toggle { get { return true; } }
+    public override string? default_shortcut { get { return "<primary><Alt>f"; } }
+
+    public override bool can_execute () {
+        return true;
+    }
+
+    public override void execute () {
+        var settings = Iide.SettingsService.get_instance ();
+        state = !state;
+        settings.show_folding_gutter = state;
+
+        state_changed (state);
+        // TODO: handle changing state from preferences dialog...
+    }
+}
+```
+
 ## File: src/Widgets/TextView/SourceView.vala
 ```
 public class Iide.WordRange {
@@ -18606,7 +19367,9 @@ public class Iide.SourceView : GtkSource.View {
     public Window window;
     public string uri { get; private set; }
     private Iide.TreeSitterManager ts_manager;
+    public Iide.LineNumbersGutter line_numbers_gutter;
     public GutterMarkRenderer mark_renderer;
+    public TreeSitterFoldingGutter folding_gutter;
     private Gtk.TextIter? pending_scroll_iter = null;
 
     private WordRange? last_hover_range = null;
@@ -18614,7 +19377,7 @@ public class Iide.SourceView : GtkSource.View {
     private string tooltip_separator = "────────────────────────────────────────";
 
     private LspDocumentClient lsp_doclument_client;
-    private SourceDocument document;
+    public SourceDocument document;
 
     private int last_line = -1;
     private NavigationHistoryService history;
@@ -18641,12 +19404,15 @@ public class Iide.SourceView : GtkSource.View {
 
         // Build extra menu for context menu
         var zoom_section = new GLib.Menu ();
-        zoom_section.append (_("Zoom In"), "app.zoom_in");
-        zoom_section.append (_("Zoom Out"), "app.zoom_out");
-        zoom_section.append (_("Reset Zoom"), "app.zoom_reset");
+        zoom_section.append (_("Zoom In"), "app.zoom-in");
+        zoom_section.append (_("Zoom Out"), "app.zoom-out");
+        zoom_section.append (_("Reset Zoom"), "app.zoom-reset");
 
         var view_section = new GLib.Menu ();
-        view_section.append (_("Minimap"), "app.toggle_minimap");
+        view_section.append (_("Minimap"), "app.show-minimap");
+        view_section.append (_("Line Numbers"), "app.show-line-numbers");
+        view_section.append (_("Diagnostics"), "app.show-diagnostics-marks");
+        view_section.append (_("Folding"), "app.show-folding-gutter");
 
         var extra_menu = new GLib.Menu ();
         extra_menu.append_section (null, zoom_section);
@@ -18655,19 +19421,27 @@ public class Iide.SourceView : GtkSource.View {
 
         var settings = Iide.SettingsService.get_instance ();
 
-        show_line_numbers = settings.show_line_numbers;
         highlight_current_line = settings.highlight_current_line;
         auto_indent = settings.auto_indent;
         indent_on_tab = true;
-
+        
         // Marks gutter
         set_show_line_marks (false);
         var left_gutter = get_gutter (Gtk.TextWindowType.LEFT);
         left_gutter.visible = true;
 
+        show_line_numbers = false;
+        this.line_numbers_gutter = new Iide.LineNumbersGutter ();
+        left_gutter.insert (this.line_numbers_gutter, 0); // Вес 0 — самая левая позиция
+        line_numbers_gutter.visible = settings.show_line_numbers;
+
         mark_renderer = new GutterMarkRenderer ();
         mark_renderer.set_icons_size (FontSizeHelper.get_size_for_zoom_level (settings.editor_font_size));
-        left_gutter.insert (mark_renderer, 0);
+        left_gutter.insert (mark_renderer, 10);
+
+        this.folding_gutter = new TreeSitterFoldingGutter ();
+        this.folding_gutter.set_icons_size (FontSizeHelper.get_size_for_zoom_level (settings.editor_font_size));
+        left_gutter.insert (this.folding_gutter, 20);
 
         LspDiagnosticsMark.set_mark_attributes (this);
 
@@ -18675,7 +19449,13 @@ public class Iide.SourceView : GtkSource.View {
         settings.editor_setting_changed.connect ((key) => {
             switch (key) {
                 case "show-line-numbers" :
-                    show_line_numbers = settings.show_line_numbers;
+                    line_numbers_gutter.visible = settings.show_line_numbers;
+                    break;
+                case "show-diagnostics-marks":
+                    mark_renderer.visible = settings.show_diagnostics_marks;
+                    break;
+                case "show-folding-gutter":
+                    folding_gutter.visible = settings.show_folding_gutter;
                     break;
                 case "highlight-current-line" :
                     highlight_current_line = settings.highlight_current_line;
@@ -18733,8 +19513,15 @@ public class Iide.SourceView : GtkSource.View {
         var ts_highlighter = ts_manager.get_ts_highlighter (this);
         if (ts_highlighter != null) {
             this.document = new TreeSitterDocument(this, ts_highlighter);
+                ts_highlighter.folding_structure_updated.connect ((blocks) => {
+                // Передаем актуальный список блоков прямиком в наш Gutter renderer
+                this.folding_gutter.update_blocks_data (blocks);
+            });
+            this.folding_gutter.update_blocks_data (ts_highlighter.get_cached_indent_blocks ());
         } else {
             this.document = new SourceDocument (this);
+            this.folding_gutter.visible = false;
+            this.mark_renderer.visible = false;
         }
 
         this.lsp_doclument_client = new LspDocumentClient (this);
@@ -19016,6 +19803,106 @@ public class Iide.SourceView : GtkSource.View {
 }
 ```
 
+## File: src/meson.build
+```
+iide_sources = [
+    'main.vala',
+    'application.vala',
+    'window.vala',
+    'Widgets/TextView/TextView.vala',
+    'Widgets/TextView/SourceView.vala',
+    'Widgets/TextView/FontZoomer.vala',
+    'Widgets/TextView/GutterMarkRenderer.vala',
+    'Widgets/TextView/LineNumbersGutter.vala',
+    'Widgets/TextView/BreadcrumbFileNavigator.vala',
+    'Widgets/TextView/BreadcrumbTreeSitterNavigator.vala',
+    'Widgets/TextView/BreadcrumbSymbolOutlineNavigator.vala',
+    'Widgets/TextView/BreadcrumbsBar.vala',
+    'Widgets/TextView/EditorStatusBar.vala',
+    'Widgets/TextView/LspCompletionProvider.vala',
+    'Widgets/TextView/TreeSitterFoldingGutter.vala',
+    'Widgets/TextView/DiagnosticsPopover.vala',
+    'Widgets/ToolViews/ProjectView.vala',
+    'Widgets/ToolViews/TerminalView.vala',
+    'Widgets/ToolViews/LogView.vala',
+    'Widgets/Find/SearchResult.vala',
+    'Widgets/Find/SearchResultsView.vala',
+    'Widgets/Find/SearchEngine.vala',
+    'Widgets/Find/SearchPage.vala',
+    'Widgets/Find/Engines/SymbolsSearchEngine.vala',
+    'Widgets/Find/Engines/FzfSearchEngine.vala',
+    'Widgets/Find/Engines/TextSearchEngine.vala',
+    'Widgets/Find/SearchWindow.vala',
+    'Widgets/PreferencesDialog.vala',
+    'Widgets/Panels/BasePanel.vala',
+    'Widgets/Panels/LogPanel.vala',
+    'Widgets/Panels/TerminalPanel.vala',
+    'Widgets/Panels/DiagnosticsPanel.vala',
+    'Widgets/Panels/ProjectPanel.vala',
+    'Services/Utils.vala',
+    'Services/JsonUtils.vala',
+    'Services/StyleManager.vala',
+    'Services/LoggerService.vala',
+    'Services/DocumentManager.vala',
+    'Services/PendingChange.vala',
+    'Services/LSP/LspDocumentClient.vala',
+    'Services/SourceNodeItem.vala',
+    'Services/TreeSitter/IndentBlock.vala',
+    'Services/TreeSitter/TreeSitterDocument.vala',
+    'Services/SourceDocument.vala',
+    'Services/ImageFactory.vala',
+    'Services/SymbIconProvider.vala',
+    'Services/ProjectManager.vala',
+    'Services/SettingsService.vala',
+    'Services/PanelLayoutHelper.vala',
+    'Services/NavigationHistoryService.vala',
+    'Services/LSP/LspTypes.vala',
+    'Services/LSP/config/LspConfig.vala',
+    'Services/LSP/config/PythonLspConfig.vala',
+    'Services/LSP/config/CppLspConfig.vala',
+    'Services/LSP/config/LspRegistry.vala',
+    'Services/LSP/index/ClangTidy.vala',
+    'Services/LSP/LspClient.vala',
+    'Services/LSP/LspService.vala',
+    'Services/LSP/LspDiagnosticsMark.vala',
+    'Services/LSP/DiagnosticsService.vala',
+    'Services/TreeSitter/TreeSitterManager.vala',
+    'Services/TreeSitter/model/AstItem.vala',
+    'Services/TreeSitter/model/AstModel.vala',
+    'Services/TreeSitter/BaseTreeSitterHighlighter.vala',
+    'Services/TreeSitter/cpp/CppHighlighter.vala',
+    'Services/TreeSitter/vala/ValaHighlighter.vala',
+    'Services/TreeSitter/rust/RustHighlighter.vala',
+    'Services/TreeSitter/python/PythonIndenter.vala',
+    'Services/TreeSitter/python/PythonHighlighter.vala',
+    'Services/Actions/AppAction.vala',
+    'Services/Actions/AppActionsManager.vala',
+]
+
+iide_deps = [
+    config_dep,
+    dependency('gtk4'),
+    dependency('gio-2.0', version: '>= 2.50'),
+    dependency('libadwaita-1', version: '>= 1.4'),
+    dependency('libpanel-1', version: '>= 1.7'),
+    dependency('gtksourceview-5'),
+    dependency('vte-2.91-gtk4', version: '>= 0.75.0'),
+    dependency('gee-0.8'),
+    dependency('json-glib-1.0'),
+    dependency('jsonrpc-glib-1.0'),
+]
+
+iide_sources += gnome.compile_resources('iide-resources', 'iide.gresource.xml', c_name: 'iide')
+
+executable(
+    'iide',
+    iide_sources + [symbols_res],
+    dependencies: [iide_deps, tree_sitter_dep],
+    include_directories: config_inc,
+    install: true,
+)
+```
+
 ## File: src/Services/TreeSitter/BaseTreeSitterHighlighter.vala
 ```
 using TreeSitter;
@@ -19031,7 +19918,7 @@ public abstract class Iide.BaseTreeSitterHighlighter : Object {
     protected GtkSource.Buffer buffer;
     protected SourceView view;
 
-    private TreeSitter.Input ts_input;
+    //  private TreeSitter.Input ts_input;
 
     // Оптимизированный кэш: [capture_index, theme_index]
     // theme_index: 1 - Light, 0 - Dark
@@ -19043,6 +19930,8 @@ public abstract class Iide.BaseTreeSitterHighlighter : Object {
     // Таймер для Debounce
     private uint highlight_timeout_id = 0;
     private const uint DEBOUNCE_MS = 150;
+    private Gee.ArrayList<TreeSitter.Range?> pending_ui_ranges;
+    private ulong scroll_signal_id = 0;
 
     // Список структур Range из Tree-sitter для хранения истории
     private Gee.ArrayQueue<TreeSitter.Range?> selection_stack = new Gee.ArrayQueue<TreeSitter.Range?> ();
@@ -19050,6 +19939,12 @@ public abstract class Iide.BaseTreeSitterHighlighter : Object {
 
     private Gee.List<SourceNodeItem?> last_crumbs = null;
     public signal void breadcrumbs_changed (Gee.List<SourceNodeItem?> crumbs);
+
+    // Сигнал, сообщающий UI-компонентам, что структура блоков изменилась
+    public signal void folding_structure_updated (Gee.List<IndentBlock?> blocks);
+
+    // Внутренний кэш блоков кода
+    protected Gee.List<IndentBlock?> cached_blocks;
 
     private void set_color_theme () {
         var color_scheme = SettingsService.get_instance ().color_scheme;
@@ -19060,49 +19955,56 @@ public abstract class Iide.BaseTreeSitterHighlighter : Object {
         initial_rehighlight ();
     }
 
+    /* TODO: максимально неоптимальная реализация... Подумать над оптимизацией и вовзвратом...
     private static string ? ts_read_callback (void* payload, uint32 byte_index, Point position, out uint32 bytes_read) {
         var self = (BaseTreeSitterHighlighter) payload;
         var buffer = self.buffer;
         bytes_read = 0;
 
         Gtk.TextIter iter;
-        // 1. Сначала переходим строго по номеру строки
-        buffer.get_iter_at_line (out iter, (int) position.row);
+        buffer.get_start_iter (out iter);
 
-        // 2. БЕЗОПАСНАЯ УСТАНОВКА ИНДЕКСА
-        // Вместо прямого set_line_index, проверяем длину строки
-        int bytes_in_line = iter.get_bytes_in_line ();
-
-        // Если Tree-sitter просит индекс за пределами текущей строки
-        if ((int) position.column < bytes_in_line) {
-            iter.set_line_index ((int) position.column);
-        } else if ((int) position.column == bytes_in_line && bytes_in_line > 0) {
-            // Мы в самом конце строки (возможно на \n)
-            iter.set_line_index ((int) position.column);
-        } else {
-            // Если индекс совсем за пределами, значит этой части текста еще нет
-            // или Tree-sitter запрашивает пустоту
-            return null;
-        }
-
-        if (iter.is_end ())return null;
-
-        Gtk.TextIter end = iter;
-        // Захватываем текст до конца строки
-        if (end.forward_to_line_end ()) {
-            // Если не конец файла, захватываем символ переноса (\n)
-            if (!end.is_end ()) {
-                end.forward_char ();
+        // 1. ИЩЕМ ИТЕРАТОР ПО АБСОЛЮТНОМУ БАЙТОВОМУ ИНДЕКСУ
+        // Вместо капризного get_iter_at_line по структуре Point, мы используем 
+        // внутренний постраничный/построчный поиск самого GTK, замеряя байты.
+        // Чтобы сделать это максимально быстро, прыгаем по строкам через get_bytes_in_line
+        uint32 accumulated_bytes = 0;
+        while (accumulated_bytes + (uint32) iter.get_bytes_in_line () <= byte_index) {
+            accumulated_bytes += (uint32) iter.get_bytes_in_line ();
+            if (!iter.forward_line ()) {
+                break; // Дошли до конца файла
             }
-        } else {
-            end.forward_to_end ();
         }
 
-        string chunk = buffer.get_slice (iter, end, false);
-        bytes_read = (uint32) chunk.length;
+        // Добираемся до точного байта внутри найденной строки посимвольно
+        // (Этот внутренний хвостик обычно равен всего нескольким байтам)
+        while (accumulated_bytes < byte_index) {
+            int current_char_bytes = iter.get_bytes_in_line () - iter.get_line_index ();
+            // Защита от бесконечного цикла на краю строки
+            if (current_char_bytes <= 0) break; 
+            
+            // Продвигаем итератор вперед на один символ буфера (включая невидимые!)
+            if (!iter.forward_char ()) break;
+            
+            // Пересчитываем глобальный байтовый оффсет через наш get_byte_offset_safe
+            accumulated_bytes = get_byte_offset_safe (iter);
+        }
 
-        return chunk;
-    }
+        if (iter.is_end ()) return null;
+
+        // 2. ОПРЕДЕЛЯЕМ КОНЕЦ ЧТЕНИЯ ЧАНКА (Блока текста)
+        // Читаем текст порциями — от текущей позиции до конца текущей строки (включая \n)
+        Gtk.TextIter end = iter;
+        int total_line_bytes = end.get_bytes_in_line ();
+        end.set_line_index (total_line_bytes); // Встаем строго в конец физической строки памяти буфера
+
+        // Запрашиваем текст. Метод get_text (в отличие от get_slice) 
+        // ГАРАНТИРОВАННО вернет все символы, включая скрытые тегом $FOLD_HIDE!
+        string chunk = buffer.get_text (iter, end, false);
+        bytes_read = (uint32) chunk.length; // В Vala это длина в байтах UTF-8
+
+        return bytes_read > 0 ? chunk : null;
+    } */
 
     protected BaseTreeSitterHighlighter (SourceView view) {
         view.set_insert_spaces_instead_of_tabs (true);
@@ -19113,13 +20015,16 @@ public abstract class Iide.BaseTreeSitterHighlighter : Object {
         this.buffer = (GtkSource.Buffer) view.get_buffer ();
 
         // Заполняем структуру один раз
-        this.ts_input = {};
-        this.ts_input.payload = (void*) this;
-        this.ts_input.read = ts_read_callback;
-        this.ts_input.encoding = TreeSitter.InputEncoding.UTF8;
+        //  this.ts_input = {};
+        //  this.ts_input.payload = (void*) this;
+        //  this.ts_input.read = ts_read_callback;
+        //  this.ts_input.encoding = TreeSitter.InputEncoding.UTF8;
 
         this.parser = new Parser ();
         this.cursor = new QueryCursor ();
+        
+        this.cached_blocks = new Gee.ArrayList<IndentBlock?> ();
+        this.pending_ui_ranges = new Gee.ArrayList<TreeSitter.Range?> ();
 
         // Определяем язык
         unowned Language lang = get_ts_language ();
@@ -19141,6 +20046,29 @@ public abstract class Iide.BaseTreeSitterHighlighter : Object {
         });
 
         buffer.notify["cursor-position"].connect (update_breadcrumbs);
+
+        this.buffer.changed.connect (this.on_buffer_changed);
+        this.bind_highlighter_signals ();
+    }
+
+    private void bind_highlighter_signals () {
+        // Получаем вертикальный adjustment текстового поля
+        var vadjustment = this.view.get_vadjustment ();
+
+        // Отписываемся от старого сигнала, если он был
+        if (this.scroll_signal_id != 0 && vadjustment != null) {
+            vadjustment.disconnect (this.scroll_signal_id);
+        }
+
+        // Подписываемся на скроллинг
+        this.scroll_signal_id = vadjustment.value_changed.connect (() => {
+            // Вызываем максимально облегченный рендер только для прокрутки
+            this.render_viewport_only ();
+        });
+    }
+
+    public Gee.List<IndentBlock?> get_cached_indent_blocks () {
+        return this.cached_blocks;
     }
 
     // Абстрактные методы для реализации в подклассах (Vala, Cpp и т.д.)
@@ -19149,6 +20077,75 @@ public abstract class Iide.BaseTreeSitterHighlighter : Object {
 
     // Абстрактный метод для фильтрации узлов Breadcrumbs
     protected abstract bool is_container_node (string node_type);
+
+    // Точка входа для обновления структуры фолдинга документа
+    protected void update_document_structure () {
+        this.cached_blocks.clear ();
+
+        // Получаем корневой узел дерева через имеющиеся биндинги
+        var root = this.tree.root_node ();
+        if (root.is_null ()) return;
+
+        // Запускаем рекурсивный обход с начальным уровнем отступа 0
+        this.collect_foldable_blocks (root, 0);
+
+        // Генерируем сигнал для Gutter и Overlay
+        this.folding_structure_updated (this.cached_blocks);
+    }
+
+    private void collect_foldable_blocks (TreeSitter.Node parent, int current_indent) {
+        // Используем ваш паттерн итерации по именованным узлам
+        for (uint32 i = 0; i < parent.named_child_count (); i++) {
+            var child = parent.named_child (i);
+
+            if (child.is_null ()) continue;
+
+            string type = child.type ();
+            bool is_foldable = false;
+
+            // Проверяем, нужно ли сворачивать этот тип узла
+            if (this.is_foldable_node_type (type)) {
+                var start_point = this.body_start_point (child);
+                var end_point = child.end_point ();
+
+                // Блок имеет смысл сворачивать, только если он занимает больше 1 строки
+                if (end_point.row > start_point.row) {
+                    var block = IndentBlock () {
+                        start_line = (int) start_point.row,
+                        end_line = (int) end_point.row,
+                        indent_level = current_indent
+                    };
+                    
+                    // Добавляем в плоский кэш для UI
+                    this.cached_blocks.add (block);
+                    is_foldable = true;
+                }
+            }
+
+            // КЛЮЧЕВОЙ МОМЕНТ СИНХРОНИЗАЦИИ ОТСТУПОВ:
+            // Если текущий узел оказался сворачиваемым (например, класс или функция),
+            // все его внутренние дочерние блоки должны получить уровень отступа на 1 больше.
+            int next_indent = is_foldable ? current_indent + 1 : current_indent;
+
+            // Рекурсивно идем вглубь дочернего узла
+            if (child.named_child_count () > 0) {
+                this.collect_foldable_blocks (child, next_indent);
+            }
+        }
+    }
+
+    // Виртуальный метод, переопределяемый в конкретных языковых подсвечниках (например, PythonHighlighter)
+    protected virtual bool is_foldable_node_type (string type) {
+        // Базовый дефолтный список для C-подобных языков
+        return type == "compound_statement" || 
+               type == "function_definition" || 
+               type == "class_definition" ||
+               type == "block";
+    }
+
+    protected virtual TreeSitter.Point body_start_point(TreeSitter.Node foldable_node) {
+        return foldable_node.start_point ();
+    }
 
     // Виртуальный метод создания индентера
     public virtual GtkSource.Indenter? create_indenter() {
@@ -19195,19 +20192,115 @@ public abstract class Iide.BaseTreeSitterHighlighter : Object {
         }
     }
 
-    private void on_buffer_changed () {
-        if (highlight_timeout_id > 0) {
-            Source.remove (highlight_timeout_id);
+    // Легковесный метод сбора блоков без вызова внешних сигналов
+    private void update_document_structure_silent () {
+        this.cached_blocks.clear ();
+        var root = this.tree.root_node ();
+        if (!root.is_null ()) {
+            this.collect_foldable_blocks (root, 0);
         }
-
-        highlight_timeout_id = Timeout.add (DEBOUNCE_MS, () => {
-            // run_highlighting ();
-            sync_and_render ();
-            highlight_timeout_id = 0;
-            return Source.REMOVE;
-        });
     }
 
+    private void on_buffer_changed () {
+        unowned TreeSitter.Tree? old_tree = this.tree;
+        
+        // 1. Первичный инкрементальный парсинг изменений ввода (Буфер стабилен)
+        Gtk.TextIter start, end;
+        buffer.get_bounds (out start, out end);
+        var new_tree = this.parser.parse_string (old_tree, buffer.get_text (start, end, true).data);
+        //var new_tree = this.parser.parse (old_tree, this.ts_input);
+
+        if (new_tree == null)
+            return;
+        this.tree = (owned) new_tree;
+
+        var buffer = this.view.get_buffer ();
+        var invisible_tag = buffer.get_tag_table ().lookup ("$FOLD_HIDE");
+
+        // Легковесный список для сохранения маркеров, которые нужно раскрыть асинхронно
+        var folds_to_unfold = new Gee.ArrayList<FoldedMarkRange> ();
+
+        var folding_gutter = this.view.folding_gutter;
+
+        if (invisible_tag != null && folding_gutter != null) {
+            // Запрашиваем структуру блоков по только что полученному дереву
+            this.update_document_structure_silent (); 
+
+            // Сканируем свернутые маркеры и ищем разрушенные блоки
+            for (int i = folding_gutter.active_folds.size - 1; i >= 0; i--) {
+                var fold = folding_gutter.active_folds[i];
+
+                Gtk.TextIter current_start_iter;
+                buffer.get_iter_at_mark (out current_start_iter, fold.start_mark);
+                int current_header_line = current_start_iter.get_line () - 1;
+
+                bool block_still_exists = false;
+                foreach (var block in this.cached_blocks) {
+                    if (block.start_line == current_header_line) {
+                        block_still_exists = true;
+                        break;
+                    }
+                }
+
+                // Если блок разрушен, откладываем его для удаления
+                if (!block_still_exists) {
+                    folds_to_unfold.add (fold);
+                    folding_gutter.active_folds.remove_at (i);
+                }
+            }
+        }
+
+        // ===================================================================
+        // 2. АСИНХРОННОЕ АВТОРАЗВОРАЧИВАНИЕ ЧЕРЕЗ IDLE (Защита от краша)
+        if (folds_to_unfold.size > 0) {
+            GLib.Idle.add (() => {
+                // МЫ ВЫШЛИ ИЗ СИГНАЛА. Модификация буфера теперь на 100% безопасна!
+                buffer.begin_user_action ();
+
+                foreach (var fold in folds_to_unfold) {
+                    Gtk.TextIter s, e;
+                    buffer.get_iter_at_mark (out s, fold.start_mark);
+                    buffer.get_iter_at_mark (out e, fold.end_mark);
+
+                    // Снимаем тег невидимости — код чисто раскрывается на экране
+                    buffer.remove_tag (invisible_tag, s, e);
+                    fold.free_marks (buffer);
+                }
+
+                buffer.end_user_action ();
+
+                // Выполняем повторный парсинг, так как в буфер вернулись скрытые символы
+                //  var final_tree = this.parser.parse (this.tree, this.ts_input);
+                Gtk.TextIter start1, end1;
+                buffer.get_bounds (out start1, out end1);
+                var final_tree = this.parser.parse_string (this.tree, buffer.get_text(start1, end1, true).data);
+                this.tree = (owned) final_tree;
+                
+                // Пересобираем структуру и форсируем перерисовку оверлея, линий и гутера
+                this.update_document_structure_silent (); 
+                this.view.queue_resize ();
+                this.view.queue_draw ();
+                
+                // Запускаем мгновенную перекраску вьюпорта для раскрывшихся строк
+                this.render_viewport_only ();
+
+                return GLib.Source.REMOVE; // Выполнить ровно один раз
+            });
+        }
+        // ===================================================================
+
+        // 3. Перезапускаем дебаунс-таймер для стандартной подсветки токенов ввода
+        if (this.highlight_timeout_id > 0) {
+            GLib.Source.remove (this.highlight_timeout_id);
+        }
+
+        this.highlight_timeout_id = GLib.Timeout.add (DEBOUNCE_MS, () => {
+            this.sync_and_render ();
+            this.highlight_timeout_id = 0;
+            return GLib.Source.REMOVE;
+        });
+    }
+    
     public void flush_changes() {
         if (highlight_timeout_id > 0) {
             Source.remove (highlight_timeout_id);
@@ -19220,41 +20313,110 @@ public abstract class Iide.BaseTreeSitterHighlighter : Object {
         Gtk.TextIter start, end;
         buffer.get_bounds (out start, out end);
 
-        this.tree = parser.parse (null, ts_input);
+        // Удаляем старые теги
+        clear_highlighter_tags (start, end);
+        //  buffer.remove_all_tags (start, end);
+
+        //  this.tree = parser.parse (null, ts_input);
+        this.tree = parser.parse_string (null, buffer.get_text (start, end, true).data);
 
         update_breadcrumbs ();
-
-        // Удаляем старые теги
-        buffer.remove_all_tags (start, end);
+        update_document_structure ();
 
         this.cursor = new QueryCursor ();
         cursor.exec (query, tree.root_node ());
         render_matches ();
     }
 
-    private void sync_and_render () {
-        // old_tree уже содержит правки от on_insert_text / on_delete_range
-        unowned TreeSitter.Tree? old_tree = this.tree;
-        var new_tree = parser.parse (old_tree, ts_input);
-        update_breadcrumbs ();
+    private void clear_highlighter_tags (Gtk.TextIter start, Gtk.TextIter end) {
+        Gtk.TextBuffer buffer = this.view.get_buffer();
+        
+        // Создаем рабочий итератор и встаем на начало диапазона очистки
+        Gtk.TextIter it = start;
+        
+        // Оптимизация: если в начальной точке уже есть теги, обрабатываем их сразу
+        this.remove_syntax_tags_at_iter (buffer, it, start, end);
 
-        TreeSitter.Range[] changed_ranges = old_tree.get_changed_ranges (new_tree);
-        this.tree = (owned) new_tree;
-        this.cursor = new QueryCursor ();
-        foreach (var range in changed_ranges) {
-            Gtk.TextIter s, e;
-            // Используем твой рабочий метод для получения итераторов
-            get_iters_from_ts_node_coords (range.start_point, range.end_point, out s, out e);
-
-            // Точечная очистка и перекраска
-            buffer.remove_all_tags (s, e);
-
-            cursor.set_byte_range (range.start_byte, range.end_byte);
-            cursor.exec (query, tree.root_node ());
-            render_matches ();
+        // Прыгаем только по точкам, где состояние тегов меняется (Toggle Points)
+        // Это избавляет от посимвольного перебора текста
+        while (it.forward_to_tag_toggle (null) && it.compare (end) < 0) {
+            this.remove_syntax_tags_at_iter (buffer, it, start, end);
         }
     }
 
+    private void remove_syntax_tags_at_iter (Gtk.TextBuffer buffer, Gtk.TextIter it, Gtk.TextIter range_start, Gtk.TextIter range_end) {
+        // Получаем список всех тегов, активных в ДАННОЙ точке итератора
+        var active_tags = it.get_tags();
+        
+        foreach (var tag in active_tags) {
+            // Проверяем имя тега. Если он относится к раскраске Tree-sitter (все теги, кроме начинающихся с "$"):
+            if (tag.name != null && !tag.name.has_prefix ("$")) {
+                
+                // Находим, где этот конкретный тег начался или закончился в буфере
+                Gtk.TextIter toggle_start = it;
+                Gtk.TextIter toggle_end = it;
+                
+                // Нам нужно определить границы применения этого тега вокруг текущей точки
+                // Сдвигаемся назад к началу тега и вперед к его концу, но ОГРАНИЧИВАЕМСЯ рамками range_start/range_end
+                if (!toggle_start.has_tag (tag) || toggle_start.compare (range_start) < 0) {
+                    toggle_start = range_start;
+                }
+                
+                // Ищем конец тега
+                toggle_end.forward_to_tag_toggle (tag);
+                if (toggle_end.compare (range_end) > 0) {
+                    toggle_end = range_end;
+                }
+                
+                // Удаляем точечно
+                buffer.remove_tag (tag, toggle_start, toggle_end);
+            }
+        }
+    }
+
+    private void sync_and_render () {
+        // 1. Обновляем структуру фолдинга и крошек (по всему актуальному дереву)
+        this.update_breadcrumbs ();
+        this.update_document_structure ();
+
+        // 2. ВЫЧИСЛЯЕМ ВИДИМЫЙ ДИАПАЗОН СТРОК (Viewport)
+        Gdk.Rectangle visible_rect;
+        this.view.get_visible_rect (out visible_rect);
+
+        Gtk.TextIter visible_start_iter;
+        Gtk.TextIter visible_end_iter;
+        
+        // Переводим пиксели видимой области в текстовые итераторы
+        this.view.get_iter_at_location (out visible_start_iter, visible_rect.x, visible_rect.y);
+        this.view.get_iter_at_location (out visible_end_iter, visible_rect.x + visible_rect.width, visible_rect.y + visible_rect.height);
+
+        // Расширяем границы до полных строк, чтобы очистка и подкраска не рвали токен посередине
+        visible_start_iter.set_line_offset (0);
+        visible_end_iter.forward_to_line_end ();
+        if (!visible_end_iter.is_end ()) {
+            visible_end_iter.forward_char ();
+        }
+
+        // 3. ОЧИСТКА ВИДИМОЙ ОБЛАСТИ
+        // Стираем старую раскраску только на экране
+        this.clear_highlighter_tags (visible_start_iter, visible_end_iter);
+
+        // 4. ПОЛНОТЕКСТОВЫЙ СИНТАКСИЧЕСКИЙ ЗАПРОС (БЕЗ set_byte_range!)
+        this.cursor = new QueryCursor ();
+        
+        // НЕ вызываем set_byte_range. Пусть Tree-sitter видит весь контекст файла.
+        // Запускаем обход от корня
+        this.cursor.exec (this.query, this.tree.root_node ());
+
+        // 5. МОДИФИКАЦИЯ МЕТОДА НАЛОЖЕНИЯ ТЕГОВ
+        // Передаем границы видимости в ваш метод отрисовки, 
+        // чтобы он игнорировал токены, находящиеся далеко за пределами экрана
+        uint32 viewport_start_byte = (uint32) get_byte_offset_safe (visible_start_iter);
+        uint32 viewport_end_byte = (uint32) get_byte_offset_safe (visible_end_iter);
+
+        this.render_matches_in_viewport (viewport_start_byte, viewport_end_byte);
+    }
+    
     private void render_matches () {
         QueryMatch match;
         while (cursor.next_match (out match)) {
@@ -19274,6 +20436,78 @@ public abstract class Iide.BaseTreeSitterHighlighter : Object {
                 }
             }
         }
+    }
+
+    private void render_matches_in_viewport (uint32 viewport_start_byte, uint32 viewport_end_byte) {
+        QueryMatch match;
+        while (cursor.next_match (out match)) {
+            foreach (var capture in match.captures) {
+                // ==========================================
+                // ВЫСОКОПРОИЗВОДИТЕЛЬНЫЙ ФИЛЬТР VIEWPORT:
+                // Получаем границы текущей ноды в байтах (O(1) в Tree-sitter)
+                uint32 node_start = capture.node.start_byte ();
+                uint32 node_end = capture.node.end_byte ();
+
+                // Если токен находится целиком за пределами видимого экрана, 
+                // мгновенно пропускаем его, экономя ресурсы процессора и GTK
+                if (node_end < viewport_start_byte || node_start > viewport_end_byte) {
+                    continue;
+                }
+                // ==========================================
+
+                uint32 name_len;
+                string capture_name = query.capture_name_for_id (capture.index, out name_len);
+
+                Gtk.TextTag? tag = null;
+
+                if (capture_name == "punctuation.bracket") {
+                    int lvl = (get_nesting_level (capture.node) % 5) + 1; // Цикл по 5 цветам
+                    tag = StyleService.get_instance ().get_tag ("bracket.lvl" + lvl.to_string (), current_theme_index);
+                } else {
+                    tag = capture_tags[capture.index, current_theme_index];
+                }
+
+                if (tag != null) {
+                    apply_tag_fast (capture.node, tag);
+                }
+            }
+        }
+    }
+
+    public void render_viewport_only () {
+        // Если дерево еще не готово, ничего не делаем
+        if (this.tree == null || this.tree.root_node ().is_null ()) return;
+
+        // 1. ВЫЧИСЛЯЕМ ТЕКУЩИЙ ВИДИМЫЙ ЭКРАН
+        Gdk.Rectangle visible_rect;
+        this.view.get_visible_rect (out visible_rect);
+
+        Gtk.TextIter visible_start_iter;
+        Gtk.TextIter visible_end_iter;
+        
+        this.view.get_iter_at_location (out visible_start_iter, visible_rect.x, visible_rect.y);
+        this.view.get_iter_at_location (out visible_end_iter, visible_rect.x + visible_rect.width, visible_rect.y + visible_rect.height);
+
+        // Выравниваем по границам строк
+        visible_start_iter.set_line_offset (0);
+        visible_end_iter.forward_to_line_end ();
+        if (!visible_end_iter.is_end ()) {
+            visible_end_iter.forward_char ();
+        }
+
+        // 2. БАЙТОВЫЕ ОФФСЕТЫ ДЛЯ ФИЛЬТРА
+        uint32 viewport_start_byte = get_byte_offset_safe (visible_start_iter);
+        uint32 viewport_end_byte = get_byte_offset_safe (visible_end_iter);
+
+        // 3. ОЧИСТКА ТОЛЬКО ТЕКУЩЕГО ЭКРАНА
+        this.clear_highlighter_tags (visible_start_iter, visible_end_iter);
+
+        // 4. ЗАПУСК КУРСОРA (Без тяжелых сопутствующих функций типа фолдинга)
+        this.cursor = new QueryCursor ();
+        this.cursor.exec (this.query, this.tree.root_node ());
+
+        // Вызываем вашу оптимизированную функцию с фильтром по байтам
+        this.render_matches_in_viewport (viewport_start_byte, viewport_end_byte);
     }
 
     private int get_nesting_level (TreeSitter.Node node) {
@@ -19383,77 +20617,68 @@ public abstract class Iide.BaseTreeSitterHighlighter : Object {
     }
 
     public void on_insert_text (Gtk.TextIter iter, string text, int len_bytes) {
-        LoggerService.get_instance ().info ("TS", "Inserting text \"%s\" (%d)".printf (text, len_bytes));
-
-        // 1. Фиксируем точку вставки (здесь она абсолютно стабильна)
         uint32 start_byte = get_byte_offset_safe (iter);
         uint32 start_row = (uint32) iter.get_line ();
-        uint32 start_col = (uint32) iter.get_line_index ();
+        uint32 start_col = (uint32) iter.get_line_index (); // Байтовый индекс в строке
 
-        // 2. Считаем статистику вставляемого текста
-        uint32 lines_added;
-        uint32 last_line_bytes;
-        calculate_text_stats (text, out lines_added, out last_line_bytes);
+        uint32 lines_added = 0;
+        uint32 last_line_bytes = 0;
+        int last_nl_idx = -1;
 
-        // 3. Формируем Edit
+        // Считаем перенос строк строго по байтам сырого массива UTF-8
+        for (int i = 0; i < len_bytes; i++) {
+            if (text[i] == '\n') {
+                lines_added++;
+                last_nl_idx = i;
+            }
+        }
+
+        if (lines_added > 0) {
+            // Длина последней строки в байтах от последнего \n до конца текста
+            last_line_bytes = (uint32) (len_bytes - 1 - last_nl_idx);
+        } else {
+            // Если вставили внутри одной строки, длина конца — это просто len_bytes
+            last_line_bytes = (uint32) len_bytes;
+        }
+
         InputEdit edit = {};
         edit.start_byte = start_byte;
         edit.start_point = { start_row, start_col };
-
-        // При вставке "старый конец" совпадает с началом (мы ничего не удаляли)
+        
+        // При вставке старый конец равен началу
         edit.old_end_byte = start_byte;
         edit.old_end_point = { start_row, start_col };
 
-        // "Новый конец" — это математический результат вставки
-        edit.new_end_byte = start_byte + (uint32) text.length;
+        // Новый конец — это математический сдвиг на основе добавленных строк и байт
+        edit.new_end_byte = start_byte + (uint32) len_bytes;
         edit.new_end_point = Point () {
             row = start_row + lines_added,
+            // Если добавились строки, колонка начнется с 0 + байты остатка.
+            // Если вставка однострочная, колонка смещается на размер вставки.
             column = (lines_added > 0) ? last_line_bytes : start_col + last_line_bytes
         };
 
-        tree.edit (edit);
-        on_buffer_changed ();
-    }
-
-    private void calculate_text_stats (string text, out uint32 lines, out uint32 last_column) {
-        lines = 0;
-        last_column = 0;
-        int i = 0;
-        unichar c;
-
-        while (text.get_next_char (ref i, out c)) {
-            if (c == '\n') {
-                lines++;
-                last_column = 0;
-            } else {
-                // Tree-sitter ожидает колонки в БАЙТАХ от начала строки
-                // Вычисляем длину текущего символа в байтах
-                last_column += (uint32) c.to_utf8 (null);
-            }
-        }
+        this.tree.edit (edit);
     }
 
     public void on_delete_range (Gtk.TextIter start, Gtk.TextIter end) {
+        uint32 start_byte = get_byte_offset_safe (start);
+        uint32 old_end_byte = get_byte_offset_safe (end);
+
         InputEdit edit = {};
-
-        Gtk.TextIter start_buf;
-        buffer.get_start_iter (out start_buf);
-        edit.start_byte = (uint32) buffer.get_slice (start_buf, start, false).length;
-        edit.old_end_byte = (uint32) buffer.get_slice (start_buf, end, false).length;
-        edit.new_end_byte = edit.start_byte;
-
-        edit.start_point = TreeSitter.Point () {
-            row = (uint32) start.get_line (),
-            column = (uint32) start.get_line_index ()
-        };
-        edit.old_end_point = TreeSitter.Point () {
-            row = (uint32) end.get_line (),
-            column = (uint32) end.get_line_index ()
-        };
+        // Где началось удаление
+        edit.start_byte = start_byte;
+        edit.start_point = { (uint32) start.get_line (), (uint32) start.get_line_index () };
+        
+        // Где заканчивался удаляемый фрагмент в старом дереве
+        edit.old_end_byte = old_end_byte;
+        edit.old_end_point = { (uint32) end.get_line (), (uint32) end.get_line_index () };
+        
+        // Новые координаты после удаления схлопнутся в точку старта
+        edit.new_end_byte = start_byte;
         edit.new_end_point = edit.start_point;
 
-        tree.edit (edit);
-        on_buffer_changed ();
+        this.tree.edit (edit);
     }
 
     public void expand_selection () {
@@ -19661,102 +20886,4 @@ public abstract class Iide.BaseTreeSitterHighlighter : Object {
         this.cursor = null;
     }
 }
-```
-
-## File: src/meson.build
-```
-iide_sources = [
-    'main.vala',
-    'application.vala',
-    'window.vala',
-    'Widgets/TextView/TextView.vala',
-    'Widgets/TextView/SourceView.vala',
-    'Widgets/TextView/FontZoomer.vala',
-    'Widgets/TextView/GutterMarkRenderer.vala',
-    'Widgets/TextView/BreadcrumbFileNavigator.vala',
-    'Widgets/TextView/BreadcrumbTreeSitterNavigator.vala',
-    'Widgets/TextView/BreadcrumbSymbolOutlineNavigator.vala',
-    'Widgets/TextView/BreadcrumbsBar.vala',
-    'Widgets/TextView/EditorStatusBar.vala',
-    'Widgets/TextView/LspCompletionProvider.vala',
-    'Widgets/TextView/DiagnosticsPopover.vala',
-    'Widgets/ToolViews/ProjectView.vala',
-    'Widgets/ToolViews/TerminalView.vala',
-    'Widgets/ToolViews/LogView.vala',
-    'Widgets/Find/SearchResult.vala',
-    'Widgets/Find/SearchResultsView.vala',
-    'Widgets/Find/SearchEngine.vala',
-    'Widgets/Find/SearchPage.vala',
-    'Widgets/Find/Engines/SymbolsSearchEngine.vala',
-    'Widgets/Find/Engines/FzfSearchEngine.vala',
-    'Widgets/Find/Engines/TextSearchEngine.vala',
-    'Widgets/Find/SearchWindow.vala',
-    'Widgets/PreferencesDialog.vala',
-    'Widgets/Panels/BasePanel.vala',
-    'Widgets/Panels/LogPanel.vala',
-    'Widgets/Panels/TerminalPanel.vala',
-    'Widgets/Panels/DiagnosticsPanel.vala',
-    'Widgets/Panels/ProjectPanel.vala',
-    'Services/Utils.vala',
-    'Services/JsonUtils.vala',
-    'Services/StyleManager.vala',
-    'Services/LoggerService.vala',
-    'Services/DocumentManager.vala',
-    'Services/PendingChange.vala',
-    'Services/LSP/LspDocumentClient.vala',
-    'Services/SourceNodeItem.vala',
-    'Services/TreeSitter/TreeSitterDocument.vala',
-    'Services/SourceDocument.vala',
-    'Services/ImageFactory.vala',
-    'Services/SymbIconProvider.vala',
-    'Services/ProjectManager.vala',
-    'Services/SettingsService.vala',
-    'Services/PanelLayoutHelper.vala',
-    'Services/NavigationHistoryService.vala',
-    'Services/LSP/LspTypes.vala',
-    'Services/LSP/config/LspConfig.vala',
-    'Services/LSP/config/PythonLspConfig.vala',
-    'Services/LSP/config/CppLspConfig.vala',
-    'Services/LSP/config/LspRegistry.vala',
-    'Services/LSP/index/ClangTidy.vala',
-    'Services/LSP/LspClient.vala',
-    'Services/LSP/LspService.vala',
-    'Services/LSP/LspDiagnosticsMark.vala',
-    'Services/LSP/DiagnosticsService.vala',
-    'Services/TreeSitter/TreeSitterManager.vala',
-    'Services/TreeSitter/model/AstItem.vala',
-    'Services/TreeSitter/model/AstModel.vala',
-    'Services/TreeSitter/BaseTreeSitterHighlighter.vala',
-    'Services/TreeSitter/cpp/CppHighlighter.vala',
-    'Services/TreeSitter/vala/ValaHighlighter.vala',
-    'Services/TreeSitter/rust/RustHighlighter.vala',
-    'Services/TreeSitter/python/PythonIndenter.vala',
-    'Services/TreeSitter/python/PythonHighlighter.vala',
-    'Services/Actions/Action.vala',
-    'Services/Actions/ActionManager.vala',
-    'Services/Actions/ShortcutSettings.vala',
-]
-
-iide_deps = [
-    config_dep,
-    dependency('gtk4'),
-    dependency('gio-2.0', version: '>= 2.50'),
-    dependency('libadwaita-1', version: '>= 1.4'),
-    dependency('libpanel-1', version: '>= 1.7'),
-    dependency('gtksourceview-5'),
-    dependency('vte-2.91-gtk4', version: '>= 0.75.0'),
-    dependency('gee-0.8'),
-    dependency('json-glib-1.0'),
-    dependency('jsonrpc-glib-1.0'),
-]
-
-iide_sources += gnome.compile_resources('iide-resources', 'iide.gresource.xml', c_name: 'iide')
-
-executable(
-    'iide',
-    iide_sources + [symbols_res],
-    dependencies: [iide_deps, tree_sitter_dep],
-    include_directories: config_inc,
-    install: true,
-)
 ```
