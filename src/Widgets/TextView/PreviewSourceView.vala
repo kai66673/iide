@@ -42,6 +42,7 @@ public class Iide.PreviewSourceView : GtkSource.View {
         this.margin_end = 1;
 
         this.set_size_request (main_view.get_width () * 3 / 4, -1);
+        this.vexpand = true;
 
         var zoom_level = SettingsService.get_instance ().editor_font_size;
         if (zoom_level < FontSizeHelper.MIN_ZOOM_LEVEL || zoom_level > FontSizeHelper.MAX_ZOOM_LEVEL) {

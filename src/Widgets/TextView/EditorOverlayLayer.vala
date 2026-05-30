@@ -7,7 +7,7 @@ using Gdk;
 using Cairo;
 
 // Структура для отслеживания кликабельных зон на холсте оверлея
-private struct Iide.ClickableIndicator {
+public struct Iide.ClickableIndicator {
     public Gdk.Rectangle rect;
     public int start_line;
 }
@@ -394,7 +394,7 @@ public class Iide.EditorOverlayLayer : Gtk.DrawingArea {
             return false;
 
         var lines = hidden_code.split ("\n");
-        int max_lines = 15;
+        int max_lines = 90;
         if (lines.length > max_lines) {
             string[] sliced_lines = lines[0:max_lines];
             hidden_code = string.joinv ("\n", sliced_lines) + "\n   ...";
@@ -412,5 +412,5 @@ public class Iide.EditorOverlayLayer : Gtk.DrawingArea {
     }
     
     // Публичный метод, чтобы TextView мог передавать сюда клики мыши, если они обрабатываются на его уровне
-    public Gee.ArrayList get_visible_indicators () { return this.visible_indicators; }
+    public Gee.ArrayList<ClickableIndicator?> get_visible_indicators () { return this.visible_indicators; }
 }

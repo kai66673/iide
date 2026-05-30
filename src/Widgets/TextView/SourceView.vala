@@ -79,6 +79,8 @@ public class Iide.SourceView : GtkSource.View {
     private NavigationHistoryService history;
 
     private EditorOverlayLayer? overlay = null;
+    private Gtk.Widget? folding_preview_widget = null;
+    private int last_hovered_line = -1;
 
     public signal void breadcrumbs_changed (Gee.List<SourceNodeItem?> crumbs);
 
@@ -204,7 +206,151 @@ public class Iide.SourceView : GtkSource.View {
         });
 
         create_document ();
+
+        var motion_ctrl = new Gtk.EventControllerMotion ();
+        motion_ctrl.motion.connect (this.on_textview_motion);
+        this.add_controller (motion_ctrl);
     }
+
+    private void on_textview_motion (double x, double y) {
+        if (this.overlay == null) return;
+
+        var indicators = this.overlay.get_visible_indicators ();
+        // 1. Ищем попадание в индикатор
+        ClickableIndicator? hovered_indicator = null;
+        foreach (var indicator in indicators) {
+            var rect = indicator.rect;
+            if (x >= rect.x && x <= (rect.x + rect.width) &&
+                y >= rect.y && y <= (rect.y + rect.height)) {
+                hovered_indicator = indicator;
+                break;
+            }
+        }
+
+        // ЗДЕСЬ ЕДИНСТВЕННОЕ МЕСТО, ГДЕ МЫ ИМЕЕМ ПРАВО ЗАКРЫТЬ ОКНО:
+        // Только если мышь физически ушла с прямоугольника плашки!
+        if (hovered_indicator == null) {
+            this.hide_folding_preview ();
+            return;
+        }
+
+        // Если поповер уже открыт для этой строки — ЗАПРЕЩАЕМ любые дальнейшие проверки 
+        // и деструкции. Просто выходим. Это железобетонно защитит окно от закрытия.
+        if (this.last_hovered_line == hovered_indicator.start_line && (this.folding_preview_widget != null)) {
+            return; 
+        }
+
+        // Только если это ПЕРВЫЙ вход на новую строку — собираем данные и строим окно:
+        var doc = this.document as Iide.TreeSitterDocument;
+        if (doc == null || doc.ts_highlighter == null) return;
+
+        var ts_blocks = doc.ts_highlighter.get_cached_indent_blocks ();
+        Iide.IndentBlock? target_block = null;
+        foreach (var block in ts_blocks) {
+            if (block.start_line == hovered_indicator.start_line) {
+                target_block = block;
+                break;
+            }
+        }
+
+        // Если при первом наведении кэш пуст — тихо выходим БЕЗ вызова hide
+        if (target_block == null) return;
+
+        var folding_gutter = this.folding_gutter;
+        if (!folding_gutter.is_line_collapsed_by_number (target_block.start_line)) return;
+        
+        var buffer = this.get_buffer ();
+        Gtk.TextIter start_iter, end_iter;
+        buffer.get_iter_at_line (out start_iter, target_block.start_line + 1);
+        buffer.get_iter_at_line (out end_iter, target_block.end_line + 1);
+
+        string hidden_code = buffer.get_text (start_iter, end_iter, true);
+        if (hidden_code.length == 0) return;
+
+        // Фиксируем строку ДО создания виджета
+        this.last_hovered_line = hovered_indicator.start_line;
+
+        // Очищаем предыдущее окно, если оно висит
+        if (this.folding_preview_widget != null) {
+            this.hide_folding_preview ();
+        }
+
+        // 1. Создаем наше кастомное текстовое превью
+        var preview_view = new Iide.PreviewSourceView (hidden_code, this);
+        
+        // 2. Оборачиваем его в ScrolledWindow, чтобы текст внутри аккуратно скроллился, 
+        // если он не влезает в отведенную высоту
+        var scrolled = new Gtk.ScrolledWindow ();
+        scrolled.set_child (preview_view);
+        scrolled.hscrollbar_policy = Gtk.PolicyType.NEVER;   // Горизонтальный скролл не нужен (включен wrap_mode)
+        scrolled.vscrollbar_policy = Gtk.PolicyType.AUTOMATIC; // Вертикальный появится только при необходимости
+
+        // 3. Создаем внешнюю рамку со стилями
+        var frame = new Gtk.Box (Gtk.Orientation.VERTICAL, 0);
+        frame.append (scrolled);
+        frame.add_css_class ("folding-preview-floating-window");
+
+        // === РАСЧЕТ ДИНАМИЧЕСКИХ ОГРАНИЧЕНИЙ ВЫСОТЫ ===
+        int editor_height = this.get_height (); // Полная видимая высота текстового редактора
+        int target_y = (int) hovered_indicator.rect.y + (int) hovered_indicator.rect.height + 4;
+        
+        // Вычисляем, сколько пикселей осталось от плашки "..." до нижнего края редактора
+        int available_height = editor_height - target_y - 12; // 12px — безопасный отступ снизу
+        
+        // Желаемая высота по умолчанию — 340 пикселей (как вы и настраивали).
+        // Но если до края экрана осталось меньше места, мы принудительно зажимаем высоту до доступной.
+        int final_height = int.min (1200, available_height);
+
+        // Если final_height получился слишком маленьким (например, строка в самом низу экрана),
+        // можно перекинуть тултип НАВЕРХ (отобразить НАД строкой кода):
+        if (final_height < 100) {
+            final_height = int.min (1200, (int) hovered_indicator.rect.y - 12);
+            // Пересчитываем Y, чтобы окно встало ровно НАД строкой кода
+            target_y = (int) hovered_indicator.rect.y - final_height - 4;
+        }
+
+        // Жестко выставляем размеры контейнера
+        frame.set_size_request (-1, final_height);
+
+        this.folding_preview_widget = frame;
+
+        // 4. ДОБАВЛЯЕМ В КОНТЕЙНЕР ОВЕРЛЕЯ
+        var overlay_container = this.overlay.parent as Gtk.Overlay ?? this.parent as Gtk.Overlay;
+
+        if (overlay_container != null) {
+            overlay_container.add_overlay (this.folding_preview_widget);
+
+            int gutter_width = 0;
+            var left_gutter = this.get_gutter (Gtk.TextWindowType.LEFT);
+            if (left_gutter != null) {
+                gutter_width = left_gutter.get_width ();
+            }
+
+            // Позиционируем
+            this.folding_preview_widget.margin_start = gutter_width;
+            this.folding_preview_widget.margin_top = target_y;
+
+            this.folding_preview_widget.halign = Gtk.Align.START;
+            this.folding_preview_widget.valign = Gtk.Align.START;
+
+            this.folding_preview_widget.queue_resize ();
+            overlay_container.queue_allocate ();
+
+            LoggerService.get_instance ().debug ("TM", "textview_motion FLOATING WIDGET ADDED WITH HEIGHT: %d".printf(final_height));
+        }
+    }
+
+    public void hide_folding_preview () {
+        if (this.folding_preview_widget != null) {
+            var overlay_container = this.overlay.parent as Gtk.Overlay ?? this.parent as Gtk.Overlay;
+            if (overlay_container != null) {
+                overlay_container.remove_overlay (this.folding_preview_widget);
+            }
+            this.folding_preview_widget = null;
+            this.last_hovered_line = -1;
+        }
+    }
+
 
     public void set_overlay(EditorOverlayLayer overlay) {
         this.overlay = overlay;
@@ -397,11 +543,6 @@ public class Iide.SourceView : GtkSource.View {
     }
 
     private bool on_query_tooltip (int x, int y, bool keyboard_mode, Gtk.Tooltip tooltip) {
-        // Folding overlay...
-        if (this.overlay != null && this.overlay.on_query_tooltip (x, y, keyboard_mode, tooltip)) {
-            return true;
-        }
-
         // LSP-диагностика...
         Gtk.TextIter iter;
 
