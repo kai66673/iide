@@ -78,6 +78,8 @@ public class Iide.SourceView : GtkSource.View {
     private int last_line = -1;
     private NavigationHistoryService history;
 
+    private EditorOverlayLayer? overlay = null;
+
     public signal void breadcrumbs_changed (Gee.List<SourceNodeItem?> crumbs);
 
     public SourceView (Window window, string uri, GtkSource.Buffer buffer) {
@@ -204,6 +206,10 @@ public class Iide.SourceView : GtkSource.View {
         create_document ();
     }
 
+    public void set_overlay(EditorOverlayLayer overlay) {
+        this.overlay = overlay;
+    }
+    
     private void create_document() {
         detect_language ();
         var ts_highlighter = ts_manager.get_ts_highlighter (this);
@@ -391,6 +397,12 @@ public class Iide.SourceView : GtkSource.View {
     }
 
     private bool on_query_tooltip (int x, int y, bool keyboard_mode, Gtk.Tooltip tooltip) {
+        // Folding overlay...
+        if (this.overlay != null && this.overlay.on_query_tooltip (x, y, keyboard_mode, tooltip)) {
+            return true;
+        }
+
+        // LSP-диагностика...
         Gtk.TextIter iter;
 
         // Преобразуем координаты окна в координаты буфера
@@ -410,6 +422,7 @@ public class Iide.SourceView : GtkSource.View {
             return on_lsp_diagnostics_tooltip (marks, tooltip);
         }
 
+        // LSP-hover...
         return on_lsp_hover_tooltip (iter, tooltip);
     }
 

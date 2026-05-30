@@ -14,6 +14,8 @@ iide_sources = [
     'Widgets/TextView/EditorStatusBar.vala',
     'Widgets/TextView/LspCompletionProvider.vala',
     'Widgets/TextView/TreeSitterFoldingGutter.vala',
+    'Widgets/TextView/EditorOverlayLayer.vala',
+    'Widgets/TextView/PreviewSourceView.vala',
     'Widgets/TextView/DiagnosticsPopover.vala',
     'Widgets/ToolViews/ProjectView.vala',
     'Widgets/ToolViews/TerminalView.vala',
