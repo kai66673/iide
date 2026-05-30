@@ -64,6 +64,13 @@ public class Iide.GutterMarkRenderer : GutterRenderer {
         Gtk.TextIter iter;
         lines.get_iter_at_line (out iter, line);
         var marks = iter.get_marks ();
+        
+        int y, height;
+        lines.get_line_yrange (line, GutterRendererAlignmentMode.CELL, out y, out height);
+
+        if (height <= 0) {
+            return;
+        }
 
         bool has_error = false;
         bool has_warning = false;
@@ -81,9 +88,6 @@ public class Iide.GutterMarkRenderer : GutterRenderer {
         if (!has_error && !has_warning) {
             return;
         }
-
-        int y, height;
-        lines.get_line_yrange (line, GutterRendererAlignmentMode.CELL, out y, out height);
 
         var snapshot_size = (float) current_icon_size;
         var x = (float) xpad;
