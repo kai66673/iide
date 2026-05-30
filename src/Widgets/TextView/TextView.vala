@@ -411,6 +411,70 @@ public class Iide.TextView : Panel.Widget {
             }
 
             // ===================================================================
+            // ДОРАБОТКА: ОТРИСОВКА ЗНАЧКА СВОРЧИВАНИЯ "[-]" ДЛЯ РАЗВЕРНУТОГО БЛОКА
+            // ===================================================================
+            // Отрендерим интерактивную кнопку минуса в конце первой строки блока.
+            // Показываем её, если строка или блок активны (например, курсор внутри), 
+            // чтобы не засорять интерфейс лишними иконками на каждой строчке.
+            bool should_show_minus = (active_highlighter_block != null && 
+                                      cursor_line >= block.start_line && 
+                                      cursor_line <= block.end_line);
+
+            if (should_show_minus) {
+                Gtk.TextIter eol_iter = start_iter;
+                eol_iter.forward_to_line_end ();
+                
+                Gdk.Rectangle eol_rect;
+                this.source_view.get_iter_location (eol_iter, out eol_rect);
+                
+                int win_eol_x, win_eol_y;
+                this.source_view.buffer_to_window_coords (Gtk.TextWindowType.TEXT, eol_rect.x, eol_rect.y, out win_eol_x, out win_eol_y);
+
+                double line_h = (double) start_height;
+                double btn_h = line_h * 0.55; // Чуть меньше, чем "...", чтобы смотрелось аккуратно
+                double btn_w = btn_h;         // Квадратная кнопка
+                
+                double btn_x = gutter_width + win_eol_x + (line_h * 0.4); 
+                double btn_y = win_eol_y + ((line_h - btn_h) / 2.0);
+
+                // Добавляем в ваш существующий кэш зон кликов. 
+                // Обработчик кликов автоматически подхватит эту зону и передаст start_line на сворачивание.
+                var click_zone = ClickableIndicator () {
+                    rect = Gdk.Rectangle () { 
+                        x = (int) btn_x, 
+                        y = (int) btn_y, 
+                        width = (int) btn_w, 
+                        height = (int) btn_h 
+                    },
+                    start_line = block.start_line
+                };
+                this.visible_indicators.add (click_zone);
+
+                cr.save ();
+                
+                // Делаем легкую полупрозрачную подложку кнопки
+                cr.set_source_rgba (0.5, 0.5, 0.5, 0.1); 
+                double radius = btn_h * 0.2;
+                this.draw_rounded_rectangle (cr, btn_x, btn_y, btn_w, btn_h, radius);
+                cr.fill ();
+                
+                // Отрисовка рамки значка
+                this.draw_rounded_rectangle (cr, btn_x, btn_y, btn_w, btn_h, radius);
+                cr.set_source_rgba (0.5, 0.5, 0.5, 0.35); 
+                cr.set_line_width (1.0);
+                cr.stroke ();
+
+                // Рисуем знак минус "—" по центру квадрата
+                cr.set_source_rgba (0.4, 0.4, 0.4, 0.8);
+                cr.set_line_width (1.2);
+                cr.move_to (btn_x + (btn_w * 0.25), btn_y + (btn_h * 0.5));
+                cr.line_to (btn_x + (btn_w * 0.75), btn_y + (btn_h * 0.5));
+                cr.stroke ();
+
+                cr.restore ();
+            }
+
+            // ===================================================================
             // ОТРИСОВКА ЛИНЕЙ ОТСТУПОВ ДЛЯ РАЗВЕРНУТОГО БЛОКА
             // ===================================================================
             Gtk.TextIter end_iter;
