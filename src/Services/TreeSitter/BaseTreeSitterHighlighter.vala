@@ -39,6 +39,10 @@ public abstract class Iide.BaseTreeSitterHighlighter : Object {
     // Внутренний кэш блоков кода
     protected Gee.List<IndentBlock?> cached_blocks;
 
+    public void force_full_reparse() {
+        this.set_color_theme();
+    }
+
     private void set_color_theme () {
         var color_scheme = SettingsService.get_instance ().color_scheme;
         current_theme_index = color_scheme != ColorScheme.LIGHT ? 1 : 0;

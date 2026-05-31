@@ -62,6 +62,7 @@ public class Iide.Application : Adw.Application {
         action_manager.register_action (this, new ShowLineNumbersAction (this));
         action_manager.register_action (this, new ShowDiagnosticsMarksAction (this));
         action_manager.register_action (this, new ShowFoldingAction (this));
+        action_manager.register_action (this, new FormatAction ());
 
         // Ins/Ovr toggle
         // Действие переключения режима
@@ -592,5 +593,29 @@ private class Iide.ShowFoldingAction : Iide.AppAction {
 
         state_changed (state);
         // TODO: handle changing state from preferences dialog...
+    }
+}
+
+private class Iide.FormatAction : Iide.AppAction {
+    public override string id { get { return "format"; } }
+    public override string name { get { return _("Format"); } }
+    public override string? description { get { return _("Format entire current document"); } }
+    public override string? icon_name { get { return "zoom-original-symbolic"; } }
+    public override string? category { get { return "View"; } }
+    public override string? default_shortcut { get { return "<primary><shift>i"; } }
+
+    public override bool can_execute () {
+        return true;
+    }
+
+    public override void execute () {
+        var app = GLib.Application.get_default () as Iide.Application;
+        var win = app ? .active_window as Iide.Window;
+        if (win != null) {
+            var source_view = win.get_active_source_view ();
+            if (source_view != null){
+                source_view.format_document.begin ();
+            }
+        }
     }
 }

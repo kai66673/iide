@@ -650,4 +650,8 @@ public class Iide.SourceView : GtkSource.View {
         scroll_to_iter (iter, 0.1, false, 0, 0.5);
         grab_focus ();
     }
+
+    public async void format_document() {
+        yield FormattingService.get_instance ().format_document_async (this);
+    }
 }
