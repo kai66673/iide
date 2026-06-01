@@ -265,7 +265,7 @@ public abstract class Iide.BaseTreeSitterHighlighter : Object {
         }
     }
 
-    private void prepare_capture_mapping () {
+    protected virtual void prepare_capture_mapping () {
         if (query == null)return;
 
         uint32 count = query.capture_count ();

@@ -148,4 +148,9 @@ public class Iide.CppHighlighter : BaseTreeSitterHighlighter {
                    "class_specifier", "struct_specifier", "function_definition", "namespace_definition"
         };
     }
+
+    protected override void prepare_capture_mapping () {
+      base.prepare_capture_mapping ();
+      // TODO: @comment to @comment.documentation post processing prepare implementation...
+    }
 }
