@@ -113,6 +113,7 @@ public class Iide.SourceView : GtkSource.View {
         view_section.append (_("Line Numbers"), "app.show-line-numbers");
         view_section.append (_("Diagnostics"), "app.show-diagnostics-marks");
         view_section.append (_("Folding"), "app.show-folding-gutter");
+        view_section.append (_("Format"), "app.format");
 
         var extra_menu = new GLib.Menu ();
         extra_menu.append_section (null, zoom_section);
