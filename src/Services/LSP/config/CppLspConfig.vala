@@ -15,8 +15,7 @@ public class Iide.CppLspConfig : Iide.LspConfig {
     }
 
     public override Json.Node initialize_params (string? workspace_root, string? initial_uri) {
-        message ("CPP: initialize_params: " + workspace_root);
-        var root_uri = "file:///home/kai/kaigit/ktexteditor";
+        var root_uri = workspace_root ?? "/";
         var params = """{
             "processId": null,
             "clientInfo": {
