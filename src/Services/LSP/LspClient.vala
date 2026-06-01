@@ -76,7 +76,7 @@ public class Iide.LspClient : Object {
 
     public signal void progress_updated (string token, string message, int percentage, bool active);
 
-    public string name () { return config.command (); }
+    public string name () { return config.command[0]; }
 
     public int get_hash () {
         // Используем адрес указателя на объект как уникальный числовой идентификатор
@@ -271,7 +271,7 @@ public class Iide.LspClient : Object {
         }
 
         if (response.has_member ("method")) {
-            var node_result = config.server_response_result (response);
+            var node_result = config.handle_workspace_configuration (response);
             var node_id = response.get_member ("id");
             send_response_async.begin (node_id, node_result);
         }
@@ -397,13 +397,10 @@ public class Iide.LspClient : Object {
     public async bool start_server_async (string? workspace_root) {
         try {
             // 1. Подготовка аргументов запуска
-            string[] argv = { config.command () };
-            foreach (var arg in config.args ())argv += arg;
-
             // 2. Запуск подпроцесса
             var launcher = new SubprocessLauncher (SubprocessFlags.STDOUT_PIPE | SubprocessFlags.STDIN_PIPE);
             launcher.set_cwd (workspace_root.replace ("file://", ""));
-            this.process = launcher.spawnv (argv);
+            this.process = launcher.spawnv (config.command);
 
             // 3. Инициализация асинхронных потоков
             this.output_stream = this.process.get_stdin_pipe ();
@@ -413,7 +410,7 @@ public class Iide.LspClient : Object {
             this.run_read_loop.begin ();
 
             // 5. Фаза INITIALIZE
-            var init_params = config.initialize_params (workspace_root, null);
+            var init_params = config.initialize_params (workspace_root);
             var response = yield this.send_request ("initialize", init_params.get_object ());
 
             if (response != null && response.has_member ("result")) {

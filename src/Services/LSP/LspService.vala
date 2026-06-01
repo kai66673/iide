@@ -165,8 +165,10 @@ public class Iide.IdeLspService : GLib.Object {
     }
 
     public async void open_document (string uri, string language_id, string content, string? workspace_root, SourceView view) {
-        var server_key = LspRegistry.get_lsp_id (language_id);
-        if (server_key == null) {
+        var server_key = language_id;
+        LanguageProfile? lang_profile = LanguageRegistry.get_instance ().get_profile (language_id);
+
+        if (lang_profile == null) {
             debug ("IdeLspService: No LSP server configured for language: %s", language_id);
             Idle.add (() => {
                 view.bind_lsp_client (null);
@@ -202,7 +204,7 @@ public class Iide.IdeLspService : GLib.Object {
 
         client_starting.set (server_key, true);
 
-        var config = LspRegistry.get_config (server_key);
+        var config = lang_profile.lsp;
         if (config == null) {
             client_starting.set (server_key, false);
             return;
