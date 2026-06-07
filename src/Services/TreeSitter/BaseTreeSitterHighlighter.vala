@@ -6,16 +6,13 @@ public abstract class Iide.BaseTreeSitterHighlighter : Object {
     protected TreeSitter.Tree? tree;
     protected Query? query;
     protected QueryCursor cursor;
+    protected StyleService style_service;
 
     // GTK объекты
     protected GtkSource.Buffer buffer;
     protected SourceView view;
 
     //  private TreeSitter.Input ts_input;
-
-    // Оптимизированный кэш: [capture_index, theme_index]
-    // theme_index: 1 - Light, 0 - Dark
-    private Gtk.TextTag ? [, ] capture_tags;
 
     // Глобальный указатель на текущую тему (может обновляться из DocumentManager)
     private int current_theme_index = 0;
@@ -108,6 +105,8 @@ public abstract class Iide.BaseTreeSitterHighlighter : Object {
         view.set_tab_width (4);
         view.set_smart_backspace (true);
 
+        this.style_service = StyleService.get_instance ();
+
         this.view = view;
         this.buffer = (GtkSource.Buffer) view.get_buffer ();
 
@@ -171,6 +170,8 @@ public abstract class Iide.BaseTreeSitterHighlighter : Object {
     // Абстрактные методы для реализации в подклассах (Vala, Cpp и т.д.)
     protected abstract unowned Language get_ts_language ();
     protected abstract string query_source ();
+    protected abstract void prepare_capture_mapping ();
+    protected abstract Gtk.TextTag? capture_tag(TreeSitter.QueryCapture capture, int theme_index);
 
     // Абстрактный метод для фильтрации узлов Breadcrumbs
     protected abstract bool is_container_node (string node_type);
@@ -262,30 +263,6 @@ public abstract class Iide.BaseTreeSitterHighlighter : Object {
 
         if (error_type != QueryError.None) {
             warning ("TreeSitter Query Error at %u: %s", error_offset, error_type.to_string ());
-        }
-    }
-
-    protected virtual void prepare_capture_mapping () {
-        if (query == null)return;
-
-        uint32 count = query.capture_count ();
-        capture_tags = new Gtk.TextTag ? [count, 2];
-        var style_service = StyleService.get_instance ();
-
-        for (uint32 i = 0; i < count; i++) {
-            uint32 name_len;
-            string name = query.capture_name_for_id (i, out name_len);
-
-            // Кэшируем теги для обеих тем по индексу захвата
-            capture_tags[i, 0] = style_service.get_tag (name, 0);
-            capture_tags[i, 1] = style_service.get_tag (name, 1);
-
-            // Фолбэк для составных имен (например, @function.method -> @function)
-            if (capture_tags[i, 0] == null && name.contains (".")) {
-                string base_name = name.split (".")[0];
-                capture_tags[i, 0] = style_service.get_tag (base_name, 0);
-                capture_tags[i, 1] = style_service.get_tag (base_name, 1);
-            }
         }
     }
 
@@ -518,19 +495,7 @@ public abstract class Iide.BaseTreeSitterHighlighter : Object {
         QueryMatch match;
         while (cursor.next_match (out match)) {
             foreach (var capture in match.captures) {
-                uint32 name_len;
-                string capture_name = query.capture_name_for_id (capture.index, out name_len);
-
-                Gtk.TextTag? tag = null;
-
-                if (capture_name == "punctuation.bracket") {
-                    int lvl = (get_nesting_level (capture.node) % 5) + 1; // Цикл по 5 цветам
-                    tag = StyleService.get_instance ().get_tag ("bracket.lvl" + lvl.to_string (), current_theme_index);
-                } else {
-                    tag = capture_tags[capture.index, current_theme_index];
-                }                if (tag != null) {
-                    apply_tag_fast (capture.node, tag);
-                }
+                apply_tag_fast (capture.node, capture_tag (capture, current_theme_index));
             }
         }
     }
@@ -552,21 +517,7 @@ public abstract class Iide.BaseTreeSitterHighlighter : Object {
                 }
                 // ==========================================
 
-                uint32 name_len;
-                string capture_name = query.capture_name_for_id (capture.index, out name_len);
-
-                Gtk.TextTag? tag = null;
-
-                if (capture_name == "punctuation.bracket") {
-                    int lvl = (get_nesting_level (capture.node) % 5) + 1; // Цикл по 5 цветам
-                    tag = StyleService.get_instance ().get_tag ("bracket.lvl" + lvl.to_string (), current_theme_index);
-                } else {
-                    tag = capture_tags[capture.index, current_theme_index];
-                }
-
-                if (tag != null) {
-                    apply_tag_fast (capture.node, tag);
-                }
+                apply_tag_fast (capture.node, capture_tag (capture, current_theme_index));
             }
         }
     }
@@ -607,21 +558,10 @@ public abstract class Iide.BaseTreeSitterHighlighter : Object {
         this.render_matches_in_viewport (viewport_start_byte, viewport_end_byte);
     }
 
-    private int get_nesting_level (TreeSitter.Node node) {
-        int level = 0;
-        TreeSitter.Node? parent = node.parent ();
-        while (parent != null && !parent.is_null ()) {
-            string type = parent.type ();
-            // Считаем вложенность только по блокам, спискам аргументов и т.д.
-            if (type == "block" || type == "argument_list" || type == "parameters" || type == "tuple_pattern") {
-                level++;
-            }
-            parent = parent.parent ();
-        }
-        return level;
-    }
+    private void apply_tag_fast (TreeSitter.Node node, Gtk.TextTag? tag) {
+        if (tag == null)
+            return;
 
-    private void apply_tag_fast (TreeSitter.Node node, Gtk.TextTag tag) {
         Gtk.TextIter start, end;
 
         // Получаем итераторы по абсолютному БАЙТОВОМУ смещению

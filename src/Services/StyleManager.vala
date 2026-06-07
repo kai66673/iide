@@ -17,6 +17,7 @@ public class Iide.StyleService : Object {
 
     // Теперь Gee.HashMap хранит объекты TagPair
     private Gee.HashMap<string, TagPair> registry;
+    private TagPair[] bracket_tags;
 
     public static StyleService get_instance () {
         if (instance == null)instance = new StyleService ();
@@ -32,17 +33,17 @@ public class Iide.StyleService : Object {
         shared_table.add (folding_tag);
 
         // --- Основы ---
-        setup_tag ("function", "#1a5fb4", "#62a0ea", true);
+        setup_tag ("function", "#461ea3", "#418ce7", true);
         setup_tag ("keyword", "#a51d2d", "#ff7b72", true);
         setup_tag ("string", "#26a269", "#8ff0a4", false);
-        setup_tag ("comment", "#5e5c64", "#735777", false, false); // Italic
-        setup_tag ("type", "#422d5b", "#f9c06b", true);
+        setup_tag ("comment", "#27242d", "#926798", false, false); // Italic
+        setup_tag ("type", "#422d5b", "#bb4aef", true);
         setup_tag ("constant", "#986a44", "#d0b5f3", false);
 
         // --- Переменные и параметры ---
-        setup_tag ("variable", "#241f31", "#ffffff", false);
-        setup_tag ("variable.parameter", "#3584e4", "#78aeed", false);
-        setup_tag ("variable.builtin", "#1a5fb4", "#62a0ea", false, true); // self, cls
+        setup_tag ("variable", "#241f31", "#7b6666", false);
+        setup_tag ("variable.parameter", "#3584e4", "#b37066", false);
+        setup_tag ("variable.builtin", "#b41a83", "#d33ad5", false, true); // self, cls
 
         // --- Литералы и числа ---
         setup_tag ("number", "#3071db", "#78aeed", false);
@@ -68,14 +69,16 @@ public class Iide.StyleService : Object {
 
         // --- Дополнительные уточнения для функций ---
         setup_tag ("function.call", "#1c71d8", "#78aeed", false);
-        setup_tag ("function.method", "#1a5fb4", "#62a0ea", true);
+        setup_tag ("function.method", "#0e2d53", "#4c75a8", false);
 
         // Скобки
-        setup_tag ("bracket.lvl1", "#3584e4", "#78aeed", false); // Синий
-        setup_tag ("bracket.lvl2", "#26a269", "#8ff0a4", false); // Зеленый
-        setup_tag ("bracket.lvl3", "#e66100", "#ffa348", false); // Оранжевый
-        setup_tag ("bracket.lvl4", "#e01b24", "#ff7b72", false); // Красный
-        setup_tag ("bracket.lvl5", "#9141ac", "#c061cb", false); // Фиолетовый
+        this.bracket_tags = {
+            setup_tag ("bracket.lvl1", "#3584e4", "#78aeed", false), // Синий
+            setup_tag ("bracket.lvl2", "#26a269", "#8ff0a4", false), // Зеленый
+            setup_tag ("bracket.lvl3", "#e66100", "#ffa348", false), // Оранжевый
+            setup_tag ("bracket.lvl4", "#e01b24", "#ff7b72", false), // Красный
+            setup_tag ("bracket.lvl5", "#9141ac", "#c061cb", false), // Фиолетовый
+        };
 
                 // --- Расширение для C/C++ Препроцессора и Директив ---
         setup_tag ("preprocessor", "#63452c", "#c061cb", false);          // #define, #ifdef
@@ -83,8 +86,9 @@ public class Iide.StyleService : Object {
         setup_tag ("string.special.path", "#26a269", "#8ff0a4", false);    // <vector> или "header.h"
 
         // --- Расширение для типов и встроенных примитивов ---
-        setup_tag ("type.builtin", "#a51d2d", "#ff7b72", true);    // int, char, void, bool (в Adwaita они обычно как keyword)
-        setup_tag ("type.identifier", "#422d5b", "#f9c06b", true); // Кастомные классы и структуры MyClass
+        setup_tag ("type.builtin", "#a51d2d", "#23bca5", true);    // int, char, void, bool (в Adwaita они обычно как keyword)
+        setup_tag ("function.builtin", "#a51d2d", "#23bca5", true, true);    // int, char, void, bool (в Adwaita они обычно как keyword)
+        setup_tag ("type.identifier", "#422d5b", "#836f53", true); // Кастомные классы и структуры MyClass
 
         // --- Уточнения для литералов и зарезервированных слов ---
         setup_tag ("keyword.constant", "#986a44", "#d0b5f3", true); // nullptr, true, false, this
@@ -94,7 +98,7 @@ public class Iide.StyleService : Object {
         setup_tag ("none", null, null, false);
     }
 
-    private void setup_tag (string name, string? light_color, string? dark_color, bool bold, bool italic = false) {
+    private TagPair setup_tag (string name, string? light_color, string? dark_color, bool bold, bool italic = false) {
         // Создаем тег для светлой темы
         var tag_light = new Gtk.TextTag (name + ":light");
         tag_light.foreground = light_color;
@@ -112,6 +116,8 @@ public class Iide.StyleService : Object {
         // Сохраняем пару в реестр
         var pair = new TagPair (tag_light, tag_dark);
         registry.set (name, pair);
+
+        return pair;
     }
 
     public Gtk.TextTag? get_tag (string name, int theme_index) {
@@ -120,5 +126,9 @@ public class Iide.StyleService : Object {
             return pair.get_by_index (theme_index);
         }
         return null;
+    }
+
+    public Gtk.TextTag? get_bracket_tag(int level, int theme_index) {
+        return this.bracket_tags[level].get_by_index (theme_index);
     }
 }

@@ -1,7 +1,7 @@
 [CCode (cname = "tree_sitter_cpp")]
 extern unowned TreeSitter.Language ? get_lang_cpp ();
 
-public class Iide.CppHighlighter : BaseTreeSitterHighlighter {
+public class Iide.CppHighlighter : SimpleTreeSitterHighlighter {
     public CppHighlighter (SourceView view) {
         base (view);
     }

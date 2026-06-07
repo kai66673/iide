@@ -65,6 +65,7 @@ iide_sources = [
     'Services/TreeSitter/model/AstItem.vala',
     'Services/TreeSitter/model/AstModel.vala',
     'Services/TreeSitter/BaseTreeSitterHighlighter.vala',
+    'Services/TreeSitter/SimpleTreeSitterHighlighter.vala',
     'Services/TreeSitter/cpp/CppHighlighter.vala',
     'Services/TreeSitter/vala/ValaHighlighter.vala',
     'Services/TreeSitter/rust/RustHighlighter.vala',

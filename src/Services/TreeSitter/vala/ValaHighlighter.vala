@@ -1,7 +1,7 @@
 [CCode (cname = "tree_sitter_vala")]
 extern unowned TreeSitter.Language ? get_lang_vala ();
 
-public class Iide.ValaHighlighter : BaseTreeSitterHighlighter {
+public class Iide.ValaHighlighter : SimpleTreeSitterHighlighter {
     public ValaHighlighter (SourceView view) {
         base (view);
     }

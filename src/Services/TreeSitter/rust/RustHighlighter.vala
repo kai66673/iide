@@ -1,7 +1,7 @@
 [CCode (cname = "tree_sitter_rust")]
 extern unowned TreeSitter.Language ? get_language_rust ();
 
-public class Iide.RustHighlighter : BaseTreeSitterHighlighter {
+public class Iide.RustHighlighter : SimpleTreeSitterHighlighter {
     public RustHighlighter (SourceView view) {
         base (view);
     }
