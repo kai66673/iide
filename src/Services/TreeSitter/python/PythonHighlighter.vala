@@ -12,146 +12,118 @@ public class Iide.PythonHighlighter : BaseTreeSitterHighlighter {
 
   protected override string query_source () {
     return """
-        ; Identifier naming conventions
+      ; ===================================================================
+      ; ПОДСВЕТКА ИМПОРТОВ (МОДУЛИ И ПАКЕТЫ)
+      ; ===================================================================
 
-        (identifier) @variable
+      ; 1. Конструкция: import os, sys
+      ; Выделяем ключевое слово и имена подключаемых модулей
+      (import_statement "import" @keyword.control.import)
+      (import_statement (dotted_name) @namespace)
 
-        ((identifier) @constructor
-         (#match? @constructor "^[A-Z]"))
+      ; 2. Конструкция: from os import path
+      ; Выделяем ключевые слова и корневой модуль/пакет
+      (import_from_statement "from" @keyword.control.import)
+      (import_from_statement "import" @keyword.control.import)
+      (import_from_statement module_name: (dotted_name) @namespace)
 
-        ((identifier) @constant
-         (#match? @constant "^[A-Z][A-Z_]*$"))
+      ; 3. Выделение конкретных объектов, импортируемых из модуля (from math import sin, cos)
+      ; Их часто красят либо как namespace, либо как обычные переменные/функции. 
+      ; Самый чистый вариант — покрасить их как namespace, так как это ссылки на объекты модуля.
+      (import_from_statement name: (dotted_name) @namespace)
+      (aliased_import name: (dotted_name) @namespace)
 
-        ; Function calls
+      ; 4. Обработка псевдонимов (import numpy as np)
+      ; Подсвечиваем ключевое слово "as" специальным импортным тегом
+      (aliased_import "as" @keyword.control.import)
+      ; Сам псевдоним (np) красим как namespace
+      (aliased_import alias: (identifier) @namespace)
 
-        (decorator) @function
-        (decorator
-          (identifier) @function)
+      ; 5. Импорт всего содержимого (from math import *)
+      (wildcard_import "*" @operator)
+      ; ===================================================================
+      ; ИДЕНТИФИКАТОРЫ И ПЕРЕМЕННЫЕ
+      ; ===================================================================
+      ; Базовое правило для всех переменных
+      (identifier) @variable
 
-        (call
-          function: (attribute attribute: (identifier) @function.method))
-        (call
-          function: (identifier) @function)
+      ; Параметры в объявлении функций (def foo(param1, param2):)
+      (parameters (identifier) @variable.parameter)
+      (parameters (typed_parameter (identifier) @variable.parameter))
+      (parameters (default_parameter name: (identifier) @variable.parameter))
+      (keyword_argument name: (identifier) @variable.parameter)
 
-        ; Builtin functions
+      ; Именованные аргументы при вызове функций (foo(arg1=val))
+      (keyword_argument name: (identifier) @variable.parameter)
 
-        ((call
-          function: (identifier) @function.builtin)
-         (#match?
-           @function.builtin
-           "^(abs|all|any|ascii|bin|bool|breakpoint|bytearray|bytes|callable|chr|classmethod|compile|complex|delattr|dict|dir|divmod|enumerate|eval|exec|filter|float|format|frozenset|getattr|globals|hasattr|hash|help|hex|id|input|int|isinstance|issubclass|iter|len|list|locals|map|max|memoryview|min|next|object|oct|open|ord|pow|print|property|range|repr|reversed|round|set|setattr|slice|sorted|staticmethod|str|sum|super|tuple|type|vars|zip|__import__)$"))
+      ; Свойства и атрибуты объектов (self.my_property)
+      (attribute attribute: (identifier) @property)
 
-        ; Function definitions
+      ; ===================================================================
+      ; ФУНКЦИИ, МЕТОДЫ И КЛАССЫ
+      ; ===================================================================
+      ; Объявление классов и типов
+      (class_definition name: (identifier) @type)
 
-        (function_definition
-          name: (identifier) @function)
+      ; Объявление функций и методов
+      (function_definition name: (identifier) @function)
 
-        (attribute attribute: (identifier) @property)
-        (type (identifier) @type)
+      ; Вызовы функций и методов
+      (call function: (identifier) @function.call)
+      (call function: (attribute attribute: (identifier) @function.method))
 
-        ; Literals
+      ; Декораторы (@classmethod, @staticmethod)
+      (decorator) @attribute
+      (decorator (identifier) @attribute)
+      (decorator (call function: (identifier) @attribute))
 
-        [
-          (none)
-          (true)
-          (false)
-        ] @constant.builtin
+      ; ===================================================================
+      ; ЛИТЕРАЛЫ, СТРОКИ И ЧИСЛА
+      ; ===================================================================
+      ; Встроенные константы
+      [
+        (none)
+        (true)
+        (false)
+      ] @boolean
 
-        [
-          (integer)
-          (float)
-        ] @number
+      [
+        (integer)
+        (float)
+      ] @number
 
-        (comment) @comment
-        (string) @string
-        (escape_sequence) @escape
+      (comment) @comment
+      (string) @string
+      (escape_sequence) @escape
 
-        (interpolation
-          "{" @punctuation.special
-          "}" @punctuation.special) @embedded
+      ; F-строки (Интерполяция)
+      (interpolation
+        "{" @punctuation.bracket
+        "}" @punctuation.bracket) @none
 
-        [
-          "-"
-          "-="
-          "!="
-          "*"
-          "**"
-          "**="
-          "*="
-          "/"
-          "//"
-          "//="
-          "/="
-          "&"
-          "&="
-          "%"
-          "%="
-          "^"
-          "^="
-          "+"
-          "->"
-          "+="
-          "<"
-          "<<"
-          "<<="
-          "<="
-          "<>"
-          "="
-          ":="
-          "=="
-          ">"
-          ">="
-          ">>"
-          ">>="
-          "|"
-          "|="
-          "~"
-          "@="
-          "and"
-          "in"
-          "is"
-          "not"
-          "or"
-          "is not"
-          "not in"
-        ] @operators
+      ; ===================================================================
+      ; ОПЕРАТОРЫ И ПУНКТУАЦИЯ
+      ; ===================================================================
+      [
+        "-" "-=" "!=" "*" "**" "**=" "*=" "/" "//" "//=" "/="
+        "&" "&=" "%" "%=" "^" "^=" "+" "->" "+=" "<" "<<" "<<="
+        "<=" "<>" "=" ":=" "==" ">" ">=" ">>" ">>=" "|" "|=" "~" "@="
+        "and" "in" "is" "not" "or" "is not" "not in"
+      ] @operator
 
-        ["(" ")" "[" "]" "{" "}"] @punctuation.bracket
+      ["(" ")" "[" "]" "{" "}"] @punctuation.bracket
+      ["." "," ":" ";" "@"] @punctuation.delimiter
 
-        [
-          "as"
-          "assert"
-          "async"
-          "await"
-          "break"
-          "class"
-          "continue"
-          "def"
-          "del"
-          "elif"
-          "else"
-          "except"
-          "exec"
-          "finally"
-          "for"
-          "from"
-          "global"
-          "if"
-          "import"
-          "lambda"
-          "nonlocal"
-          "pass"
-          "print"
-          "raise"
-          "return"
-          "try"
-          "while"
-          "with"
-          "yield"
-          "match"
-          "case"
-        ] @keyword
-        """;
+      ; ===================================================================
+      ; КЛЮЧЕВЫЕ СЛОВА
+      ; ===================================================================
+      [
+        "as" "assert" "async" "await" "break" "class" "continue" "def"
+        "del" "elif" "else" "except" "exec" "finally" "for" "from"
+        "global" "if" "import" "lambda" "nonlocal" "pass" "print"
+        "raise" "return" "try" "while" "with" "yield" "match" "case"
+      ] @keyword
+    """;
   }
 
   protected override bool is_container_node (string node_type) {
