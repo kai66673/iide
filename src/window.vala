@@ -261,12 +261,12 @@ public class Iide.Window : Panel.DocumentWorkspace {
         // Кнопка Назад
         var back_btn = new Gtk.Button.from_icon_name ("go-previous-symbolic");
         back_btn.tooltip_text = "Назад (Alt+Left)";
-        back_btn.action_name = "app.navigation_back"; // Привязываем к Action
+        back_btn.action_name = "app.navigation-back"; // Привязываем к Action
 
         // Кнопка Вперед
         var forward_btn = new Gtk.Button.from_icon_name ("go-next-symbolic");
         forward_btn.tooltip_text = "Вперед (Alt+Right)";
-        forward_btn.action_name = "app.navigation_forward";
+        forward_btn.action_name = "app.navigation-forward";
 
         header.pack_start (back_btn);
         header.pack_start (forward_btn);
