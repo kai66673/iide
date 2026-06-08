@@ -213,6 +213,12 @@ public class Iide.SourceView : GtkSource.View {
         this.add_controller (motion_ctrl);
     }
 
+    public override bool grab_focus () {
+        bool result = base.grab_focus();
+        DocumentManager.get_instance ().add_document_to_mru_history (this);
+        return result;
+    }
+
     private void on_textview_motion (double x, double y) {
         if (this.overlay == null) return;
 

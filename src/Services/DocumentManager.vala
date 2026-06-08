@@ -63,11 +63,42 @@ public class Iide.DocumentManager : GLib.Object {
         }
     }
 
+    // Список открытых документов в порядке MRU (от самых свежих к старым)
+    // ВАЖНО! может содержать уже закрытые документы
+    private Gee.ArrayList<SourceView> mru_history;
+
+    public void add_document_to_mru_history(SourceView source_view) {
+        // Если документ уже был в истории — удаляем его со старой позиции
+        this.mru_history.remove (source_view);
+        
+        // Вставляем на самую первую позицию (индекс 0) как самый свежий активный документ
+        this.mru_history.insert (0, source_view);
+
+        LoggerService.get_instance ().info ("MRU", "Document added: " + source_view.uri);
+    }
+
+    private void clear_mru_history() {
+        Gee.ArrayList<SourceView> mru_cleared = new Gee.ArrayList<SourceView> ();
+        var docs = this.documents;
+        foreach (var mru_item in mru_history) {
+            if (docs.has_key (mru_item.uri)) {
+                mru_cleared.add (mru_item);
+            }
+        }
+        mru_history = mru_cleared;
+    }
+
+    public Gee.ArrayList<SourceView> get_mru_history() {
+        clear_mru_history ();
+        return mru_history;
+    }
+
     public DocumentManager (Window window) {
         this.window = window;
         DocumentManager._instance = this;
-        // documents = new Gee.HashMap<string, TextView> ();
         lsp_service = IdeLspService.get_instance ();
+
+        mru_history = new Gee.ArrayList<SourceView> ();
 
         lsp_service.diagnostics_updated.connect ((uri, diagnostics) => {
             var doc = documents.get (uri);

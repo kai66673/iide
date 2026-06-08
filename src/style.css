@@ -259,3 +259,25 @@ button.error image {
     border-radius: 6px;
     box-shadow: 0 6px 16px rgba(0, 0, 0, 0.22); /* Красивая глубокая тень под превью */
 }
+
+.tab-switcher-popup {
+    background-color: @window_bg_color;
+    border: 1px solid rgba(0, 0, 0, 0.15);
+    border-radius: 10px;
+    box-shadow: 0 12px 36px rgba(0, 0, 0, 0.3);
+    padding: 6px;
+}
+
+.tab-switcher-popup list {
+    background: transparent;
+}
+
+.tab-switcher-popup row {
+    transition: background-color 60ms ease;
+}
+
+.tab-switcher-popup row:selected {
+    background-color: @theme_selected_bg_color;
+    color: @theme_selected_fg_color;
+    border-radius: 6px;
+}

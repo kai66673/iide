@@ -234,6 +234,31 @@ public class Iide.Window : Panel.DocumentWorkspace {
         });
 
         repair_empty_areas ();
+        setup_switch_document_controller ();
+    }
+
+    private void setup_switch_document_controller() {
+        var key_controller = new Gtk.EventControllerKey ();
+        key_controller.set_propagation_phase (Gtk.PropagationPhase.CAPTURE);
+
+        // 1. ПЕРЕХВАТ НАЖАТИЯ (Открытие окна и циклическое листание)
+        key_controller.key_pressed.connect ((keyval, keycode, state) => {
+            var modifiers = state & (Gdk.ModifierType.CONTROL_MASK | Gdk.ModifierType.SHIFT_MASK);
+            bool is_ctrl = (modifiers & Gdk.ModifierType.CONTROL_MASK) != 0;
+            bool is_shift = (modifiers & Gdk.ModifierType.SHIFT_MASK) != 0;
+
+            if ((keyval == Gdk.Key.Tab || keyval == Gdk.Key.ISO_Left_Tab) && is_ctrl) {
+                var tab_switcher_popup = new TabSwitcherPopup (this, is_shift);
+                tab_switcher_popup.present ();
+
+                LoggerService.get_instance ().info ("MRU", "should be shown...");
+                return true; // Полностью глушим фокус док-панелей libpanel
+            }
+
+            return false;
+        });
+
+        ((Gtk.Widget) this).add_controller (key_controller);
     }
 
     private void restore_opened_documents () {
@@ -445,6 +470,15 @@ public class Iide.Window : Panel.DocumentWorkspace {
         if (active_widget == null)return null;
 
         return (active_widget as TextView) ? .source_view;
+    }
+
+    public void start_switch_document(bool next) {
+        // TODO: implement...
+        if (next) {
+            LoggerService.get_instance ().info ("SD", "TODO next...");
+        } else {
+            LoggerService.get_instance ().info ("SD", "TODO prev...");
+        }
     }
 
     private void setup_lsp_status () {
