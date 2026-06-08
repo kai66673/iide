@@ -351,66 +351,7 @@ public class Iide.EditorOverlayLayer : Gtk.DrawingArea {
             cr.stroke ();
         }
     }
-    
-    public bool on_query_tooltip (int x, int y, bool keyboard_mode, Gtk.Tooltip tooltip) {
-        ClickableIndicator? hovered_indicator = null;
-        foreach (var indicator in this.visible_indicators) {
-            var rect = indicator.rect;
-            if (x >= rect.x && x <= (rect.x + rect.width) &&y >= rect.y && y <= (rect.y + rect.height)) {
-                hovered_indicator = indicator;
-                break;
-            }
-        }
-        if (hovered_indicator == null)
-            return false;
-
-        var doc = this.source_view.document as Iide.TreeSitterDocument;
-        if (doc == null || doc.ts_highlighter == null)
-            return false;
         
-        var ts_blocks = doc.ts_highlighter.get_cached_indent_blocks ();
-        Iide.IndentBlock? target_block = null;
-        foreach (var block in ts_blocks) {
-            if (block.start_line == hovered_indicator.start_line) {
-                target_block = block;
-                break;
-
-            }
-        }
-        if (target_block == null)
-            return false;
-        
-        var folding_gutter = this.source_view.folding_gutter;
-        if (!folding_gutter.is_line_collapsed_by_number (target_block.start_line))
-            return false;
-        
-        // Извлекаем текст
-        var buffer = this.source_view.get_buffer ();
-        Gtk.TextIter start_iter, end_iter;
-        buffer.get_iter_at_line (out start_iter, target_block.start_line + 1);
-        buffer.get_iter_at_line (out end_iter, target_block.end_line + 1);
-        string hidden_code = buffer.get_text (start_iter, end_iter, true);
-        if (hidden_code.length == 0)
-            return false;
-
-        var lines = hidden_code.split ("\n");
-        int max_lines = 90;
-        if (lines.length > max_lines) {
-            string[] sliced_lines = lines[0:max_lines];
-            hidden_code = string.joinv ("\n", sliced_lines) + "\n   ...";
-        }
-
-        var tip_rect = hovered_indicator.rect;
-        tip_rect.x = 0;
-        tip_rect.width = this.source_view.get_width () * 3 / 4;
-        tooltip.set_tip_area (tip_rect);
-        
-        var tooltip_widget = new PreviewSourceView(hidden_code, this.source_view);
-        tooltip.set_custom (tooltip_widget);
-
-        return true;
-    }
-    
     // Публичный метод, чтобы TextView мог передавать сюда клики мыши, если они обрабатываются на его уровне
     public Gee.ArrayList<ClickableIndicator?> get_visible_indicators () { return this.visible_indicators; }
 }

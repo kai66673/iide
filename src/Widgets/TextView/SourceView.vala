@@ -265,9 +265,6 @@ public class Iide.SourceView : GtkSource.View {
         buffer.get_iter_at_line (out start_iter, target_block.start_line + 1);
         buffer.get_iter_at_line (out end_iter, target_block.end_line + 1);
 
-        string hidden_code = buffer.get_text (start_iter, end_iter, true);
-        if (hidden_code.length == 0) return;
-
         // Фиксируем строку ДО создания виджета
         this.last_hovered_line = hovered_indicator.start_line;
 
@@ -276,8 +273,48 @@ public class Iide.SourceView : GtkSource.View {
             this.hide_folding_preview ();
         }
 
+        // ===================================================================
+        // Создаем preview
+        // ===================================================================
+        
+        // 1. Создаем изолированный буфер для подсказки (обязательно GtkSource.Buffer)
+        var style_service = StyleService.get_instance ();
+        var preview_buffer = new GtkSource.Buffer (style_service.shared_table);
+        
+        // Синхронизируем язык и цветовую схему
+        var main_source_buffer = buffer as GtkSource.Buffer;
+        if (main_source_buffer != null) {
+            preview_buffer.set_style_scheme (main_source_buffer.get_style_scheme ());
+        }
+
+        // 2. Ставим итератор на начало нового буфера превью
+        Gtk.TextIter preview_start;
+        preview_buffer.get_start_iter (out preview_start);
+
+        // 3. АТОМАРНО КОПИРУЕМ ДИАПАЗОН ТЕКСТА И ВСЕ ПРИМЕНЕННЫЕ ТЕГИ
+        preview_buffer.insert_range (ref preview_start, start_iter, end_iter);
+        
+        // ===================================================================
+        // КРИТИЧЕСКОЕ ИСПРАВЛЕНИЕ: Убираем невидимость с текста превью!
+        // ===================================================================
+        Gtk.TextIter p_start, p_end;
+        preview_buffer.get_bounds (out p_start, out p_end);
+        preview_buffer.remove_tag (style_service.folding_tag, p_start, p_end);
+        // ===================================================================
+
+        // 4. УМНОЕ ОГРАНИЧЕНИЕ СТРОК
+        int max_lines = 90;
+        if (preview_buffer.get_line_count () > max_lines) {
+            Gtk.TextIter cut_start, cut_end;
+            preview_buffer.get_iter_at_line (out cut_start, max_lines);
+            preview_buffer.get_end_iter (out cut_end);
+            
+            preview_buffer.delete (ref cut_start, ref cut_end);
+            preview_buffer.insert (ref cut_start, "\n   ...", -1);
+        }
+
         // 1. Создаем наше кастомное текстовое превью
-        var preview_view = new Iide.PreviewSourceView (hidden_code, this);
+        var preview_view = new PreviewSourceView.with_buffer (preview_buffer, this);
         
         // 2. Оборачиваем его в ScrolledWindow, чтобы текст внутри аккуратно скроллился, 
         // если он не влезает в отведенную высоту
@@ -336,8 +373,6 @@ public class Iide.SourceView : GtkSource.View {
 
             this.folding_preview_widget.queue_resize ();
             overlay_container.queue_allocate ();
-
-            LoggerService.get_instance ().debug ("TM", "textview_motion FLOATING WIDGET ADDED WITH HEIGHT: %d".printf(final_height));
         }
     }
 

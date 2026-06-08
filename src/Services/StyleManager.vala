@@ -14,6 +14,7 @@ public class Iide.TagPair : Object {
 public class Iide.StyleService : Object {
     private static StyleService? instance;
     public Gtk.TextTagTable shared_table { get; private set; }
+    public Gtk.TextTag folding_tag { get; private set; }
 
     // Теперь Gee.HashMap хранит объекты TagPair
     private Gee.HashMap<string, TagPair> registry;
@@ -28,7 +29,7 @@ public class Iide.StyleService : Object {
         shared_table = new Gtk.TextTagTable ();
         registry = new Gee.HashMap<string, TagPair> ();
 
-        var folding_tag = new Gtk.TextTag ("$FOLD_HIDE");
+        folding_tag = new Gtk.TextTag ("$FOLD_HIDE");
         folding_tag.invisible = true; // Главный атрибут скрытия текста
         shared_table.add (folding_tag);
 
