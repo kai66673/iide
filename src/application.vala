@@ -63,6 +63,7 @@ public class Iide.Application : Adw.Application {
         action_manager.register_action (this, new ShowDiagnosticsMarksAction (this));
         action_manager.register_action (this, new ShowFoldingAction (this));
         action_manager.register_action (this, new FormatAction ());
+        action_manager.register_action (this, new ToggleBookmarkAction ());
 
         // Ins/Ovr toggle
         // Действие переключения режима
@@ -366,7 +367,12 @@ private class Iide.QuitAction : Iide.AppAction {
 
     public override void execute () {
         var app = GLib.Application.get_default () as Iide.Application;
-        app?.quit ();
+        var win = app ? .active_window as Iide.Window;
+        if (win != null) {
+            win.close ();
+        } else {
+            app?.quit ();
+        }
     }
 }
 
@@ -619,3 +625,28 @@ private class Iide.FormatAction : Iide.AppAction {
         }
     }
 }
+
+private class Iide.ToggleBookmarkAction : Iide.AppAction {
+    public override string id { get { return "toggle-bookmark"; } }
+    public override string name { get { return _("Toggle bookmark"); } }
+    public override string? description { get { return _("Toggle bookmark at current line"); } }
+    public override string? icon_name { get { return "zoom-original-symbolic"; } }
+    public override string? category { get { return "View"; } }
+    public override string? default_shortcut { get { return "<primary>F2"; } }
+
+    public override bool can_execute () {
+        return true;
+    }
+
+    public override void execute () {
+        var app = GLib.Application.get_default () as Iide.Application;
+        var win = app ? .active_window as Iide.Window;
+        if (win != null) {
+            var source_view = win.get_active_source_view ();
+            if (source_view != null){
+                source_view.toggle_bookmark_on_current_line ();
+            }
+        }
+    }
+}
+

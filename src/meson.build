@@ -19,6 +19,7 @@ iide_sources = [
     'Widgets/TextView/DiagnosticsPopover.vala',
     'Widgets/TextView/FormattingService.vala',
     'Widgets/TextView/TabSwitcherPopup.vala',
+    'Widgets/TextView/SourceBookMark.vala',
     'Widgets/ToolViews/ProjectView.vala',
     'Widgets/ToolViews/TerminalView.vala',
     'Widgets/ToolViews/LogView.vala',

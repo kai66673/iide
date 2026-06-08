@@ -696,4 +696,37 @@ public class Iide.SourceView : GtkSource.View {
     public async void format_document() {
         yield FormattingService.get_instance ().format_document_async (this);
     }
+
+    public void toggle_bookmark_on_current_line () {
+        var source_buffer = this.get_buffer () as GtkSource.Buffer;
+        if (source_buffer == null) return;
+
+        // Получаем итератор текущей строки (где стоит курсор)
+        Gtk.TextIter cursor_iter;
+        source_buffer.get_iter_at_mark (out cursor_iter, source_buffer.get_insert ());
+        int current_line = cursor_iter.get_line ();
+
+        // Проверяем, есть ли уже закладки на этой строке [INDEX]
+        var existing_marks = source_buffer.get_source_marks_at_line (current_line, "bookmark");
+
+        if (existing_marks != null && existing_marks.length () > 0) {
+            // Если маркер уже есть — удаляем его со строки, снимая закладку [INDEX]
+            foreach (var mark in existing_marks) {
+                source_buffer.delete_mark (mark);
+            }
+            LoggerService.get_instance ().info ("Bookmarks", "Deleted GtkSource.Mark 'bookmark' from line %d".printf (current_line + 1));
+        } else {
+            // Если маркера нет — ставим его строго на начало строки [INDEX]
+            Gtk.TextIter line_start_iter;
+            source_buffer.get_iter_at_line (out line_start_iter, current_line);
+            
+            // Создаем новый SourceMark. Имя (name) можно оставить null, 
+            // главное — передать категорию "bookmark" [INDEX]
+            source_buffer.create_source_mark (null, "bookmark", line_start_iter);
+            LoggerService.get_instance ().info ("Bookmarks", "Created GtkSource.Mark 'bookmark' on line %d".printf (current_line + 1));
+        }
+
+        // Заставляем панель номеров строк мгновенно перерисоваться
+        this.line_numbers_gutter.queue_draw (); // Или метод вызова перерисовки вашего LineNumbersGutter
+    }
 }

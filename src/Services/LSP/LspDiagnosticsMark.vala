@@ -1,3 +1,6 @@
+/*
+*/
+
 public class Iide.LspDiagnosticsMark : GtkSource.Mark {
     public int severity { get; construct set; }
     public string diagnostic_message { get; construct set; }

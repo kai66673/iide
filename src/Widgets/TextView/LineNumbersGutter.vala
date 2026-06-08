@@ -6,7 +6,7 @@ namespace Iide {
 
     public class LineNumbersGutter : GtkSource.GutterRenderer {
         private Pango.Layout? pango_layout = null;
-        private int current_width = 38; // Базовая ширина панели номеров строк
+        private int current_width = 4; // Базовая ширина панели номеров строк
 
         public LineNumbersGutter () {
             Object ();
@@ -42,16 +42,29 @@ namespace Iide {
             }
 
             var view = this.get_view ();
-            if (view == null) return;
+            if (view == null) 
+                return;
+
+            // ===================================================================
+            // ПРОВЕРКА НАЛИЧИЯ ЗАКЛАДКИ ЧЕРЕЗ GtkSource.Mark
+            // ===================================================================
+            bool has_bookmark = false;
+            var source_buffer = view.get_buffer () as GtkSource.Buffer;
+            
+            if (source_buffer != null) {
+                // Запрашиваем у GtkSource.Buffer все маркеры для текущей строки [INDEX]
+                // Передаем категорию "bookmark", чтобы отсечь другие типы маркеров [INDEX]
+                var marks = source_buffer.get_source_marks_at_line (current_line_iter.get_line (), "bookmark");
+                
+                // Если список не пустой (length > 0) — значит на этой строке стоит закладка! [INDEX]
+                if (marks != null && marks.length () > 0) {
+                    has_bookmark = true;
+                }
+            }
+            // ===================================================================
 
             // 3. ИНИЦИАЛИЗАЦИЯ ШРИФТА С УЧЕТОМ ЗУМА
             this.pango_layout = view.create_pango_layout ("");
-            //  var font_desc = view.get_font_desc ();
-            //  if (font_desc != null) {
-            //      this.pango_layout.set_font_description (font_desc);
-            //  } else {
-            //      this.pango_layout.set_font_description (Pango.FontDescription.from_string ("Monospace 11"));
-            //  }
 
             // Задаем текст номера строки
             string num_str = real_line_number.to_string ();
@@ -65,7 +78,7 @@ namespace Iide {
 
             // Ширина текста + аккуратные отступы по краям
             int calculated_width = text_width_px + 12;
-            if (this.current_width != calculated_width && calculated_width > 38) {
+            if (this.current_width != calculated_width && calculated_width > 4) {
                 this.current_width = calculated_width;
                 view.queue_resize (); // Форсируем пересчет ширины левой панели
             }
@@ -76,15 +89,38 @@ namespace Iide {
 
             var cr = snapshot.append_cairo (bounds);
             
-            // Цвет номеров строк: неконтрастный серый (Alpha 60%)
-            cr.set_source_rgba (0.5, 0.5, 0.5, 0.6);
-
             // Координаты рисования с отступом в 6 пикселей от правого края панели
             double draw_x = (double) this.current_width - text_width_px - 6.0;
             double draw_y = (double) cell_y + ((cell_height - text_height_px) / 2.0);
 
-            cr.move_to (draw_x, draw_y);
-            Pango.cairo_show_layout (cr, this.pango_layout);
+            if (has_bookmark) {
+                // ПАТТЕРН ADWAITA: Если есть закладка, рисуем синий акцент
+                cr.save ();
+                
+                // Заливаем фон ячейки номера мягким полупрозрачным синим цветом
+                cr.set_source_rgba (0.2, 0.52, 0.89, 0.15); 
+                cr.rectangle (0, cell_y, this.current_width, cell_height);
+                cr.fill ();
+
+                // Рисуем яркую вертикальную полоску-маркер у самого левого края гуттера
+                cr.set_source_rgba (0.2, 0.52, 0.89, 1.0); 
+                cr.rectangle (0, cell_y, 3.0, cell_height); 
+                cr.fill ();
+
+                // Выводим цифру номера строки контрастным ярко-синим цветом
+                cr.set_source_rgba (0.2, 0.52, 0.89, 1.0);
+                cr.move_to (draw_x, draw_y);
+                Pango.cairo_show_layout (cr, this.pango_layout);
+                
+                cr.restore ();
+            } else {
+                // СТАНДАРТНАЯ ОТРИСОВКА
+                cr.save ();
+                cr.set_source_rgba (0.5, 0.5, 0.5, 0.6);
+                cr.move_to (draw_x, draw_y);
+                Pango.cairo_show_layout (cr, this.pango_layout);
+                cr.restore ();
+            }
         }
     }
 }
