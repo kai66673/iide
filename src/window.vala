@@ -26,6 +26,7 @@ public class Iide.Window : Panel.DocumentWorkspace {
 
     private Iide.DocumentManager document_manager;
     private Iide.ProjectManager project_manager;
+    private Iide.BookmarkService bookmark_service;
     private Iide.SettingsService settings;
 
     private Gtk.Button lsp_btn;
@@ -51,6 +52,7 @@ public class Iide.Window : Panel.DocumentWorkspace {
         settings = Iide.SettingsService.get_instance ();
         document_manager = new Iide.DocumentManager (this);
         project_manager = Iide.ProjectManager.get_instance ();
+        bookmark_service = Iide.BookmarkService.get_instance ();
         document_manager.document_opened.connect ((widget) => {
             grid.add (widget);
             widget.raise ();
@@ -188,6 +190,7 @@ public class Iide.Window : Panel.DocumentWorkspace {
         setup_global_diag_widget ();
 
         project_manager.open_project_by_path (settings.current_project_path);
+        bookmark_service.init_project (settings.current_project_path);
         restore_opened_documents ();
 
         // Handle window close
@@ -228,8 +231,10 @@ public class Iide.Window : Panel.DocumentWorkspace {
                     }
                 });
                 dialog.present (this);
+                bookmark_service.write_cache_to_json_file ();
                 return true;
             }
+            bookmark_service.write_cache_to_json_file ();
             return false;
         });
 
@@ -467,9 +472,20 @@ public class Iide.Window : Panel.DocumentWorkspace {
         // 1. Получаем последний сфокусированный виджет в сетке панелей
         Panel.Widget? active_widget = this.get_grid ().get_most_recent_frame ().get_visible_child ();
 
-        if (active_widget == null)return null;
+        if (active_widget == null)
+            return null;
 
         return (active_widget as TextView) ? .source_view;
+    }
+    
+    public TextView ? get_active_text_view () {
+        // 1. Получаем последний сфокусированный виджет в сетке панелей
+        Panel.Widget? active_widget = this.get_grid ().get_most_recent_frame ().get_visible_child ();
+
+        if (active_widget == null)
+            return null;
+
+        return (active_widget as TextView);
     }
 
     public void start_switch_document(bool next) {

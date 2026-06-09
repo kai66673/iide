@@ -211,6 +211,8 @@ public class Iide.SourceView : GtkSource.View {
         var motion_ctrl = new Gtk.EventControllerMotion ();
         motion_ctrl.motion.connect (this.on_textview_motion);
         this.add_controller (motion_ctrl);
+
+        BookmarkService.get_instance ().apply_bookmarks_to_buffer (this.uri, this.buffer);
     }
 
     public override bool grab_focus () {
@@ -728,5 +730,10 @@ public class Iide.SourceView : GtkSource.View {
 
         // Заставляем панель номеров строк мгновенно перерисоваться
         this.line_numbers_gutter.queue_draw (); // Или метод вызова перерисовки вашего LineNumbersGutter
+
+        // Если документ не модифицирован (сохранен), обновляем все закладки документа
+        BookmarkService.get_instance ().update_buffer_bookmarks (
+            this.uri, this.buffer
+        );
     }
 }

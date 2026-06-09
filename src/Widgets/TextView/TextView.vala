@@ -228,6 +228,9 @@ public class Iide.TextView : Panel.Widget {
             file.replace_contents (text.data, null, false, GLib.FileCreateFlags.NONE, null);
             ((GtkSource.Buffer) source_view.buffer).set_modified (false);
             buffer_saved ();
+            BookmarkService.get_instance ().update_buffer_bookmarks (
+                this.uri, this.source_view.buffer
+            );
         } catch (Error e) {
             critical (e.message);
         }
@@ -274,5 +277,15 @@ public class Iide.TextView : Panel.Widget {
 
     public void select_and_scroll (int line, int start_col, int end_col, bool is_new) {
         source_view.select_and_scroll (line, start_col, end_col, is_new);
+    }
+    public void toggle_bookmark_on_current_line () {
+        this.source_view.toggle_bookmark_on_current_line ();
+
+        // Если документ не модифицирован (сохранен), обновляем все закладки документа
+        if (!this.is_modified) {
+            BookmarkService.get_instance ().update_buffer_bookmarks (
+                this.source_view.uri, this.source_view.buffer
+            );
+        }
     }
 }

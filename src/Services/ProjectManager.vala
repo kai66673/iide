@@ -119,11 +119,13 @@ public class Iide.ProjectManager : Object {
             return;
         }
 
+        message ("DDD: load lsp.json:" + lsp_file.get_path ());
+
         try {
             var parser = new Json.Parser ();
             parser.load_from_file (lsp_file.get_path ());
             var root = parser.get_root ();
-            var obj = (Json.Object) root;
+            var obj = root.get_object ();
 
             if (obj.has_member ("languages")) {
                 var languages = obj.get_array_member ("languages");
@@ -208,6 +210,10 @@ public class Iide.ProjectManager : Object {
         settings.add_recent_project (project_root.get_path ());
         settings.last_open_directory = project_root.get_parent ().get_path ();
 
+        var bookmark_service = BookmarkService.get_instance ();
+        bookmark_service.init_project (settings.current_project_path);
+        bookmark_service.refresh_all_documents_bookmarks ();
+
         load_lsp_config (project_root);
 
         rebuild_file_cache_async.begin ();
@@ -247,6 +253,7 @@ public class Iide.ProjectManager : Object {
             file_cache.clear ();
             text_file_cache.clear ();
             settings.current_project_path = "";
+            BookmarkService.get_instance ().write_cache_to_json_file ();
             project_closed ();
         }
     }

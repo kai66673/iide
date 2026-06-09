@@ -642,9 +642,9 @@ private class Iide.ToggleBookmarkAction : Iide.AppAction {
         var app = GLib.Application.get_default () as Iide.Application;
         var win = app ? .active_window as Iide.Window;
         if (win != null) {
-            var source_view = win.get_active_source_view ();
-            if (source_view != null){
-                source_view.toggle_bookmark_on_current_line ();
+            var text_view = win.get_active_text_view ();
+            if (text_view != null){
+                text_view.toggle_bookmark_on_current_line ();
             }
         }
     }
