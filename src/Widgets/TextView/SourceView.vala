@@ -133,6 +133,10 @@ public class Iide.SourceView : GtkSource.View {
 
         show_line_numbers = false;
         this.line_numbers_gutter = new Iide.LineNumbersGutter ();
+        this.line_numbers_gutter.update_initial_width (
+            this.buffer.get_line_count(),
+            FontSizeHelper.get_size_for_zoom_level (settings.editor_font_size)
+        );
         left_gutter.insert (this.line_numbers_gutter, 0); // Вес 0 — самая левая позиция
         line_numbers_gutter.visible = settings.show_line_numbers;
 

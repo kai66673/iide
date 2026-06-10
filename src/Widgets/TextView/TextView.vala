@@ -114,6 +114,10 @@ public class Iide.TextView : Panel.Widget {
         source_map.visible = settings.show_minimap;
 
         font_zoomer.zoom_changed.connect ((level) => {
+            source_view.line_numbers_gutter.update_initial_width (
+                this.source_view.buffer.get_line_count(),
+                FontSizeHelper.get_size_for_zoom_level (settings.editor_font_size)
+            );
             source_view.mark_renderer.set_icons_size (FontSizeHelper.get_size_for_zoom_level (level));
             source_view.folding_gutter.set_icons_size (FontSizeHelper.get_size_for_zoom_level (level));
         });

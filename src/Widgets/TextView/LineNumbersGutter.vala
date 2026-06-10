@@ -15,6 +15,21 @@ namespace Iide {
             this.set_xalign (1.0f); 
         }
 
+        public void update_initial_width(int line_count, int font_size) {
+            this.pango_layout = view.create_pango_layout ("");
+
+            // Задаем текст номера строки
+            int num_count = line_count.to_string ().length;
+            this.current_width = num_count * font_size * 6 / 10;
+
+            queue_resize ();
+
+            var gutter = (Gutter) get_parent ();
+            if (gutter != null) {
+                gutter.queue_allocate ();
+            }
+        }
+
         // Автоматический расчет ширины панели в зависимости от масштаба (зума)
         public override void measure (Gtk.Orientation orientation, int for_size, out int minimum, out int natural, out int minimum_baseline, out int natural_baseline) {
             minimum_baseline = natural_baseline = -1;

@@ -126,19 +126,17 @@ public class Iide.BookmarksView : Gtk.Box {
 
         this.append (scrolled);
 
-        BookmarksNavigator.get_instance ().document_bookmarks_changed.connect(
+        var bookmarks_navigator = BookmarksNavigator.get_instance ();
+        bookmarks_navigator.document_bookmarks_changed.connect(
             this.update_buffer_bookmarks
         );
-
-        BookmarksNavigator.get_instance ().project_bookmarks_loaded.connect(
+        bookmarks_navigator.project_bookmarks_loaded.connect(
             this.update_project_bookmarks
         );
-
-        BookmarksNavigator.get_instance ().goto_next_bookmark.connect(
+        bookmarks_navigator.goto_next_bookmark.connect(
             this.activate_next_bookmark
         );
-
-        BookmarksNavigator.get_instance ().goto_prev_bookmark.connect(
+        bookmarks_navigator.goto_prev_bookmark.connect(
             this.activate_prev_bookmark
         );
     }
