@@ -28,6 +28,7 @@ public class Iide.BookmarkService : GLib.Object {
         this.current_project_root = project_root_path;
         this.loaded_json_cache.clear ();
         this.load_bookmarks_from_json ();
+        BookmarksNavigator.get_instance ().project_bookmarks_loaded (this.loaded_json_cache);
     }
 
     /**

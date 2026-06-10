@@ -64,6 +64,8 @@ public class Iide.Application : Adw.Application {
         action_manager.register_action (this, new ShowFoldingAction (this));
         action_manager.register_action (this, new FormatAction ());
         action_manager.register_action (this, new ToggleBookmarkAction ());
+        action_manager.register_action (this, new GotoNextBookmarkAction ());
+        action_manager.register_action (this, new GotoPrevBookmarkAction ());
 
         // Ins/Ovr toggle
         // Действие переключения режима
@@ -628,7 +630,7 @@ private class Iide.FormatAction : Iide.AppAction {
 
 private class Iide.ToggleBookmarkAction : Iide.AppAction {
     public override string id { get { return "toggle-bookmark"; } }
-    public override string name { get { return _("Toggle bookmark"); } }
+    public override string name { get { return _("Toggle Bookmark"); } }
     public override string? description { get { return _("Toggle bookmark at current line"); } }
     public override string? icon_name { get { return "zoom-original-symbolic"; } }
     public override string? category { get { return "View"; } }
@@ -650,3 +652,36 @@ private class Iide.ToggleBookmarkAction : Iide.AppAction {
     }
 }
 
+private class Iide.GotoNextBookmarkAction: Iide.AppAction {
+    public override string id { get { return "next-bookmark"; } }
+    public override string name { get { return _("Next Bookmark"); } }
+    public override string? description { get { return _("Goto next bookmark"); } }
+    public override string? icon_name { get { return "zoom-original-symbolic"; } }
+    public override string? category { get { return "View"; } }
+    public override string? default_shortcut { get { return "F2"; } }
+
+    public override bool can_execute () {
+        return true;
+    }
+
+    public override void execute () {
+        BookmarksNavigator.get_instance ().goto_next_bookmark ();
+    }
+}
+
+private class Iide.GotoPrevBookmarkAction: Iide.AppAction {
+    public override string id { get { return "prev-bookmark"; } }
+    public override string name { get { return _("Previous Bookmark"); } }
+    public override string? description { get { return _("Goto previous bookmark"); } }
+    public override string? icon_name { get { return "zoom-original-symbolic"; } }
+    public override string? category { get { return "View"; } }
+    public override string? default_shortcut { get { return "<shift>F2"; } }
+
+    public override bool can_execute () {
+        return true;
+    }
+
+    public override void execute () {
+        BookmarksNavigator.get_instance ().goto_prev_bookmark ();
+    }
+}

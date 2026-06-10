@@ -358,6 +358,7 @@ public class Iide.Window : Panel.DocumentWorkspace {
             new ProjectPanel (),
             new TerminalPanel (),
             new LogPanel (),
+            new BookmarksPanel (),
             panel_widget_diagnostics
         };
     }

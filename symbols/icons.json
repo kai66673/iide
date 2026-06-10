@@ -394,6 +394,9 @@
         "app-terminal": {
             "char": "0xf489"
         },
+        "app-bookmarks": {
+            "char": "0xf196d"
+        },
         "app-issues": {
             "char": "0xf0a04"
         },

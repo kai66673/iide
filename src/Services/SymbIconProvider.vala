@@ -57,15 +57,16 @@ public enum Iide.IconID {
     APP_PROJECT = 49,
     APP_LOG = 50,
     APP_TERMINAL = 51,
-    APP_ISSUES = 52,
-    APP_ERROR = 53,
-    APP_WARNING = 54,
-    APP_INFO = 55,
-    TXT_WRAP = 56,
-    LOG_ERASE = 57,
-    COD_ERROR = 58,
-    COD_WARNING = 59,
-    COD_INFO = 60;
+    APP_BOOKMARKS = 52,
+    APP_ISSUES = 53,
+    APP_ERROR = 54,
+    APP_WARNING = 55,
+    APP_INFO = 56,
+    TXT_WRAP = 57,
+    LOG_ERASE = 58,
+    COD_ERROR = 59,
+    COD_WARNING = 60,
+    COD_INFO = 61;
 }
 
 public class Iide.SymbIconProvider {
@@ -134,6 +135,7 @@ public class Iide.SymbIconProvider {
             { "app-project", "" },
             { "app-log", "" },
             { "app-terminal", "" },
+            { "app-bookmarks", "" },
             { "app-issues", "" },
             { "app-error", "" },
             { "app-warning", "" },

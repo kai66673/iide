@@ -701,7 +701,8 @@ public class Iide.SourceView : GtkSource.View {
 
     public void toggle_bookmark_on_current_line () {
         var source_buffer = this.get_buffer () as GtkSource.Buffer;
-        if (source_buffer == null) return;
+        if (source_buffer == null)
+            return;
 
         // Получаем итератор текущей строки (где стоит курсор)
         Gtk.TextIter cursor_iter;
@@ -735,5 +736,7 @@ public class Iide.SourceView : GtkSource.View {
         BookmarkService.get_instance ().update_buffer_bookmarks (
             this.uri, this.buffer
         );
+
+        BookmarksNavigator.get_instance().document_bookmarks_changed (this.uri, this.buffer);
     }
 }
