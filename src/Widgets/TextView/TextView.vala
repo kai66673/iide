@@ -115,7 +115,7 @@ public class Iide.TextView : Panel.Widget {
 
         font_zoomer.zoom_changed.connect ((level) => {
             source_view.line_numbers_gutter.update_initial_width (
-                this.source_view.buffer.get_line_count(),
+                this.source_view.buffer.get_line_count().to_string ().length,
                 FontSizeHelper.get_size_for_zoom_level (settings.editor_font_size)
             );
             source_view.mark_renderer.set_icons_size (FontSizeHelper.get_size_for_zoom_level (level));

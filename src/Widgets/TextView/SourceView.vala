@@ -81,6 +81,7 @@ public class Iide.SourceView : GtkSource.View {
     private EditorOverlayLayer? overlay = null;
     private Gtk.Widget? folding_preview_widget = null;
     private int last_hovered_line = -1;
+    private int line_number_symbols_count = 1;
 
     public signal void breadcrumbs_changed (Gee.List<SourceNodeItem?> crumbs);
 
@@ -131,14 +132,27 @@ public class Iide.SourceView : GtkSource.View {
         var left_gutter = get_gutter (Gtk.TextWindowType.LEFT);
         left_gutter.visible = true;
 
+        var line_numbers = this.buffer.get_line_count();
+        this.line_number_symbols_count = line_numbers.to_string ().length;
         show_line_numbers = false;
         this.line_numbers_gutter = new Iide.LineNumbersGutter ();
         this.line_numbers_gutter.update_initial_width (
-            this.buffer.get_line_count(),
+            this.line_number_symbols_count,
             FontSizeHelper.get_size_for_zoom_level (settings.editor_font_size)
         );
         left_gutter.insert (this.line_numbers_gutter, 0); // Вес 0 — самая левая позиция
         line_numbers_gutter.visible = settings.show_line_numbers;
+        this.buffer.changed.connect(() => {
+            var new_line_numbers = this.buffer.get_line_count();
+            var new_line_number_symbols_count = new_line_numbers.to_string ().length;
+            if (new_line_number_symbols_count != this.line_number_symbols_count) {
+                this.line_number_symbols_count = new_line_number_symbols_count;
+                this.line_numbers_gutter.update_initial_width (
+                    this.line_number_symbols_count,
+                    FontSizeHelper.get_size_for_zoom_level (settings.editor_font_size)
+                );
+            }
+        });
 
         mark_renderer = new GutterMarkRenderer ();
         mark_renderer.set_icons_size (FontSizeHelper.get_size_for_zoom_level (settings.editor_font_size));

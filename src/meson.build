@@ -96,10 +96,13 @@ iide_deps = [
 
 iide_sources += gnome.compile_resources('iide-resources', 'iide.gresource.xml', c_name: 'iide')
 
+cc = meson.get_compiler('c')
+m_dep = cc.find_library('m', required : false)
+
 executable(
     'iide',
     iide_sources + [symbols_res],
-    dependencies: [iide_deps, tree_sitter_dep],
+    dependencies: [iide_deps, tree_sitter_dep, m_dep],
     include_directories: config_inc,
     install: true,
 )
