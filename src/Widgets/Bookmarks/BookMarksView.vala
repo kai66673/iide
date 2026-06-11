@@ -115,6 +115,40 @@ public class Iide.BookmarksView : Gtk.Box {
     private Gee.HashMap<string, DocumentBookmarksRow> file_rows = new Gee.HashMap<string, DocumentBookmarksRow> ();
 
     public BookmarksView () {
+        Object (orientation: Gtk.Orientation.VERTICAL, spacing: 0);
+        
+        var icon_provider = SymbIconProvider.get_instance ();
+
+        var toolbar = new Gtk.Box (Gtk.Orientation.HORIZONTAL, 6);
+        toolbar.add_css_class ("toolbar");
+        toolbar.margin_start = 6;
+        toolbar.margin_end = 6;
+        toolbar.margin_top = 4;
+        toolbar.margin_bottom = 4;
+
+        // Кнопка Назад
+        var back_btn = new Gtk.Button.from_icon_name ("go-previous-symbolic");
+        back_btn.tooltip_text = "Previous bookmark (Shift+F2)";
+        back_btn.action_name = "app.prev-bookmark"; // Привязываем к Action
+
+        // Кнопка Вперед
+        var forward_btn = new Gtk.Button.from_icon_name ("go-next-symbolic");
+        forward_btn.tooltip_text = "Next bookmark (F2)";
+        forward_btn.action_name = "app.next-bookmark";
+
+        // Кнопка Очистить
+        var clear_button = new Gtk.Button () {
+            icon_name = icon_provider.icon_name (IconID.LOG_ERASE),
+            tooltip_text = _("Clear all current project bookmarks")
+        };
+        clear_button.clicked.connect (on_clear_bookmarks);
+
+        toolbar.append(back_btn);
+        toolbar.append(forward_btn);
+        toolbar.append (new Gtk.Separator (Gtk.Orientation.VERTICAL));
+        toolbar.append (clear_button);
+        toolbar.append (new Gtk.Separator (Gtk.Orientation.VERTICAL));
+
         main_list = new Gtk.ListBox ();
         main_list.set_selection_mode (Gtk.SelectionMode.NONE);
 
@@ -124,6 +158,7 @@ public class Iide.BookmarksView : Gtk.Box {
             child = main_list
         };
 
+        this.append (toolbar);
         this.append (scrolled);
 
         var bookmarks_navigator = BookmarksNavigator.get_instance ();
@@ -139,6 +174,10 @@ public class Iide.BookmarksView : Gtk.Box {
         bookmarks_navigator.goto_prev_bookmark.connect(
             this.activate_prev_bookmark
         );
+    }
+
+    private void on_clear_bookmarks() {
+        BookmarksNavigator.get_instance().clear_project_bookmarks ();
     }
 
     private void activate_next_bookmark() {

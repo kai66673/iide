@@ -18,4 +18,8 @@ public class Iide.BookmarksNavigator : GLib.Object {
     private BookmarksNavigator () {
         Object ();
     }
+
+    public void clear_project_bookmarks() {
+        BookmarkService.get_instance ().clear_project_bookmarks ();
+    }
 }

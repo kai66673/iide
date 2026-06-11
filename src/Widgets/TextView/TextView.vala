@@ -282,6 +282,7 @@ public class Iide.TextView : Panel.Widget {
     public void select_and_scroll (int line, int start_col, int end_col, bool is_new) {
         source_view.select_and_scroll (line, start_col, end_col, is_new);
     }
+    
     public void toggle_bookmark_on_current_line () {
         this.source_view.toggle_bookmark_on_current_line ();
 

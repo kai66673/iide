@@ -218,5 +218,12 @@ public class Iide.BookmarkService : GLib.Object {
             LoggerService.get_instance ().error ("Bookmarks", "Failed to read bookmarks.json: %s".printf (e.message));
         }
     }
+
+    public void clear_project_bookmarks() {
+        this.loaded_json_cache.clear ();
+        this.write_cache_to_json_file ();
+        BookmarksNavigator.get_instance ().project_bookmarks_loaded (this.loaded_json_cache);
+        this.refresh_all_documents_bookmarks ();
+    }
 }
 
