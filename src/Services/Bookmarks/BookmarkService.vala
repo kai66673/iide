@@ -7,7 +7,7 @@ public class Iide.BookmarkService : GLib.Object {
 
     // Кэш закладок в памяти для файлов, пока они не открыты в UI
     // [file_uri] -> [Список номеров строк (0-indexed)]
-    private Gee.HashMap<string, Gee.ArrayList<int>> loaded_json_cache;
+    private Gee.HashMap<string, Gee.ArrayList<BookMarkInfo?>> loaded_json_cache;
 
     public static BookmarkService get_instance () {
         if (instance == null) {
@@ -18,7 +18,7 @@ public class Iide.BookmarkService : GLib.Object {
 
     private BookmarkService () {
         Object ();
-        this.loaded_json_cache = new Gee.HashMap<string, Gee.ArrayList<int>> ();
+        this.loaded_json_cache = new Gee.HashMap<string, Gee.ArrayList<BookMarkInfo?>> ();
     }
 
     /**
@@ -56,20 +56,30 @@ public class Iide.BookmarkService : GLib.Object {
         if (!this.loaded_json_cache.has_key (file_uri))
             return;
         
-        var saved_lines = this.loaded_json_cache.get (file_uri);
+        var bookmarks_info = this.loaded_json_cache.get (file_uri);
 
-        foreach (int line_num in saved_lines) {
+        foreach (var bookmark_info in bookmarks_info) {
             // Страхуемся от выхода за границы, если файл успели обрезать извне
-            if (line_num >= source_buffer.get_line_count ()) continue;
+            if (bookmark_info.line_number >= source_buffer.get_line_count ()) continue;
 
             Gtk.TextIter line_iter;
-            source_buffer.get_iter_at_line (out line_iter, line_num);
+            source_buffer.get_iter_at_line (out line_iter, bookmark_info.line_number);
 
             // Создаем нативный GtkSource.Mark категории "bookmark" [INDEX]
             source_buffer.create_source_mark (null, "bookmark", line_iter);
         }
 
-        LoggerService.get_instance ().info ("Bookmarks", "Successfully spawned %d 'bookmark' marks for: %s".printf (saved_lines.size, file_uri));
+        LoggerService.get_instance ().info ("Bookmarks", "Successfully spawned %d 'bookmark' marks for: %s".printf (bookmarks_info.size, file_uri));
+    }
+
+    private string iter_line_text(Gtk.TextIter iter) {
+        Gtk.TextIter start_iter = iter;
+        Gtk.TextIter end_iter = iter;
+
+        start_iter.set_line_offset(0);
+        end_iter.forward_to_line_end();
+
+        return iter.get_buffer ().get_text(start_iter, end_iter, true);
     }
 
     public void update_buffer_bookmarks (string file_uri, Gtk.TextBuffer buffer) {
@@ -80,7 +90,7 @@ public class Iide.BookmarkService : GLib.Object {
         Gtk.TextIter iter;
         source_buffer.get_start_iter (out iter);
 
-        var current_file_lines = new Gee.ArrayList<int> ();
+        var current_file_bookmarks = new Gee.HashMap<int, BookMarkInfo?> ();
 
         // Идем по буферу вперед, прыгая строго от маркера к маркеру категории "bookmark" [INDEX]
         while (!iter.is_end ()) {
@@ -89,8 +99,12 @@ public class Iide.BookmarkService : GLib.Object {
             if (marks_at_pos != null && marks_at_pos.length () > 0) {
                 int line_num = iter.get_line ();
                 // Чтобы избежать дублирования на одной строке, проверяем наличие
-                if (!current_file_lines.contains (line_num)) {
-                    current_file_lines.add (line_num);
+                if (!current_file_bookmarks.has_key (line_num)) {
+                    BookMarkInfo bookmark = BookMarkInfo () {
+                        line_number = line_num,
+                        line_text = iter_line_text(iter)
+                    };
+                    current_file_bookmarks.set (line_num, bookmark);
                 }
             }
 
@@ -102,8 +116,12 @@ public class Iide.BookmarkService : GLib.Object {
         }
 
         // Записываем собранные строки в кэш
-        if (current_file_lines.size > 0) {
-            this.loaded_json_cache.set (file_uri, current_file_lines);
+        if (current_file_bookmarks.size > 0) {
+            Gee.ArrayList<BookMarkInfo?> file_bookmarks = new Gee.ArrayList<BookMarkInfo?> ();
+            foreach (var bookmark in current_file_bookmarks.values) {
+                file_bookmarks.add (bookmark);
+            }
+            this.loaded_json_cache.set (file_uri, file_bookmarks);
         } else {
             // Если пользователь снял все закладки — очищаем запись файла из кэша
             this.loaded_json_cache.unset (file_uri);
@@ -141,8 +159,11 @@ public class Iide.BookmarkService : GLib.Object {
 
             foreach (var entry in this.loaded_json_cache.entries) {
                 var lines_array = new Json.Array ();
-                foreach (int line in entry.value) {
-                    lines_array.add_int_element (line);
+                foreach (var bookmark in entry.value) {
+                    var bookmark_obj = new Json.Object ();
+                    bookmark_obj.set_int_member ("line_number", bookmark.line_number);
+                    bookmark_obj.set_string_member ("line_text", bookmark.line_text);
+                    lines_array.add_object_element (bookmark_obj);
                 }
                 files_obj.set_array_member (entry.key, lines_array);
             }
@@ -176,14 +197,20 @@ public class Iide.BookmarkService : GLib.Object {
             var files_obj = root.get_object_member ("bookmarks");
             foreach (string file_uri in files_obj.get_members ()) {
                 var lines_array = files_obj.get_array_member (file_uri);
-                var lines_list = new Gee.ArrayList<int> ();
+                var bookmarks = new Gee.ArrayList<BookMarkInfo?> ();
 
                 foreach (var element in lines_array.get_elements ()) {
-                    lines_list.add ((int) element.get_int ());
+                    var bookmark_obj = element.get_object ();
+                    bookmarks.add (
+                        BookMarkInfo() {
+                            line_number = (int) bookmark_obj.get_int_member ("line_number"),
+                            line_text = bookmark_obj.get_string_member ("line_text")
+                        }
+                    );
                 }
 
-                if (lines_list.size > 0) {
-                    this.loaded_json_cache.set (file_uri, lines_list);
+                if (bookmarks.size > 0) {
+                    this.loaded_json_cache.set (file_uri, bookmarks);
                 }
             }
             LoggerService.get_instance ().info ("Bookmarks", "Bookmarks matrix loaded successfully from project storage.");

@@ -192,7 +192,7 @@ public class Iide.BookmarksView : Gtk.Box {
         }
     }
 
-    private void update_project_bookmarks(Gee.HashMap<string, Gee.ArrayList<int>> bookmarks) {
+    private void update_project_bookmarks(Gee.HashMap<string, Gee.ArrayList<BookMarkInfo?>> bookmarks) {
         // Очистка ListBox
         Gtk.Widget? child;
         while ((child = main_list.get_first_child ()) != null) {
@@ -203,10 +203,9 @@ public class Iide.BookmarksView : Gtk.Box {
 
         foreach (var file_bookmarks in bookmarks.entries) {
             var file_uri = file_bookmarks.key;
-            var line_numbers = file_bookmarks.value;
             Gee.HashMap<int, string> file_lines = new Gee.HashMap<int, string> ();
-            foreach (var line_number in line_numbers) {
-                file_lines.set (line_number, "...");  // TODO: ?
+            foreach (var bi in file_bookmarks.value) {
+                file_lines.set (bi.line_number, bi.line_text);
             }
             var file_row = new DocumentBookmarksRow (file_uri);
             main_list.append (file_row);
