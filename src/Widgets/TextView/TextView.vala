@@ -210,6 +210,40 @@ public class Iide.TextView : Panel.Widget {
                 map_adj.set_value (0);
             }
         });
+
+        // Обработка Esc для скрытия панели поиска:
+        var esc_key_ctrl = new Gtk.EventControllerKey ();
+
+        // ВАЖНО: Используем фазу CAPTURE, чтобы перехватить Esc до того, 
+        // как текстовый буфер попытается обработать его как-то по-своему.
+        esc_key_ctrl.set_propagation_phase (Gtk.PropagationPhase.CAPTURE);
+
+        esc_key_ctrl.key_pressed.connect ((keyval, keycode, state) => {
+            if (keyval == Gdk.Key.Escape) {
+                // Запрашиваем родительский статус-бар у этого TextView.
+                // Предполагается, что ваш EditorStatusBar доступен через свойство/метод, 
+                // либо лежит в той же иерархии контейнеров (например, у них общий родитель Box).
+                // Если у вас статус-бар сохранен в приватном поле text_view_container.status_bar:
+                if (this.editor_status_bar != null) {
+                    
+                    // Проверяем, открыт ли сейчас поиск (чтобы Esc не срабатывал вхолостую).
+                    // Для этого можно добавить простой геттер в EditorStatusBar или проверять visible_child_name
+                    if (this.editor_status_bar.is_search_bar_visible ()) {
+                        this.editor_status_bar.hide_search_bar ();
+                        
+                        // Возвращаем true, полностью останавливая дальнейшее распространение Esc в GTK
+                        return true; 
+                    }
+                }
+            }
+            return false; // Все остальные клавиши пропускаем дальше свободно
+        });
+
+        this.add_controller (esc_key_ctrl);
+    }
+
+    public void show_search_bar () {
+        this.editor_status_bar.show_search_bar ();
     }
 
     public override void size_allocate (int width, int height, int baseline) {

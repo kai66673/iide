@@ -66,6 +66,7 @@ public class Iide.Application : Adw.Application {
         action_manager.register_action (this, new ToggleBookmarkAction ());
         action_manager.register_action (this, new GotoNextBookmarkAction ());
         action_manager.register_action (this, new GotoPrevBookmarkAction ());
+        action_manager.register_action (this, new ShowFindBar ());
 
         // Ins/Ovr toggle
         // Действие переключения режима
@@ -683,5 +684,29 @@ private class Iide.GotoPrevBookmarkAction: Iide.AppAction {
 
     public override void execute () {
         BookmarksNavigator.get_instance ().goto_prev_bookmark ();
+    }
+}
+
+private class Iide.ShowFindBar: Iide.AppAction {
+    public override string id { get { return "show-findbar"; } }
+    public override string name { get { return _("Show Find Bar"); } }
+    public override string? description { get { return _("Show find bar in active editor"); } }
+    public override string? icon_name { get { return "zoom-original-symbolic"; } }
+    public override string? category { get { return "View"; } }
+    public override string? default_shortcut { get { return "<primary>f"; } }
+
+    public override bool can_execute () {
+        return true;
+    }
+
+    public override void execute () {
+        var app = GLib.Application.get_default () as Iide.Application;
+        var win = app ? .active_window as Iide.Window;
+        if (win != null) {
+            var text_view = win.get_active_text_view ();
+            if (text_view != null){
+                text_view.show_search_bar ();
+            }
+        }
     }
 }
