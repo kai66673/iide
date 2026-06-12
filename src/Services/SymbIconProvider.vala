@@ -62,11 +62,13 @@ public enum Iide.IconID {
     APP_ERROR = 54,
     APP_WARNING = 55,
     APP_INFO = 56,
-    TXT_WRAP = 57,
-    LOG_ERASE = 58,
-    COD_ERROR = 59,
-    COD_WARNING = 60,
-    COD_INFO = 61;
+    FIND_WHOLE_WORD = 57,
+    FIND_CASE_SENSITIVE = 58,
+    TXT_WRAP = 59,
+    LOG_ERASE = 60,
+    COD_ERROR = 61,
+    COD_WARNING = 62,
+    COD_INFO = 63;
 }
 
 public class Iide.SymbIconProvider {
@@ -140,6 +142,8 @@ public class Iide.SymbIconProvider {
             { "app-error", "" },
             { "app-warning", "" },
             { "app-info", "" },
+            { "find-whole-word", "" },
+            { "find-case-sensitive", "" },
             { "txt-wrap", "" },
             { "log-erase", "" },
             { "cod-error", "cod-error" },

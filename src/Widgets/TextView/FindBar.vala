@@ -4,11 +4,14 @@
 public class Iide.FindBar : Gtk.Box {
     private SourceView source_view;
     private Gtk.Entry search_entry;
-    private Gtk.Label count_label;
 
     // Нативные поисковые структуры GtkSourceView 5
     private GtkSource.SearchSettings search_settings;
     private GtkSource.SearchContext search_context;
+
+    // Кнопки навигации
+    private Gtk.Button prev_btn;
+    private Gtk.Button next_btn;
 
     // Кнопки настроек поиска
     private Gtk.ToggleButton case_btn;
@@ -22,6 +25,8 @@ public class Iide.FindBar : Gtk.Box {
         this.source_view = source_view;
         this.add_css_class ("editor-find-bar");
 
+        var icon_provider = SymbIconProvider.get_instance ();
+
         // Инициализируем нативный поисковый движок
         var buffer = source_view.get_buffer () as GtkSource.Buffer;
         this.search_settings = new GtkSource.SearchSettings ();
@@ -33,16 +38,18 @@ public class Iide.FindBar : Gtk.Box {
         // Поле ввода текста
         this.search_entry = new Gtk.Entry ();
         this.search_entry.placeholder_text = "Найти в файле...";
-        this.search_entry.width_request = 200;
+        this.search_entry.hexpand = true;
+        this.search_entry.set_size_request (80, -1);
         this.search_entry.add_css_class ("search-entry");
         this.append (this.search_entry);
 
         // === ДОРАБОТКА №3: КНОПКИ НАСТРОЕК ПОИСКА ===
         // Учитывать регистр (Aa)
         this.case_btn = new Gtk.ToggleButton ();
-        this.case_btn.icon_name = "format-text-capitalize-symbolic";
-        this.case_btn.tooltip_text = "Учитывать регистр";
+        this.case_btn.icon_name = icon_provider.icon_name (IconID.FIND_CASE_SENSITIVE);
+        this.case_btn.tooltip_text = "Case Sensitive";
         this.case_btn.add_css_class ("flat");
+        this.case_btn.add_css_class ("small-menu-button");
         this.case_btn.toggled.connect (() => {
             this.search_settings.case_sensitive = this.case_btn.active;
             this.update_match_count ();
@@ -51,30 +58,30 @@ public class Iide.FindBar : Gtk.Box {
 
         // Слово целиком (W)
         this.word_btn = new Gtk.ToggleButton ();
-        this.word_btn.icon_name = "text-fields-symbolic"; // В Adwaita часто используется для границ текста
-        this.word_btn.tooltip_text = "Слово целиком";
+        this.word_btn.icon_name = icon_provider.icon_name (IconID.FIND_WHOLE_WORD); // В Adwaita часто используется для границ текста
+        this.word_btn.tooltip_text = "At Word Boundaries";
         this.word_btn.add_css_class ("flat");
+        this.word_btn.add_css_class ("small-menu-button");
+
         this.word_btn.toggled.connect (() => {
             this.search_settings.at_word_boundaries = this.word_btn.active;
             this.update_match_count ();
         });
         this.append (this.word_btn);
 
-        // Метка счетчика совпадений
-        this.count_label = new Gtk.Label ("0 из 0");
-        this.count_label.add_css_class ("dim-label");
-        this.count_label.margin_end = 6;
-        this.append (this.count_label);
-
         // Кнопка: Назад (Предыдущее совпадение)
-        var prev_btn = new Gtk.Button.from_icon_name ("go-up-symbolic");
+        prev_btn = new Gtk.Button.from_icon_name ("go-up-symbolic");
         prev_btn.tooltip_text = "Предыдущее совпадение (Shift+Enter)";
+        prev_btn.add_css_class ("flat");
+        prev_btn.add_css_class ("small-menu-button");
         prev_btn.clicked.connect (this.jump_to_previous);
         this.append (prev_btn);
 
         // Кнопка: Вперед (Следующее совпадение)
-        var next_btn = new Gtk.Button.from_icon_name ("go-down-symbolic");
+        next_btn = new Gtk.Button.from_icon_name ("go-down-symbolic");
         next_btn.tooltip_text = "Следующее совпадение (Enter)";
+        next_btn.add_css_class ("flat");
+        next_btn.add_css_class ("small-menu-button");
         next_btn.clicked.connect (this.jump_to_next);
         this.append (next_btn);
 
@@ -175,7 +182,8 @@ public class Iide.FindBar : Gtk.Box {
     private void update_match_count () {
         int total = this.search_context.occurrences_count;
         if (total <= 0 || this.search_entry.text.length == 0) {
-            this.count_label.label = "0 из 0";
+            this.prev_btn.sensitive = false;
+            this.next_btn.sensitive = false;
             return;
         }
 
@@ -200,7 +208,8 @@ public class Iide.FindBar : Gtk.Box {
         int current_ui_idx = current_position > 0 ? current_position : 1;
         if (current_ui_idx > total) current_ui_idx = total;
 
-        this.count_label.label = "%d из %d".printf (current_ui_idx, total);
+        this.prev_btn.sensitive = true;
+        this.next_btn.sensitive = true;
     }
 }
 

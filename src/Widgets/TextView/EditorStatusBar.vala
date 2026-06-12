@@ -17,17 +17,35 @@ public class Iide.EditorStatusBar : Gtk.Box {
 
         // Левая часть: Breadcrumbs | FindBar
         this.breadcrumps_bar = new BreadcrumbsBar (source_view);
+        this.breadcrumps_bar.hexpand = true;
         this.breadcrumps_bar.update_file_path (GLib.File.new_for_uri (source_view.uri),
                                           GLib.File.new_for_path (ProjectManager.get_instance ().get_workspace_root_path ()));
 
         this.find_bar = new FindBar (source_view);
+        this.find_bar.hexpand = true;
+
+        // ===================================================================
+        // Оборачиваем крошки в скрытый скролл!
+        // ===================================================================
+        var breadcrumbs_scroll = new Gtk.ScrolledWindow ();
+        breadcrumbs_scroll.set_child (this.breadcrumps_bar);
+        
+        // Отключаем видимость полос прокрутки, чтобы они не загромождали статус-бар [INDEX]
+        breadcrumbs_scroll.hscrollbar_policy = Gtk.PolicyType.EXTERNAL; 
+        breadcrumbs_scroll.vscrollbar_policy = Gtk.PolicyType.NEVER;
+        
+        // Задаем выравнивание, чтобы скролл не растягивался насильно
+        breadcrumbs_scroll.halign = Gtk.Align.FILL;
+        breadcrumbs_scroll.valign = Gtk.Align.CENTER;
+        breadcrumbs_scroll.hexpand = true;
 
         this.left_stack = new Gtk.Stack ();
         // Настраиваем красивую плавную анимацию скольжения (Slide) при переключении
         this.left_stack.transition_type = Gtk.StackTransitionType.SLIDE_LEFT_RIGHT;
         this.left_stack.transition_duration = 200; // 200 миллисекунд
-        this.left_stack.add_named (this.breadcrumps_bar, "breadcrumbs");
+        this.left_stack.add_named (breadcrumbs_scroll, "breadcrumbs");
         this.left_stack.add_named (this.find_bar, "find");
+        this.left_stack.hexpand = true;
         this.append (this.left_stack);
 
         // При запросе Esc из панели поиска возвращаем хлебные крошки
@@ -35,9 +53,17 @@ public class Iide.EditorStatusBar : Gtk.Box {
             this.hide_search_bar ();
         });
 
+        // На всякий случай также докручиваем принудительно через микро-задержку в Idle
+        source_view.buffer.notify["cursor-position"].connect (() => {
+            Idle.add (() => {
+                this.scroll_breadcrumbs_to_end (breadcrumbs_scroll);
+                return Source.REMOVE;
+            });
+        });
+
         // spacer
         var spacer_box = new Gtk.Box (Gtk.Orientation.HORIZONTAL, 2);
-        spacer_box.hexpand = true;
+        spacer_box.hexpand = false;
         this.append (spacer_box);
 
         // Правая часть: Статистика
@@ -46,17 +72,32 @@ public class Iide.EditorStatusBar : Gtk.Box {
         mode_label = new Gtk.Label ("INS");
         mode_label.add_css_class ("dim-label");
         mode_label.height_request = 24;
+        mode_label.width_request = 24;
 
         pos_label = new Gtk.Label ("1:1");
+        pos_label.width_request = 64;
 
         info_box.append (mode_label);
         info_box.append (pos_label);
         this.append (info_box);
 
         diagnostic_bar = new DiagnosticsBar (source_view);
+        diagnostic_bar.width_request = 64;
 
         // Добавляем в инфо-бокс перед позицией курсора
         info_box.prepend (diagnostic_bar);
+    }
+
+    private void scroll_breadcrumbs_to_end (Gtk.ScrolledWindow scroll_widget) {
+        var adj = scroll_widget.get_hadjustment ();
+        if (adj != null) {
+            // Вычисляем максимальное правое положение: верхняя граница минус размер страницы [INDEX]
+            double max_val = adj.get_upper () - adj.get_page_size ();
+            if (max_val > 0) {
+                // Мгновенно и без рывков сдвигаем видимую область в самый конец (к имени текущего метода) [INDEX]
+                adj.set_value (max_val); 
+            }
+        }
     }
 
     /**

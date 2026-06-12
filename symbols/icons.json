@@ -409,6 +409,12 @@
         "app-info": {
             "char": "0xea74"
         },
+        "find-whole-word": {
+            "char": "0xeb7e"
+        },
+        "find-case-sensitive": {
+            "char": "0xeab1"
+        },
         "txt-wrap": {
             "char": "0xf05b6"
         },

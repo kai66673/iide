@@ -21,8 +21,6 @@ public class Iide.BreadcrumbFileSegment : Gtk.Box {
 
         var label = new Gtk.Label (file.get_basename ());
         button.set_child (label);
-        label.set_ellipsize (Pango.EllipsizeMode.END);
-        label.set_width_chars (1);
 
         if (is_file) {
             // В VSCode обычно иконка и текст вместе, можно использовать Box
@@ -100,8 +98,6 @@ public class Iide.BreadcrumbSymbolSegment : Gtk.Box {
 
         var label = new Gtk.Label (item.name);
         button.set_child (label);
-        label.set_ellipsize (Pango.EllipsizeMode.END);
-        label.set_width_chars (1);
 
         this.append (button);
         setup_popover ();
