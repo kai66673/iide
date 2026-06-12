@@ -3,13 +3,8 @@ public class Iide.EditorStatusBar : Gtk.Box {
     private Gtk.Label pos_label;
     private Gtk.Label mode_label;
 
-    private Gtk.Label error_label;
-    private Gtk.Label warn_label;
-    private Gtk.Box diagnostic_box;
-
-    private BreadcrumbsBar new_breadcrumps;
-
-    private Iide.DiagnosticsPopover diag_popover = null;
+    private DiagnosticsBar diagnostic_bar;
+    private BreadcrumbsBar breadcrumps_bar;
 
     public EditorStatusBar (SourceView source_view) {
         Object (orientation: Gtk.Orientation.HORIZONTAL, spacing: 12);
@@ -17,9 +12,9 @@ public class Iide.EditorStatusBar : Gtk.Box {
         this.add_css_class ("editor-status-bar");
 
         // Левая часть: Breadcrumbs
-        new_breadcrumps = new BreadcrumbsBar (source_view);
-        this.append (new_breadcrumps);
-        new_breadcrumps.update_file_path (GLib.File.new_for_uri (source_view.uri),
+        breadcrumps_bar = new BreadcrumbsBar (source_view);
+        this.append (breadcrumps_bar);
+        breadcrumps_bar.update_file_path (GLib.File.new_for_uri (source_view.uri),
                                           GLib.File.new_for_path (ProjectManager.get_instance ().get_workspace_root_path ()));
 
         // spacer
@@ -40,91 +35,18 @@ public class Iide.EditorStatusBar : Gtk.Box {
         info_box.append (pos_label);
         this.append (info_box);
 
-        diagnostic_box = new Gtk.Box (Gtk.Orientation.HORIZONTAL, 8);
-
-        // Ошибки (Красный)
-        error_label = new Gtk.Label ("0");
-        error_label.add_css_class ("error-label"); // Настроим цвет в CSS
-
-        // Предупреждения (Желтый)
-        warn_label = new Gtk.Label ("0");
-        warn_label.add_css_class ("warning-label");
-
-        var icon_provider = SymbIconProvider.get_instance ();
-
-        diagnostic_box.append (icon_provider.image (IconID.COD_ERROR));
-        diagnostic_box.append (error_label);
-        diagnostic_box.append (icon_provider.image (IconID.COD_WARNING));
-        diagnostic_box.append (warn_label);
+        diagnostic_bar = new DiagnosticsBar (source_view);
 
         // Добавляем в инфо-бокс перед позицией курсора
-        info_box.prepend (diagnostic_box);
-        diagnostic_box.hide (); // Скрываем, если ошибок нет
-
-        init_diagnostics_interaction ();
-        this.diagnostic_box.add_css_class ("diagnostic-box");
-    }
-
-    private void init_diagnostics_interaction () {
-        // Создаем контроллер жеста клика
-        var click_gesture = new Gtk.GestureClick ();
-
-        // Подключаемся к событию нажатия (pressed)
-        click_gesture.pressed.connect ((n_press, x, y) => {
-            // Мы вызываем метод, который создаст или обновит Popover
-            show_diagnostics_popup ();
-        });
-
-        // Привязываем жест к вашему боксу
-        this.diagnostic_box.add_controller (click_gesture);
-
-        // (Опционально) Добавим визуальный отклик: смена курсора при наведении
-        this.diagnostic_box.set_cursor (new Gdk.Cursor.from_name ("pointer", null));
-
-        // --- 2. Контроллер наведения (Hover) ---
-        var motion_controller = new Gtk.EventControllerMotion ();
-
-        // Когда мышь заходит в область
-        motion_controller.enter.connect ((x, y) => {
-            this.diagnostic_box.add_css_class ("hover");
-            // Меняем курсор на "руку"
-            this.diagnostic_box.set_cursor (new Gdk.Cursor.from_name ("pointer", null));
-        });
-
-        // Когда мышь покидает область
-        motion_controller.leave.connect (() => {
-            this.diagnostic_box.remove_css_class ("hover");
-            // Возвращаем обычный курсор
-            this.diagnostic_box.set_cursor (null);
-        });
-
-        this.diagnostic_box.add_controller (motion_controller);
-    }
-
-    private void show_diagnostics_popup () {
-        if (this.diag_popover == null) {
-            // Создаем попап, привязывая его к diagnostic_box
-            this.diag_popover = new Iide.DiagnosticsPopover (this.diagnostic_box, this.source_view);
-        }
-
-        // Обновляем список ошибок из буфера перед показом
-        this.diag_popover.refresh ();
-        this.diag_popover.popup ();
+        info_box.prepend (diagnostic_bar);
     }
 
     public void update_diagnostics (int errors, int warnings) {
-        if (errors == 0 && warnings == 0) {
-            diagnostic_box.hide ();
-            return;
-        }
-
-        diagnostic_box.show ();
-        error_label.label = errors.to_string ();
-        warn_label.label = warnings.to_string ();
+        this.diagnostic_bar.update_diagnostics (errors, warnings);
     }
 
     public void update_breadcrumbs (Gee.List<SourceNodeItem?> crumbs) {
-        new_breadcrumps.update_breadcrumbs (crumbs);
+        breadcrumps_bar.update_breadcrumbs (crumbs);
     }
 
     public void update_position (int line, int col, int selection_len = 0) {
