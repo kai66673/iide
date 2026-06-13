@@ -74,6 +74,16 @@ public class Iide.LspDiagnostic : GLib.Object {
     }
 }
 
+public struct Iide.LspDiagnosticPair {
+    public LspDiagnostic diagnostic;
+    public Json.Object raw_json;
+
+    public LspDiagnosticPair (LspDiagnostic d, Json.Object json) {
+        this.diagnostic = d;
+        this.raw_json = json;
+    }
+}
+
 public class Iide.LspLocation : GLib.Object {
     public string uri { get; set; }
     public int start_line { get; set; }
@@ -114,4 +124,35 @@ public class Iide.DocumentLspSymbol : Object {
     public int start_char { get; set; }
     public string? container_name { get; set; }
     public Gee.List<DocumentLspSymbol> children { get; set; default = new Gee.ArrayList<DocumentLspSymbol> (); }
+}
+
+/***********************************************
+ ** Структуры для реализации LSP-code-actions **
+ ***********************************************/
+
+// Структура атомарной текстовой правки (соответствует TextEdit в LSP)
+public class Iide.LspTextEdit : GLib.Object {
+    public int start_line { get; set; }
+    public int start_char { get; set; }
+    public int end_line { get; set; }
+    public int end_char { get; set; }
+    public string new_text { get; set; }
+}
+
+// Одиночное доступное действие (соответствует CodeAction в LSP)
+public class Iide.LspCodeActionItem : GLib.Object {
+    public string title { get; set; }
+    public string kind { get; set; } // Обычно "quickfix"
+    
+    // Карта правок: [file_uri] -> [Список правок TextEdit]
+    public Gee.HashMap<string, Gee.ArrayList<LspTextEdit>> changes { get; set; }
+
+    public LspCodeActionItem () {
+        this.changes = new Gee.HashMap<string, Gee.ArrayList<LspTextEdit>> ();
+    }
+}
+
+// Результирующий контейнер ответа
+public class Iide.LspCodeActionResult : GLib.Object {
+    public Gee.ArrayList<LspCodeActionItem> actions { get; set; }
 }

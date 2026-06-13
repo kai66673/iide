@@ -4,12 +4,16 @@
 public class Iide.LspDiagnosticsMark : GtkSource.Mark {
     public int severity { get; construct set; }
     public string diagnostic_message { get; construct set; }
+    public Json.Object? raw_json { get; construct set; default = null; }
 
-    public LspDiagnosticsMark(string lsp_category, int lsp_severity, string lsp_message) {
-        Object(name: null,
-               category: lsp_category,
-               severity: lsp_severity,
-               diagnostic_message: lsp_message);
+    public LspDiagnosticsMark(string lsp_category, int lsp_severity, string lsp_message, Json.Object? raw = null) {
+        Object(
+            name: null,
+            category: lsp_category,
+            severity: lsp_severity,
+            diagnostic_message: lsp_message,
+            raw_json: raw
+        );
     }
 
     private static string category_from_severity(int severity) {
@@ -25,11 +29,14 @@ public class Iide.LspDiagnosticsMark : GtkSource.Mark {
         return "lsp_error";
     }
 
-    public LspDiagnosticsMark.from_lsp_diagnostic(LspDiagnostic diagnostics) {
-        Object(name: null,
-               category: category_from_severity(diagnostics.severity),
-               severity: diagnostics.severity,
-               diagnostic_message: diagnostics.message);
+    public LspDiagnosticsMark.from_lsp_diagnostic(LspDiagnostic diagnostics, Json.Object? raw = null) {
+        Object(
+            name: null,
+            category: category_from_severity(diagnostics.severity),
+            severity: diagnostics.severity,
+            diagnostic_message: diagnostics.message,
+            raw_json: raw
+        );
     }
 
     public static void set_mark_attributes(GtkSource.View text_view) {

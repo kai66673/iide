@@ -55,7 +55,7 @@ public class Iide.LspClient : Object {
     private OutputStream output_stream;
 
     // Сигнал для передачи диагностики в UI
-    public signal void diagnostics_received (string uri, Gee.ArrayList<LspDiagnostic> diagnostics);
+    public signal void diagnostics_received (string uri, Gee.ArrayList<LspDiagnosticPair?> diagnostics);
 
     // Сигнал для логирования сообщений от сервера
     public signal void log_message (int type, string message);
@@ -481,8 +481,8 @@ public class Iide.LspClient : Object {
         yield this.send_message_async (root);
     }
 
-    private Gee.ArrayList<LspDiagnostic> parse_diagnostics (Json.Array diagnostics_array) {
-        var result = new Gee.ArrayList<LspDiagnostic> ();
+    private Gee.ArrayList<LspDiagnosticPair?> parse_diagnostics (Json.Array diagnostics_array) {
+        var result = new Gee.ArrayList<LspDiagnosticPair?> ();
 
         foreach (var diag_node in diagnostics_array.get_elements ()) {
             var diag_obj = diag_node.get_object ();
@@ -504,7 +504,17 @@ public class Iide.LspClient : Object {
             d.end_line = (int) end.get_int_member ("line");
             d.end_column = (int) end.get_int_member ("character"); // character -> end_column
 
-            result.add (d);
+            // ===================================================================
+            // СВЯЗЫВАНИЕ: Создаем глубокую копию оригинального JSON-объекта, 
+            // чтобы он гарантированно остался в памяти после очистки RPC-ответа [INDEX]
+            // ===================================================================
+            var node_copy = new Json.Node (Json.NodeType.OBJECT);
+            node_copy.set_object (diag_obj);
+            var cloned_json = node_copy.copy ().get_object ();
+
+            // Упаковываем распарсенный объект и его сырой JSON в структуру [INDEX]
+            var pair = Iide.LspDiagnosticPair (d, cloned_json);
+            result.add (pair);
         }
 
         return result;
@@ -918,5 +928,110 @@ public class Iide.LspClient : Object {
         }
 
         return symbol;
+    }
+
+    /**
+     * Запрос доступных Code Actions (быстрых исправлений) для указанного диапазона и списка диагностик
+     * @param diagnostics_json_array Массив Json.Array, содержащий сырые объекты диагностик от сервера для этой строки
+     */
+    public async LspCodeActionResult? request_code_actions (string uri, int start_line, int start_char, int end_line, int end_char, Json.Array diagnostics_json_array) throws Error {
+        var params = new Json.Object ();
+
+        // 1. Указываем документ [INDEX]
+        var doc = new Json.Object ();
+        doc.set_string_member ("uri", uri);
+        params.set_object_member ("textDocument", doc);
+
+        // 2. Указываем диапазон (обычно текущая строка или выделение) [INDEX]
+        var range = new Json.Object ();
+        var start_pos = new Json.Object ();
+        start_pos.set_int_member ("line", start_line);
+        start_pos.set_int_member ("character", start_char);
+        range.set_object_member ("start", start_pos);
+
+        var end_pos = new Json.Object ();
+        end_pos.set_int_member ("line", end_line);
+        end_pos.set_int_member ("character", end_char);
+        range.set_object_member ("end", end_pos);
+        params.set_object_member ("range", range);
+
+        // 3. Формируем контекст с диагностиками [INDEX]
+        var context = new Json.Object ();
+        // Передаем массив диагностик, который мы получили от publishDiagnostics для этой строки [INDEX]
+        context.set_array_member ("diagnostics", diagnostics_json_array);
+        params.set_object_member ("context", context);
+
+        // 4. Отправляем запрос серверу [INDEX]
+        var response = yield this.send_request ("textDocument/codeAction", params);
+
+        if (response == null || !response.has_member ("result")) return null;
+
+        var result_node = response.get_member ("result");
+        if (result_node.get_node_type () == Json.NodeType.NULL) return null;
+
+        return parse_code_action_result (result_node);
+    }
+
+    /**
+     * Парсер ответа CodeAction[] от LSP-сервера
+     */
+    private LspCodeActionResult parse_code_action_result (Json.Node node) {
+        var res = new LspCodeActionResult ();
+        res.actions = new Gee.ArrayList<LspCodeActionItem> ();
+
+        if (node.get_node_type () != Json.NodeType.ARRAY) return res;
+        var actions_array = node.get_array ();
+
+        foreach (var action_node in actions_array.get_elements ()) {
+            if (action_node.get_node_type () != Json.NodeType.OBJECT) continue;
+            
+            var action_obj = action_node.get_object ();
+            var item = new LspCodeActionItem ();
+
+            // Читаем базовые поля [INDEX]
+            item.title = action_obj.get_string_member ("title");
+            if (action_obj.has_member ("kind")) {
+                item.kind = action_obj.get_string_member ("kind");
+            }
+
+            // Читаем структуру изменений WorkspaceEdit (edit.changes) [INDEX]
+            if (action_obj.has_member ("edit")) {
+                var edit_obj = action_obj.get_object_member ("edit");
+                
+                if (edit_obj.has_member ("changes")) {
+                    var changes_obj = edit_obj.get_object_member ("changes");
+
+                    // Итерируем по всем URI файлов, для которых сервер предлагает правки [INDEX]
+                    foreach (string file_uri in changes_obj.get_members ()) {
+                        var edits_array = changes_obj.get_array_member (file_uri);
+                        var edits_list = new Gee.ArrayList<LspTextEdit> ();
+
+                        foreach (var edit_node in edits_array.get_elements ()) {
+                            var edit_data = edit_node.get_object ();
+                            var text_edit = new LspTextEdit ();
+                            
+                            text_edit.new_text = edit_data.get_string_member ("newText");
+
+                            var r = edit_data.get_object_member ("range");
+                            var start = r.get_object_member ("start");
+                            var end = r.get_object_member ("end");
+
+                            text_edit.start_line = (int) start.get_int_member ("line");
+                            text_edit.start_char = (int) start.get_int_member ("character");
+                            text_edit.end_line = (int) end.get_int_member ("line");
+                            text_edit.end_char = (int) end.get_int_member ("character");
+
+                            edits_list.add (text_edit);
+                        }
+
+                        item.changes.set (file_uri, edits_list);
+                    }
+                }
+            }
+
+            res.actions.add (item);
+        }
+
+        return res;
     }
 }

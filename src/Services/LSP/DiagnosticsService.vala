@@ -52,7 +52,7 @@ public class Iide.DiagnosticsService : Object {
         return null;
     }
 
-    public void update_diagnostics (int client_id, string uri, Gee.List<LspDiagnostic> list) {
+    public void update_diagnostics (int client_id, string uri, Gee.List<LspDiagnosticPair?> list) {
         if (!server_map.has_key (client_id)) {
             server_map.set (client_id, new Gee.HashMap<string, Gee.List<LspDiagnostic>> ());
         }
@@ -62,7 +62,11 @@ public class Iide.DiagnosticsService : Object {
         if (list.size == 0) {
             client_files.unset (uri);
         } else {
-            client_files.set (uri, list);
+            var d_list = new Gee.ArrayList<LspDiagnostic> ();
+            foreach (var d in list) {
+                d_list.add (d.diagnostic);
+            }
+            client_files.set (uri, d_list);
         }
 
         diagnostics_updated (client_id, uri);

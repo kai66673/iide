@@ -275,7 +275,7 @@ public class Iide.TextView : Panel.Widget {
         return true;
     }
 
-    public void update_diagnostics (Gee.ArrayList<LspDiagnostic> diagnostics) {
+    public void update_diagnostics (Gee.ArrayList<LspDiagnosticPair?> diagnostics) {
         var text_buffer = (Gtk.TextBuffer) source_view.buffer;
 
         text_buffer.begin_user_action ();
@@ -288,17 +288,17 @@ public class Iide.TextView : Panel.Widget {
         int lsp_warning_count = 0;
 
         foreach (var diag in diagnostics) {
-            if (diag.start_line >= line_count) {
+            if (diag.diagnostic.start_line >= line_count) {
                 continue;
             }
 
             Gtk.TextIter start_iter;
-            text_buffer.get_iter_at_line (out start_iter, diag.start_line);
+            text_buffer.get_iter_at_line (out start_iter, diag.diagnostic.start_line);
 
-            var mark = new LspDiagnosticsMark.from_lsp_diagnostic (diag);
+            var mark = new LspDiagnosticsMark.from_lsp_diagnostic (diag.diagnostic, diag.raw_json);
             text_buffer.add_mark (mark, start_iter); // Добавляем в буфер вручную
 
-            switch (diag.severity) {
+            switch (diag.diagnostic.severity) {
             case 1:
                 lsp_error_count++;
                 break;

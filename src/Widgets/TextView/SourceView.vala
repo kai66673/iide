@@ -83,6 +83,8 @@ public class Iide.SourceView : GtkSource.View {
     private int last_hovered_line = -1;
     private int line_number_symbols_count = 1;
 
+    private CodeActionsPopup? code_actions_popup = null;
+
     public signal void breadcrumbs_changed (Gee.List<SourceNodeItem?> crumbs);
 
     public SourceView (Window window, string uri, GtkSource.Buffer buffer) {
@@ -751,5 +753,124 @@ public class Iide.SourceView : GtkSource.View {
         this.line_numbers_gutter.queue_draw (); // Или метод вызова перерисовки вашего LineNumbersGutter
 
         BookmarksNavigator.get_instance().document_bookmarks_changed (this.uri, this.buffer);
+    }
+
+    /**
+     * Собрать все сырые JSON-объекты диагностик LSP для указанной строки.
+     * @return Массив Json.Array, готовый для отправки в request_code_actions, или null, если ошибок нет.
+     */
+    public Json.Array? collect_raw_diagnostics_for_line (int line_number) {
+        var source_buffer = this.get_buffer () as GtkSource.Buffer;
+        if (source_buffer == null) return null;
+
+        // Ищем маркеры во всех трёх ваших категориях
+        var diagnostics_array = new Json.Array ();
+
+        var marks = source_buffer.get_source_marks_at_line (line_number, null);
+        foreach (var mark in marks) {
+            var lsp_mark = mark as LspDiagnosticsMark;
+            if (lsp_mark == null) {
+                continue;
+            }
+            if (lsp_mark.raw_json != null) {
+                var node = new Json.Node (Json.NodeType.OBJECT);
+                node.set_object (lsp_mark.raw_json);
+                
+                // Добавляем глубокую копию объекта в итоговый массив [INDEX]
+                diagnostics_array.add_element (node.copy ());
+            }
+        }
+
+        // Если на строке действительно нашлись ошибки — возвращаем массив, иначе null [INDEX]
+        return diagnostics_array.get_length () > 0 ? diagnostics_array : null;
+    }
+
+    /**
+     * Атомарно применить массив текстовых правок LSP к текущему буферу
+     */
+    public void apply_lsp_text_edits (Gee.ArrayList<Iide.LspTextEdit> edits) {
+        var buffer = this.get_buffer ();
+        if (buffer == null || edits.size == 0) return;
+
+        // Сортируем правки по убыванию строк (снизу вверх файла), 
+        // чтобы вставки не сдвигали координаты последующих правок!
+        edits.sort ((a, b) => {
+            if (b.start_line != a.start_line) {
+                return b.start_line - a.start_line;
+            }
+            return b.start_char - a.start_char;
+        });
+
+        // Оборачиваем всю замену в единый Undo-блок [INDEX]
+        buffer.begin_user_action ();
+
+        foreach (var edit in edits) {
+            Gtk.TextIter start_iter, end_iter;
+            buffer.get_iter_at_line_index (out start_iter, edit.start_line, edit.start_char);
+            buffer.get_iter_at_line_index (out end_iter, edit.end_line, edit.end_char);
+
+            // Если диапазон не пустой — это замена или удаление, стираем старый текст [INDEX]
+            if (!start_iter.equal (end_iter)) {
+                buffer.delete (ref start_iter, ref end_iter);
+            }
+
+            // Вставляем новый текст (например, "import os\n") [INDEX]
+            if (edit.new_text.length > 0) {
+                buffer.insert (ref start_iter, edit.new_text, -1);
+            }
+        }
+
+        buffer.end_user_action ();
+        LoggerService.get_instance ().info ("LCA", "Successfully applied %d text edits to buffer.".printf (edits.size));
+    }
+
+    private void render_code_actions_popover (Gtk.TextIter cursor_iter, Gee.ArrayList<Iide.LspCodeActionItem> actions) {
+        // Если предыдущее окно открыто — уничтожаем
+        if (this.code_actions_popup != null) {
+            this.code_actions_popup.destroy ();
+            this.code_actions_popup = null;
+        }
+
+        var root_window = this.get_root () as Gtk.Window;
+        if (root_window == null)
+            return;
+        this.code_actions_popup = new Iide.CodeActionsPopup (root_window, this, actions);
+        this.code_actions_popup.present ();
+    }
+
+    public void show_code_actions_menu () {
+        // Если меню уже открыто — закрываем его
+        if (this.code_actions_popup != null) {
+            this.code_actions_popup.destroy ();
+            this.code_actions_popup = null;
+        }
+
+        var buffer = this.get_buffer ();
+        Gtk.TextIter cursor_iter;
+        buffer.get_iter_at_mark (out cursor_iter, buffer.get_insert ());
+        int current_line = cursor_iter.get_line ();
+
+        // 1. Собираем сырые диагностики текущей строки [INDEX]
+        var raw_diagnostics = this.collect_raw_diagnostics_for_line (current_line);
+        if (raw_diagnostics == null) {
+            LoggerService.get_instance ().info ("LCA", "No diagnostics on current line.");
+            return;
+        }
+
+        var lsp_service = IdeLspService.get_instance ();
+        lsp_service.request_code_actions.begin (this.uri, current_line, 0, current_line, 99, raw_diagnostics, (obj, res) => {
+            var result = lsp_service.request_code_actions.end (res);
+                    
+            if (result == null || result.actions.size == 0) {
+                LoggerService.get_instance ().info ("LCA", "LSP returned 0 available code actions.");
+                return;
+            }
+
+            // Переводим выполнение обратно в главный цикл UI для рендеринга поповера [INDEX]
+            Idle.add (() => {
+                this.render_code_actions_popover (cursor_iter, result.actions);
+                return Source.REMOVE;
+            });
+        });
     }
 }

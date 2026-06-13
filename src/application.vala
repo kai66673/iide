@@ -66,7 +66,8 @@ public class Iide.Application : Adw.Application {
         action_manager.register_action (this, new ToggleBookmarkAction ());
         action_manager.register_action (this, new GotoNextBookmarkAction ());
         action_manager.register_action (this, new GotoPrevBookmarkAction ());
-        action_manager.register_action (this, new ShowFindBar ());
+        action_manager.register_action (this, new ShowFindBarAction ());
+        action_manager.register_action (this, new LspCodeActionsAction ());
 
         // Ins/Ovr toggle
         // Действие переключения режима
@@ -687,7 +688,7 @@ private class Iide.GotoPrevBookmarkAction: Iide.AppAction {
     }
 }
 
-private class Iide.ShowFindBar: Iide.AppAction {
+private class Iide.ShowFindBarAction: Iide.AppAction {
     public override string id { get { return "show-findbar"; } }
     public override string name { get { return _("Show Find Bar"); } }
     public override string? description { get { return _("Show find bar in active editor"); } }
@@ -706,6 +707,30 @@ private class Iide.ShowFindBar: Iide.AppAction {
             var text_view = win.get_active_text_view ();
             if (text_view != null){
                 text_view.show_search_bar ();
+            }
+        }
+    }
+}
+
+private class Iide.LspCodeActionsAction: Iide.AppAction {
+    public override string id { get { return "code-actions"; } }
+    public override string name { get { return _("Code Actions"); } }
+    public override string? description { get { return _("Show code actions menu in current row of active editor"); } }
+    public override string? icon_name { get { return "zoom-original-symbolic"; } }
+    public override string? category { get { return "View"; } }
+    public override string? default_shortcut { get { return "<Alt>Return"; } }
+
+    public override bool can_execute () {
+        return true;
+    }
+
+    public override void execute () {
+        var app = GLib.Application.get_default () as Iide.Application;
+        var win = app ? .active_window as Iide.Window;
+        if (win != null) {
+            var source_view = win.get_active_source_view ();
+            if (source_view != null){
+                source_view.show_code_actions_menu ();
             }
         }
     }

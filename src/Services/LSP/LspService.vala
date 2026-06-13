@@ -11,7 +11,7 @@ public class Iide.IdeLspService : GLib.Object {
 
     private LoggerService logger = LoggerService.get_instance ();
 
-    public signal void diagnostics_updated (string uri, ArrayList<LspDiagnostic> diagnostics);
+    public signal void diagnostics_updated (string uri, ArrayList<LspDiagnosticPair?> diagnostics);
 
     public class PendingOpen {
         public string uri;
@@ -317,12 +317,33 @@ public class Iide.IdeLspService : GLib.Object {
         }
         return clients.get (server_key);
     }
+    public async LspCodeActionResult? request_code_actions (
+        string uri,
+        int start_line,
+        int start_char,
+        int end_line,
+        int end_char,
+        Json.Array diagnostics_json_array
+    ) {
+        var client = get_client_for_uri (uri);
+        if (client == null) {
+            return null;
+        }
+        try {
+            return yield client.request_code_actions (uri, start_line, start_char, end_line, end_char, diagnostics_json_array);
+        } catch (Error e) {
+            logger.error ("LSP", "Failed to request code actions for %s: %s".printf (uri, e.message));
+            return null;
+        }
+    }
 
-    public async LspCompletionResult ? request_completion (string uri,
-                                                              int line,
-                                                              int character,
-                                                              string? trigger_character = null,
-                                                              CompletionTriggerKind trigger_kind = INVOKED) {
+    public async LspCompletionResult ? request_completion (
+        string uri,
+        int line,
+        int character,
+        string? trigger_character = null,
+        CompletionTriggerKind trigger_kind = INVOKED
+    ) {
         var client = get_client_for_uri (uri);
         if (client == null) {
             return null;
