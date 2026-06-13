@@ -35,6 +35,18 @@ public struct Iide.LspTaskInfo {
     public int percentage; // -1 если процентов нет
 }
 
+/**
+ * Легковесный контейнер для сохранения асинхронного колбэка
+ */
+private class Iide.LspWriteWaiter : GLib.Object {
+    // Сохраняем делегат как owned, чтобы Vala корректно управляла памятью контекста
+    public SourceFunc? callback { get; set; }
+
+    public LspWriteWaiter (owned SourceFunc? cb) {
+        this.callback = (owned) cb;
+    }
+}
+
 public class Iide.LspClient : Object {
     private int next_id = 0;
     private Map<int, LspPromise> pending_requests = new HashMap<int, LspPromise> ();
@@ -50,8 +62,7 @@ public class Iide.LspClient : Object {
     private GLib.DataInputStream input_stream;
 
     // Поток для записи (стандартный ввод сервера)
-    private bool is_writing = false;
-    private Deque<string> write_queue = new LinkedList<string> ();
+    private Gee.ArrayList<LspWriteWaiter> write_waiters = new Gee.ArrayList<LspWriteWaiter> ();
     private OutputStream output_stream;
 
     // Сигнал для передачи диагностики в UI
@@ -142,24 +153,43 @@ public class Iide.LspClient : Object {
         string body = generator.to_data (null);
         string message = "Content-Length: %d\r\n\r\n%s".printf ((int) body.length, body);
 
-        write_queue.add (message);
-
-        if (is_writing)return;
-        is_writing = true;
+        // ===================================================================
+        // Если в очереди КТО-ТО уже стоит, значит, поток занят.
+        // Мы добавляем себя в хвост очереди и засыпаем на месте.
+        // ===================================================================
+        if (this.write_waiters.size > 0) {
+            var waiter = new LspWriteWaiter (send_message_async.callback);
+            this.write_waiters.add (waiter);
+            yield; // Спим, пока нас не разбудит предыдущий метод
+        } else {
+            // Если очередь была пуста, мы первые! 
+            // Добавляем пустышку-маркер в очередь, чтобы ВСЕ последующие 
+            // вызовы знали, что труба сейчас занята и ложились спать.
+            var marker = new LspWriteWaiter (null);
+            this.write_waiters.add (marker);
+        }
 
         try {
-            while (!write_queue.is_empty) {
-                // Проверка на отмену перед началом записи следующего сообщения в очереди
-                if (cancellable != null && cancellable.is_cancelled ())break;
-
-                string current_msg = write_queue.poll_head ();
-                // Передаем токен в системные асинхронные функции
-                yield output_stream.write_all_async (current_msg.data, Priority.DEFAULT, cancellable, null);
-
-                yield output_stream.flush_async (Priority.DEFAULT, cancellable);
+            if (cancellable != null && cancellable.is_cancelled ()) {
+                throw new IOError.CANCELLED ("Отмена операции отправки сообщения");
             }
+
+            // Физически проталкиваем байты в сеть [INDEX]
+            yield output_stream.write_all_async (message.data, Priority.DEFAULT, cancellable, null);
+            yield output_stream.flush_async (Priority.DEFAULT, cancellable);
+
         } finally {
-            is_writing = false;
+            // Мы закончили писать байты. Удаляем СЕБЯ (самый первый элемент) из головы очереди!
+            this.write_waiters.remove_at (0);
+            
+            // Если за время нашей записи сзади пристроились новые асинхронные запросы,
+            // мы берем тот, который стоит следующим в очереди, и нежно его будим [INDEX]
+            if (this.write_waiters.size > 0) {
+                var next_waiter = this.write_waiters.get (0);
+                if (next_waiter.callback != null) {
+                    Idle.add (next_waiter.callback);
+                }
+            }
         }
     }
 
@@ -275,21 +305,6 @@ public class Iide.LspClient : Object {
             var node_id = response.get_member ("id");
             send_response_async.begin (node_id, node_result);
         }
-
-        // if (response.has_member ("method")) {
-        // string method = response.get_string_member ("method");
-        // switch (method) {
-        // case "client/registerCapability" : {
-        // message ("!!!handle_response - client/registerCapability - " + json_object_to_string (response));
-        // var node_id = response.get_member ("id");
-        // send_response_async.begin (node_id, new Json.Node (Json.NodeType.NULL));
-        // } return;
-        // case "workspace/configuration" : {
-        // message ("!!!handle_response - workspace/configuration - " + json_object_to_string (response));
-        // handle_response_workspace_configuration (response);
-        // } return;
-        // }
-        // }
     }
 
     private void handle_incoming_notification (Json.Object root) {
