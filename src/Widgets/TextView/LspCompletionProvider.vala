@@ -56,7 +56,7 @@ namespace Iide {
 
     public class LspCompletionProvider : GLib.Object, CompletionProvider {
         private weak SourceView source_view;
-        private IdeLspService lsp_service;
+        private LspService lsp_service;
         private GLib.ListStore base_store;
         private Gtk.FilterListModel filter_model;
         private string current_word = "";
@@ -78,7 +78,7 @@ namespace Iide {
 
         public LspCompletionProvider (SourceView view) {
             this.source_view = view;
-            this.lsp_service = IdeLspService.get_instance ();
+            this.lsp_service = LspService.get_instance ();
 
             // 1. Создаем хранилище
             base_store = new GLib.ListStore (typeof (LspCompletionProposal));
@@ -92,7 +92,7 @@ namespace Iide {
 
         public virtual bool is_trigger (Gtk.TextIter iter, unichar ch) {
             // 1. Получаем клиент для текущего документа
-            var client = IdeLspService.get_instance ().get_client_for_uri (this.source_view.uri);
+            var client = LspService.get_instance ().get_client_for_uri (this.source_view.uri);
 
             if (client == null || !client.is_initialized) {
                 // Если сервер еще не готов, используем стандартный набор (на всякий случай)
@@ -140,7 +140,7 @@ namespace Iide {
                 unichar ch = prev.get_char ();
                 string s = ch.to_string ();
 
-                var client = IdeLspService.get_instance ().get_client_for_uri (this.source_view.uri);
+                var client = LspService.get_instance ().get_client_for_uri (this.source_view.uri);
                 if (client != null && client.capabilities.completion_triggers.contains (s)) {
                     trigger_char = s;
                     trigger_kind = CompletionTriggerKind.TRIGGER_CHARACTER;

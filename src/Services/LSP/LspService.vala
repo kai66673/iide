@@ -1,8 +1,8 @@
 using GLib;
 using Gee;
 
-public class Iide.IdeLspService : GLib.Object {
-    private static IdeLspService? _instance;
+public class Iide.LspService : GLib.Object {
+    private static LspService? _instance;
     private Gee.HashMap<string, LspClient> clients;
     private Gee.HashMap<string, string> uri_to_client_key;
     private Gee.HashMap<string, int> document_versions;
@@ -43,9 +43,9 @@ public class Iide.IdeLspService : GLib.Object {
         pending_opens = new Gee.ArrayList<PendingOpen> ();
     }
 
-    public static unowned IdeLspService get_instance () {
+    public static unowned LspService get_instance () {
         if (_instance == null) {
-            _instance = new IdeLspService ();
+            _instance = new LspService ();
         }
         return _instance;
     }
@@ -128,6 +128,11 @@ public class Iide.IdeLspService : GLib.Object {
 
     public LspClient[] get_clients () {
         return clients.values.to_array ();
+    }
+
+    public void clear_lsp_tasks () {
+        progress_map.clear ();
+        emit_tasks_changed ();
     }
 
     public void register_client (LspClient client) {
@@ -391,5 +396,53 @@ public class Iide.IdeLspService : GLib.Object {
             logger.error ("LSP", "Failed to request document symbols for %s: %s".printf (uri, e.message));
             return null;
         }
+    }
+
+    /**
+     * Асинхронно и параллельно остановить все активные LSP-серверы текущего проекта
+     */
+    public async void shutdown_all_running_lsp_servers_async () {
+        if (this.clients.size == 0) return;
+
+        LoggerService.get_instance ().info ("LSP", @"Shutting down $(this.clients.size) active LSP servers...");
+
+        // Шаг 1. Безопасно копируем клиентов во временный список для итерации [INDEX]
+        var clients_to_stop = new Gee.ArrayList<LspClient> ();
+        foreach (var client in this.clients.values) {
+            clients_to_stop.add (client);
+        }
+
+        // Счетчик параллельно выполняющихся асинхронных закрытий
+        int active_shutdowns = 0;
+        
+        // Запоминаем текущий асинхронный колбэк метода, чтобы разбудить его позже [INDEX]
+        SourceFunc resume_callback = shutdown_all_running_lsp_servers_async.callback;
+
+        // Шаг 2. Запускаем параллельное закрытие для каждого сервера [INDEX]
+        foreach (var client in clients_to_stop) {
+            active_shutdowns++;
+            
+            // Метод .begin запускает shutdown_and_exit_async в фоне и сразу возвращает управление [INDEX]
+            client.shutdown_and_exit_async.begin ((obj, res) => {
+                // Завершаем асинхронную операцию на уровне клиента
+                client.shutdown_and_exit_async.end (res);
+                
+                active_shutdowns--;
+                
+                // Когда САМЫЙ последний сервер закончил отправку пакетов shutdown/exit — 
+                // мы возвращаем управление в наш метод [INDEX]
+                if (active_shutdowns == 0) {
+                    Idle.add ((owned) resume_callback);
+                }
+            });
+        }
+
+        // Шаг 3. Засыпаем на этой строчке. 
+        // Вся распределенная система серверов закрывается параллельно в фоне! [INDEX]
+        yield;
+
+        // Полностью очищаем карту клиентов. Сервис готов к работе со следующим проектом!
+        this.clients.clear ();
+        LoggerService.get_instance ().info ("LSP", "All LSP servers are cleanly stopped and cleared from memory.");
     }
 }

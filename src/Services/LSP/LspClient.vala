@@ -65,6 +65,9 @@ public class Iide.LspClient : Object {
     private Gee.ArrayList<LspWriteWaiter> write_waiters = new Gee.ArrayList<LspWriteWaiter> ();
     private OutputStream output_stream;
 
+    private bool is_stopping = false;
+    private GLib.Cancellable read_cancellable = new GLib.Cancellable ();
+
     // Сигнал для передачи диагностики в UI
     public signal void diagnostics_received (string uri, Gee.ArrayList<LspDiagnosticPair?> diagnostics);
 
@@ -180,7 +183,9 @@ public class Iide.LspClient : Object {
 
         } finally {
             // Мы закончили писать байты. Удаляем СЕБЯ (самый первый элемент) из головы очереди!
-            this.write_waiters.remove_at (0);
+            if (this.write_waiters.size > 0) {
+                this.write_waiters.remove_at (0);
+            }
             
             // Если за время нашей записи сзади пристроились новые асинхронные запросы,
             // мы берем тот, который стоит следующим в очереди, и нежно его будим [INDEX]
@@ -197,7 +202,7 @@ public class Iide.LspClient : Object {
         try {
             while (true) {
                 // 1. Читаем заголовок Content-Length
-                string? line = yield input_stream.read_line_async (Priority.DEFAULT, null);
+                string? line = yield input_stream.read_line_async (Priority.DEFAULT, this.read_cancellable);
 
                 if (line == null)break; // Поток закрыт
 
@@ -206,7 +211,7 @@ public class Iide.LspClient : Object {
 
                     // 2. Пропускаем все остальные заголовки до пустой строки (\r\n\r\n)
                     while (line != "" && line != null) {
-                        line = yield input_stream.read_line_async (Priority.DEFAULT, null);
+                        line = yield input_stream.read_line_async (Priority.DEFAULT, this.read_cancellable);
 
                         if (line != null)line = line.strip ();
                     }
@@ -214,7 +219,7 @@ public class Iide.LspClient : Object {
                     // 3. Читаем тело JSON строго по длине
                     uint8[] buffer = new uint8[length + 1];
                     size_t bytes_read;
-                    yield input_stream.read_all_async (buffer[0 : length], Priority.DEFAULT, null, out bytes_read);
+                    yield input_stream.read_all_async (buffer[0 : length], Priority.DEFAULT, this.read_cancellable, out bytes_read);
 
                     buffer[length] = '\0'; // Гарантируем конец строки для парсера
 
@@ -223,9 +228,12 @@ public class Iide.LspClient : Object {
                 }
             }
         } catch (Error e) {
-            if (!(e is IOError.CANCELLED)) {
+            // Когда мы отменим операцию при закрытии, метод проснется здесь! [INDEX]
+            if (e is IOError.CANCELLED) {
+                LoggerService.get_instance ().debug ("LSP", "LSP Read Loop successfully cancelled and stopped.");
+            } else {
                 debug ("LSP Read Loop Error: %s", e.message);
-            }
+            }        
         }
     }
 
@@ -438,7 +446,7 @@ public class Iide.LspClient : Object {
             is_initialized = true;
             Idle.add (() => {
                 this.initialized_with_capabilities (this.capabilities);
-                IdeLspService.get_instance ().register_client (this);
+                LspService.get_instance ().register_client (this);
                 return Source.REMOVE; // Выполнить один раз
             });
 
@@ -1048,5 +1056,70 @@ public class Iide.LspClient : Object {
         }
 
         return res;
+    }
+
+    /**
+     * ДВУХФАЗНОЕ ЗАВЕРШЕНИЕ РАБОТЫ LSP-СЕРВЕРА (Версия для подготовки к рефакторингу)
+     */
+    public async void shutdown_and_exit_async () {
+        // Если закрытие уже запущено, выходим, чтобы не дублировать запросы
+        if (this.is_stopping) {
+            return;
+        }
+        this.is_stopping = true;
+
+        LoggerService.get_instance ().info ("LSP", @"Initiating clean shutdown for server...");
+
+        try {
+            // ФАЗА 1: Отправляем запрос 'shutdown' и асинхронно ждем подтверждения от сервера [INDEX]
+            var empty_params = new Json.Object ();
+            var response = yield this.send_request ("shutdown", empty_params);
+            
+            if (response != null) {
+                LoggerService.get_instance ().debug ("LSP", "Server acknowledged shutdown.");
+            }
+        } catch (GLib.Error e) {
+            // Если сервер завис — логируем, но принудительно продолжаем выход
+            LoggerService.get_instance ().warning ("LSP", @"Shutdown request failed: $(e.message). Forcing exit...");
+        }
+
+        try {
+            // ФАЗА 2: Отправляем обязательное уведомление 'exit' (fire-and-forget) [INDEX]
+            var empty_params = new Json.Object ();
+            yield this.send_notification_async ("exit", empty_params);
+            LoggerService.get_instance ().info ("LSP", "Sent 'exit' notification to server.");
+        } catch (GLib.Error e) {
+            LoggerService.get_instance ().error ("LSP", @"Failed to send 'exit' notification: $(e.message)");
+        }
+
+        // Шаг 3: Закрываем низкоуровневые асинхронные потоки ввода-вывода
+        yield this.close_transport_streams_async ();
+    }
+
+    /**
+     * Вспомогательный метод закрытия системных потоков ввода-вывода
+     */
+    /**
+     * Асинхронное закрытие системных потоков ввода-вывода
+     */
+    private async void close_transport_streams_async () {
+        // 1. Принудительно отменяем висящие операции чтения в run_read_loop
+        this.read_cancellable.cancel ();
+
+        try {
+            // 2. Используем close_async вместо close. 
+            // Он атомарно дождется, пока флаг pending сбросится, и закроет поток без ошибок
+            if (this.output_stream != null && !this.output_stream.is_closed ()) {
+                yield this.output_stream.close_async (Priority.DEFAULT, null);
+            }
+            if (this.input_stream != null && !this.input_stream.is_closed ()) {
+                yield this.input_stream.close_async (Priority.DEFAULT, null);
+            }
+            LoggerService.get_instance ().debug ("LSP", "IO streams closed cleanly.");
+        } catch (GLib.Error e) {
+            LoggerService.get_instance ().error ("LSP", @"Error closing IO streams: $(e.message)");
+        }
+        
+        this.is_stopping = false;
     }
 }

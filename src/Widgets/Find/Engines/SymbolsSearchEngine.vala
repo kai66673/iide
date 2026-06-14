@@ -21,7 +21,7 @@ public class Iide.SymbolsSearchEngine : SearchEngine, Object {
     }
 
     public async Gee.List<SearchResult> perform_search (string query, GLib.Cancellable cancellable) throws Error {
-        var clients = IdeLspService.get_instance ().get_clients ();
+        var clients = LspService.get_instance ().get_clients ();
         var results = new Gee.ArrayList<WorkspaceLspSymbol> ();
         foreach (var client in clients) {
             results.add_all (yield client.workspace_symbols (query, cancellable));

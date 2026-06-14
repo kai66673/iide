@@ -103,6 +103,7 @@ public class Iide.DiagnosticsPanel : BasePanel {
         // Подключаемся к точечному обновлению вместо глобального
         service.diagnostics_updated.connect (on_file_diagnostics_updated);
         service.total_count_changed.connect (on_total_changed);
+        service.lsp_stopped.connect (on_diagnostics_cleared);
     }
 
     public override Panel.Position initial_pos () {
@@ -120,6 +121,11 @@ public class Iide.DiagnosticsPanel : BasePanel {
         } else {
             if (this.get_child () != scrolled)this.set_child (scrolled);
         }
+    }
+
+    private void on_diagnostics_cleared () {
+        this.set_child (empty_page);
+        main_list.remove_all ();
     }
 
     // Тот самый метод дифференциального обновления

@@ -40,13 +40,24 @@ public class Iide.PanelLayoutHelper : Object {
         }
     }
 
+    public class PanelsInfo {
+        public bool reveal_start { get; set; }
+        public bool reveal_end { get; set; }
+        public bool reveal_bottom { get; set; }
+        public int start_width { get; set; }
+        public int end_width { get; set; }
+        public int bottom_height { get; set; }
+        public Gee.HashMap<string, WidgetInfo> widgets { get; set; default = new Gee.HashMap<string, WidgetInfo> (); }
+
+    }
+
     public class DocumentInfo {
         public string uri { get; set; }
         public uint column { get; set; }
         public uint row { get; set; }
     }
 
-    public static string serialize_dock (Panel.Dock dock) {
+    public static Json.Node? dock_to_json (Panel.Dock dock) {
         var builder = new Json.Builder ();
         builder.begin_object ();
 
@@ -106,8 +117,12 @@ public class Iide.PanelLayoutHelper : Object {
         builder.end_array ();
         builder.end_object ();
 
+        return builder.get_root ();
+    }
+
+    public static string serialize_dock (Panel.Dock dock) {
         var generator = new Json.Generator ();
-        generator.root = builder.get_root ();
+        generator.root = dock_to_json (dock);
         return generator.to_data (null);
     }
 
@@ -176,7 +191,7 @@ public class Iide.PanelLayoutHelper : Object {
         }
     }
 
-    public static string serialize_grid (Panel.Grid grid) {
+    public static Json.Node? grid_documents_to_json (Panel.Grid grid) {
         var builder = new Json.Builder ();
         builder.begin_object ();
 
@@ -224,8 +239,12 @@ public class Iide.PanelLayoutHelper : Object {
         builder.end_array ();
         builder.end_object ();
 
+        return builder.get_root ();
+    }
+
+    public static string serialize_grid (Panel.Grid grid) {
         var generator = new Json.Generator ();
-        generator.root = builder.get_root ();
+        generator.root = grid_documents_to_json (grid);
         return generator.to_data (null);
     }
 

@@ -1,20 +1,27 @@
+/*
+*/
 public class Iide.DiagnosticsService : Object {
-    private static DiagnosticsService? instance;
+    private static DiagnosticsService? _instance;
 
     // Группировка: [ClientID] -> [FileURI] -> [Список диагностик]
     private Gee.HashMap<int, Gee.HashMap<string, Gee.List<LspDiagnostic>>> server_map;
     private uint update_timeout_id = 0;
 
     public signal void diagnostics_updated (int client_id, string uri);
+    public signal void lsp_stopped ();
     public signal void total_count_changed (int total_errors, int total_warnings);
 
     public static DiagnosticsService get_instance () {
-        if (instance == null)instance = new DiagnosticsService ();
-        return instance;
+        if (_instance == null)
+            _instance = new DiagnosticsService ();
+        return _instance;
     }
 
     private DiagnosticsService () {
         server_map = new Gee.HashMap<int, Gee.HashMap<string, Gee.List<LspDiagnostic>>> ();
+        this.lsp_stopped.connect (() => {
+            server_map.clear ();
+        });
     }
 
     /**
@@ -31,7 +38,7 @@ public class Iide.DiagnosticsService : Object {
      */
     public string get_server_name (int client_id) {
         // Мы можем запрашивать имя у LspService, который знает свои клиенты
-        var client = IdeLspService.get_instance ().get_client_by_hash (client_id);
+        var client = LspService.get_instance ().get_client_by_hash (client_id);
         if (client != null) {
             return client.name (); // Предполагается, что у LspClient есть поле name
         }

@@ -127,7 +127,7 @@ public class Iide.BreadcrumbSymbolOutlineNavigator : Gtk.Box {
     }
 
     private async void document_symbols() {
-        var symbols = yield IdeLspService.get_instance ().document_symbols (source_view.uri);
+        var symbols = yield LspService.get_instance ().document_symbols (source_view.uri);
         spinner.stop ();
         stack.visible_child_name = "lsp";
     }

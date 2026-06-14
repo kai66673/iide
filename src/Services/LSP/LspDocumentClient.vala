@@ -50,7 +50,7 @@ public class Iide.LspDocumentClient: GLib.Object {
         }
 
         // Передаем в менеджер для конвертации и отправки
-        var lsp_service = IdeLspService.get_instance ();
+        var lsp_service = LspService.get_instance ();
         lsp_service.send_did_change.begin (this.source_view.uri, this.document_version, changes);
     }
 
@@ -65,7 +65,7 @@ public class Iide.LspDocumentClient: GLib.Object {
         }
 
         // Передаем в менеджер для конвертации и отправки
-        var lsp_service = IdeLspService.get_instance ();
+        var lsp_service = LspService.get_instance ();
         yield lsp_service.send_did_change (this.source_view.uri, this.document_version, changes);
     }
     
@@ -75,7 +75,7 @@ public class Iide.LspDocumentClient: GLib.Object {
         // Получаем текст синхронно (он уже актуален, так как мы в Main Loop после паузы)
         string current_text = this.source_view.buffer.text;
 
-        var client = IdeLspService.get_instance ().get_client_for_uri (this.source_view.uri);
+        var client = LspService.get_instance ().get_client_for_uri (this.source_view.uri);
         if (client != null) {
             try {
                 // Вызываем метод полной синхронизации в новом асинхронном клиенте

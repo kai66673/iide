@@ -20,26 +20,15 @@ public class Iide.FileEntry : Object {
     }
 }
 
-public class Iide.LanguageConfig : GLib.Object {
-    public string language_id { get; construct set; }
-    public string[] server_command { get; construct set; }
-    public string[] file_patterns { get; construct set; }
-
-    public LanguageConfig (string language_id, string[] server_command, string[] file_patterns) {
-        Object (
-                language_id: language_id,
-                server_command: server_command,
-                file_patterns: file_patterns
-        );
-    }
-}
-
 public class Iide.ProjectManager : Object {
-    private static ProjectManager? _instance;
+    public Window window;
+    private static ProjectManager? _instance = null;
+
     private GLib.File? current_project_root;
     private string? current_project_name;
+    // Путь к скрытой папке настроек текущего проекта (/path/to/project/.iide)
+    private GLib.File? iide_dir;
     private Iide.SettingsService settings;
-    private Gee.HashMap<string, LanguageConfig> language_configs;
 
     private Gee.List<Iide.FileEntry> file_cache;
     private Gee.List<Iide.FileEntry> text_file_cache;
@@ -59,168 +48,71 @@ public class Iide.ProjectManager : Object {
     public signal void file_cache_invalidated ();
 
     public static unowned ProjectManager get_instance () {
-        if (_instance == null) {
-            _instance = new ProjectManager ();
-        }
         return _instance;
     }
 
-    public ProjectManager () {
+    public ProjectManager (Window window) {
+        this.window = window;
+        ProjectManager._instance = this;
+
         current_project_root = null;
         current_project_name = null;
+        iide_dir = null;
         settings = Iide.SettingsService.get_instance ();
-        language_configs = new Gee.HashMap<string, LanguageConfig> ();
         file_cache = new Gee.ArrayList<Iide.FileEntry> ();
         text_file_cache = new Gee.ArrayList<Iide.FileEntry> ();
-        init_default_language_configs ();
     }
 
-    private void init_default_language_configs () {
-        language_configs.set ("c", new LanguageConfig ("c", { "clangd" }, { "*.c", "*.h" }));
-        language_configs.set ("cpp", new LanguageConfig ("cpp", { "clangd" }, { "*.cpp", "*.cc", "*.cxx", "*.hpp", "*.hxx", "*.h" }));
-        language_configs.set ("python", new LanguageConfig ("python", { "basedpyright-langserver", "--stdio" }, { "*.py" }));
-        language_configs.set ("rust", new LanguageConfig ("rust", { "rust-analyzer" }, { "*.rs" }));
-        language_configs.set ("go", new LanguageConfig ("go", { "gopls" }, { "*.go" }));
-        language_configs.set ("typescript", new LanguageConfig ("typescript", { "typescript-language-server", "--stdio" }, { "*.ts", "*.tsx" }));
-        language_configs.set ("javascript", new LanguageConfig ("javascript", { "typescript-language-server", "--stdio" }, { "*.js", "*.jsx" }));
-        language_configs.set ("json", new LanguageConfig ("json", { "vscode-json-languageserver", "--stdio" }, { "*.json" }));
-        language_configs.set ("html", new LanguageConfig ("html", { "vscode-html-language-server", "--stdio" }, { "*.html", "*.htm" }));
-        language_configs.set ("css", new LanguageConfig ("css", { "vscode-css-language-server", "--stdio" }, { "*.css", "*.scss", "*.less" }));
-    }
-
-    private string? last_loaded_config_path;
-
-    public Gee.Collection<LanguageConfig> get_language_configs () {
-        return language_configs.values;
-    }
-
-    public LanguageConfig ? get_language_config (string language_id) {
-        return language_configs.get (language_id);
-    }
-
-    public void load_lsp_config (GLib.File project_root) {
-        string? config_path = project_root.get_path ();
-        if (config_path == null) {
-            config_path = project_root.get_uri ();
-        }
-
-        if (config_path != null && config_path == last_loaded_config_path) {
-            return;
-        }
-
-        init_default_language_configs ();
-
-        var config_dir = project_root.get_child (".iide");
-        var lsp_file = config_dir.get_child ("lsp.json");
-
-        if (!lsp_file.query_exists (null)) {
-            message ("No .iide/lsp.json found at %s", lsp_file.get_path ());
-            last_loaded_config_path = config_path;
-            return;
-        }
-
-        message ("DDD: load lsp.json:" + lsp_file.get_path ());
-
-        try {
-            var parser = new Json.Parser ();
-            parser.load_from_file (lsp_file.get_path ());
-            var root = parser.get_root ();
-            var obj = root.get_object ();
-
-            if (obj.has_member ("languages")) {
-                var languages = obj.get_array_member ("languages");
-                int lang_count = (int) languages.get_length ();
-                for (int j = 0; j < lang_count; j++) {
-                    var node = languages.get_element (j);
-                    var lang_obj = node.get_object ();
-                    if (lang_obj == null)continue;
-
-                    string? lang_id = null;
-                    string[] ? server_cmd = null;
-                    string[] ? patterns = null;
-
-                    if (lang_obj.has_member ("id")) {
-                        lang_id = lang_obj.get_string_member ("id");
-                    }
-                    if (lang_obj.has_member ("server")) {
-                        var server_arr = lang_obj.get_array_member ("server");
-                        int server_count = (int) server_arr.get_length ();
-                        server_cmd = new string[server_count];
-                        for (int i = 0; i < server_count; i++) {
-                            server_cmd[i] = server_arr.get_string_element (i);
-                        }
-                    }
-                    if (lang_obj.has_member ("patterns")) {
-                        var patterns_arr = lang_obj.get_array_member ("patterns");
-                        int patterns_count = (int) patterns_arr.get_length ();
-                        patterns = new string[patterns_count];
-                        for (int i = 0; i < patterns_count; i++) {
-                            patterns[i] = patterns_arr.get_string_element (i);
-                        }
-                    }
-
-                    if (lang_id != null) {
-                        merge_language_config (lang_id, server_cmd, patterns);
-                    }
-                }
-            }
-
-            message ("Loaded LSP config from %s", lsp_file.get_path ());
-            last_loaded_config_path = config_path;
-        } catch (Error e) {
-            warning ("Failed to load LSP config: %s", e.message);
-        }
-    }
-
-    private void merge_language_config (string lang_id, string[]? server_cmd, string[]? patterns) {
-        var config = language_configs.get (lang_id);
-        if (config != null) {
-            if (server_cmd != null && server_cmd.length > 0) {
-                config.server_command = server_cmd;
-            }
-            if (patterns != null && patterns.length > 0) {
-                config.file_patterns = patterns;
-            }
-            message ("Merged LSP config for '%s'", lang_id);
-            return;
-        }
-
-        if (server_cmd != null && patterns != null) {
-            language_configs.set (lang_id, new LanguageConfig (lang_id, server_cmd, patterns));
-            message ("Added new LSP config for '%s'", lang_id);
-        }
-    }
-
-    public void open_project_file (GLib.File project_root) {
+    public void open_project_folder (GLib.File project_root) {
         if (!project_root.query_exists (null)) {
-            stderr.printf ("Project directory does not exist: %s\n", project_root.get_path ());
+            LoggerService.get_instance ().error ("PROJECT", "Project directory does not exist: %s".printf (project_root.get_path ()));
             return;
         }
+
+        if (current_project_root != null && current_project_root.get_path () == project_root.get_path ()) {
+            LoggerService.get_instance ().warning ("PROJECT", "Selected project folder already opened.");
+            return;
+        }
+
+        if (!DocumentManager.get_instance ().confirm_save_modified_documents ())
+            return;
 
         if (current_project_root != null) {
             close_project ();
         }
 
-        init_default_language_configs ();
-
         current_project_root = project_root;
         current_project_name = project_root.get_basename ();
+
+        this.iide_dir = project_root.get_child (".iide");
+        this.ensure_iide_directory_exists ();
 
         settings.current_project_path = project_root.get_path ();
         settings.add_recent_project (project_root.get_path ());
         settings.last_open_directory = project_root.get_parent ().get_path ();
 
+        this.restore_session_and_panels ();
+
         var bookmark_service = BookmarkService.get_instance ();
         bookmark_service.init_project (settings.current_project_path);
         bookmark_service.refresh_all_documents_bookmarks ();
-
-        load_lsp_config (project_root);
 
         rebuild_file_cache_async.begin ();
 
         setup_directory_monitor (project_root);
 
         project_opened (project_root);
+    }
+
+    private void ensure_iide_directory_exists () {
+        if (this.iide_dir != null && !this.iide_dir.query_exists (null)) {
+            try {
+                this.iide_dir.make_directory (null);
+                LoggerService.get_instance ().info ("PROJECT", "Created internal .iide/ directory for workspace config.");
+            } catch (GLib.Error e) {
+                LoggerService.get_instance ().error ("PROJECT", "Failed to create .iide directory: " + e.message);
+            }
+        }
     }
 
     private void setup_directory_monitor (GLib.File dir) {
@@ -247,6 +139,9 @@ public class Iide.ProjectManager : Object {
         }
 
         if (current_project_root != null) {
+            shutdown_all_running_lsp_servers ();
+            DiagnosticsService.get_instance ().lsp_stopped ();
+
             current_project_root = null;
             current_project_name = null;
             cache_valid = false;
@@ -254,6 +149,7 @@ public class Iide.ProjectManager : Object {
             text_file_cache.clear ();
             settings.current_project_path = "";
             BookmarkService.get_instance ().write_cache_to_json_file ();
+            this.save_session_and_clear_panels ();
             project_closed ();
         }
     }
@@ -381,7 +277,7 @@ public class Iide.ProjectManager : Object {
         if (path != null && path != "") {
             var file = GLib.File.new_for_path (path);
             if (file.query_exists (null)) {
-                open_project_file (file);
+                open_project_folder (file);
             }
         }
     }
@@ -413,10 +309,153 @@ public class Iide.ProjectManager : Object {
             var file = yield dialog.select_folder (parent_window, null);
 
             if (file != null) {
-                open_project_file (file);
+                open_project_folder (file);
             }
         } catch {
             // User dismissed dialog or other error - silently ignore
         }
+    }
+
+    public void shutdown_all_running_lsp_servers () {
+        var loop = new MainLoop ();
+
+        SourceFunc run_async = () => {
+            this.shutdown_all_running_lsp_servers_async.begin ((obj, res) => {
+                // Этот callback вызовется, когда async-метод полностью отработает
+                shutdown_all_running_lsp_servers_async.end (res);
+                
+                // Завершаем локальный цикл событий, чтобы разблокировать maybe_save
+                loop.quit ();
+            });
+            return false;
+        };
+
+        run_async ();
+        loop.run ();
+    }
+
+    /**
+     * АСИНХРОННОЕ ЗАКРЫТИЕ СЕРВЕРОВ (Вызывается из вашего нового метода Window.shutdown_all_running_lsp_servers_async)
+     */
+    public async void shutdown_all_running_lsp_servers_async () {
+        if (!this.has_open_project ())
+            return;
+        
+        LoggerService.get_instance ().info ("PROJECT", "Initiating LSP shutdown sequence via ProjectManager...");
+        yield LspService.get_instance ().shutdown_all_running_lsp_servers_async ();
+    }
+
+    /**
+     * Вспомогательный метод для получения абсолютного пути к файлу конфигурации внутри .iide/
+     * Используется другими сервисами приложения
+     */
+    public string? get_project_config_file_path (string filename) {
+        if (this.iide_dir == null)
+            return null;
+        return GLib.Path.build_filename (this.iide_dir.get_path (), filename);
+    }
+
+    private void restore_session_and_panels () {
+        string? config_path = this.get_project_config_file_path ("workspace.json");
+        if (config_path == null)
+            return;
+        
+        var docs = new Gee.ArrayList<PanelLayoutHelper.DocumentInfo> ();
+        PanelLayoutHelper.PanelsInfo? panels = null;
+        
+        var parser = new Json.Parser ();
+        try {
+            parser.load_from_file (config_path);
+            var root = parser.get_root ().get_object ();
+            var session = root.get_object_member ("session");
+
+            if (session.has_member ("grid_layout")) {
+                var grid_layout = session.get_object_member ("grid_layout");
+                if (grid_layout.has_member ("documents")) {
+                    var docs_array = grid_layout.get_array_member ("documents");
+                    foreach (var node in docs_array.get_elements ()) {
+                        var obj = node.get_object ();
+                        var info = new PanelLayoutHelper.DocumentInfo ();
+                        info.uri = obj.get_string_member ("uri");
+                        info.column = obj.has_member ("column") ? (uint) obj.get_int_member ("column") : 0;
+                        info.row = obj.has_member ("row") ? (uint) obj.get_int_member ("row") : 0;
+                        docs.add (info);
+                    }
+                }
+            }
+
+            if (session.has_member ("dock_layout")) {
+                var dock_layout = session.get_object_member ("dock_layout");
+                panels = new PanelLayoutHelper.PanelsInfo ();
+                panels.reveal_start = dock_layout.get_boolean_member ("reveal_start");
+                panels.reveal_end = dock_layout.get_boolean_member ("reveal_end");
+                panels.reveal_bottom = dock_layout.get_boolean_member ("reveal_bottom");
+                panels.start_width = (int) dock_layout.get_int_member ("start_width");
+                panels.end_width = (int) dock_layout.get_int_member ("end_width");
+                panels.bottom_height = (int) dock_layout.get_int_member ("bottom_height");
+                if (dock_layout.has_member ("widgets")) {
+                    var widgets_array = dock_layout.get_array_member ("widgets");
+                    foreach (var node in widgets_array.get_elements ()) {
+                        var obj = node.get_object ();
+                        var info = new PanelLayoutHelper.WidgetInfo ();
+                        info.panel_id = obj.get_string_member ("panel_id");
+                        info.area = (int) obj.get_int_member ("area");
+                        info.column = (uint) obj.get_int_member ("column");
+                        info.row = (uint) obj.get_int_member ("row");
+                        info.depth = (uint) obj.get_int_member ("depth");
+                        panels.widgets.set (info.panel_id, info);
+                    }
+                }
+            }
+
+        } catch (GLib.Error e) {
+            LoggerService.get_instance ().error ("PROJECT", "Failed to read workspace.json: " + e.message);
+            docs.clear ();
+            panels = null;
+        }
+
+        // Восстанавливаем панели
+        this.window.restore_documents_grid (docs);
+    }
+
+    /**
+     * Сохранение текущей сессии и очистка Documents grid
+     */
+    public void save_documents_grid () {
+        string? config_path = this.get_project_config_file_path ("workspace.json");
+        if (config_path == null)
+            return;
+
+        var root = new Json.Object ();
+        var session = new Json.Object ();
+        session.set_object_member (
+            "grid_layout",
+            PanelLayoutHelper.grid_documents_to_json (this.window.grid).get_object ()
+        );
+        session.set_object_member (
+            "dock_layout",
+            PanelLayoutHelper.dock_to_json (this.window.dock).get_object ()
+        );
+
+        root.set_object_member ("session", session);
+
+        var generator = new Json.Generator ();
+        generator.set_pretty (true);
+        var root_node = new Json.Node (Json.NodeType.OBJECT);
+        root_node.set_object (root);
+        generator.set_root (root_node);
+
+        try {
+            generator.to_file (config_path);
+        } catch (GLib.Error e) {
+            LoggerService.get_instance ().error ("PROJECT", "Failed to write workspace.json: " + e.message);
+        }
+    }
+
+    public void save_session_and_clear_panels () {
+        this.save_documents_grid ();
+
+        // Выполняем очистку панелей
+        this.window.clear_documents_grid ();
     }
 }

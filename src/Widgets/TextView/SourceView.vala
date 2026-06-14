@@ -632,7 +632,7 @@ public class Iide.SourceView : GtkSource.View {
     }
 
     private async void fetch_lsp_hover_async (int line, int col) {
-        var lsp_service = IdeLspService.get_instance ();
+        var lsp_service = LspService.get_instance ();
         string? markdown = yield lsp_service.request_hover (uri, line, col);
 
         tooltip_widget.update_text (escape_pango (markdown), false);
@@ -660,7 +660,7 @@ public class Iide.SourceView : GtkSource.View {
     }
 
     private async void handle_ctrl_click_async (int line, int col) {
-        var lsp_service = IdeLspService.get_instance ();
+        var lsp_service = LspService.get_instance ();
         var locations = yield lsp_service.goto_definition (uri, line, col);
 
         if (locations == null || locations.size == 0) {
@@ -857,7 +857,7 @@ public class Iide.SourceView : GtkSource.View {
             return;
         }
 
-        var lsp_service = IdeLspService.get_instance ();
+        var lsp_service = LspService.get_instance ();
         lsp_service.request_code_actions.begin (this.uri, current_line, 0, current_line, 99, raw_diagnostics, (obj, res) => {
             var result = lsp_service.request_code_actions.end (res);
                     

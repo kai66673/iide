@@ -27,7 +27,7 @@ public class Iide.FormattingService : GLib.Object {
 
         // Корректно получаем File для определения языка
         var file = File.new_for_uri (source_view.uri);
-        var lsp_service = IdeLspService.get_instance ();
+        var lsp_service = LspService.get_instance ();
         string lang_id = lsp_service.get_language_id_for_file (file);
 
         LoggerService.get_instance ().info (

@@ -43,6 +43,8 @@ public class Iide.Window : Panel.DocumentWorkspace {
 
     private BasePanel[] panel_widgets;
 
+    private Gdk.Cursor wait_cursor = new Gdk.Cursor.from_name ("wait", null);
+
     public Window (Gtk.Application app) {
         Object (application: app);
         GtkSource.init ();
@@ -51,7 +53,7 @@ public class Iide.Window : Panel.DocumentWorkspace {
     construct {
         settings = Iide.SettingsService.get_instance ();
         document_manager = new Iide.DocumentManager (this);
-        project_manager = Iide.ProjectManager.get_instance ();
+        project_manager = new Iide.ProjectManager (this);
         bookmark_service = Iide.BookmarkService.get_instance ();
         document_manager.document_opened.connect ((widget) => {
             grid.add (widget);
@@ -190,56 +192,53 @@ public class Iide.Window : Panel.DocumentWorkspace {
         setup_global_diag_widget ();
 
         project_manager.open_project_by_path (settings.current_project_path);
-        bookmark_service.init_project (settings.current_project_path);
-        restore_opened_documents ();
 
         // Handle window close
         this.close_request.connect (() => {
             save_window_settings ();
             settings.open_documents = document_manager.get_open_document_uris ();
-            bool has_unsaved = false;
-            foreach (var entry in document_manager.documents.entries) {
-                if (entry.value is Iide.TextView) {
-                    var tv = (Iide.TextView) entry.value;
-                    if (tv.is_modified) {
-                        has_unsaved = true;
-                        break;
-                    }
-                }
-            }
-            if (has_unsaved) {
-                var dialog = new Adw.AlertDialog (_("Unsaved Changes"), _("You have unsaved documents. Save before closing?"));
-                dialog.add_response ("cancel", _("Cancel"));
-                dialog.add_response ("discard", _("Discard"));
-                dialog.add_response ("save", _("Save"));
-                dialog.set_response_appearance ("save", Adw.ResponseAppearance.SUGGESTED);
-                dialog.response.connect ((response) => {
-                    if (response == "save") {
-                        foreach (var entry in document_manager.documents.entries) {
-                            if (entry.value is Iide.TextView) {
-                                var tv = (Iide.TextView) entry.value;
-                                if (tv.is_modified) {
-                                    tv.save ();
-                                }
-                            }
-                        }
-                        settings.open_documents = document_manager.get_open_document_uris ();
-                        this.destroy ();
-                    } else if (response == "discard") {
-                        settings.open_documents = document_manager.get_open_document_uris ();
-                        this.destroy ();
-                    }
-                });
-                dialog.present (this);
-                bookmark_service.write_cache_to_json_file ();
-                return true;
-            }
+            bool saved_or_discarded = this.document_manager.confirm_save_modified_documents ();
             bookmark_service.write_cache_to_json_file ();
-            return false;
+            
+            if (saved_or_discarded) {
+                shutdown_all_running_lsp_servers ();
+                DiagnosticsService.get_instance ().lsp_stopped ();
+            }
+            
+            return !saved_or_discarded;
         });
 
         repair_empty_areas ();
         setup_switch_document_controller ();
+    }
+
+    private void shutdown_all_running_lsp_servers () {
+        var loop = new MainLoop ();
+
+        this.set_cursor (wait_cursor);
+
+        SourceFunc run_async = () => {
+            this.shutdown_all_running_lsp_servers_async.begin ((obj, res) => {
+                // Этот callback вызовется, когда async-метод полностью отработает
+                shutdown_all_running_lsp_servers_async.end (res);
+                
+                // Завершаем локальный цикл событий, чтобы разблокировать maybe_save
+                loop.quit ();
+            });
+            return false;
+        };
+
+        run_async ();
+        loop.run ();
+
+        this.set_cursor (null);
+    }
+
+    private async void shutdown_all_running_lsp_servers_async () {
+        var project_manager = Iide.ProjectManager.get_instance ();
+        yield project_manager.shutdown_all_running_lsp_servers_async ();
+        
+        LoggerService.get_instance ().info ("UI", "All background processes are cleanly terminated.");
     }
 
     private void setup_switch_document_controller() {
@@ -264,27 +263,6 @@ public class Iide.Window : Panel.DocumentWorkspace {
         });
 
         ((Gtk.Widget) this).add_controller (key_controller);
-    }
-
-    private void restore_opened_documents () {
-        var grid_data = settings.grid_layout;
-        bool has_grid_docs = grid_data != null && grid_data != "";
-        if (has_grid_docs) {
-            restore_documents_from_grid_data (grid_data);
-        } else {
-            var open_docs = settings.open_documents;
-            bool has_open_docs = open_docs.size > 0;
-            if (has_open_docs) {
-                foreach (var uri in open_docs) {
-                    document_manager.open_document_by_uri (uri);
-                }
-            }
-        }
-
-        Timeout.add (300, () => {
-            NavigationHistoryService.get_instance ().start_navigation ();
-            return Source.REMOVE;
-        });
     }
 
     private void setup_navigation_buttons (Adw.HeaderBar header) {
@@ -363,7 +341,7 @@ public class Iide.Window : Panel.DocumentWorkspace {
         };
     }
 
-    private void initialize_panels () {
+    public void initialize_panels () {
         foreach (var panel in panel_widgets) {
             add_widget (panel, panel.initial_pos ());
         }
@@ -387,9 +365,9 @@ public class Iide.Window : Panel.DocumentWorkspace {
     }
 
     private void save_window_settings () {
+        this.project_manager.save_documents_grid ();
+
         settings.panel_layout = Iide.PanelLayoutHelper.serialize_dock (dock);
-        var grid_json = Iide.PanelLayoutHelper.serialize_grid (grid);
-        settings.grid_layout = grid_json;
 
         bool maximized = false;
         var surface = this.get_surface ();
@@ -406,47 +384,6 @@ public class Iide.Window : Panel.DocumentWorkspace {
             settings.window_height = (int) this.get_height ();
         }
         settings.window_maximized = maximized;
-    }
-
-    private void restore_grid_documents (Gee.ArrayList<Iide.PanelLayoutHelper.DocumentInfo> sorted_docs) {
-        uint last_col = 0;
-        foreach (var doc_info in sorted_docs) {
-            if (doc_info.column > last_col) {
-                last_col = doc_info.column;
-            }
-        }
-
-        for (uint i = 1; i <= last_col; i++) {
-            grid.insert_column (i);
-        }
-
-        foreach (var doc_info in sorted_docs) {
-            var file = GLib.File.new_for_uri (doc_info.uri);
-            var pos = new Panel.Position ();
-            pos.area = Panel.Area.CENTER;
-            pos.column = doc_info.column;
-            pos.row = doc_info.row;
-            document_manager.open_document (file, pos);
-        }
-    }
-
-    private void restore_documents_from_grid_data (string grid_data) {
-        var docs = Iide.PanelLayoutHelper.parse_grid_documents (grid_data);
-        if (docs.size == 0) {
-            return;
-        }
-
-        var sorted_docs = new Gee.ArrayList<Iide.PanelLayoutHelper.DocumentInfo> ();
-        foreach (var doc in docs) {
-            sorted_docs.add (doc);
-        }
-        sorted_docs.sort ((a, b) => {
-            int col_cmp = (int) (a.column - b.column);
-            if (col_cmp != 0)return col_cmp;
-            return (int) (a.row - b.row);
-        });
-
-        restore_grid_documents (sorted_docs);
     }
 
     public void save_modified () {
@@ -527,7 +464,11 @@ public class Iide.Window : Panel.DocumentWorkspace {
         lsp_btn.clicked.connect (() => lsp_popover.popup ());
 
         // 3. Подписка на сервис
-        IdeLspService.get_instance ().tasks_changed.connect (update_lsp_ui);
+        var lsp_service = LspService.get_instance ();
+        lsp_service.tasks_changed.connect (update_lsp_ui);
+        DiagnosticsService.get_instance ().lsp_stopped.connect (() => {
+            lsp_service.clear_lsp_tasks ();
+        });
     }
 
     private void update_lsp_ui (Gee.List<LspTaskInfo?> tasks) {
@@ -586,7 +527,13 @@ public class Iide.Window : Panel.DocumentWorkspace {
         this.statusbar.add_prefix (50, global_diag_btn);
 
         // Подключаемся к сервису для обновления состояния
-        DiagnosticsService.get_instance ().total_count_changed.connect (update_global_diag_status);
+        var diagnostics_service = DiagnosticsService.get_instance ();
+        diagnostics_service.total_count_changed.connect (update_global_diag_status);
+        diagnostics_service.lsp_stopped.connect (clear_global_diag_status);
+    }
+
+    private void clear_global_diag_status () {
+        update_global_diag_status (0, 0);
     }
 
     private void update_global_diag_status (int errors, int warns) {
@@ -598,6 +545,40 @@ public class Iide.Window : Panel.DocumentWorkspace {
             global_diag_icon.icon_name = app_error_icon_name;
             global_diag_label.label = @"$errors / $warns";
             global_diag_btn.add_css_class ("error-state");
+        }
+    }
+
+    public void clear_documents_grid () {
+        Gtk.Widget? paned_widget = this.grid.get_first_child ();
+        Panel.Paned? paned = paned_widget as Panel.Paned;
+        if (paned != null) {
+            Gtk.Widget? paned_child = paned.get_first_child ();
+            while (paned_child != null) {
+                Gtk.Widget? next = paned_child.get_next_sibling ();
+                paned_child.unparent ();
+                paned_child.destroy ();
+                paned_child = next;
+            }
+        }
+    }
+
+    public void restore_documents_grid (Gee.ArrayList<PanelLayoutHelper.DocumentInfo> docs) {
+        if (docs.size == 0)
+            return;
+
+        docs.sort ((a, b) => {
+            int col_cmp = (int) (a.column - b.column);
+            if (col_cmp != 0)return col_cmp;
+            return (int) (a.row - b.row);
+        });
+
+        foreach (var doc_info in docs) {
+            var file = GLib.File.new_for_uri (doc_info.uri);
+            var pos = new Panel.Position ();
+            pos.area = Panel.Area.CENTER;
+            pos.column = doc_info.column;
+            pos.row = doc_info.row;
+            document_manager.open_document (file, pos);
         }
     }
 }

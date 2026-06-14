@@ -339,6 +339,7 @@ public class Iide.LanguageRegistry : GLib.Object {
     }
 
     public LanguageProfile? get_profile (string lang_id) {
+        /// TODO: !DEBUG
         if (this.profiles.has_key (lang_id))
             return this.profiles.get (lang_id);
         return null;

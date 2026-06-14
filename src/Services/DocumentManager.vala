@@ -26,12 +26,12 @@ using Panel;
 
 public class Iide.DocumentManager : GLib.Object {
     public Window window;
-    private IdeLspService lsp_service;
+    private LspService lsp_service;
 
     private string? current_workspace_root;
 
     private LoggerService logger = LoggerService.get_instance ();
-    private static DocumentManager? _instance;
+    private static DocumentManager? _instance = null;
 
     public static DocumentManager get_instance () {
         return _instance;
@@ -96,7 +96,7 @@ public class Iide.DocumentManager : GLib.Object {
     public DocumentManager (Window window) {
         this.window = window;
         DocumentManager._instance = this;
-        lsp_service = IdeLspService.get_instance ();
+        lsp_service = LspService.get_instance ();
 
         mru_history = new Gee.ArrayList<SourceView> ();
 
@@ -212,5 +212,61 @@ public class Iide.DocumentManager : GLib.Object {
             return true;
         }
         return false;
+    }
+
+    public bool has_modified_documents () {
+        foreach (var entry in this.documents.entries) {
+            if (entry.value is Iide.TextView) {
+                var tv = (Iide.TextView) entry.value;
+                if (tv.is_modified) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
+    public void save_modified_documents () {
+        foreach (var entry in this.documents.entries) {
+            if (entry.value is Iide.TextView) {
+                var tv = (Iide.TextView) entry.value;
+                if (tv.is_modified) {
+                    tv.save ();
+                }
+            }
+        }
+    }
+
+    public bool confirm_save_modified_documents () {
+        if (!this.has_modified_documents ())
+            return true;
+
+        var save_dialog_loop = new MainLoop ();
+        bool result = false;
+
+        var dialog = new Adw.AlertDialog (_("Unsaved Changes"), _("You have unsaved documents. Save before closing?"));
+        dialog.add_response ("cancel", _("Cancel"));
+        dialog.add_response ("discard", _("Discard"));
+        dialog.add_response ("save", _("Save"));
+        dialog.set_response_appearance ("save", Adw.ResponseAppearance.SUGGESTED);
+        dialog.response.connect ((response) => {
+            switch (response) {
+                case "save":
+                    this.save_modified_documents ();
+                    result = true;
+                    break;
+                case "discard":
+                    result = true;
+                    break;
+                case "cancel":
+                    result = false;
+                    break;
+            }
+            save_dialog_loop.quit ();
+        });
+
+        dialog.present (this.window);
+        save_dialog_loop.run ();
+        return result;
     }
 }
