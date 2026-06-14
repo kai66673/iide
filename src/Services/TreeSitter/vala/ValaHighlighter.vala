@@ -178,6 +178,24 @@ public class Iide.ValaHighlighter : SimpleTreeSitterHighlighter {
     }
 
     protected override bool is_container_node (string node_type) {
-        return node_type in new string[] { "class_definition", "function_definition" };
+        switch (node_type) {
+            case "function_definition":
+            case "class_definition":
+            case "class_declaration":
+                return true;
+        }
+        return false;
+    }
+
+    protected override bool is_foldable_node_type (string type) {
+        switch (type) {
+            case "compound_statement":
+            case "function_definition":
+            case "class_definition":
+            case "class_declaration":
+            case "block":
+                return true;
+        }
+        return false;
     }
 }
