@@ -12,6 +12,14 @@ public class Iide.LspPromise : Object {
     }
 }
 
+public enum Iide.LspClientStatus {
+    STOPPED,
+    STARTING,
+    INITIALIZING,
+    READY,
+    FAILED
+}
+
 public enum Iide.TextDocumentSyncKind {
     NONE = 0,
     FULL = 1,
@@ -48,6 +56,26 @@ private class Iide.LspWriteWaiter : GLib.Object {
 }
 
 public class Iide.LspClient : Object {
+    public class PendingOpen {
+        public string uri;
+        public string language_id;
+        public string content;
+
+        public PendingOpen (string uri, string language_id, string content) {
+            this.uri = uri;
+            this.language_id = language_id;
+            this.content = content;
+        }
+    }
+
+    private LoggerService logger = LoggerService.get_instance ();
+
+    // Текущий статус клиента в конечном автомате
+    public LspClientStatus status { get; private set; default = LspClientStatus.STOPPED; }
+
+    // Внутренний кэш отложенных документов: [file_uri] -> [содержимое текста буфера]
+    private Gee.ArrayList<PendingOpen> pending_documents;
+
     private int next_id = 0;
     private Map<int, LspPromise> pending_requests = new HashMap<int, LspPromise> ();
     private Map<int, Json.Object?> responses = new HashMap<int, Json.Object?> ();
@@ -67,6 +95,11 @@ public class Iide.LspClient : Object {
 
     private bool is_stopping = false;
     private GLib.Cancellable read_cancellable = new GLib.Cancellable ();
+    
+    public bool is_initialized { get; private set; default = false; }
+    
+    // Свойство возможностей сервера
+    public ServerCapabilities capabilities { get; private set; }
 
     // Сигнал для передачи диагностики в UI
     public signal void diagnostics_received (string uri, Gee.ArrayList<LspDiagnosticPair?> diagnostics);
@@ -74,21 +107,111 @@ public class Iide.LspClient : Object {
     // Сигнал для логирования сообщений от сервера
     public signal void log_message (int type, string message);
 
-    // Свойство возможностей сервера
-    public ServerCapabilities capabilities { get; private set; }
-
     // Сигнал, сообщающий, что возможности сервера получены и распарсены
     public signal void initialized_with_capabilities (ServerCapabilities caps);
-
-    public bool is_initialized { get; private set; default = false; }
+    
+    // Прогресс индексации проекта
+    public signal void progress_updated (string token, string message, int percentage, bool active);
 
     public LspClient (LspConfig config) {
         this.capabilities = new ServerCapabilities ();
         this.config = config;
         this.diagnostics_service = DiagnosticsService.get_instance ();
+        pending_documents = new Gee.ArrayList<PendingOpen> ();
     }
 
-    public signal void progress_updated (string token, string message, int percentage, bool active);
+    public async bool start_server_async (string? workspace_root) {
+        if (this.status != LspClientStatus.STOPPED)
+            return false;
+        this.status = LspClientStatus.STARTING;
+        
+        try {
+            // 1. Запуск подпроцесса
+            var launcher = new SubprocessLauncher (SubprocessFlags.STDOUT_PIPE | SubprocessFlags.STDIN_PIPE);
+            launcher.set_cwd (workspace_root.replace ("file://", ""));
+            this.process = launcher.spawnv (config.command);
+
+            // 1.1. Инициализация асинхронных потоков
+            this.output_stream = this.process.get_stdin_pipe ();
+            this.input_stream = new DataInputStream (this.process.get_stdout_pipe ());
+
+            // 1.2. Запуск цикла чтения (он будет ждать сообщений в фоне)
+            this.run_read_loop.begin ();
+
+            this.status = LspClientStatus.INITIALIZING;
+            logger.info ("LSP", "Server '%s' process spawned. Handshaking 'initialize'...".printf (this.name ()));
+
+            // 2. Фаза INITIALIZE
+            var init_params = config.initialize_params (workspace_root);
+            var response = yield this.send_request ("initialize", init_params.get_object ());
+
+            if (response != null && response.has_member ("result")) {
+                var result = response.get_object_member ("result");
+                // Извлекаем возможности сервера
+                this.parse_capabilities (result);
+            }
+
+            // Используем Idle.add, чтобы оповестить подписчиков в главном потоке
+            is_initialized = true;
+            Idle.add (() => {
+                this.initialized_with_capabilities (this.capabilities);
+                LspService.get_instance ().register_client (this);
+                return Source.REMOVE; // Выполнить один раз
+            });
+
+            // 3. Фаза INITIALIZED (уведомление о готовности)
+            yield this.send_notification_async ("initialized", new Json.Object ());
+
+            yield this.process_pending_opens ();
+
+            this.status = LspClientStatus.READY;
+
+            logger.info ("LSP", "Server '%s' started and initialized".printf (this.name ()));
+            return true;
+        } catch (Error e) {
+            logger.error ("LSP", "Failed to start server '%s': %s".printf (this.name (), e.message));
+            return false;
+        }
+    }
+
+    private async void process_pending_opens () throws Error {
+        var opens_to_process = new ArrayList<PendingOpen> ();
+        foreach (var open in pending_documents) {
+            opens_to_process.add (open);
+        }
+        pending_documents.clear ();
+
+        foreach (var open in opens_to_process) {
+            yield this.text_document_did_open(open.uri, open.language_id, 1, open.content);
+        }
+    }
+
+    /**
+     * КРИТИЧЕСКИЙ МЕТОД: Регистрация открытия документа в клиенте
+     */
+    public void register_and_open_document (string uri, string language_id, int version, string text) {
+        // Сценарий 1: Сервер уже полностью готов — шлем уведомление didOpen без задержек! [INDEX]
+        if (this.status == LspClientStatus.READY) {
+            this.text_document_did_open.begin (uri, language_id, version, text);
+            this.process_pending_opens.begin ();
+            return;
+        }
+
+        // Сценарий 2: Сервер упал или остановлен — игнорируем
+        if (this.status == LspClientStatus.FAILED) {
+            logger.warning (
+                "LSP", "Server '%s' has failed. Ignoring didOpen for %s".printf (this.name (), uri)
+            );
+            return;
+        }
+
+        // Сценарий 3: Сервер в процессе старта (STARTING / INITIALIZING).
+        // Инкапсулируем состояние: сохраняем файл во внутреннюю очередь клиента! [INDEX]
+        this.pending_documents.add (new PendingOpen(uri, language_id, text));
+        logger.debug (
+            "LSP", "Document %s queued in pending list for server '%s'".printf (uri, this.name ())
+        );
+    }
 
     public string name () { return config.command[0]; }
 
@@ -415,50 +538,6 @@ public class Iide.LspClient : Object {
             this.log_message (type, message);
             return Source.REMOVE;
         });
-    }
-
-    public async bool start_server_async (string? workspace_root) {
-        try {
-            // 1. Подготовка аргументов запуска
-            // 2. Запуск подпроцесса
-            var launcher = new SubprocessLauncher (SubprocessFlags.STDOUT_PIPE | SubprocessFlags.STDIN_PIPE);
-            launcher.set_cwd (workspace_root.replace ("file://", ""));
-            this.process = launcher.spawnv (config.command);
-
-            // 3. Инициализация асинхронных потоков
-            this.output_stream = this.process.get_stdin_pipe ();
-            this.input_stream = new DataInputStream (this.process.get_stdout_pipe ());
-
-            // 4. Запуск цикла чтения (он будет ждать сообщений в фоне)
-            this.run_read_loop.begin ();
-
-            // 5. Фаза INITIALIZE
-            var init_params = config.initialize_params (workspace_root);
-            var response = yield this.send_request ("initialize", init_params.get_object ());
-
-            if (response != null && response.has_member ("result")) {
-                var result = response.get_object_member ("result");
-                // Извлекаем возможности сервера
-                this.parse_capabilities (result);
-            }
-
-            // Используем Idle.add, чтобы оповестить подписчиков в главном потоке
-            is_initialized = true;
-            Idle.add (() => {
-                this.initialized_with_capabilities (this.capabilities);
-                LspService.get_instance ().register_client (this);
-                return Source.REMOVE; // Выполнить один раз
-            });
-
-            // 6. Фаза INITIALIZED (уведомление о готовности)
-            yield this.send_notification_async ("initialized", new Json.Object ());
-
-            debug ("LSP Server started and initialized for: %s", workspace_root ?? "unknown");
-            return true;
-        } catch (Error e) {
-            warning ("Failed to start LSP server: %s", e.message);
-            return false;
-        }
     }
 
     private void parse_capabilities (Json.Object result) {

@@ -7,27 +7,10 @@ public class Iide.LspService : GLib.Object {
     private Gee.HashMap<string, string> uri_to_client_key;
     private Gee.HashMap<string, int> document_versions;
     private Gee.HashMap<string, bool> client_starting;
-    private Gee.ArrayList<PendingOpen> pending_opens;
 
     private LoggerService logger = LoggerService.get_instance ();
 
     public signal void diagnostics_updated (string uri, ArrayList<LspDiagnosticPair?> diagnostics);
-
-    public class PendingOpen {
-        public string uri;
-        public string language_id;
-        public string content;
-        public string? workspace_root;
-        public SourceView view;
-
-        public PendingOpen (string uri, string language_id, string content, string? workspace_root, SourceView view) {
-            this.uri = uri;
-            this.language_id = language_id;
-            this.content = content;
-            this.workspace_root = workspace_root;
-            this.view = view;
-        }
-    }
 
     // [ClientHash] -> [Token] -> LspTaskInfo
     private Gee.HashMap<int, Gee.HashMap<string, LspTaskInfo?>> progress_map =
@@ -40,7 +23,6 @@ public class Iide.LspService : GLib.Object {
         uri_to_client_key = new Gee.HashMap<string, string> ();
         document_versions = new Gee.HashMap<string, int> ();
         client_starting = new Gee.HashMap<string, bool> ();
-        pending_opens = new Gee.ArrayList<PendingOpen> ();
     }
 
     public static unowned LspService get_instance () {
@@ -184,84 +166,57 @@ public class Iide.LspService : GLib.Object {
 
         debug ("IdeLspService: Opening document %s (lang=%s)", uri, language_id);
 
-        if (clients.has_key (server_key)) {
-            var client = clients.get (server_key);
-            uri_to_client_key.set (uri, server_key);
-            document_versions.set (uri, 1);
-            try {
-                yield client.text_document_did_open (uri, language_id, 1, content);
-            } catch (Error e) {
-                logger.error ("LSP", "Failed to open document %s: %s".printf (uri, e.message));
+        LspClient? client = null;
+
+        // 1. Извлекаем клиент из кэша активных серверов
+        if (this.clients.has_key (server_key)) {
+            client = this.clients.get (server_key);
+        } else {
+            // 2. Если клиента еще нет — лениво создаем объект-оболочку 
+            // (Сам процесс ОС будет запущен централизованно диспетчером воркспейса)
+            var config = lang_profile.lsp;
+            if (config == null) {
+                Idle.add (() => {
+                    view.bind_lsp_client (null);
+                    return Source.REMOVE;
+                });
+                return;
             }
 
-            Idle.add (() => {
-                view.bind_lsp_client (client);
-                return Source.REMOVE;
+            client = new LspClient (config);
+            
+            client.diagnostics_received.connect ((uri, diagnostics) => {
+                this.diagnostics_updated (uri, diagnostics);
             });
 
-            return;
+            this.clients.set (server_key, client);
         }
 
-        if (client_starting.get (server_key) == true) {
-            pending_opens.add (new PendingOpen (uri, language_id, content, workspace_root, view));
-            return;
-        }
+        // Синхронизируем внутренние мапы версий для вашей кодовой базы
+        this.uri_to_client_key.set (uri, server_key);
+        this.document_versions.set (uri, 1);
 
-        client_starting.set (server_key, true);
+        // 3. Отдаем документ клиенту. Клиент внутри себя атомарно решает:
+        //    Отправить didOpen по сети или положить в безопасный docs_snapshot!
+        client.register_and_open_document (uri, language_id, 1, content);
 
-        var config = lang_profile.lsp;
-        if (config == null) {
-            client_starting.set (server_key, false);
-            return;
-        }
-
-        var client = new LspClient (config);
-        client.diagnostics_received.connect ((uri, diagnostics) => {
-            diagnostics_updated (uri, diagnostics);
+        // 4. Привязываем бэкенд-клиент к графическому отображению SourceView
+        Idle.add (() => {
+            view.bind_lsp_client (client);
+            return Source.REMOVE;
         });
 
-        bool started = yield client.start_server_async (workspace_root);
-
-        logger.info ("LSP", "Started server for %s: %b (%s)".printf (server_key, started, workspace_root));
-
-        if (started) {
-            clients.set (server_key, client);
-            uri_to_client_key.set (uri, server_key);
-            document_versions.set (uri, 1);
-            try {
-                yield client.text_document_did_open (uri, language_id, 1, content);
-            } catch (Error e) {
-                logger.error ("LSP", "Failed to open document %s: %s".printf (uri, e.message));
-            }
-
-            Idle.add (() => {
-                view.bind_lsp_client (client);
-                return Source.REMOVE;
+        // 2. Старый способ запуска: если процесс сервера остановлен — будим его [INDEX]
+        if (client.status == LspClientStatus.STOPPED) {
+            // Метод .begin запускает ваш нативный start_async в изолированном фоне [INDEX]
+            client.start_server_async.begin (workspace_root, (obj, res) => {
+                if (!client.start_server_async.end (res)) {
+                    Idle.add (() => {
+                        view.bind_lsp_client (null);
+                        return Source.REMOVE;
+                    });
+                }
             });
-
-            yield process_pending_opens ();
-        } else {
-            // TODO: restart logic...
-            Idle.add (() => {
-                view.bind_lsp_client (null);
-                return Source.REMOVE;
-            });
-
-            warning ("IdeLspService: Failed to start LSP server for %s", server_key);
-        }
-
-        client_starting.set (server_key, false);
-    }
-
-    private async void process_pending_opens () {
-        var opens_to_process = new ArrayList<PendingOpen> ();
-        foreach (var open in pending_opens) {
-            opens_to_process.add (open);
-        }
-        pending_opens.clear ();
-
-        foreach (var open in opens_to_process) {
-            yield open_document (open.uri, open.language_id, open.content, open.workspace_root, open.view);
         }
     }
 
