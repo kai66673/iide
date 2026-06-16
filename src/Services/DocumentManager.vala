@@ -73,8 +73,6 @@ public class Iide.DocumentManager : GLib.Object {
         
         // Вставляем на самую первую позицию (индекс 0) как самый свежий активный документ
         this.mru_history.insert (0, source_view);
-
-        LoggerService.get_instance ().info ("MRU", "Document added: " + source_view.uri);
     }
 
     private void clear_mru_history() {
@@ -146,8 +144,7 @@ public class Iide.DocumentManager : GLib.Object {
                     panel_widget = new Iide.TextView (file, buffer, window);
 
                     panel_widget.buffer_saved.connect (() => {
-                        string content = ((GtkSource.Buffer) panel_widget.text_view.buffer).text;
-                        lsp_service.change_document.begin (uri, content);
+                        panel_widget.source_view.lsp_document_client.save_document ();
                     });
 
                     if (pos == null) {
@@ -164,10 +161,9 @@ public class Iide.DocumentManager : GLib.Object {
                         panel_widget.select_and_scroll (line, start_col, end_col, true);
                     }
 
-                    string content = buffer.text;
                     string? lang_id = lsp_service.get_language_id_for_file (file);
                     if (lang_id != null) {
-                        lsp_service.open_document.begin (uri, lang_id, content, current_workspace_root, panel_widget.text_view);
+                        lsp_service.register_document (lang_id, current_workspace_root, panel_widget.source_view);
                     }
                 } catch (Error e) {
                     logger.error ("Doc", "Error Opening File", "Failed to read file %s: %s".printf (file.get_path (), e.message));

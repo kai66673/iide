@@ -26,11 +26,20 @@ public enum Iide.TextDocumentSyncKind {
     INCREMENTAL = 2
 }
 
+public enum Iide.LspDiagnosticMode {
+    NONE,
+    PUSH,   // push-модель (pyright) - присылает ответ в нотификации после didOpen/didChange
+    PULL    // pull-модель (ruff) - присылает ответ на запрос textDocument/diagnostic
+}
+
 public class Iide.ServerCapabilities : Object {
+    public LspDiagnosticMode diagnostics_provider = LspDiagnosticMode.NONE;
     public TextDocumentSyncKind sync_kind = TextDocumentSyncKind.FULL;
+    public bool completion_provider = false;
     public HashSet<string> completion_triggers = new HashSet<string> ();
-    public bool hover_provider = false;
     public bool definition_provider = false;
+    public bool hover_provider = false;
+    public bool code_actions_provider = false;
 
     // To features...
     public bool references_provider = false;
@@ -60,11 +69,17 @@ public class Iide.LspClient : Object {
         public string uri;
         public string language_id;
         public string content;
+        public string? workspace_root;
+        public SourceView view;
 
-        public PendingOpen (string uri, string language_id, string content) {
+        public LspFeatures features { get; private set; }
+
+        public PendingOpen (string uri, string language_id, string content, string? workspace_root, SourceView view) {
             this.uri = uri;
             this.language_id = language_id;
             this.content = content;
+            this.workspace_root = workspace_root;
+            this.view = view;
         }
     }
 
@@ -82,6 +97,7 @@ public class Iide.LspClient : Object {
     private LspConfig config;
 
     private DiagnosticsService diagnostics_service;
+    private LspService lsp_service;
 
     // Процесс LSP сервера
     private GLib.Subprocess process;
@@ -96,10 +112,9 @@ public class Iide.LspClient : Object {
     private bool is_stopping = false;
     private GLib.Cancellable read_cancellable = new GLib.Cancellable ();
     
-    public bool is_initialized { get; private set; default = false; }
-    
     // Свойство возможностей сервера
-    public ServerCapabilities capabilities { get; private set; }
+    public ServerCapabilities capabilities { get; set; }
+    public LspFeatures features { get; construct set; }
 
     // Сигнал для передачи диагностики в UI
     public signal void diagnostics_received (string uri, Gee.ArrayList<LspDiagnosticPair?> diagnostics);
@@ -113,16 +128,19 @@ public class Iide.LspClient : Object {
     // Прогресс индексации проекта
     public signal void progress_updated (string token, string message, int percentage, bool active);
 
-    public LspClient (LspConfig config) {
+    public LspClient (LspConfig config, LspFeatures features) {
         this.capabilities = new ServerCapabilities ();
         this.config = config;
+        this.features = features;
         this.diagnostics_service = DiagnosticsService.get_instance ();
+        this.lsp_service = LspService.get_instance ();
         pending_documents = new Gee.ArrayList<PendingOpen> ();
     }
 
     public async bool start_server_async (string? workspace_root) {
         if (this.status != LspClientStatus.STOPPED)
             return false;
+    
         this.status = LspClientStatus.STARTING;
         
         try {
@@ -152,7 +170,6 @@ public class Iide.LspClient : Object {
             }
 
             // Используем Idle.add, чтобы оповестить подписчиков в главном потоке
-            is_initialized = true;
             Idle.add (() => {
                 this.initialized_with_capabilities (this.capabilities);
                 LspService.get_instance ().register_client (this);
@@ -162,9 +179,8 @@ public class Iide.LspClient : Object {
             // 3. Фаза INITIALIZED (уведомление о готовности)
             yield this.send_notification_async ("initialized", new Json.Object ());
 
-            yield this.process_pending_opens ();
-
             this.status = LspClientStatus.READY;
+            yield this.process_pending_opens ();
 
             logger.info ("LSP", "Server '%s' started and initialized".printf (this.name ()));
             return true;
@@ -182,35 +198,48 @@ public class Iide.LspClient : Object {
         pending_documents.clear ();
 
         foreach (var open in opens_to_process) {
-            yield this.text_document_did_open(open.uri, open.language_id, 1, open.content);
+            this.register_document (open.language_id, open.content, open.workspace_root, open.view);
         }
     }
 
-    /**
-     * КРИТИЧЕСКИЙ МЕТОД: Регистрация открытия документа в клиенте
-     */
-    public void register_and_open_document (string uri, string language_id, int version, string text) {
-        // Сценарий 1: Сервер уже полностью готов — шлем уведомление didOpen без задержек! [INDEX]
-        if (this.status == LspClientStatus.READY) {
-            this.text_document_did_open.begin (uri, language_id, version, text);
-            this.process_pending_opens.begin ();
-            return;
+    public void register_document (string language_id, string content, string? workspace_root, SourceView view) {
+        switch (this.status) {
+            case LspClientStatus.STOPPED:
+            case LspClientStatus.STARTING:
+            case LspClientStatus.INITIALIZING:
+                // Инкапсулируем состояние: сохраняем файл во внутреннюю очередь клиента!
+                this.pending_documents.add (new PendingOpen(
+                    view.uri,
+                    language_id,
+                    ((GtkSource.Buffer) view.buffer).text,
+                    workspace_root,
+                    view
+                ));
+                logger.debug (
+                    "LSP", "Document %s queued in pending list for server '%s'".printf (view.uri, this.name ())
+                );
+                break;
+            case LspClientStatus.READY:
+                // Сервер уже полностью готов — шлем уведомление didOpen без задержек!
+                this.text_document_did_open.begin (view.uri, language_id, 1, content, (obj, res) => {
+                    view.bind_lsp_client (this);
+                    try {
+                        this.text_document_did_open.end (res);
+                        this.logger.info ("LSP", "Document %s opened in '%s'".printf (view.uri, this.name ()));
+                    } catch (GLib.Error e) {
+                        this.logger.error ("LSP", "Document %s failed to open in '%s'".printf (view.uri, this.name ()));
+                    }
+                });
+                this.logger.debug ("LSP", "Document %s did open send to '%s'".printf (view.uri, this.name ()));
+                break;
+            case LspClientStatus.FAILED:
+                // Сервер упал или остановлен — игнорируем
+                logger.info (
+                    "LSP", "Server '%s' has failed. Ignoring didOpen for %s".printf (this.name (), view.uri)
+                );
+                view.bind_lsp_client (this);
+                break;
         }
-
-        // Сценарий 2: Сервер упал или остановлен — игнорируем
-        if (this.status == LspClientStatus.FAILED) {
-            logger.warning (
-                "LSP", "Server '%s' has failed. Ignoring didOpen for %s".printf (this.name (), uri)
-            );
-            return;
-        }
-
-        // Сценарий 3: Сервер в процессе старта (STARTING / INITIALIZING).
-        // Инкапсулируем состояние: сохраняем файл во внутреннюю очередь клиента! [INDEX]
-        this.pending_documents.add (new PendingOpen(uri, language_id, text));
-        logger.debug (
-            "LSP", "Document %s queued in pending list for server '%s'".printf (uri, this.name ())
-        );
     }
 
     public string name () { return config.command[0]; }
@@ -541,8 +570,17 @@ public class Iide.LspClient : Object {
     }
 
     private void parse_capabilities (Json.Object result) {
-        if (!result.has_member ("capabilities"))return;
+        if (!result.has_member ("capabilities"))
+            return;
+        
         var caps = result.get_object_member ("capabilities");
+
+        if (LspFeatures.DIAGNOSTICS in this.features) {
+            this.capabilities.diagnostics_provider = LspDiagnosticMode.PUSH;
+            if (caps.has_member ("diagnosticProvider")) {
+                this.capabilities.diagnostics_provider = LspDiagnosticMode.PULL;
+            }
+        }
 
         // Синхронизация документа
         if (caps.has_member ("textDocumentSync")) {
@@ -557,20 +595,24 @@ public class Iide.LspClient : Object {
         }
 
         // Триггеры автодополнения
-        if (caps.has_member ("completionProvider")) {
-            var comp = caps.get_object_member ("completionProvider");
-            if (comp.has_member ("triggerCharacters")) {
-                var triggers = comp.get_array_member ("triggerCharacters");
-                this.capabilities.completion_triggers.clear ();
-                foreach (var node in triggers.get_elements ()) {
-                    this.capabilities.completion_triggers.add (node.get_string ());
+        if (LspFeatures.COMPLETION in this.features) {
+            if (caps.has_member ("completionProvider")) {
+                this.capabilities.completion_provider = true;
+                var comp = caps.get_object_member ("completionProvider");
+                if (comp.has_member ("triggerCharacters")) {
+                    var triggers = comp.get_array_member ("triggerCharacters");
+                    this.capabilities.completion_triggers.clear ();
+                    foreach (var node in triggers.get_elements ()) {
+                        this.capabilities.completion_triggers.add (node.get_string ());
+                    }
                 }
             }
         }
 
         // Hover & Definition
-        this.capabilities.hover_provider = caps.has_member ("hoverProvider");
-        this.capabilities.definition_provider = caps.has_member ("definitionProvider");
+        this.capabilities.definition_provider = LspFeatures.DEFINTION in this.features && caps.has_member ("definitionProvider");
+        this.capabilities.hover_provider = LspFeatures.HOVER in this.features && caps.has_member ("hoverProvider");
+        this.capabilities.code_actions_provider = LspFeatures.CODE_ACTIONS in this.features && caps.has_member ("codeActionProvider");
     }
 
     public async void send_notification_async (string method, Json.Object params) throws Error {
@@ -659,7 +701,7 @@ public class Iide.LspClient : Object {
         yield this.send_notification_async ("textDocument/didChange", params);
     }
 
-    public async void send_did_change (string uri, int version, Gee.ArrayList<PendingChange> changes) throws Error {
+    public async void send_did_change (string uri, int version, Gee.List<PendingChange> changes) throws Error {
         var params = new Json.Object ();
 
         // 1. Идентификатор документа

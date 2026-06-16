@@ -91,21 +91,18 @@ namespace Iide {
         }
 
         public virtual bool is_trigger (Gtk.TextIter iter, unichar ch) {
-            // 1. Получаем клиент для текущего документа
-            var client = LspService.get_instance ().get_client_for_uri (this.source_view.uri);
-
-            if (client == null || !client.is_initialized) {
-                // Если сервер еще не готов, используем стандартный набор (на всякий случай)
-                return ch == '.';
-            }
-
-            // 2. Проверяем, есть ли введенный символ в списке триггеров сервера
             string s = ch.to_string ();
-            if (client.capabilities.completion_triggers.contains (s)) {
-                return true;
+
+            var lsp_document = this.source_view.lsp_document_client;
+            foreach (var lsp_client in lsp_document.active_clients) {
+                if (lsp_client.status == LspClientStatus.READY && lsp_client.capabilities.completion_provider) {
+                    if (lsp_client.capabilities.completion_triggers.contains (s)) {
+                        return true;
+                    }
+                }
             }
 
-            return false;
+            return ch == '.';
         }
 
         public virtual CompletionActivation get_activation (CompletionContext context) {
@@ -121,7 +118,9 @@ namespace Iide {
                 return filter_model;
             }
 
-            yield source_view.lsp_sync_changes_async ();
+            var lsp_document = this.source_view.lsp_document_client;
+
+            yield lsp_document.flush_changes_async ();
 
             var buffer = source_view.buffer;
             var insert_mark = buffer.get_insert ();
@@ -147,16 +146,59 @@ namespace Iide {
                 }
             }
 
-            var result = yield lsp_service.request_completion (uri, line, character, trigger_char, trigger_kind);
+            // Получаем список серверов этой конкретной вкладки, поддерживающих Completion
+            var active_servers = new Gee.ArrayList<LspClient> ();
+            foreach (var client in lsp_document.active_clients) {
+                // Берем только READY серверы, которые по lsp.json умеют автодополнение
+                if (client.status == LspClientStatus.READY && client.capabilities.completion_provider) {
+                    active_servers.add (client);
+                }
+            }
 
-            if (result == null || result.items.size == 0) {
+            if (active_servers.is_empty)
                 return filter_model;
+
+            // Счетчик параллельно выполняющихся асинхронных RPC-запросов к сокетам ОС
+            int active_requests = 0;
+            SourceFunc resume_callback = populate_async.callback;
+
+            // ===================================================================
+            // ПАРАЛЛЕЛЬНЫЙ АСИНХРОННЫЙ ВЕЩАТЕЛЬНЫЙ ЦИКЛ ПО ВСЕМ СЕРВЕРАМ ВКЛАДКИ
+            // ===================================================================
+            foreach (var client in active_servers) {
+                active_requests++;
+
+                // Вызываем асинхронный метод запроса комплишена у конкретного клиента (.begin)
+                client.request_completion.begin (uri, line, character, trigger_char, trigger_kind, (obj, res) => {
+                    try {
+                        var result = client.request_completion.end (res);
+                        
+                        if (result != null && result.items.size > 0) {
+                            // Чтобы избежать ConcurrentModificationException в ListStore, 
+                            // перевод в UI-поток обязателен через Idle.add
+                            Idle.add (() => {
+                                foreach (var item in result.items) {
+                                    // Оборачиваем предложение и сохраняем имя его сервера-создателя!
+                                    var proposal = new LspCompletionProposal (item);
+                                    base_store.append (proposal);
+                                }
+                                return Source.REMOVE;
+                            });
+                        }
+                    } catch (GLib.Error e) {
+                        LoggerService.get_instance ().error ("LSP", "Completion request failed for '%s': %s".printf (client.name (), e.message));
+                    } finally {
+                        active_requests--;
+                        // Когда САМЫЙ последний сокет вернул данные — будим основной метод!
+                        if (active_requests == 0) {
+                            Idle.add ((owned) resume_callback);
+                        }
+                    }
+                });
             }
 
-            foreach (var item in result.items) {
-                var proposal = new LspCompletionProposal (item);
-                base_store.append (proposal);
-            }
+            // Засыпаем и отдаем управление MainContext, пока Ruff и Pyright параллельно качают пакеты
+            yield;
 
             return filter_model;
         }

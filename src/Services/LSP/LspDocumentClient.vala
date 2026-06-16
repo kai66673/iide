@@ -3,28 +3,39 @@
 
 public class Iide.LspDocumentClient: GLib.Object {
     private SourceView source_view;
+    private LoggerService logger;
+        
+    // Список всех активных и зарегистрированных серверов для этой вкладки
+    public Gee.ArrayList<LspClient> active_clients = new Gee.ArrayList<LspClient> ();
+
+    // Общее количество серверов, которое мы ожидаем из роутера lsp.json для этого файла
+    private int expected_lsp_clients_count = -1;    // -1 - ожидаем
+
+    private bool all_clients_started_or_failed = false;
 
     private Gee.ArrayList<PendingChange> pending_queue = new Gee.ArrayList<PendingChange> ();
     private int document_version = 0;
     private uint debounce_id = 0;
-    private uint debounce_full_id = 0;
-    private int lsp_sync_kind = 0; // 0 - не синхронизирован, 1 - incremental, 2 - full sync
-
-    private ulong change_handler_id = 0;
 
     public LspDocumentClient(SourceView source_view) {
         Object();
         this.source_view = source_view;
+        this.logger = LoggerService.get_instance ();
     }
 
-    public void add_change (PendingChange nc) {
+    public void add_change (PendingChange new_change) {
         if (!pending_queue.is_empty) {
             // TODO: merge changes...
         }
 
+        if (this.expected_lsp_clients_count == 0)
+            return;
+
         this.document_version++;
-        pending_queue.add (nc);
-        reset_timer ();
+        pending_queue.add (new_change);
+
+        if (this.all_clients_started_or_failed)
+            reset_timer ();
     }
 
     private void reset_timer () {
@@ -37,8 +48,6 @@ public class Iide.LspDocumentClient: GLib.Object {
     }
 
     public void flush_changes () {
-        if (lsp_sync_kind != 1)
-            return;
         if (pending_queue.is_empty)
             return;
 
@@ -49,13 +58,26 @@ public class Iide.LspDocumentClient: GLib.Object {
             debounce_id = 0;
         }
 
-        // Передаем в менеджер для конвертации и отправки
-        var lsp_service = LspService.get_instance ();
-        lsp_service.send_did_change.begin (this.source_view.uri, this.document_version, changes);
+        foreach (var lsp_client in this.active_clients) {
+            if (lsp_client.status != LspClientStatus.READY)
+                continue;
+
+            switch (lsp_client.capabilities.sync_kind) {
+                case TextDocumentSyncKind.FULL:
+                    lsp_client.text_document_did_change.begin (this.source_view.uri, this.document_version, this.source_view.buffer.text);
+                    break;
+                case TextDocumentSyncKind.INCREMENTAL:
+                    lsp_client.send_did_change.begin (this.source_view.uri, this.document_version, changes);
+                    break;
+                case TextDocumentSyncKind.NONE:
+                    break;
+            }
+        }
     }
 
-    private async void flush_changes_async () {
-        if (pending_queue.is_empty)return;
+    public async void flush_changes_async () {
+        if (pending_queue.is_empty)
+            return;
 
         var changes = pending_queue;
         pending_queue = new Gee.ArrayList<PendingChange> ();
@@ -64,101 +86,72 @@ public class Iide.LspDocumentClient: GLib.Object {
             debounce_id = 0;
         }
 
-        // Передаем в менеджер для конвертации и отправки
-        var lsp_service = LspService.get_instance ();
-        yield lsp_service.send_did_change (this.source_view.uri, this.document_version, changes);
-    }
-    
-    private async void flush_changes_full_async () {
-        this.document_version++;
+        foreach (var lsp_client in this.active_clients) {
+            if (lsp_client.status != LspClientStatus.READY)
+                continue;
 
-        // Получаем текст синхронно (он уже актуален, так как мы в Main Loop после паузы)
-        string current_text = this.source_view.buffer.text;
-
-        var client = LspService.get_instance ().get_client_for_uri (this.source_view.uri);
-        if (client != null) {
-            try {
-                // Вызываем метод полной синхронизации в новом асинхронном клиенте
-                yield client.text_document_did_change (this.source_view.uri, this.document_version, current_text);
-
-                debug ("LSP: Full sync sent for %s (v%d)", this.source_view.uri, this.document_version);
-            } catch (Error e) {
-                warning ("LSP: Full sync error: %s", e.message);
+            switch (lsp_client.capabilities.sync_kind) {
+                case TextDocumentSyncKind.FULL:
+                    try {
+                        yield lsp_client.text_document_did_change (this.source_view.uri, this.document_version, this.source_view.buffer.text);
+                    } catch (GLib.Error e) {
+                        this.logger.error ("LSP", "Error on send 'text_document_did_change' for document %s: %s".printf (this.source_view.uri, e.message));
+                    }
+                    break;
+                case TextDocumentSyncKind.INCREMENTAL:
+                    try {
+                        yield lsp_client.send_did_change (this.source_view.uri, this.document_version, changes);
+                    } catch (GLib.Error e) {
+                        this.logger.error ("LSP", "Error on send 'send_did_change' for document %s: %s".printf (this.source_view.uri, e.message));
+                    }
+                    break;
+                case TextDocumentSyncKind.NONE:
+                    break;
             }
         }
     }
-
-    public async void sync_changes_async () {
-        switch (lsp_sync_kind) {
-        case 1:
-            yield flush_changes_async ();
-
-            break;
-        case 2:
-            yield flush_changes_full_async ();
-
-            break;
-        }
-    }
-
-    public void bind_lsp_client (LspClient? client) {
-        if (client != null)
-            setup_lsp_sync (client);
-        else
-            setup_no_lsp_sync ();
-    }
-
-    // Этот метод вызывается при открытии файла
-    private void setup_lsp_sync (LspClient client) {
-        this.apply_sync_strategy (client);
-    }
-
-    private void setup_no_lsp_sync () {
-        lsp_sync_kind = 0;
-        if (change_handler_id > 0)
-            this.source_view.disconnect (change_handler_id);
-
-        // Очищаем накопленные дельты (они бесполезны)
-        this.pending_queue.clear ();
-    }
-
-    private void apply_sync_strategy (LspClient client) {
-        // Если сервер НЕ умеет в инкремент (Full Sync)
-        if (client.capabilities.sync_kind != TextDocumentSyncKind.INCREMENTAL) {
-            // Отключаем 'before' сигналы
-            if (change_handler_id > 0)
-                this.source_view.disconnect (change_handler_id);
-
-            // Очищаем накопленные дельты (они бесполезны для Full Sync)
-            this.pending_queue.clear ();
-
-            // Переходим на Full Sync (срабатывает ПОСЛЕ вставки текста)
-            this.source_view.buffer.changed.connect_after (() => {
-                this.start_debounce_full_timer ();
-            });
-
-            // ПРИНУДИТЕЛЬНО выравниваем состояние сервера (шлем весь текущий текст)
-            client.text_document_did_change.begin (
-                this.source_view.uri, this.document_version, this.source_view.buffer.text);
-            lsp_sync_kind = 2;
-        } else {
-            lsp_sync_kind = 1;
-            reset_timer ();
-        }
-    }
     
-    private void start_debounce_full_timer () {
-        // 1. Сбрасываем старый таймер, если пользователь продолжает печатать
-        if (debounce_full_id > 0) {
-            Source.remove (debounce_full_id);
-        }
+    /**
+     * УНИВЕРСАЛЬНЫЙ БИНДИНГ НА ОСНОВЕ СТАТУСА КЛИЕНТА
+     * Этот метод вызывается ВСЕГДА в асинхронном колбэке LspService.open_document() [INDEX].
+     */
+    public void bind_lsp_client (LspClient client) {
+        if (this.active_clients.contains (client))
+            return;  // Параноя!
 
-        // 2. Устанавливаем задержку (например, 500 мс затишья)
-        debounce_full_id = Timeout.add (500, () => {
-            this.flush_changes_full_async.begin (); // Запускаем асинхронную отправку
-            debounce_full_id = 0;
-            return Source.REMOVE;
-        });
+        this.active_clients.add (client);
+        this.logger.debug ("LSP", "Client '%s' with status %d added to document %s.".printf (client.name (), client.status, this.source_view.uri));
+
+        if (this.active_clients.size == this.expected_lsp_clients_count) {
+            this.all_clients_started_or_failed = true;
+            this.flush_changes ();
+        }
     }
 
+    /**
+     * Метод задания барьера ожидания.
+     * Вызывается из view.set_expected_lsp_clients() в самом начале open_document.
+     */
+    public void set_expected_lsp_clients (int count) {
+        this.expected_lsp_clients_count = count;
+        this.logger.debug ("LSP", @"LspDocumentClient expects $count server(s) from project router.");
+        
+        if (count == 0) {
+            this.pending_queue.clear ();
+        } else if (this.expected_lsp_clients_count == this.active_clients.size) {
+            this.all_clients_started_or_failed = true;
+            this.flush_changes ();
+        }
+    }
+
+    ////////
+    public void save_document() {
+        foreach (var lsp_client in this.active_clients) {
+            lsp_client.text_document_did_change.begin (
+                this.source_view.uri,
+                this.document_version,
+                ((GtkSource.Buffer) this.source_view.buffer).text
+            );
+        }
+    }
 }

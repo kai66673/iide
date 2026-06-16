@@ -254,8 +254,6 @@ public class Iide.Window : Panel.DocumentWorkspace {
             if ((keyval == Gdk.Key.Tab || keyval == Gdk.Key.ISO_Left_Tab) && is_ctrl) {
                 var tab_switcher_popup = new TabSwitcherPopup (this, is_shift);
                 tab_switcher_popup.present ();
-
-                LoggerService.get_instance ().info ("MRU", "should be shown...");
                 return true; // Полностью глушим фокус док-панелей libpanel
             }
 
