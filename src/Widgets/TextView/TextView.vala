@@ -274,36 +274,44 @@ public class Iide.TextView : Panel.Widget {
         return true;
     }
 
-    public void update_diagnostics (Gee.ArrayList<LspDiagnosticPair?> diagnostics) {
+    public void update_diagnostics (string server_name, Gee.ArrayList<LspDiagnosticPair?> diagnostics) {
         var text_buffer = (Gtk.TextBuffer) source_view.buffer;
 
         text_buffer.begin_user_action ();
 
-        LspDiagnosticsMark.clear_mark_attributes (source_view);
+        LspDiagnosticsMark.clear_mark_attributes (server_name, source_view);
 
         int line_count = text_buffer.get_line_count ();
 
         int lsp_error_count = 0;
         int lsp_warning_count = 0;
 
-        foreach (var diag in diagnostics) {
-            if (diag.diagnostic.start_line >= line_count) {
-                continue;
+        if (diagnostics.size > 0) {
+            var new_marks = new Gee.ArrayList<LspDiagnosticsMark> ();
+            foreach (var diag in diagnostics) {
+                if (diag.diagnostic.start_line >= line_count) {
+                    continue;
+                }
+
+                Gtk.TextIter start_iter;
+                text_buffer.get_iter_at_line (out start_iter, diag.diagnostic.start_line);
+
+                var mark = new LspDiagnosticsMark.from_lsp_diagnostic (diag.diagnostic, diag.raw_json);
+                text_buffer.add_mark (mark, start_iter); // Добавляем в буфер вручную
+                new_marks.add (mark);
+
+                switch (diag.diagnostic.severity) {
+                case 1:
+                    lsp_error_count++;
+                    break;
+                case 2: case 3: case 4:
+                    lsp_warning_count++;
+                    break;
+                }
             }
 
-            Gtk.TextIter start_iter;
-            text_buffer.get_iter_at_line (out start_iter, diag.diagnostic.start_line);
-
-            var mark = new LspDiagnosticsMark.from_lsp_diagnostic (diag.diagnostic, diag.raw_json);
-            text_buffer.add_mark (mark, start_iter); // Добавляем в буфер вручную
-
-            switch (diag.diagnostic.severity) {
-            case 1:
-                lsp_error_count++;
-                break;
-            case 2: case 3: case 4:
-                lsp_warning_count++;
-                break;
+            if (new_marks.size > 0) {
+                source_view.lsp_marks.set (server_name, new_marks);
             }
         }
 

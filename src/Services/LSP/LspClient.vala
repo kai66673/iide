@@ -117,7 +117,7 @@ public class Iide.LspClient : Object {
     public LspFeatures features { get; construct set; }
 
     // Сигнал для передачи диагностики в UI
-    public signal void diagnostics_received (string uri, Gee.ArrayList<LspDiagnosticPair?> diagnostics);
+    public signal void diagnostics_received (string server_name, string uri, Gee.ArrayList<LspDiagnosticPair?> diagnostics);
 
     // Сигнал для логирования сообщений от сервера
     public signal void log_message (int type, string message);
@@ -486,7 +486,7 @@ public class Iide.LspClient : Object {
                     // Передаем данные в глобальную модель
                     diagnostics_service.update_diagnostics (this.name (), uri, diag_list);
 
-                    this.diagnostics_received (uri, diag_list);
+                    this.diagnostics_received (this.name (), uri, diag_list);
                     return Source.REMOVE;
                 });
             }

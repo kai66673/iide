@@ -59,15 +59,15 @@ public class Iide.LspDiagnosticsMark : GtkSource.Mark {
         text_view.set_mark_attributes("lsp_info", info_mark_attrs, 80);
     }
 
-    public static void clear_mark_attributes(GtkSource.View text_view) {
-        var buffer = (GtkSource.Buffer) text_view.buffer;
-        Gtk.TextIter start, end;
-        buffer.get_start_iter(out start);
-        buffer.get_end_iter(out end);
-
-        buffer.remove_source_marks(start, end, "lsp_error");
-        buffer.remove_source_marks(start, end, "lsp_warning");
-        buffer.remove_source_marks(start, end, "lsp_info");
+    public static void clear_mark_attributes(string server_name, SourceView source_view) {
+        if (source_view.lsp_marks.has_key (server_name)) {
+            var marks_to_remove = source_view.lsp_marks.get (server_name);
+            var buffer = (GtkSource.Buffer) source_view.buffer;
+            foreach (var mark_to_remove in marks_to_remove) {
+                buffer.delete_mark(mark_to_remove);
+            }
+            source_view.lsp_marks.unset (server_name);
+        }
     }
 
     public string ? get_icon_name() {
