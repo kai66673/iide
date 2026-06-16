@@ -11,7 +11,7 @@ public class Iide.LspService : GLib.Object {
     private Gee.HashMap<string, Gee.ArrayList<LspClient>> active_languages =
         new Gee.HashMap<string, Gee.ArrayList<LspClient>> ();
 
-    public signal void diagnostics_updated (string uri, ArrayList<LspDiagnosticPair?> diagnostics);
+    public signal void diagnostics_updated (string server_name, string uri, ArrayList<LspDiagnosticPair?> diagnostics);
 
     // [ClientHash] -> [Token] -> LspTaskInfo
     private Gee.HashMap<string, Gee.HashMap<string, LspTaskInfo?>> progress_map =
@@ -173,8 +173,8 @@ public class Iide.LspService : GLib.Object {
                 var server_config = registry.get_config_for_server (server_name);
                 if (server_config != null) {
                     var new_client = new LspClient (server_config, router.features_for_server_name (server_name));
-                    new_client.diagnostics_received.connect ((diag_uri, diagnostics) => {
-                        this.diagnostics_updated (diag_uri, diagnostics);
+                    new_client.diagnostics_received.connect ((server_name, diag_uri, diagnostics) => {
+                        this.diagnostics_updated (server_name, diag_uri, diagnostics);
                     });
                     this.clients.set (server_name, new_client);
                     new_clients.add (new_client);

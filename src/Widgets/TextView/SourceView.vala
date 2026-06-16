@@ -67,6 +67,8 @@ public class Iide.SourceView : GtkSource.View {
     public GutterMarkRenderer mark_renderer;
     public TreeSitterFoldingGutter folding_gutter;
     private Gtk.TextIter? pending_scroll_iter = null;
+    public Gee.HashMap<string, Gee.ArrayList<LspDiagnosticsMark>> lsp_marks =
+        new Gee.HashMap<string, Gee.ArrayList<LspDiagnosticsMark>> ();
 
     private WordRange? last_hover_range = null;
     private LspTooltipWidget tooltip_widget;

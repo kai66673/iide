@@ -98,11 +98,11 @@ public class Iide.DocumentManager : GLib.Object {
 
         mru_history = new Gee.ArrayList<SourceView> ();
 
-        lsp_service.diagnostics_updated.connect ((uri, diagnostics) => {
+        lsp_service.diagnostics_updated.connect ((server_name, uri, diagnostics) => {
             var doc = documents.get (uri);
             if (doc != null) {
                 Idle.add (() => {
-                    doc.update_diagnostics (diagnostics);
+                    doc.update_diagnostics (server_name, diagnostics);
                     return false;
                 });
             }
