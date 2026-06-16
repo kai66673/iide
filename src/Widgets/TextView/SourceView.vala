@@ -72,7 +72,7 @@ public class Iide.SourceView : GtkSource.View {
     private LspTooltipWidget tooltip_widget;
     private string tooltip_separator = "────────────────────────────────────────";
 
-    private LspDocumentClient lsp_doclument_client;
+    public LspDocumentClient lsp_document_client;
     public SourceDocument document;
 
     private int last_line = -1;
@@ -436,8 +436,8 @@ public class Iide.SourceView : GtkSource.View {
             this.mark_renderer.visible = false;
         }
 
-        this.lsp_doclument_client = new LspDocumentClient (this);
-        this.document.document_changed.connect(this.lsp_doclument_client.add_change);
+        this.lsp_document_client = new LspDocumentClient (this);
+        this.document.document_changed.connect(this.lsp_document_client.add_change);
         this.document.breadcrumbs_changed.connect ((crumbs) => {
             this.breadcrumbs_changed(crumbs);
         });
@@ -456,7 +456,7 @@ public class Iide.SourceView : GtkSource.View {
     }
 
     public async void lsp_sync_changes_async () {
-        yield this.lsp_doclument_client.sync_changes_async ();
+        yield this.lsp_document_client.flush_changes_async ();
     }
 
     private void handle_navigation_trigger (bool check_distance) {
@@ -480,7 +480,11 @@ public class Iide.SourceView : GtkSource.View {
 
     // Этот метод вызывается при открытии файла
     public void bind_lsp_client (LspClient? client) {
-        this.lsp_doclument_client.bind_lsp_client (client);
+        this.lsp_document_client.bind_lsp_client (client);
+    }
+
+    public void set_expected_lsp_clients (int count) {
+        this.lsp_document_client.set_expected_lsp_clients (count);
     }
 
     public GtkSource.Language? language {
@@ -600,7 +604,7 @@ public class Iide.SourceView : GtkSource.View {
         tooltip_widget.update_text ("Loading...", true);
         last_hover_range = word_range;
 
-        this.lsp_doclument_client.flush_changes ();
+        this.lsp_document_client.flush_changes ();
         fetch_lsp_hover_async.begin (word_range.line, word_range.start_column + 1);
 
         return true;
@@ -653,7 +657,7 @@ public class Iide.SourceView : GtkSource.View {
                 get_buffer ().place_cursor (iter);
 
                 // Запускаем асинхронный переход
-                this.lsp_doclument_client.flush_changes ();
+                this.lsp_document_client.flush_changes ();
                 handle_ctrl_click_async.begin (iter.get_line (), iter.get_line_offset ());
             }
         }

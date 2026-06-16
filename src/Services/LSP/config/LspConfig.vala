@@ -95,5 +95,35 @@ namespace Iide {
             results_node.set_array (results);
             return results_node;
         }
+
+        public static LspConfig from_json (Json.Object obj) {
+            var config = new LspConfig ();
+            
+            // Читаем массив команды
+            if (obj.has_member ("command")) {
+                var cmd_array = obj.get_array_member ("command");
+                var cmd_list = new Gee.ArrayList<string> ();
+                foreach (var el in cmd_array.get_elements ()) {
+                    cmd_list.add (el.get_string ());
+                }
+                config.command = cmd_list.to_array ();
+            }
+
+            // Читаем кастомные возможности (capabilities)
+            if (obj.has_member ("capability_formatting"))
+                config.capability_formatting = obj.get_boolean_member ("capability_formatting");
+            if (obj.has_member ("capability_hover"))
+                config.capability_hover = obj.get_boolean_member ("capability_hover");
+            if (obj.has_member ("capability_completion"))
+                config.capability_completion = obj.get_boolean_member ("capability_completion");
+
+            // Копируем сложные JSON-объекты настроек напрямую в свойства [INDEX]
+            if (obj.has_member ("initialize_template"))
+                config.initialize_template = obj.dup_member ("initialize_template").get_object ();
+            if (obj.has_member ("section_settings"))
+                config.section_settings = obj.dup_member ("section_settings").get_object ();
+
+            return config;
+        }
     }
 }

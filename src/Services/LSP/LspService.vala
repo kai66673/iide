@@ -5,10 +5,11 @@ public class Iide.LspService : GLib.Object {
     private static LspService? _instance;
     private Gee.HashMap<string, LspClient> clients;
     private Gee.HashMap<string, string> uri_to_client_key;
-    private Gee.HashMap<string, int> document_versions;
-    private Gee.HashMap<string, bool> client_starting;
 
     private LoggerService logger = LoggerService.get_instance ();
+    private LanguageRegistry registry = LanguageRegistry.get_instance ();
+    private Gee.HashMap<string, Gee.ArrayList<LspClient>> active_languages =
+        new Gee.HashMap<string, Gee.ArrayList<LspClient>> ();
 
     public signal void diagnostics_updated (string uri, ArrayList<LspDiagnosticPair?> diagnostics);
 
@@ -21,8 +22,6 @@ public class Iide.LspService : GLib.Object {
     construct {
         clients = new Gee.HashMap<string, LspClient> ();
         uri_to_client_key = new Gee.HashMap<string, string> ();
-        document_versions = new Gee.HashMap<string, int> ();
-        client_starting = new Gee.HashMap<string, bool> ();
     }
 
     public static unowned LspService get_instance () {
@@ -151,123 +150,70 @@ public class Iide.LspService : GLib.Object {
         tasks_changed (all_tasks);
     }
 
-    public async void open_document (string uri, string language_id, string content, string? workspace_root, SourceView view) {
-        var server_key = language_id;
-        LanguageProfile? lang_profile = LanguageRegistry.get_instance ().get_profile (language_id);
-
-        if (lang_profile == null) {
-            debug ("IdeLspService: No LSP server configured for language: %s", language_id);
-            Idle.add (() => {
-                view.bind_lsp_client (null);
-                return Source.REMOVE;
-            });
-            return;
-        }
-
-        debug ("IdeLspService: Opening document %s (lang=%s)", uri, language_id);
-
-        LspClient? client = null;
-
-        // 1. Извлекаем клиент из кэша активных серверов
-        if (this.clients.has_key (server_key)) {
-            client = this.clients.get (server_key);
-        } else {
-            // 2. Если клиента еще нет — лениво создаем объект-оболочку 
-            // (Сам процесс ОС будет запущен централизованно диспетчером воркспейса)
-            var config = lang_profile.lsp;
-            if (config == null) {
-                Idle.add (() => {
-                    view.bind_lsp_client (null);
-                    return Source.REMOVE;
-                });
-                return;
+    public void register_document (string language_id, string? workspace_root, SourceView view) {
+        Gee.ArrayList<LspClient>? active_language_clients = this.active_languages.get (language_id);
+        if (active_language_clients != null) {
+            view.set_expected_lsp_clients (active_language_clients.size);
+            foreach (var lsp_client in active_language_clients) {
+                lsp_client.register_document (language_id, ((GtkSource.Buffer) view.buffer).text, workspace_root, view);
             }
-
-            client = new LspClient (config);
-            
-            client.diagnostics_received.connect ((uri, diagnostics) => {
-                this.diagnostics_updated (uri, diagnostics);
-            });
-
-            this.clients.set (server_key, client);
+            return;
         }
 
-        // Синхронизируем внутренние мапы версий для вашей кодовой базы
-        this.uri_to_client_key.set (uri, server_key);
-        this.document_versions.set (uri, 1);
+        var router = this.registry.get_router_for_language (language_id);
+        if (router == null) {
+            view.set_expected_lsp_clients (0);
+            logger.info ("LSP", "No LSP router/servers configured for language: %s".printf (language_id));
+            return;
+        }
 
-        // 3. Отдаем документ клиенту. Клиент внутри себя атомарно решает:
-        //    Отправить didOpen по сети или положить в безопасный docs_snapshot!
-        client.register_and_open_document (uri, language_id, 1, content);
-
-        // 4. Привязываем бэкенд-клиент к графическому отображению SourceView
-        Idle.add (() => {
-            view.bind_lsp_client (client);
-            return Source.REMOVE;
-        });
-
-        // 2. Старый способ запуска: если процесс сервера остановлен — будим его [INDEX]
-        if (client.status == LspClientStatus.STOPPED) {
-            // Метод .begin запускает ваш нативный start_async в изолированном фоне [INDEX]
-            client.start_server_async.begin (workspace_root, (obj, res) => {
-                if (!client.start_server_async.end (res)) {
-                    Idle.add (() => {
-                        view.bind_lsp_client (null);
-                        return Source.REMOVE;
+        // 2. Извлекаем ВСЕ уникальные серверы, которые должны обслуживать этот язык
+        Gee.Set<string> assigned_servers = router.get_all_assigned_servers ();
+        var new_clients = new Gee.ArrayList<LspClient> ();
+        var existing_clients = new Gee.ArrayList<LspClient> ();
+        var language_clients = new Gee.ArrayList<LspClient> ();
+        foreach (var server_name in assigned_servers) {
+            if (this.clients.has_key (server_name)) {
+                var client = this.clients.get (server_name);
+                existing_clients.add (client);
+                language_clients.add (client);
+            } else {
+                // Извлекаем честный, смерженный LspConfig из реестра!
+                var server_config = registry.get_config_for_server (server_name);
+                if (server_config != null) {
+                    var new_client = new LspClient (server_config, router.features_for_server_name (server_name));
+                    new_client.diagnostics_received.connect ((diag_uri, diagnostics) => {
+                        this.diagnostics_updated (diag_uri, diagnostics);
                     });
+                    this.clients.set (server_name, new_client);
+                    new_clients.add (new_client);
+                    language_clients.add (new_client);
                 }
-            });
+            }
         }
-    }
 
-    public async void change_document (string uri, string content, int? change_start = null, int? change_end = null) {
-        var server_key = uri_to_client_key.get (uri);
+        var expected_lsp_clients_count = language_clients.size;
+        view.set_expected_lsp_clients (expected_lsp_clients_count);
 
-        logger.debug ("LSP", "Changed doc: " + uri + " / server_key: " + server_key);
-        if (server_key == null || !clients.has_key (server_key)) {
+        if (expected_lsp_clients_count == 0)
             return;
+
+        this.active_languages.set (language_id, language_clients);
+
+        // TODO: fix this!..
+        if (existing_clients.size > 0) {
+            this.uri_to_client_key.set (view.uri, existing_clients[0].name ());
+        } else {
+            this.uri_to_client_key.set (view.uri, new_clients[0].name ());
         }
 
-        var client = clients.get (server_key);
-        var version = document_versions.get (uri);
-        document_versions.set (uri, version + 1);
-
-        try {
-            yield client.text_document_did_change (uri, version + 1, content);
-        } catch (Error e) {
-            logger.error ("LSP", "Failed to change document (FULL sync) %s: %s".printf (uri, e.message));
-        }
-    }
-
-    public async void send_did_change (string uri, int version, Gee.ArrayList<PendingChange> changes) {
-        var server_key = uri_to_client_key.get (uri);
-        if (server_key == null || !clients.has_key (server_key)) {
-            return;
+        foreach (var lsp_client in language_clients) {
+            lsp_client.register_document (language_id, ((GtkSource.Buffer) view.buffer).text, workspace_root, view);
         }
 
-        var client = clients.get (server_key);
-        try {
-            yield client.send_did_change (uri, version, changes);
-        } catch (Error e) {
-            logger.error ("LSP", "Failed to change document (INCREMENTAL sync) %s: %s".printf (uri, e.message));
+        foreach (var new_lsp_client in new_clients) {
+            new_lsp_client.start_server_async.begin (workspace_root);
         }
-    }
-
-    public async void close_document (string uri) {
-        var server_key = uri_to_client_key.get (uri);
-        if (server_key == null || !clients.has_key (server_key)) {
-            return;
-        }
-
-        var client = clients.get (server_key);
-        try {
-            yield client.text_document_did_close (uri);
-        } catch (Error e) {
-            logger.error ("LSP", "Failed to close document %s: %s".printf (uri, e.message));
-        }
-
-        uri_to_client_key.unset (uri);
-        document_versions.unset (uri);
     }
 
     public LspClient ? get_client_for_uri (string uri) {
@@ -293,25 +239,6 @@ public class Iide.LspService : GLib.Object {
             return yield client.request_code_actions (uri, start_line, start_char, end_line, end_char, diagnostics_json_array);
         } catch (Error e) {
             logger.error ("LSP", "Failed to request code actions for %s: %s".printf (uri, e.message));
-            return null;
-        }
-    }
-
-    public async LspCompletionResult ? request_completion (
-        string uri,
-        int line,
-        int character,
-        string? trigger_character = null,
-        CompletionTriggerKind trigger_kind = INVOKED
-    ) {
-        var client = get_client_for_uri (uri);
-        if (client == null) {
-            return null;
-        }
-        try {
-            return yield client.request_completion (uri, line, character, trigger_character, trigger_kind);
-        } catch (Error e) {
-            logger.error ("LSP", "Failed to request completion for %s: %s".printf (uri, e.message));
             return null;
         }
     }
@@ -342,7 +269,7 @@ public class Iide.LspService : GLib.Object {
     }
 
     public async Gee.List<DocumentLspSymbol>? document_symbols(string uri) {
-                var client = get_client_for_uri (uri);
+        var client = get_client_for_uri (uri);
         if (client == null)
             return null;
         try {
@@ -398,6 +325,7 @@ public class Iide.LspService : GLib.Object {
 
         // Полностью очищаем карту клиентов. Сервис готов к работе со следующим проектом!
         this.clients.clear ();
+        this.active_languages.clear ();
         LoggerService.get_instance ().info ("LSP", "All LSP servers are cleanly stopped and cleared from memory.");
     }
 }
