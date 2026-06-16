@@ -77,7 +77,7 @@ public class Iide.DiagnosticsPanel : BasePanel {
     // Кэш для быстрого доступа к строкам файлов: [URI] -> ExpanderRow
     private HashMap<string, FileRow> file_rows = new HashMap<string, FileRow> ();
     // Кэш для заголовков серверов: [ClientID] -> Label
-    private HashMap<int, Gtk.Widget> server_headers = new HashMap<int, Gtk.Widget> ();
+    private HashMap<string, Gtk.Widget> server_headers = new HashMap<string, Gtk.Widget> ();
 
     public DiagnosticsPanel () {
         base ("Diagnostics", SymbIconProvider.get_instance ().icon_name (IconID.APP_ISSUES));
@@ -129,9 +129,9 @@ public class Iide.DiagnosticsPanel : BasePanel {
     }
 
     // Тот самый метод дифференциального обновления
-    private void on_file_diagnostics_updated (int client_id, string uri) {
+    private void on_file_diagnostics_updated (string server_name, string uri) {
         var service = DiagnosticsService.get_instance ();
-        var diags = service.get_diagnostics_for_file (client_id, uri);
+        var diags = service.get_diagnostics_for_file (server_name, uri);
 
         // 1. Если ошибок для файла больше нет — удаляем его строку
         if (diags == null || diags.size == 0) {
@@ -144,7 +144,7 @@ public class Iide.DiagnosticsPanel : BasePanel {
         }
 
         // 2. Убеждаемся, что заголовок сервера существует
-        ensure_server_header (client_id);
+        ensure_server_header (server_name);
 
         // 3. Обновляем или создаем строку файла
         FileRow file_row;
@@ -159,15 +159,14 @@ public class Iide.DiagnosticsPanel : BasePanel {
         file_row.update_rows (diags);
     }
 
-    private void ensure_server_header (int client_id) {
-        if (!server_headers.has_key (client_id)) {
-            var service = DiagnosticsService.get_instance ();
-            var header = new Gtk.Label (service.get_server_name (client_id)) {
+    private void ensure_server_header (string server_name) {
+        if (!server_headers.has_key (server_name)) {
+            var header = new Gtk.Label (server_name) {
                 xalign = 0, margin_start = 12, margin_top = 12, margin_bottom = 6
             };
             header.add_css_class ("heading");
             main_list.append (header);
-            server_headers.set (client_id, header);
+            server_headers.set (server_name, header);
         }
     }
 }

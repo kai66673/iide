@@ -68,6 +68,7 @@ public class Iide.LspDiagnostic : GLib.Object {
     public int start_column { get; set; default = 0; }
     public int end_line { get; set; default = 0; }
     public int end_column { get; set; default = 0; }
+    public string server_name { get; set; default = ""; }
 
     public string to_string () {
         return "Diagnostic: (%d:%d-%d:%d) %s".printf (start_line, start_column, end_line, end_column, message);
