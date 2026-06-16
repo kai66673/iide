@@ -244,19 +244,15 @@ public class Iide.LspClient : Object {
 
     public string name () { return config.command[0]; }
 
-    public int get_hash () {
-        // Используем адрес указателя на объект как уникальный числовой идентификатор
-        return (int) ((void*) this);
-    }
-
-    public async Json.Object? send_request (string method, Json.Object params, Cancellable ? cancellable = null) throws Error {
+    public async Json.Object? send_request (string method, Json.Object? params, Cancellable ? cancellable = null) throws Error {
         int id = next_id--;
 
         var root = new Json.Object ();
         root.set_string_member ("jsonrpc", "2.0");
         root.set_int_member ("id", id);
         root.set_string_member ("method", method);
-        root.set_object_member ("params", params);
+        if (params != null)
+            root.set_object_member ("params", params);
 
         // Регистрируем обещание
         var promise = new LspPromise (send_request.callback);
@@ -488,7 +484,7 @@ public class Iide.LspClient : Object {
                 // Передаем в главный поток для UI
                 Idle.add (() => {
                     // Передаем данные в глобальную модель
-                    diagnostics_service.update_diagnostics (this.get_hash (), uri, diag_list);
+                    diagnostics_service.update_diagnostics (this.name (), uri, diag_list);
 
                     this.diagnostics_received (uri, diag_list);
                     return Source.REMOVE;
@@ -615,11 +611,12 @@ public class Iide.LspClient : Object {
         this.capabilities.code_actions_provider = LspFeatures.CODE_ACTIONS in this.features && caps.has_member ("codeActionProvider");
     }
 
-    public async void send_notification_async (string method, Json.Object params) throws Error {
+    public async void send_notification_async (string method, Json.Object? params) throws Error {
         var root = new Json.Object ();
         root.set_string_member ("jsonrpc", "2.0");
         root.set_string_member ("method", method);
-        root.set_object_member ("params", params);
+        if (params != null)
+            root.set_object_member ("params", params);
 
         // Вызываем наш атомарный метод записи в поток
         yield this.send_message_async (root);
@@ -647,6 +644,8 @@ public class Iide.LspClient : Object {
             d.start_column = (int) start.get_int_member ("character"); // character -> start_column
             d.end_line = (int) end.get_int_member ("line");
             d.end_column = (int) end.get_int_member ("character"); // character -> end_column
+
+            d.server_name = this.name ();
 
             // ===================================================================
             // СВЯЗЫВАНИЕ: Создаем глубокую копию оригинального JSON-объекта, 
@@ -1193,9 +1192,7 @@ public class Iide.LspClient : Object {
 
         try {
             // ФАЗА 1: Отправляем запрос 'shutdown' и асинхронно ждем подтверждения от сервера [INDEX]
-            var empty_params = new Json.Object ();
-            var response = yield this.send_request ("shutdown", empty_params);
-            
+            var response = yield this.send_request ("shutdown", null);
             if (response != null) {
                 LoggerService.get_instance ().debug ("LSP", "Server acknowledged shutdown.");
             }
@@ -1206,8 +1203,7 @@ public class Iide.LspClient : Object {
 
         try {
             // ФАЗА 2: Отправляем обязательное уведомление 'exit' (fire-and-forget) [INDEX]
-            var empty_params = new Json.Object ();
-            yield this.send_notification_async ("exit", empty_params);
+            yield this.send_notification_async ("exit", null);
             LoggerService.get_instance ().info ("LSP", "Sent 'exit' notification to server.");
         } catch (GLib.Error e) {
             LoggerService.get_instance ().error ("LSP", @"Failed to send 'exit' notification: $(e.message)");

@@ -4,10 +4,10 @@ public class Iide.DiagnosticsService : Object {
     private static DiagnosticsService? _instance;
 
     // Группировка: [ClientID] -> [FileURI] -> [Список диагностик]
-    private Gee.HashMap<int, Gee.HashMap<string, Gee.List<LspDiagnostic>>> server_map;
+    private Gee.HashMap<string, Gee.HashMap<string, Gee.List<LspDiagnostic>>> server_map;
     private uint update_timeout_id = 0;
 
-    public signal void diagnostics_updated (int client_id, string uri);
+    public signal void diagnostics_updated (string server_name, string uri);
     public signal void lsp_stopped ();
     public signal void total_count_changed (int total_errors, int total_warnings);
 
@@ -18,7 +18,7 @@ public class Iide.DiagnosticsService : Object {
     }
 
     private DiagnosticsService () {
-        server_map = new Gee.HashMap<int, Gee.HashMap<string, Gee.List<LspDiagnostic>>> ();
+        server_map = new Gee.HashMap<string, Gee.HashMap<string, Gee.List<LspDiagnostic>>> ();
         this.lsp_stopped.connect (() => {
             server_map.clear ();
         });
@@ -28,29 +28,16 @@ public class Iide.DiagnosticsService : Object {
      * Возвращает карту всех диагностик.
      * Мы возвращаем её как Map, чтобы панель могла перебрать Entry (серверы и их файлы).
      */
-    public Gee.Map<int, Gee.HashMap<string, Gee.List<LspDiagnostic>>> get_server_map () {
+    public Gee.Map<string, Gee.HashMap<string, Gee.List<LspDiagnostic>>> get_server_map () {
         return server_map;
-    }
-
-    /**
-     * Полезный метод для получения имени сервера по его ID.
-     * Чтобы в панели отображалось "Clangd", а не "14056232".
-     */
-    public string get_server_name (int client_id) {
-        // Мы можем запрашивать имя у LspService, который знает свои клиенты
-        var client = LspService.get_instance ().get_client_by_hash (client_id);
-        if (client != null) {
-            return client.name (); // Предполагается, что у LspClient есть поле name
-        }
-        return @"Unknown Server ($client_id)";
     }
 
     /**
      * Возвращает список диагностик для конкретного файла от конкретного LSP-клиента.
      */
-    public Gee.List<LspDiagnostic>? get_diagnostics_for_file (int client_id, string uri) {
-        if (server_map.has_key (client_id)) {
-            var client_files = server_map.get (client_id);
+    public Gee.List<LspDiagnostic>? get_diagnostics_for_file (string server_name, string uri) {
+        if (server_map.has_key (server_name)) {
+            var client_files = server_map.get (server_name);
             if (client_files.has_key (uri)) {
                 // Возвращаем список (в Vala Gee.List — это ссылочный тип)
                 return client_files.get (uri);
@@ -59,12 +46,12 @@ public class Iide.DiagnosticsService : Object {
         return null;
     }
 
-    public void update_diagnostics (int client_id, string uri, Gee.List<LspDiagnosticPair?> list) {
-        if (!server_map.has_key (client_id)) {
-            server_map.set (client_id, new Gee.HashMap<string, Gee.List<LspDiagnostic>> ());
+    public void update_diagnostics (string server_name, string uri, Gee.List<LspDiagnosticPair?> list) {
+        if (!server_map.has_key (server_name)) {
+            server_map.set (server_name, new Gee.HashMap<string, Gee.List<LspDiagnostic>> ());
         }
 
-        var client_files = server_map.get (client_id);
+        var client_files = server_map.get (server_name);
 
         if (list.size == 0) {
             client_files.unset (uri);
@@ -76,7 +63,7 @@ public class Iide.DiagnosticsService : Object {
             client_files.set (uri, d_list);
         }
 
-        diagnostics_updated (client_id, uri);
+        diagnostics_updated (server_name, uri);
 
         // Вместо немедленного emit_totals():
         if (update_timeout_id == 0) {
@@ -89,8 +76,8 @@ public class Iide.DiagnosticsService : Object {
     }
 
     // Удаление всех данных сервера при его отключении
-    public void remove_client (int client_id) {
-        if (server_map.unset (client_id)) {
+    public void remove_client (string server_name) {
+        if (server_map.unset (server_name)) {
             emit_totals ();
         }
     }

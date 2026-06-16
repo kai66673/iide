@@ -14,8 +14,8 @@ public class Iide.LspService : GLib.Object {
     public signal void diagnostics_updated (string uri, ArrayList<LspDiagnosticPair?> diagnostics);
 
     // [ClientHash] -> [Token] -> LspTaskInfo
-    private Gee.HashMap<int, Gee.HashMap<string, LspTaskInfo?>> progress_map =
-        new Gee.HashMap<int, Gee.HashMap<string, LspTaskInfo?>> ();
+    private Gee.HashMap<string, Gee.HashMap<string, LspTaskInfo?>> progress_map =
+        new Gee.HashMap<string, Gee.HashMap<string, LspTaskInfo?>> ();
 
     public signal void tasks_changed (Gee.List<LspTaskInfo?> active_tasks);
 
@@ -98,15 +98,6 @@ public class Iide.LspService : GLib.Object {
         return null;
     }
 
-    public LspClient ? get_client_by_hash (int client_id) {
-        foreach (var client in clients.values) {
-            if (client.get_hash () == client_id) {
-                return client;
-            }
-        }
-        return null;
-    }
-
     public LspClient[] get_clients () {
         return clients.values.to_array ();
     }
@@ -117,13 +108,13 @@ public class Iide.LspService : GLib.Object {
     }
 
     public void register_client (LspClient client) {
-        int id = client.get_hash ();
+        string server_name = client.name ();
 
         client.progress_updated.connect ((token, msg, perc, active) => {
-            if (!progress_map.has_key (id))
-                progress_map.set (id, new Gee.HashMap<string, LspTaskInfo?> ());
+            if (!progress_map.has_key (server_name))
+                progress_map.set (server_name, new Gee.HashMap<string, LspTaskInfo?> ());
 
-            var client_tasks = progress_map.get (id);
+            var client_tasks = progress_map.get (server_name);
 
             if (active) {
                 var info = LspTaskInfo () {
