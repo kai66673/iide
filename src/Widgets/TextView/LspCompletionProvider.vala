@@ -131,21 +131,6 @@ namespace Iide {
             int character = iter.get_line_offset ();
             string uri = source_view.uri;
 
-            string? trigger_char = null;
-            var trigger_kind = CompletionTriggerKind.INVOKED; // Invoked по умолчанию
-
-            TextIter prev = iter;
-            if (prev.backward_char ()) {
-                unichar ch = prev.get_char ();
-                string s = ch.to_string ();
-
-                var client = LspService.get_instance ().get_client_for_uri (this.source_view.uri);
-                if (client != null && client.capabilities.completion_triggers.contains (s)) {
-                    trigger_char = s;
-                    trigger_kind = CompletionTriggerKind.TRIGGER_CHARACTER;
-                }
-            }
-
             // Получаем список серверов этой конкретной вкладки, поддерживающих Completion
             var active_servers = new Gee.ArrayList<LspClient> ();
             foreach (var client in lsp_document.active_clients) {
@@ -167,6 +152,20 @@ namespace Iide {
             // ===================================================================
             foreach (var client in active_servers) {
                 active_requests++;
+
+                string? trigger_char = null;
+                var trigger_kind = CompletionTriggerKind.INVOKED; // Invoked по умолчанию
+
+                TextIter prev = iter;
+                if (prev.backward_char ()) {
+                    unichar ch = prev.get_char ();
+                    string s = ch.to_string ();
+
+                    if (client.capabilities.completion_triggers.contains (s)) {
+                        trigger_char = s;
+                        trigger_kind = CompletionTriggerKind.TRIGGER_CHARACTER;
+                    }
+                }
 
                 // Вызываем асинхронный метод запроса комплишена у конкретного клиента (.begin)
                 client.request_completion.begin (uri, line, character, trigger_char, trigger_kind, (obj, res) => {

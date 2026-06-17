@@ -606,7 +606,6 @@ public class Iide.SourceView : GtkSource.View {
         tooltip_widget.update_text ("Loading...", true);
         last_hover_range = word_range;
 
-        this.lsp_document_client.flush_changes ();
         fetch_lsp_hover_async.begin (word_range.line, word_range.start_column + 1);
 
         return true;
@@ -638,10 +637,11 @@ public class Iide.SourceView : GtkSource.View {
     }
 
     private async void fetch_lsp_hover_async (int line, int col) {
-        var lsp_service = LspService.get_instance ();
-        string? markdown = yield lsp_service.request_hover (uri, line, col);
+        //  var lsp_service = LspService.get_instance ();
+        //  string? markdown = yield lsp_service.request_hover (uri, line, col);
 
-        tooltip_widget.update_text (escape_pango (markdown), false);
+        string? markdown = yield this.lsp_document_client.request_hover (uri, line, col);
+        tooltip_widget.update_text (markdown, false);
     }
 
     private void on_click_released (Gtk.GestureClick gesture, int n_press, double x, double y) {
@@ -666,8 +666,13 @@ public class Iide.SourceView : GtkSource.View {
     }
 
     private async void handle_ctrl_click_async (int line, int col) {
-        var lsp_service = LspService.get_instance ();
-        var locations = yield lsp_service.goto_definition (uri, line, col);
+        Gee.ArrayList<LspLocation>? locations = null;
+        try {
+            locations = yield lsp_document_client.request_definition (uri, line, col);
+        } catch (GLib.Error e) {
+            LoggerService.get_instance ().error ("LSP", "Failed to request defintion.");
+            return;
+        }
 
         if (locations == null || locations.size == 0) {
             LoggerService.get_instance ().warning ("LSP", "No locations found for goto definition");
@@ -830,7 +835,7 @@ public class Iide.SourceView : GtkSource.View {
         LoggerService.get_instance ().info ("LCA", "Successfully applied %d text edits to buffer.".printf (edits.size));
     }
 
-    private void render_code_actions_popover (Gtk.TextIter cursor_iter, Gee.ArrayList<Iide.LspCodeActionItem> actions) {
+    private void render_code_actions_popover (Gtk.TextIter cursor_iter, Gee.ArrayList<LspCodeActionResult> results) {
         // Если предыдущее окно открыто — уничтожаем
         if (this.code_actions_popup != null) {
             this.code_actions_popup.destroy ();
@@ -840,7 +845,7 @@ public class Iide.SourceView : GtkSource.View {
         var root_window = this.get_root () as Gtk.Window;
         if (root_window == null)
             return;
-        this.code_actions_popup = new Iide.CodeActionsPopup (root_window, this, actions);
+        this.code_actions_popup = new Iide.CodeActionsPopup (root_window, this, results);
         this.code_actions_popup.present ();
     }
 
@@ -863,18 +868,16 @@ public class Iide.SourceView : GtkSource.View {
             return;
         }
 
-        var lsp_service = LspService.get_instance ();
-        lsp_service.request_code_actions.begin (this.uri, current_line, 0, current_line, 99, raw_diagnostics, (obj, res) => {
-            var result = lsp_service.request_code_actions.end (res);
-                    
-            if (result == null || result.actions.size == 0) {
+        lsp_document_client.request_code_actions.begin (this.uri, current_line, 0, current_line, 99, raw_diagnostics, (obj, res) => {
+            var results = lsp_document_client.request_code_actions.end(res);
+            if (results.size == 0) {
                 LoggerService.get_instance ().info ("LCA", "LSP returned 0 available code actions.");
                 return;
             }
 
             // Переводим выполнение обратно в главный цикл UI для рендеринга поповера [INDEX]
             Idle.add (() => {
-                this.render_code_actions_popover (cursor_iter, result.actions);
+                this.render_code_actions_popover (cursor_iter, results);
                 return Source.REMOVE;
             });
         });

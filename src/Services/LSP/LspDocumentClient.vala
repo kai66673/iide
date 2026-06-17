@@ -17,6 +17,8 @@ public class Iide.LspDocumentClient: GLib.Object {
     private int document_version = 0;
     private uint debounce_id = 0;
 
+    private string tooltip_separator = "────────────────────────────────────────";
+
     public LspDocumentClient(SourceView source_view) {
         Object();
         this.source_view = source_view;
@@ -153,5 +155,137 @@ public class Iide.LspDocumentClient: GLib.Object {
                 ((GtkSource.Buffer) this.source_view.buffer).text
             );
         }
+    }
+
+    public async string ? request_hover (string uri, int line, int character) {
+        this.flush_changes ();
+
+        Gee.HashMap<string, string> hovers = new Gee.HashMap<string, string> ();
+
+        // Получаем список серверов этой конкретной вкладки, поддерживающих Completion
+        var active_servers = new Gee.ArrayList<LspClient> ();
+        foreach (var client in active_clients) {
+            // Берем только READY серверы, которые по lsp.json умеют автодополнение
+            if (client.status == LspClientStatus.READY && client.capabilities.hover_provider) {
+                active_servers.add (client);
+            }
+        }
+
+        if (active_servers.is_empty) {
+            return "No information (no avtive LSP providers)...";
+        }
+
+        // Счетчик параллельно выполняющихся асинхронных RPC-запросов к сокетам ОС
+        int active_requests = 0;
+        SourceFunc resume_callback = request_hover.callback;
+
+        foreach (var client in active_servers) {
+            active_requests++;
+
+            client.request_hover.begin (uri, line, character, (obj, res) => {
+                try {
+                    var result = client.request_hover.end (res);
+                    if (result != null) {
+                        Idle.add (() => {
+                            hovers.set (client.name (), result);
+                            return Source.REMOVE;
+                        });
+                    }
+
+                } catch (GLib.Error e) {
+                    this.logger.error ("LSP", "Hover request failed for '%s': %s".printf (client.name (), e.message));
+                } finally {
+                    active_requests--;
+                    // Когда САМЫЙ последний сокет вернул данные — будим основной метод!
+                    if (active_requests == 0) {
+                        Idle.add ((owned) resume_callback);
+                    }
+                }
+            });
+        }
+
+        // Засыпаем и отдаем управление MainContext, пока Ruff и Pyright параллельно качают пакеты
+        yield;
+
+        if (hovers.size == 0)
+            return "No information...";
+
+        var sb = new StringBuilder ();
+        foreach (var hover in hovers.entries) {
+            if (sb.len > 0) {
+                sb.append ("\n" + tooltip_separator + "\n");
+            }
+            sb.append_printf ("<span>%s (%s)</span>", GLib.Markup.escape_text (hover.value), hover.key);
+        }
+
+        return sb.str;
+    }
+
+    public async Gee.ArrayList<LspCodeActionResult> request_code_actions (
+        string uri,
+        int start_line,
+        int start_char,
+        int end_line,
+        int end_char,
+        Json.Array diagnostics_json_array
+    ) {
+        var results = new Gee.ArrayList<LspCodeActionResult> ();
+
+        // Получаем список серверов этой конкретной вкладки, поддерживающих Completion
+        var active_servers = new Gee.ArrayList<LspClient> ();
+        foreach (var client in active_clients) {
+            // Берем только READY серверы, которые по lsp.json умеют автодополнение
+            if (client.status == LspClientStatus.READY && client.capabilities.code_actions_provider) {
+                active_servers.add (client);
+            }
+        }
+
+        if (active_servers.is_empty) {
+            return results;
+        }
+
+        // Счетчик параллельно выполняющихся асинхронных RPC-запросов к сокетам ОС
+        int active_requests = 0;
+        SourceFunc resume_callback = request_code_actions.callback;
+
+        foreach (var client in active_servers) {
+            active_requests++;
+
+            client.request_code_actions.begin (uri, start_line, start_char, end_line, end_char, diagnostics_json_array, (obj, res) => {
+                try {
+                    var result = client.request_code_actions.end (res);
+                    if (result != null) {
+                        Idle.add (() => {
+                            result.server_name = client.name ();
+                            results.add (result);
+                            return Source.REMOVE;
+                        });
+                    }
+                } catch (GLib.Error e) {
+                    this.logger.error ("LSP", "Code actions request failed for '%s': %s".printf (client.name (), e.message));
+                } finally {
+                    active_requests--;
+                    // Когда САМЫЙ последний сокет вернул данные — будим основной метод!
+                    if (active_requests == 0) {
+                        Idle.add ((owned) resume_callback);
+                    }
+                }
+            });
+        }
+
+        // Засыпаем и отдаем управление MainContext, пока Ruff и Pyright параллельно качают пакеты
+        yield;
+
+        return results;
+    }
+
+    public async Gee.ArrayList<LspLocation>? request_definition (string uri, int line, int character) throws Error {
+        foreach (var client in active_clients) {
+            if (client.status == LspClientStatus.READY && client.capabilities.definition_provider) { 
+                return yield client.request_definition (uri, line, character);
+            }
+
+        }
+        return null;
     }
 }
