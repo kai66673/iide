@@ -109,6 +109,9 @@ public class Iide.LspClient : Object {
     private Gee.ArrayList<LspWriteWaiter> write_waiters = new Gee.ArrayList<LspWriteWaiter> ();
     private OutputStream output_stream;
 
+    // Поток stderr
+    private GLib.DataInputStream stderr_stream;
+
     private bool is_stopping = false;
     private GLib.Cancellable read_cancellable = new GLib.Cancellable ();
     
@@ -118,9 +121,12 @@ public class Iide.LspClient : Object {
 
     // Сигнал для передачи диагностики в UI
     public signal void diagnostics_received (string server_name, string uri, Gee.ArrayList<LspDiagnosticPair?> diagnostics);
-
+    // Сигнал о падении сервера
+    public signal void crashed ();
     // Сигнал для логирования сообщений от сервера
     public signal void log_message (int type, string message);
+    public signal void stderr_log_received (string log_line);
+
 
     // Сигнал, сообщающий, что возможности сервера получены и распарсены
     public signal void initialized_with_capabilities (ServerCapabilities caps);
@@ -145,16 +151,24 @@ public class Iide.LspClient : Object {
         
         try {
             // 1. Запуск подпроцесса
-            var launcher = new SubprocessLauncher (SubprocessFlags.STDOUT_PIPE | SubprocessFlags.STDIN_PIPE);
+            var launcher = new SubprocessLauncher (
+                SubprocessFlags.STDOUT_PIPE | 
+                SubprocessFlags.STDIN_PIPE |
+                SubprocessFlags.STDERR_PIPE
+            );
             launcher.set_cwd (workspace_root.replace ("file://", ""));
             this.process = launcher.spawnv (config.command);
 
             // 1.1. Инициализация асинхронных потоков
             this.output_stream = this.process.get_stdin_pipe ();
             this.input_stream = new DataInputStream (this.process.get_stdout_pipe ());
+            // Инициализируем поток чтения ошибок процесса ОС
+            this.stderr_stream = new DataInputStream (this.process.get_stderr_pipe ());
 
             // 1.2. Запуск цикла чтения (он будет ждать сообщений в фоне)
             this.run_read_loop.begin ();
+            // Слушает мусор и трейсбеки в фоне ОС
+            this.run_stderr_loop.begin ();
 
             this.status = LspClientStatus.INITIALIZING;
             logger.info ("LSP", "Server '%s' process spawned. Handshaking 'initialize'...".printf (this.name ()));
@@ -347,12 +361,21 @@ public class Iide.LspClient : Object {
     }
 
     private async void run_read_loop () {
+        bool unexpected_crash = false;
+
         try {
             while (true) {
                 // 1. Читаем заголовок Content-Length
                 string? line = yield input_stream.read_line_async (Priority.DEFAULT, this.read_cancellable);
 
-                if (line == null)break; // Поток закрыт
+                if (line == null) {
+                    // Поток чтения закрылся. Если мы НЕ запускали процедуру культурного выключения (is_stopping == false),
+                    // значит, процесс ОС внезапно умер сам по себе — это крах!
+                    if (!this.is_stopping && this.status != LspClientStatus.STOPPED) {
+                        unexpected_crash = true;
+                    }
+                    break; 
+                }
 
                 if (line.has_prefix ("Content-Length: ")) {
                     int length = int.parse (line.substring (16).strip ());
@@ -379,9 +402,46 @@ public class Iide.LspClient : Object {
             // Когда мы отменим операцию при закрытии, метод проснется здесь! [INDEX]
             if (e is IOError.CANCELLED) {
                 LoggerService.get_instance ().debug ("LSP", "LSP Read Loop successfully cancelled and stopped.");
-            } else {
-                debug ("LSP Read Loop Error: %s", e.message);
+            } else if (!this.is_stopping) {
+                LoggerService.get_instance ().debug ("LSP", "LSP Read Loop Error: %s".printf (e.message));
+                unexpected_crash = true;
             }        
+        } finally {
+            if (unexpected_crash) {
+                // Если зафиксирован аварийный крах, переводим конечный автомат в FAILED
+                this.status = LspClientStatus.FAILED;
+                LoggerService.get_instance ().error ("LSP", "Server '%s' crashed unexpectedly!".printf (this.name ()));
+                
+                // Асинхронно тушим и освобождаем сокеты дескрипторов
+                this.close_transport_streams_async.begin ();
+
+                // Передаем управление в LspService через нативный сигнал GObject
+                this.crashed ();
+            }
+        }
+    }
+
+    /**
+     * Параллельный фоновый цикл чтения низкоуровневого потока ошибок (stderr)
+     */
+    private async void run_stderr_loop () {
+        try {
+            while (this.status != LspClientStatus.STOPPED && this.status != LspClientStatus.FAILED) {
+                // Читаем stderr построчно, используя общий токен отмены read_cancellable [INDEX]
+                string? log_line = yield this.stderr_stream.read_line_async (Priority.DEFAULT, this.read_cancellable);
+                
+                if (log_line == null) break; // Поток закрыт со стороны ОС
+
+                log_line = log_line.strip ();
+                if (log_line == "")
+                    continue;
+
+                this.stderr_log_received (log_line);
+            }
+        } catch (Error e) {
+            if (!(e is IOError.CANCELLED)) {
+                debug ("LSP Stderr Loop Error for %s: %s", this.name (), e.message);
+            }
         }
     }
 
@@ -1230,6 +1290,9 @@ public class Iide.LspClient : Object {
             }
             if (this.input_stream != null && !this.input_stream.is_closed ()) {
                 yield this.input_stream.close_async (Priority.DEFAULT, null);
+            }
+            if (this.stderr_stream != null && !this.stderr_stream.is_closed ()) {
+                yield this.stderr_stream.close_async (Priority.DEFAULT, null);
             }
             LoggerService.get_instance ().debug ("LSP", "IO streams closed cleanly.");
         } catch (GLib.Error e) {

@@ -16,12 +16,17 @@ public class Iide.LspService : GLib.Object {
         new Gee.HashMap<string, Gee.HashMap<string, LspTaskInfo?>> ();
 
     public signal void tasks_changed (Gee.List<LspTaskInfo?> active_tasks);
+    public signal void client_registered (LspClient client);
 
     construct {
         clients = new Gee.HashMap<string, LspClient> ();
         active_languages = new Gee.HashMap<string, Gee.ArrayList<LspClient>> ();
         logger = LoggerService.get_instance ();
         registry = LanguageRegistry.get_instance ();
+    }
+
+    public Gee.HashMap<string, LspClient> get_active_clients () {
+        return this.clients;
     }
 
     public static unowned LspService get_instance () {
@@ -129,6 +134,8 @@ public class Iide.LspService : GLib.Object {
 
             emit_tasks_changed ();
         });
+
+        this.client_registered (client);
     }
 
     private void emit_tasks_changed () {
