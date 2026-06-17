@@ -110,7 +110,7 @@ public class Iide.DiagnosticsPopover : Gtk.Popover {
 
         var row = new Adw.ActionRow () {
             title = mark.diagnostic_message,
-            subtitle = @"Line $line",
+            subtitle = @"Line $(line) ($(mark.server_name))",
             activatable = true, // ОБЯЗАТЕЛЬНО
             selectable = false
         };

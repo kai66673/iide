@@ -133,8 +133,8 @@ public class Iide.EditorStatusBar : Gtk.Box {
         this.source_view.grab_focus (); // Возвращаем фокус ввода в сам редактор кода
     }
 
-    public void update_diagnostics (int errors, int warnings) {
-        this.diagnostic_bar.update_diagnostics (errors, warnings);
+    public void update_diagnostics (string server_name, int errors, int warnings) {
+        this.diagnostic_bar.update_diagnostics (server_name, errors, warnings);
     }
 
     public void update_breadcrumbs (Gee.List<SourceNodeItem?> crumbs) {

@@ -576,8 +576,8 @@ public class Iide.SourceView : GtkSource.View {
             }
 
             // Заголовок и основное сообщение
-            sb.append_printf ("%s <span font_weight='bold' foreground='%s'>%s</span>\n",
-                              icon, header_color, lsp_mark.category.up ());
+            sb.append_printf ("%s <span font_weight='bold' foreground='%s'>%s (%s)</span>\n",
+                              icon, header_color, lsp_mark.category.up (), lsp_mark.server_name);
             sb.append_printf ("<span>%s</span>", GLib.Markup.escape_text (lsp_mark.diagnostic_message));
         }
 
@@ -637,9 +637,6 @@ public class Iide.SourceView : GtkSource.View {
     }
 
     private async void fetch_lsp_hover_async (int line, int col) {
-        //  var lsp_service = LspService.get_instance ();
-        //  string? markdown = yield lsp_service.request_hover (uri, line, col);
-
         string? markdown = yield this.lsp_document_client.request_hover (uri, line, col);
         tooltip_widget.update_text (markdown, false);
     }

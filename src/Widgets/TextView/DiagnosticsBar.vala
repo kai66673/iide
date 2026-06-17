@@ -1,10 +1,37 @@
 /*
 */
 public class Iide.DiagnosticsBar : Gtk.Box {
+    private class _Statistics {
+        private struct IntPair {
+            public int errors;
+            public int warnings;
+
+            public IntPair(int errors, int warnings) {
+                this.errors = errors;
+                this.warnings = warnings;
+            }
+        }
+
+        private Gee.HashMap<string, IntPair?> _data = new Gee.HashMap<string, IntPair?> ();
+
+        public void update (string server_name, int errors, int warnings, out int total_errors, out int total_warnings) {
+            _data.set (server_name, IntPair(errors, warnings));
+
+            total_errors = 0;
+            total_warnings = 0;
+            foreach (var item in _data.values) {
+                total_errors += item.errors;
+                total_warnings += item.warnings;
+            }
+        }
+    }
+
     private SourceView source_view;
     private Gtk.Label error_label;
     private Gtk.Label warn_label;
     private Iide.DiagnosticsPopover diag_popover = null;
+
+    private _Statistics statistics;
 
     public DiagnosticsBar (SourceView source_view) {
         Object (
@@ -13,6 +40,7 @@ public class Iide.DiagnosticsBar : Gtk.Box {
         );
 
         this.source_view = source_view;
+        statistics = new _Statistics ();
 
         // Ошибки (Красный)
         error_label = new Gtk.Label ("0");
@@ -35,15 +63,19 @@ public class Iide.DiagnosticsBar : Gtk.Box {
         this.hide ();
     }
 
-    public void update_diagnostics (int errors, int warnings) {
-        if (errors == 0 && warnings == 0) {
+    public void update_diagnostics (string server_name, int errors, int warnings) {
+        int total_errors;
+        int total_warnings;
+        statistics.update (server_name, errors, warnings, out total_errors, out total_warnings);
+
+        if (total_errors == 0 && total_errors == 0) {
             this.hide ();
             return;
         }
 
         this.show ();
-        this.error_label.label = errors.to_string ();
-        this.warn_label.label = warnings.to_string ();
+        this.error_label.label = total_errors.to_string ();
+        this.warn_label.label = total_warnings.to_string ();
     }
 
     private void init_diagnostics_interaction () {

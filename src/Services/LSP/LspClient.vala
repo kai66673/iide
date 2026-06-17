@@ -497,7 +497,6 @@ public class Iide.LspClient : Object {
             break;
 
         case "$/progress" :
-            // message ("!!!handle_incoming_notification - $/progress" + json_object_to_string (root));
             if (params != null) {
                 // Token может быть строкой или числом, Tree-sitter и LSP это допускают
                 string token = "";
@@ -1238,5 +1237,48 @@ public class Iide.LspClient : Object {
         }
         
         this.is_stopping = false;
+    }
+
+    /**
+     * RPC-запрос Pull-диагностики по спецификации LSP 3.17 (textDocument/diagnostic)
+     */
+    public async void request_pull_diagnostics (string uri) throws Error {
+        var params = new Json.Object ();
+        
+        var doc = new Json.Object ();
+        doc.set_string_member ("uri", uri);
+        params.set_object_member ("textDocument", doc);
+
+        // По спецификации можно передавать previousResultId для инкрементальной диагностики,
+        // но для начала запросим полную (Full) диагностику текущего состояния
+        
+        // Отправляем запрос через нашу атомарную трубу
+        var response = yield this.send_request ("textDocument/diagnostic", params);
+
+        if (response == null || !response.has_member ("result")) return;
+
+        var result_node = response.get_member ("result");
+        if (result_node.get_node_type () != Json.NodeType.OBJECT) return;
+
+        var result_obj = result_node.get_object ();
+        
+        // Сервер возвращает объект с полем "kind": "full" или "unchanged"
+        string kind = result_obj.has_member ("kind") ? result_obj.get_string_member ("kind") : "";
+
+        if (kind == "full" && result_obj.has_member ("items")) {
+            var json_array = result_obj.get_array_member ("items");
+
+            // Парсим JSON-массив в список ваших объектов IdeLspDiagnostic
+            var diag_list = this.parse_diagnostics (json_array);
+
+            // Передаем в главный поток для UI
+            Idle.add (() => {
+                // Передаем данные в глобальную модель
+                diagnostics_service.update_diagnostics (this.name (), uri, diag_list);
+
+                this.diagnostics_received (this.name (), uri, diag_list);
+                return Source.REMOVE;
+            });
+        }
     }
 }

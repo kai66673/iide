@@ -317,7 +317,7 @@ public class Iide.TextView : Panel.Widget {
 
         text_buffer.end_user_action ();
 
-        this.editor_status_bar.update_diagnostics (lsp_error_count, lsp_warning_count);
+        this.editor_status_bar.update_diagnostics (server_name, lsp_error_count, lsp_warning_count);
     }
 
     public void select_and_scroll (int line, int start_col, int end_col, bool is_new) {

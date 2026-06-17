@@ -66,10 +66,18 @@ public class Iide.LspDocumentClient: GLib.Object {
 
             switch (lsp_client.capabilities.sync_kind) {
                 case TextDocumentSyncKind.FULL:
-                    lsp_client.text_document_did_change.begin (this.source_view.uri, this.document_version, this.source_view.buffer.text);
+                    lsp_client.text_document_did_change.begin (this.source_view.uri, this.document_version, this.source_view.buffer.text, (obj, res) => {
+                        if (lsp_client.capabilities.diagnostics_provider == LspDiagnosticMode.PULL) {
+                            lsp_client.request_pull_diagnostics.begin (this.source_view.uri);
+                        }
+                    });
                     break;
                 case TextDocumentSyncKind.INCREMENTAL:
-                    lsp_client.send_did_change.begin (this.source_view.uri, this.document_version, changes);
+                    lsp_client.send_did_change.begin (this.source_view.uri, this.document_version, changes, (obj, res) => {
+                        if (lsp_client.capabilities.diagnostics_provider == LspDiagnosticMode.PULL) {
+                            lsp_client.request_pull_diagnostics.begin (this.source_view.uri);
+                        }
+                    });
                     break;
                 case TextDocumentSyncKind.NONE:
                     break;
@@ -96,6 +104,9 @@ public class Iide.LspDocumentClient: GLib.Object {
                 case TextDocumentSyncKind.FULL:
                     try {
                         yield lsp_client.text_document_did_change (this.source_view.uri, this.document_version, this.source_view.buffer.text);
+                        if (lsp_client.capabilities.diagnostics_provider == LspDiagnosticMode.PULL) {
+                            lsp_client.request_pull_diagnostics.begin (this.source_view.uri);
+                        }
                     } catch (GLib.Error e) {
                         this.logger.error ("LSP", "Error on send 'text_document_did_change' for document %s: %s".printf (this.source_view.uri, e.message));
                     }
@@ -103,6 +114,9 @@ public class Iide.LspDocumentClient: GLib.Object {
                 case TextDocumentSyncKind.INCREMENTAL:
                     try {
                         yield lsp_client.send_did_change (this.source_view.uri, this.document_version, changes);
+                        if (lsp_client.capabilities.diagnostics_provider == LspDiagnosticMode.PULL) {
+                            lsp_client.request_pull_diagnostics.begin (this.source_view.uri);
+                        }
                     } catch (GLib.Error e) {
                         this.logger.error ("LSP", "Error on send 'send_did_change' for document %s: %s".printf (this.source_view.uri, e.message));
                     }
@@ -123,6 +137,16 @@ public class Iide.LspDocumentClient: GLib.Object {
 
         this.active_clients.add (client);
         this.logger.debug ("LSP", "Client '%s' with status %d added to document %s.".printf (client.name (), client.status, this.source_view.uri));
+
+        // === PULL-ЗАПРОС ПРИ ПЕРВИЧНОМ ОТКРЫТИИ ===
+        // Если сервер УЖЕ полностью готов (READY), и он работает по Pull-модели — 
+        // мы мгновенно запрашиваем у него стартовую диагностику, чтобы сразу 
+        // подсветить ошибки в только что открытом файле! [INDEX]
+        if (client.status == LspClientStatus.READY) {
+            if (client.capabilities.diagnostics_provider == LspDiagnosticMode.PULL) {
+                client.request_pull_diagnostics.begin (this.source_view.uri);
+            }
+        }
 
         if (this.active_clients.size == this.expected_lsp_clients_count) {
             this.all_clients_started_or_failed = true;
