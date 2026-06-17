@@ -155,5 +155,6 @@ public class Iide.LspCodeActionItem : GLib.Object {
 
 // Результирующий контейнер ответа
 public class Iide.LspCodeActionResult : GLib.Object {
+    public string server_name { get; set; }
     public Gee.ArrayList<LspCodeActionItem> actions { get; set; }
 }

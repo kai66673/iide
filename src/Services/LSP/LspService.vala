@@ -4,12 +4,10 @@ using Gee;
 public class Iide.LspService : GLib.Object {
     private static LspService? _instance;
     private Gee.HashMap<string, LspClient> clients;
-    private Gee.HashMap<string, string> uri_to_client_key;
+    private Gee.HashMap<string, Gee.ArrayList<LspClient>> active_languages;
 
-    private LoggerService logger = LoggerService.get_instance ();
-    private LanguageRegistry registry = LanguageRegistry.get_instance ();
-    private Gee.HashMap<string, Gee.ArrayList<LspClient>> active_languages =
-        new Gee.HashMap<string, Gee.ArrayList<LspClient>> ();
+    private LoggerService logger;
+    private LanguageRegistry registry;
 
     public signal void diagnostics_updated (string server_name, string uri, ArrayList<LspDiagnosticPair?> diagnostics);
 
@@ -21,7 +19,9 @@ public class Iide.LspService : GLib.Object {
 
     construct {
         clients = new Gee.HashMap<string, LspClient> ();
-        uri_to_client_key = new Gee.HashMap<string, string> ();
+        active_languages = new Gee.HashMap<string, Gee.ArrayList<LspClient>> ();
+        logger = LoggerService.get_instance ();
+        registry = LanguageRegistry.get_instance ();
     }
 
     public static unowned LspService get_instance () {
@@ -191,13 +191,6 @@ public class Iide.LspService : GLib.Object {
 
         this.active_languages.set (language_id, language_clients);
 
-        // TODO: fix this!..
-        if (existing_clients.size > 0) {
-            this.uri_to_client_key.set (view.uri, existing_clients[0].name ());
-        } else {
-            this.uri_to_client_key.set (view.uri, new_clients[0].name ());
-        }
-
         foreach (var lsp_client in language_clients) {
             lsp_client.register_document (language_id, ((GtkSource.Buffer) view.buffer).text, workspace_root, view);
         }
@@ -207,77 +200,13 @@ public class Iide.LspService : GLib.Object {
         }
     }
 
-    public LspClient ? get_client_for_uri (string uri) {
-        var server_key = uri_to_client_key.get (uri);
-        if (server_key == null) {
-            return null;
-        }
-        return clients.get (server_key);
-    }
-    public async LspCodeActionResult? request_code_actions (
-        string uri,
-        int start_line,
-        int start_char,
-        int end_line,
-        int end_char,
-        Json.Array diagnostics_json_array
-    ) {
-        var client = get_client_for_uri (uri);
-        if (client == null) {
-            return null;
-        }
-        try {
-            return yield client.request_code_actions (uri, start_line, start_char, end_line, end_char, diagnostics_json_array);
-        } catch (Error e) {
-            logger.error ("LSP", "Failed to request code actions for %s: %s".printf (uri, e.message));
-            return null;
-        }
-    }
-
-    public async string ? request_hover (string uri, int line, int character) {
-        var client = get_client_for_uri (uri);
-        if (client == null) {
-            return null;
-        }
-        try {
-            return yield client.request_hover (uri, line, character);
-        } catch (Error e) {
-            logger.error ("LSP", "Failed to request hover for %s: %s".printf (uri, e.message));
-            return null;
-        }
-    }
-
-    public async Gee.ArrayList<LspLocation>? goto_definition (string uri, int line, int character) {
-        var client = get_client_for_uri (uri);
-        if (client == null)
-            return null;
-        try {
-            return yield client.request_definition (uri, line, character);
-        } catch (Error e) {
-            logger.error ("LSP", "Failed to request definition for %s: %s".printf (uri, e.message));
-            return null;
-        }
-    }
-
-    public async Gee.List<DocumentLspSymbol>? document_symbols(string uri) {
-        var client = get_client_for_uri (uri);
-        if (client == null)
-            return null;
-        try {
-            return yield client.document_symbols (uri);
-        } catch (Error e) {
-            logger.error ("LSP", "Failed to request document symbols for %s: %s".printf (uri, e.message));
-            return null;
-        }
-    }
-
     /**
      * Асинхронно и параллельно остановить все активные LSP-серверы текущего проекта
      */
     public async void shutdown_all_running_lsp_servers_async () {
         if (this.clients.size == 0) return;
 
-        LoggerService.get_instance ().info ("LSP", @"Shutting down $(this.clients.size) active LSP servers...");
+        this.logger.info ("LSP", @"Shutting down $(this.clients.size) active LSP servers...");
 
         // Шаг 1. Безопасно копируем клиентов во временный список для итерации [INDEX]
         var clients_to_stop = new Gee.ArrayList<LspClient> ();
@@ -317,6 +246,6 @@ public class Iide.LspService : GLib.Object {
         // Полностью очищаем карту клиентов. Сервис готов к работе со следующим проектом!
         this.clients.clear ();
         this.active_languages.clear ();
-        LoggerService.get_instance ().info ("LSP", "All LSP servers are cleanly stopped and cleared from memory.");
+        this.logger.info ("LSP", "All LSP servers are cleanly stopped and cleared from memory.");
     }
 }

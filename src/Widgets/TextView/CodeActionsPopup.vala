@@ -3,11 +3,10 @@
 public class Iide.CodeActionsPopup : Gtk.Window {
     private Gtk.ListBox list_box;
     private SourceView source_view;
-    private Gee.ArrayList<Iide.LspCodeActionItem> actions_list;
 
     public signal void about_to_close ();
 
-    public CodeActionsPopup (Gtk.Window parent_window, SourceView view, Gee.ArrayList<Iide.LspCodeActionItem> actions) {
+    public CodeActionsPopup (Gtk.Window parent_window, SourceView view, Gee.ArrayList<LspCodeActionResult> results) {
         Object (
             transient_for: parent_window,
             modal: true,         // Закрывает фокус ввода на себя, пока открыто меню [INDEX]
@@ -17,26 +16,28 @@ public class Iide.CodeActionsPopup : Gtk.Window {
         );
 
         this.source_view = view;
-        this.actions_list = actions;
         this.add_css_class ("code-actions-popup");
 
         this.list_box = new Gtk.ListBox ();
         this.list_box.selection_mode = Gtk.SelectionMode.SINGLE;
         this.list_box.add_css_class ("navigation-sidebar"); // Стиль Adwaita
 
-        foreach (var action in actions) {
-            var label = new Gtk.Label (action.title);
-            label.halign = Gtk.Align.START;
-            label.margin_start = 12;
-            label.margin_end = 12;
-            label.margin_top = 6;
-            label.margin_bottom = 6;
+        foreach (var result in results) {
+            var server_name = result.server_name;
+            foreach (var action in result.actions) {
+                var label = new Gtk.Label ("(" + server_name + ") " + action.title);
+                label.halign = Gtk.Align.START;
+                label.margin_start = 12;
+                label.margin_end = 12;
+                label.margin_top = 6;
+                label.margin_bottom = 6;
 
-            var row = new Gtk.ListBoxRow ();
-            row.set_child (label);
-            row.set_data ("action-item", action);
+                var row = new Gtk.ListBoxRow ();
+                row.set_child (label);
+                row.set_data ("action-item", action);
 
-            this.list_box.append (row);
+                this.list_box.append (row);
+            }
         }
 
         // Обработка выбора исправления
