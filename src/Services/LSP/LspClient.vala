@@ -17,7 +17,8 @@ public enum Iide.LspClientStatus {
     STARTING,
     INITIALIZING,
     READY,
-    FAILED
+    FAILED,
+    ABORTED
 }
 
 public enum Iide.TextDocumentSyncKind {
@@ -86,7 +87,7 @@ public class Iide.LspClient : Object {
     private LoggerService logger = LoggerService.get_instance ();
 
     // Текущий статус клиента в конечном автомате
-    public LspClientStatus status { get; private set; default = LspClientStatus.STOPPED; }
+    public LspClientStatus status { get; set; default = LspClientStatus.STOPPED; }
 
     // Внутренний кэш отложенных документов: [file_uri] -> [содержимое текста буфера]
     private Gee.ArrayList<PendingOpen> pending_documents;
@@ -114,6 +115,9 @@ public class Iide.LspClient : Object {
 
     private bool is_stopping = false;
     private GLib.Cancellable read_cancellable = new GLib.Cancellable ();
+    private int active_read_loops_count = 0;
+    private SourceFunc? shutdown_barrier_callback = null;
+
     
     // Свойство возможностей сервера
     public ServerCapabilities capabilities { get; set; }
@@ -247,9 +251,10 @@ public class Iide.LspClient : Object {
                 this.logger.debug ("LSP", "Document %s did open send to '%s'".printf (view.uri, this.name ()));
                 break;
             case LspClientStatus.FAILED:
-                // Сервер упал или остановлен — игнорируем
+            case LspClientStatus.ABORTED:
+                // Сервер упал или остановлен принудительно — игнорируем
                 logger.info (
-                    "LSP", "Server '%s' has failed. Ignoring didOpen for %s".printf (this.name (), view.uri)
+                    "LSP", "Server '%s' has failed or aborted. Ignoring didOpen for %s".printf (this.name (), view.uri)
                 );
                 view.bind_lsp_client (this);
                 break;
@@ -361,6 +366,7 @@ public class Iide.LspClient : Object {
     }
 
     private async void run_read_loop () {
+        this.active_read_loops_count++; // Регистрируем поток
         bool unexpected_crash = false;
 
         try {
@@ -407,6 +413,14 @@ public class Iide.LspClient : Object {
                 unexpected_crash = true;
             }        
         } finally {
+            this.active_read_loops_count--; // Поток физически умер в памяти
+            
+            // Если метод закрытия ждет у барьера — проверяем, все ли читатели мертвы
+            if (this.active_read_loops_count == 0 && this.shutdown_barrier_callback != null) {
+                Idle.add ((owned) this.shutdown_barrier_callback);
+                this.shutdown_barrier_callback = null;
+            }
+
             if (unexpected_crash) {
                 // Если зафиксирован аварийный крах, переводим конечный автомат в FAILED
                 this.status = LspClientStatus.FAILED;
@@ -425,6 +439,8 @@ public class Iide.LspClient : Object {
      * Параллельный фоновый цикл чтения низкоуровневого потока ошибок (stderr)
      */
     private async void run_stderr_loop () {
+        this.active_read_loops_count++; // Регистрируем поток
+
         try {
             while (this.status != LspClientStatus.STOPPED && this.status != LspClientStatus.FAILED) {
                 // Читаем stderr построчно, используя общий токен отмены read_cancellable [INDEX]
@@ -441,6 +457,14 @@ public class Iide.LspClient : Object {
         } catch (Error e) {
             if (!(e is IOError.CANCELLED)) {
                 debug ("LSP Stderr Loop Error for %s: %s", this.name (), e.message);
+            }
+        } finally {
+            this.active_read_loops_count--; // Поток физически умер в памяти
+            
+            // Проверяем барьер
+            if (this.active_read_loops_count == 0 && this.shutdown_barrier_callback != null) {
+                Idle.add ((owned) this.shutdown_barrier_callback);
+                this.shutdown_barrier_callback = null;
             }
         }
     }
@@ -1273,18 +1297,24 @@ public class Iide.LspClient : Object {
     }
 
     /**
-     * Вспомогательный метод закрытия системных потоков ввода-вывода
-     */
-    /**
      * Асинхронное закрытие системных потоков ввода-вывода
      */
     private async void close_transport_streams_async () {
-        // 1. Принудительно отменяем висящие операции чтения в run_read_loop
+        LoggerService.get_instance ().debug ("LSP", "Initiating transport stream cancellation barrier...");
+        
+        // 1. Посылаем сигнал отмены фоновым операциям чтения [INDEX]
         this.read_cancellable.cancel ();
 
+        // 2. ВЗВОДИМ АСИНХРОННЫЙ БАРЬЕР: Если фоновые потоки чтения еще шевелятся, ложимся спать! [INDEX]
+        if (this.active_read_loops_count > 0) {
+            this.shutdown_barrier_callback = close_transport_streams_async.callback;
+            yield; // Спим строго до тех пор, пока блоки finally не уменьшат счетчик до нуля [INDEX]
+        }
+
+        LoggerService.get_instance ().debug ("LSP", "All background read loops are dead. Safe to close file descriptors.");
+
+        // 3. ТЕПЕРЬ ЭТО НА 100% БЕЗОПАСНО: Outstanding-операций больше физически нет в природе! [INDEX]
         try {
-            // 2. Используем close_async вместо close. 
-            // Он атомарно дождется, пока флаг pending сбросится, и закроет поток без ошибок
             if (this.output_stream != null && !this.output_stream.is_closed ()) {
                 yield this.output_stream.close_async (Priority.DEFAULT, null);
             }
@@ -1294,12 +1324,19 @@ public class Iide.LspClient : Object {
             if (this.stderr_stream != null && !this.stderr_stream.is_closed ()) {
                 yield this.stderr_stream.close_async (Priority.DEFAULT, null);
             }
-            LoggerService.get_instance ().debug ("LSP", "IO streams closed cleanly.");
+            LoggerService.get_instance ().debug ("LSP", "All IO streams closed cleanly without single outstanding error.");
         } catch (GLib.Error e) {
             LoggerService.get_instance ().error ("LSP", @"Error closing IO streams: $(e.message)");
         }
+
+        if (this.write_waiters != null) {
+            this.write_waiters.clear ();
+        }
         
         this.is_stopping = false;
+        
+        // Пересоздаем токен отмены, чтобы клиент был готов к повторному мануальному запуску с чистого листа! [INDEX]
+        this.read_cancellable = new GLib.Cancellable ();
     }
 
     /**
