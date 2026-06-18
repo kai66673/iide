@@ -68,7 +68,7 @@ public class Iide.DiagnosticsBar : Gtk.Box {
         int total_warnings;
         statistics.update (server_name, errors, warnings, out total_errors, out total_warnings);
 
-        if (total_errors == 0 && total_errors == 0) {
+        if (total_errors == 0 && total_warnings == 0) {
             this.hide ();
             return;
         }

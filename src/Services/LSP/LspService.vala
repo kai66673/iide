@@ -112,7 +112,7 @@ public class Iide.LspService : GLib.Object {
         emit_tasks_changed ();
     }
 
-    public void register_client (LspClient client) {
+    public void register_monitored_client (LspClient client) {
         string server_name = client.name ();
 
         client.progress_updated.connect ((token, msg, perc, active) => {
@@ -134,8 +134,6 @@ public class Iide.LspService : GLib.Object {
 
             emit_tasks_changed ();
         });
-
-        this.client_registered (client);
     }
 
     private void emit_tasks_changed () {
@@ -183,6 +181,7 @@ public class Iide.LspService : GLib.Object {
                     new_client.diagnostics_received.connect ((server_name, diag_uri, diagnostics) => {
                         this.diagnostics_updated (server_name, diag_uri, diagnostics);
                     });
+                    this.client_registered (new_client);
                     this.clients.set (server_name, new_client);
                     new_clients.add (new_client);
                     language_clients.add (new_client);

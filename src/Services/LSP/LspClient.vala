@@ -186,7 +186,7 @@ public class Iide.LspClient : Object {
             // Используем Idle.add, чтобы оповестить подписчиков в главном потоке
             Idle.add (() => {
                 this.initialized_with_capabilities (this.capabilities);
-                LspService.get_instance ().register_client (this);
+                LspService.get_instance ().register_monitored_client (this);
                 return Source.REMOVE; // Выполнить один раз
             });
 

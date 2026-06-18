@@ -78,7 +78,7 @@ public class Iide.LspServerRow : Adw.ActionRow {
                 this.status_indicator.set_from_icon_name ("emblem-ok-symbolic");
                 this.status_indicator.add_css_class ("success");
                 this.restart_button.sensitive = true;
-                this.subtitle = "Status: Connected & Ready";
+                this.subtitle = "Status: Ready";
                 break;
 
             case LspClientStatus.STARTING:
