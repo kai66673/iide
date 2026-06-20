@@ -90,15 +90,38 @@ public class Iide.LspClient : Object {
     private Iide.LspProcess? current_process = null;
 
     // Текущий статус клиента в конечном автомате
-    public LspClientStatus status { get; set; default = LspClientStatus.STOPPED; }
-
-    // Внутренний кэш отложенных документов: [file_uri] -> [содержимое текста буфера]
-    private Gee.ArrayList<PendingOpen> pending_documents;
+    private LspClientStatus _status = LspClientStatus.STOPPED;
+    public LspClientStatus status { 
+        get {
+            return _status;
+        }
+        set {
+            if (_status != value) {
+                if (value == LspClientStatus.READY) {
+                    _status = value;
+                    Idle.add (() => {
+                        this.state_ready_changed (true);
+                        return Source.REMOVE;
+                    });
+                } else {
+                    if (_status == LspClientStatus.READY) {
+                        _status = value;
+                        Idle.add (() => {
+                            this.state_ready_changed (false);
+                            return Source.REMOVE;
+                        });
+                    }
+                    _status = value;
+                }
+            }
+        }
+    }
 
     private int next_id = 0;
     private Map<int, LspPromise> pending_requests = new HashMap<int, LspPromise> ();
     private Map<int, Json.Object?> responses = new HashMap<int, Json.Object?> ();
     private LspConfig config;
+    public string language_id { get; private set; }
 
     private DiagnosticsService diagnostics_service;
     private LspService lsp_service;
@@ -117,6 +140,8 @@ public class Iide.LspClient : Object {
     public signal void log_message (int type, string message);
     public signal void stderr_log_received (string log_line);
 
+    public signal void state_ready_changed (bool is_ready);
+
 
     // Сигнал, сообщающий, что возможности сервера получены и распарсены
     public signal void initialized_with_capabilities (ServerCapabilities caps);
@@ -124,13 +149,13 @@ public class Iide.LspClient : Object {
     // Прогресс индексации проекта
     public signal void progress_updated (string token, string message, int percentage, bool active);
 
-    public LspClient (LspConfig config, LspFeatures features) {
+    public LspClient (string language_id, LspConfig config, LspFeatures features) {
         this.capabilities = new ServerCapabilities ();
         this.config = config;
         this.features = features;
+        this.language_id = language_id;
         this.diagnostics_service = DiagnosticsService.get_instance ();
         this.lsp_service = LspService.get_instance ();
-        pending_documents = new Gee.ArrayList<PendingOpen> ();
     }
     
     public string name () { return config.command[0]; }
@@ -198,9 +223,6 @@ public class Iide.LspClient : Object {
             this.status = LspClientStatus.READY;
             LoggerService.get_instance ().info ("LSP", "Server '%s' started and initialized successfully.".printf (this.name ()));
 
-            // Опустошаем накопленные за время старта вкладки документов
-            yield this.process_pending_opens ();
-
             return true;
         } catch (GLib.Error e) {
             this.status = LspClientStatus.FAILED;
@@ -209,59 +231,6 @@ public class Iide.LspClient : Object {
                 this.current_process = null;
             }
             return false;
-        }
-    }
-
-    private async void process_pending_opens () throws Error {
-        var opens_to_process = new ArrayList<PendingOpen> ();
-        foreach (var open in pending_documents) {
-            opens_to_process.add (open);
-        }
-        pending_documents.clear ();
-
-        foreach (var open in opens_to_process) {
-            this.register_document (open.language_id, open.content, open.workspace_root, open.view);
-        }
-    }
-
-    public void register_document (string language_id, string content, string? workspace_root, SourceView view) {
-        switch (this.status) {
-            case LspClientStatus.STOPPED:
-            case LspClientStatus.STARTING:
-            case LspClientStatus.INITIALIZING:
-                // Инкапсулируем состояние: сохраняем файл во внутреннюю очередь клиента!
-                this.pending_documents.add (new PendingOpen(
-                    view.uri,
-                    language_id,
-                    ((GtkSource.Buffer) view.buffer).text,
-                    workspace_root,
-                    view
-                ));
-                logger.debug (
-                    "LSP", "Document %s queued in pending list for server '%s'".printf (view.uri, this.name ())
-                );
-                break;
-            case LspClientStatus.READY:
-                // Сервер уже полностью готов — шлем уведомление didOpen без задержек!
-                this.text_document_did_open.begin (view.uri, language_id, 1, content, (obj, res) => {
-                    view.bind_lsp_client (this);
-                    try {
-                        this.text_document_did_open.end (res);
-                        this.logger.info ("LSP", "Document %s opened in '%s'".printf (view.uri, this.name ()));
-                    } catch (GLib.Error e) {
-                        this.logger.error ("LSP", "Document %s failed to open in '%s'".printf (view.uri, this.name ()));
-                    }
-                });
-                this.logger.debug ("LSP", "Document %s did open send to '%s'".printf (view.uri, this.name ()));
-                break;
-            case LspClientStatus.FAILED:
-            case LspClientStatus.ABORTED:
-                // Сервер упал или остановлен принудительно — игнорируем
-                logger.info (
-                    "LSP", "Server '%s' has failed or aborted. Ignoring didOpen for %s".printf (this.name (), view.uri)
-                );
-                view.bind_lsp_client (this);
-                break;
         }
     }
 

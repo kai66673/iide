@@ -163,7 +163,7 @@ public class Iide.DocumentManager : GLib.Object {
 
                     string? lang_id = lsp_service.get_language_id_for_file (file);
                     if (lang_id != null) {
-                        lsp_service.register_document (lang_id, current_workspace_root, panel_widget.source_view);
+                        lsp_service.register_lsp_document (lang_id, current_workspace_root, panel_widget.source_view);
                     }
                 } catch (Error e) {
                     logger.error ("Doc", "Error Opening File", "Failed to read file %s: %s".printf (file.get_path (), e.message));

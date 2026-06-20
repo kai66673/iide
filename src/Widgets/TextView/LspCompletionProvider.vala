@@ -94,11 +94,11 @@ namespace Iide {
             string s = ch.to_string ();
 
             var lsp_document = this.source_view.lsp_document_client;
-            foreach (var lsp_client in lsp_document.active_clients) {
-                if (lsp_client.status == LspClientStatus.READY && lsp_client.capabilities.completion_provider) {
-                    if (lsp_client.capabilities.completion_triggers.contains (s)) {
-                        return true;
-                    }
+            foreach (var lsp_client in lsp_document.active_clients ((c) => {
+                return c.client.capabilities.completion_provider;
+            })) {
+                if (lsp_client.client.capabilities.completion_triggers.contains (s)) {
+                    return true;
                 }
             }
 
@@ -132,13 +132,9 @@ namespace Iide {
             string uri = source_view.uri;
 
             // Получаем список серверов этой конкретной вкладки, поддерживающих Completion
-            var active_servers = new Gee.ArrayList<LspClient> ();
-            foreach (var client in lsp_document.active_clients) {
-                // Берем только READY серверы, которые по lsp.json умеют автодополнение
-                if (client.status == LspClientStatus.READY && client.capabilities.completion_provider) {
-                    active_servers.add (client);
-                }
-            }
+            var active_servers = lsp_document.active_clients ((lsp_client) => {
+                return lsp_client.client.capabilities.completion_provider;
+            });
 
             if (active_servers.is_empty)
                 return filter_model;
@@ -150,8 +146,9 @@ namespace Iide {
             // ===================================================================
             // ПАРАЛЛЕЛЬНЫЙ АСИНХРОННЫЙ ВЕЩАТЕЛЬНЫЙ ЦИКЛ ПО ВСЕМ СЕРВЕРАМ ВКЛАДКИ
             // ===================================================================
-            foreach (var client in active_servers) {
+            foreach (var lsp_client in active_servers) {
                 active_requests++;
+                var client = lsp_client.client;
 
                 string? trigger_char = null;
                 var trigger_kind = CompletionTriggerKind.INVOKED; // Invoked по умолчанию

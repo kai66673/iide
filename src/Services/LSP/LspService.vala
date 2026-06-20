@@ -156,19 +156,15 @@ public class Iide.LspService : GLib.Object {
         this.diagnostics_updated (server_name, diag_uri, diagnostics);
     }
 
-    public void register_document (string language_id, string? workspace_root, SourceView view) {
+    public void register_lsp_document (string language_id, string? workspace_root, SourceView view) {
         Gee.ArrayList<LspClient>? active_language_clients = this.active_languages.get (language_id);
         if (active_language_clients != null) {
-            view.set_expected_lsp_clients (active_language_clients.size);
-            foreach (var lsp_client in active_language_clients) {
-                lsp_client.register_document (language_id, ((GtkSource.Buffer) view.buffer).text, workspace_root, view);
-            }
+            view.lsp_document_client.register_lsp_clients (active_language_clients);
             return;
         }
 
         var router = this.registry.get_router_for_language (language_id);
         if (router == null) {
-            view.set_expected_lsp_clients (0);
             logger.info ("LSP", "No LSP router/servers configured for language: %s".printf (language_id));
             return;
         }
@@ -176,18 +172,20 @@ public class Iide.LspService : GLib.Object {
         // 2. Извлекаем ВСЕ уникальные серверы, которые должны обслуживать этот язык
         Gee.Set<string> assigned_servers = router.get_all_assigned_servers ();
         var new_clients = new Gee.ArrayList<LspClient> ();
-        var existing_clients = new Gee.ArrayList<LspClient> ();
         var language_clients = new Gee.ArrayList<LspClient> ();
         foreach (var server_name in assigned_servers) {
             if (this.clients.has_key (server_name)) {
                 var client = this.clients.get (server_name);
-                existing_clients.add (client);
                 language_clients.add (client);
             } else {
                 // Извлекаем честный, смерженный LspConfig из реестра!
                 var server_config = registry.get_config_for_server (server_name);
                 if (server_config != null) {
-                    var new_client = new LspClient (server_config, router.features_for_server_name (server_name));
+                    var new_client = new LspClient (
+                        language_id,
+                        server_config,
+                        router.features_for_server_name (server_name)
+                    );
                     new_client.diagnostics_received.connect (
                         this.on_client_diagnostics_received
                     );
@@ -199,18 +197,9 @@ public class Iide.LspService : GLib.Object {
             }
         }
 
-        var expected_lsp_clients_count = language_clients.size;
-        view.set_expected_lsp_clients (expected_lsp_clients_count);
-
-        if (expected_lsp_clients_count == 0)
-            return;
-
         this.active_languages.set (language_id, language_clients);
-
-        foreach (var lsp_client in language_clients) {
-            lsp_client.register_document (language_id, ((GtkSource.Buffer) view.buffer).text, workspace_root, view);
-        }
-
+        view.lsp_document_client.register_lsp_clients (language_clients);
+        
         foreach (var new_lsp_client in new_clients) {
             new_lsp_client.start_server_async.begin (workspace_root);
         }

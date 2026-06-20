@@ -480,15 +480,6 @@ public class Iide.SourceView : GtkSource.View {
         }
     }
 
-    // Этот метод вызывается при открытии файла
-    public void bind_lsp_client (LspClient? client) {
-        this.lsp_document_client.bind_lsp_client (client);
-    }
-
-    public void set_expected_lsp_clients (int count) {
-        this.lsp_document_client.set_expected_lsp_clients (count);
-    }
-
     public GtkSource.Language? language {
         set {
             ((GtkSource.Buffer) buffer).language = value;

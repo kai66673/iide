@@ -43,8 +43,6 @@ public class Iide.Window : Panel.DocumentWorkspace {
 
     private BasePanel[] panel_widgets;
 
-    private Gdk.Cursor wait_cursor = new Gdk.Cursor.from_name ("wait", null);
-
     public Window (Gtk.Application app) {
         Object (application: app);
         GtkSource.init ();
