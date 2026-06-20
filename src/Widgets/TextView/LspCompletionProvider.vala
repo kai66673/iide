@@ -119,7 +119,6 @@ namespace Iide {
             }
 
             var lsp_document = this.source_view.lsp_document_client;
-
             yield lsp_document.flush_changes_async ();
 
             var buffer = source_view.buffer;
@@ -131,7 +130,6 @@ namespace Iide {
             int character = iter.get_line_offset ();
             string uri = source_view.uri;
 
-            // Получаем список серверов этой конкретной вкладки, поддерживающих Completion
             var active_servers = lsp_document.active_clients ((lsp_client) => {
                 return lsp_client.client.capabilities.completion_provider;
             });
@@ -139,53 +137,46 @@ namespace Iide {
             if (active_servers.is_empty)
                 return filter_model;
 
-            // Счетчик параллельно выполняющихся асинхронных RPC-запросов к сокетам ОС
+            // Локальный временный список для сбора ответов изо всех сокетов
+            var temp_results = new Gee.ArrayList<LspCompletionResult> ();
+
             int active_requests = 0;
             SourceFunc resume_callback = populate_async.callback;
 
             // ===================================================================
-            // ПАРАЛЛЕЛЬНЫЙ АСИНХРОННЫЙ ВЕЩАТЕЛЬНЫЙ ЦИКЛ ПО ВСЕМ СЕРВЕРАМ ВКЛАДКИ
+            // ПАРАЛЛЕЛЬНЫЙ СБОР ДАННЫХ ИЗ СОКEТОВ
             // ===================================================================
             foreach (var lsp_client in active_servers) {
                 active_requests++;
                 var client = lsp_client.client;
 
                 string? trigger_char = null;
-                var trigger_kind = CompletionTriggerKind.INVOKED; // Invoked по умолчанию
+                var trigger_kind = CompletionTriggerKind.INVOKED;
 
                 TextIter prev = iter;
                 if (prev.backward_char ()) {
                     unichar ch = prev.get_char ();
                     string s = ch.to_string ();
-
                     if (client.capabilities.completion_triggers.contains (s)) {
                         trigger_char = s;
                         trigger_kind = CompletionTriggerKind.TRIGGER_CHARACTER;
                     }
                 }
 
-                // Вызываем асинхронный метод запроса комплишена у конкретного клиента (.begin)
+                // Запускаем сетевые запросы. Лямбда выполняет МИНИМУМ работы:
+                // Она просто парсит JSON и складывает результат в локальный temp_results!
                 client.request_completion.begin (uri, line, character, trigger_char, trigger_kind, (obj, res) => {
                     try {
                         var result = client.request_completion.end (res);
-                        
-                        if (result != null && result.items.size > 0) {
-                            // Чтобы избежать ConcurrentModificationException в ListStore, 
-                            // перевод в UI-поток обязателен через Idle.add
-                            Idle.add (() => {
-                                foreach (var item in result.items) {
-                                    // Оборачиваем предложение и сохраняем имя его сервера-создателя!
-                                    var proposal = new LspCompletionProposal (item);
-                                    base_store.append (proposal);
-                                }
-                                return Source.REMOVE;
-                            });
+                        if (result != null) {
+                            // Безопасно сохраняем сырые данные ответа
+                            temp_results.add (result);
                         }
                     } catch (GLib.Error e) {
-                        LoggerService.get_instance ().error ("LSP", "Completion request failed for '%s': %s".printf (client.name (), e.message));
+                        LoggerService.get_instance ().error ("LSP", "Completion failed for '%s': %s".printf (client.name (), e.message));
                     } finally {
                         active_requests--;
-                        // Когда САМЫЙ последний сокет вернул данные — будим основной метод!
+                        // Будим основной метод ТОЛЬКО когда ответил самый последний сокет!
                         if (active_requests == 0) {
                             Idle.add ((owned) resume_callback);
                         }
@@ -193,8 +184,21 @@ namespace Iide {
                 });
             }
 
-            // Засыпаем и отдаем управление MainContext, пока Ruff и Pyright параллельно качают пакеты
+            // Засыпаем. Главный интерфейс IDE не фризится, сокеты качают JSON пакеты...
             yield;
+
+            // ===================================================================
+            // МЫ ПРОСНУЛИСЬ! По спецификации Vala мы ГАРАНТИРОВАННО находимся 
+            // в главном UI-потоке. Никакие Idle.add больше физически не нужны!
+            // ===================================================================
+            
+            // Наполняем модель атомарно, быстро и без риска гонок очистки!
+            foreach (var result in temp_results) {
+                foreach (var item in result.items) {
+                    var proposal = new LspCompletionProposal (item);
+                    base_store.append (proposal);
+                }
+            }
 
             return filter_model;
         }
