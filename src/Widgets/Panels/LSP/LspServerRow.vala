@@ -152,6 +152,18 @@ public class Iide.LspServerRow : Adw.ActionRow {
         // ЖЕСТКО ВЗВОДИМ СТАТУС ABORTED, БЛОКИРУЯ АВТОМАТИЧЕСКИЙ RESPOND В СEРВИСE
         this.client.status = LspClientStatus.ABORTED;
 
+        Idle.add(() => {
+            var server_name = this.client.name ();
+            DiagnosticsService.get_instance ().remove_client (server_name);
+            LspService.get_instance ().deregister_monitored_client (server_name);
+            var docs = DocumentManager.get_instance ().documents;
+            var empty_diags = new Gee.ArrayList<Iide.LspDiagnosticPair?> ();
+            foreach (var doc in docs.values) {
+                doc.update_diagnostics (server_name, empty_diags);
+            }
+            return Source.REMOVE;
+        });
+
         // Очищаем текстовые поля логов
         this.protocol_log_buffer.set_text ("", 0);
         this.stderr_log_buffer.set_text ("", 0);
@@ -178,8 +190,8 @@ public class Iide.LspServerRow : Adw.ActionRow {
 
     private async void execute_start_async () throws GLib.Error {
         var prj_manager = ProjectManager.get_instance ();
-        string? workspace_root = prj_manager.has_open_project () ? 
-                                    prj_manager.get_current_project_root ().get_path () : null;
+        string? workspace_root = prj_manager.has_open_project () ?
+            prj_manager.get_current_project_root ().get_uri () : null;
 
         LoggerService.get_instance ().info ("LSP-UI", @"[Manual Start] Spawning process for '$(this.client.name())'...");
 

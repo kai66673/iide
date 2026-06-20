@@ -86,6 +86,9 @@ public class Iide.LspClient : Object {
 
     private LoggerService logger = LoggerService.get_instance ();
 
+    // Сильная ссылка на текущий временный низкоуровневый процесс ОС
+    private Iide.LspProcess? current_process = null;
+
     // Текущий статус клиента в конечном автомате
     public LspClientStatus status { get; set; default = LspClientStatus.STOPPED; }
 
@@ -100,24 +103,7 @@ public class Iide.LspClient : Object {
     private DiagnosticsService diagnostics_service;
     private LspService lsp_service;
 
-    // Процесс LSP сервера
-    private GLib.Subprocess process;
-
-    // Поток для чтения (стандартный вывод сервера)
-    private GLib.DataInputStream input_stream;
-
-    // Поток для записи (стандартный ввод сервера)
-    private Gee.ArrayList<LspWriteWaiter> write_waiters = new Gee.ArrayList<LspWriteWaiter> ();
-    private OutputStream output_stream;
-
-    // Поток stderr
-    private GLib.DataInputStream stderr_stream;
-
     private bool is_stopping = false;
-    private GLib.Cancellable read_cancellable = new GLib.Cancellable ();
-    private int active_read_loops_count = 0;
-    private SourceFunc? shutdown_barrier_callback = null;
-
     
     // Свойство возможностей сервера
     public ServerCapabilities capabilities { get; set; }
@@ -146,64 +132,82 @@ public class Iide.LspClient : Object {
         this.lsp_service = LspService.get_instance ();
         pending_documents = new Gee.ArrayList<PendingOpen> ();
     }
-
-    public async bool start_server_async (string? workspace_root) {
-        if (this.status != LspClientStatus.STOPPED)
-            return false;
     
+    public string name () { return config.command[0]; }
+
+    /**
+     * СТEРИЛЬНЫЙ ЗАПУСК СEРВEРА
+     */
+    public async bool start_server_async (string? workspace_root) {
+        if (this.status != LspClientStatus.STOPPED && 
+            this.status != LspClientStatus.FAILED) {
+            return false;
+        }
+
         this.status = LspClientStatus.STARTING;
+        this.is_stopping = false;
+
+        // 1. Порождаем абсолютно чистый, изолированный объект процесса ОС!
+        this.current_process = new Iide.LspProcess (this.config.command);
+
+        // 2. Связываем низкоуровневые сигналы с методами нашего монолита
+        this.current_process.message_received.connect (this.handle_payload);
         
+        // Направляем лог-сигналы в локальный метод вставки строк
+        this.current_process.stderr_received.connect ((line) => {
+            this.stderr_log_received (line); // Пробрасываем сигнал для UI строки
+        });
+
+        this.current_process.unexpected_crash.connect (() => {
+            this.status = LspClientStatus.FAILED;
+            this.crashed (); // Сигнал краха для LspService и UI строки
+        });
+
+        // 3. Запускаем физический спавн в ОС
+        bool spawned = this.current_process.spawn (workspace_root);
+        if (!spawned) {
+            this.status = LspClientStatus.FAILED;
+            this.current_process = null;
+            return false;
+        }
+
+        this.status = LspClientStatus.INITIALIZING;
+        LoggerService.get_instance ().info ("LSP", "Server '%s' process spawned. Handshaking 'initialize'...".printf (this.name ()));
+
+        // 4. Прогоняем фазу initialize через стерильную трубу
         try {
-            // 1. Запуск подпроцесса
-            var launcher = new SubprocessLauncher (
-                SubprocessFlags.STDOUT_PIPE | 
-                SubprocessFlags.STDIN_PIPE |
-                SubprocessFlags.STDERR_PIPE
-            );
-            launcher.set_cwd (workspace_root.replace ("file://", ""));
-            this.process = launcher.spawnv (config.command);
-
-            // 1.1. Инициализация асинхронных потоков
-            this.output_stream = this.process.get_stdin_pipe ();
-            this.input_stream = new DataInputStream (this.process.get_stdout_pipe ());
-            // Инициализируем поток чтения ошибок процесса ОС
-            this.stderr_stream = new DataInputStream (this.process.get_stderr_pipe ());
-
-            // 1.2. Запуск цикла чтения (он будет ждать сообщений в фоне)
-            this.run_read_loop.begin ();
-            // Слушает мусор и трейсбеки в фоне ОС
-            this.run_stderr_loop.begin ();
-
-            this.status = LspClientStatus.INITIALIZING;
-            logger.info ("LSP", "Server '%s' process spawned. Handshaking 'initialize'...".printf (this.name ()));
-
-            // 2. Фаза INITIALIZE
-            var init_params = config.initialize_params (workspace_root);
+            var init_params = this.config.initialize_params (workspace_root);
+            
+            // Шлем запрос через свежий процесс
             var response = yield this.send_request ("initialize", init_params.get_object ());
 
             if (response != null && response.has_member ("result")) {
                 var result = response.get_object_member ("result");
-                // Извлекаем возможности сервера
                 this.parse_capabilities (result);
             }
 
-            // Используем Idle.add, чтобы оповестить подписчиков в главном потоке
             Idle.add (() => {
                 this.initialized_with_capabilities (this.capabilities);
                 LspService.get_instance ().register_monitored_client (this);
                 return Source.REMOVE; // Выполнить один раз
             });
 
-            // 3. Фаза INITIALIZED (уведомление о готовности)
             yield this.send_notification_async ("initialized", new Json.Object ());
-
+            
+            // Смена статуса ДО опустошения очереди, чтобыdidOpen проскочил напрямую
             this.status = LspClientStatus.READY;
+            LoggerService.get_instance ().info ("LSP", "Server '%s' started and initialized successfully.".printf (this.name ()));
+
+            // Опустошаем накопленные за время старта вкладки документов
             yield this.process_pending_opens ();
 
-            logger.info ("LSP", "Server '%s' started and initialized".printf (this.name ()));
             return true;
-        } catch (Error e) {
-            logger.error ("LSP", "Failed to start server '%s': %s".printf (this.name (), e.message));
+        } catch (GLib.Error e) {
+            this.status = LspClientStatus.FAILED;
+            if (this.current_process != null) {
+                yield this.current_process.terminate_async ();
+                this.current_process = null;
+            }
             return false;
         }
     }
@@ -261,9 +265,13 @@ public class Iide.LspClient : Object {
         }
     }
 
-    public string name () { return config.command[0]; }
+    /////////////////////////////////////////////////////////////
+    // Send helpers
 
     public async Json.Object? send_request (string method, Json.Object? params, Cancellable ? cancellable = null) throws Error {
+        if (this.current_process == null)
+            return null;
+
         int id = next_id--;
 
         var root = new Json.Object ();
@@ -315,158 +323,16 @@ public class Iide.LspClient : Object {
     }
 
     private async void send_message_async (Json.Object node, Cancellable? cancellable = null) throws Error {
+        if (this.current_process == null)
+            return;
+    
         var generator = new Json.Generator ();
         var root_node = new Json.Node (Json.NodeType.OBJECT);
         root_node.set_object (node);
         generator.set_root (root_node);
-
         string body = generator.to_data (null);
-        string message = "Content-Length: %d\r\n\r\n%s".printf ((int) body.length, body);
 
-        // ===================================================================
-        // Если в очереди КТО-ТО уже стоит, значит, поток занят.
-        // Мы добавляем себя в хвост очереди и засыпаем на месте.
-        // ===================================================================
-        if (this.write_waiters.size > 0) {
-            var waiter = new LspWriteWaiter (send_message_async.callback);
-            this.write_waiters.add (waiter);
-            yield; // Спим, пока нас не разбудит предыдущий метод
-        } else {
-            // Если очередь была пуста, мы первые! 
-            // Добавляем пустышку-маркер в очередь, чтобы ВСЕ последующие 
-            // вызовы знали, что труба сейчас занята и ложились спать.
-            var marker = new LspWriteWaiter (null);
-            this.write_waiters.add (marker);
-        }
-
-        try {
-            if (cancellable != null && cancellable.is_cancelled ()) {
-                throw new IOError.CANCELLED ("Отмена операции отправки сообщения");
-            }
-
-            // Физически проталкиваем байты в сеть [INDEX]
-            yield output_stream.write_all_async (message.data, Priority.DEFAULT, cancellable, null);
-            yield output_stream.flush_async (Priority.DEFAULT, cancellable);
-
-        } finally {
-            // Мы закончили писать байты. Удаляем СЕБЯ (самый первый элемент) из головы очереди!
-            if (this.write_waiters.size > 0) {
-                this.write_waiters.remove_at (0);
-            }
-            
-            // Если за время нашей записи сзади пристроились новые асинхронные запросы,
-            // мы берем тот, который стоит следующим в очереди, и нежно его будим [INDEX]
-            if (this.write_waiters.size > 0) {
-                var next_waiter = this.write_waiters.get (0);
-                if (next_waiter.callback != null) {
-                    Idle.add (next_waiter.callback);
-                }
-            }
-        }
-    }
-
-    private async void run_read_loop () {
-        this.active_read_loops_count++; // Регистрируем поток
-        bool unexpected_crash = false;
-
-        try {
-            while (true) {
-                // 1. Читаем заголовок Content-Length
-                string? line = yield input_stream.read_line_async (Priority.DEFAULT, this.read_cancellable);
-
-                if (line == null) {
-                    // Поток чтения закрылся. Если мы НЕ запускали процедуру культурного выключения (is_stopping == false),
-                    // значит, процесс ОС внезапно умер сам по себе — это крах!
-                    if (!this.is_stopping && this.status != LspClientStatus.STOPPED) {
-                        unexpected_crash = true;
-                    }
-                    break; 
-                }
-
-                if (line.has_prefix ("Content-Length: ")) {
-                    int length = int.parse (line.substring (16).strip ());
-
-                    // 2. Пропускаем все остальные заголовки до пустой строки (\r\n\r\n)
-                    while (line != "" && line != null) {
-                        line = yield input_stream.read_line_async (Priority.DEFAULT, this.read_cancellable);
-
-                        if (line != null)line = line.strip ();
-                    }
-
-                    // 3. Читаем тело JSON строго по длине
-                    uint8[] buffer = new uint8[length + 1];
-                    size_t bytes_read;
-                    yield input_stream.read_all_async (buffer[0 : length], Priority.DEFAULT, this.read_cancellable, out bytes_read);
-
-                    buffer[length] = '\0'; // Гарантируем конец строки для парсера
-
-                    // 4. Обрабатываем полученный пакет
-                    this.handle_payload ((string) buffer);
-                }
-            }
-        } catch (Error e) {
-            // Когда мы отменим операцию при закрытии, метод проснется здесь! [INDEX]
-            if (e is IOError.CANCELLED) {
-                LoggerService.get_instance ().debug ("LSP", "LSP Read Loop successfully cancelled and stopped.");
-            } else if (!this.is_stopping) {
-                LoggerService.get_instance ().debug ("LSP", "LSP Read Loop Error: %s".printf (e.message));
-                unexpected_crash = true;
-            }        
-        } finally {
-            this.active_read_loops_count--; // Поток физически умер в памяти
-            
-            // Если метод закрытия ждет у барьера — проверяем, все ли читатели мертвы
-            if (this.active_read_loops_count == 0 && this.shutdown_barrier_callback != null) {
-                Idle.add ((owned) this.shutdown_barrier_callback);
-                this.shutdown_barrier_callback = null;
-            }
-
-            if (unexpected_crash) {
-                // Если зафиксирован аварийный крах, переводим конечный автомат в FAILED
-                this.status = LspClientStatus.FAILED;
-                LoggerService.get_instance ().error ("LSP", "Server '%s' crashed unexpectedly!".printf (this.name ()));
-                
-                // Асинхронно тушим и освобождаем сокеты дескрипторов
-                this.close_transport_streams_async.begin ();
-
-                // Передаем управление в LspService через нативный сигнал GObject
-                this.crashed ();
-            }
-        }
-    }
-
-    /**
-     * Параллельный фоновый цикл чтения низкоуровневого потока ошибок (stderr)
-     */
-    private async void run_stderr_loop () {
-        this.active_read_loops_count++; // Регистрируем поток
-
-        try {
-            while (this.status != LspClientStatus.STOPPED && this.status != LspClientStatus.FAILED) {
-                // Читаем stderr построчно, используя общий токен отмены read_cancellable [INDEX]
-                string? log_line = yield this.stderr_stream.read_line_async (Priority.DEFAULT, this.read_cancellable);
-                
-                if (log_line == null) break; // Поток закрыт со стороны ОС
-
-                log_line = log_line.strip ();
-                if (log_line == "")
-                    continue;
-
-                this.stderr_log_received (log_line);
-            }
-        } catch (Error e) {
-            if (!(e is IOError.CANCELLED)) {
-                debug ("LSP Stderr Loop Error for %s: %s", this.name (), e.message);
-            }
-        } finally {
-            this.active_read_loops_count--; // Поток физически умер в памяти
-            
-            // Проверяем барьер
-            if (this.active_read_loops_count == 0 && this.shutdown_barrier_callback != null) {
-                Idle.add ((owned) this.shutdown_barrier_callback);
-                this.shutdown_barrier_callback = null;
-            }
-        }
+        yield this.current_process.write_message_async (body);
     }
 
     public async void send_response_async (Json.Node id, Json.Node? result = null) throws Error {
@@ -488,7 +354,24 @@ public class Iide.LspClient : Object {
 
         yield this.send_message_async (root);
     }
+    
+    public async void send_notification_async (string method, Json.Object? params) throws Error {
+        var root = new Json.Object ();
+        root.set_string_member ("jsonrpc", "2.0");
+        root.set_string_member ("method", method);
+        if (params != null)
+            root.set_object_member ("params", params);
 
+        // Вызываем наш атомарный метод записи в поток
+        yield this.send_message_async (root);
+    }
+
+    /////////////////////////////////////////////////////////////
+    // Receive helpers
+    
+    /**
+     * Приемщик сырых JSON пакетов от LspProcess.message_received
+     */
     private void handle_payload (string payload) {
         try {
             var parser = new Json.Parser ();
@@ -535,8 +418,7 @@ public class Iide.LspClient : Object {
             responses.set (id, response);
 
             // Передаем управление обратно в асинхронный метод
-            // Используем Idle.add, чтобы вернуться в MainContext (UI поток)
-            Idle.add ((owned) promise.callback);
+            promise.callback ();
             return;
         }
 
@@ -648,103 +530,8 @@ public class Iide.LspClient : Object {
         });
     }
 
-    private void parse_capabilities (Json.Object result) {
-        if (!result.has_member ("capabilities"))
-            return;
-        
-        var caps = result.get_object_member ("capabilities");
-
-        if (LspFeatures.DIAGNOSTICS in this.features) {
-            this.capabilities.diagnostics_provider = LspDiagnosticMode.PUSH;
-            if (caps.has_member ("diagnosticProvider")) {
-                this.capabilities.diagnostics_provider = LspDiagnosticMode.PULL;
-            }
-        }
-
-        // Синхронизация документа
-        if (caps.has_member ("textDocumentSync")) {
-            var sync = caps.get_member ("textDocumentSync");
-            if (sync.get_node_type () == Json.NodeType.OBJECT) {
-                var sync_obj = sync.get_object ();
-                if (sync_obj.has_member ("change"))
-                    this.capabilities.sync_kind = (TextDocumentSyncKind) sync_obj.get_int_member ("change");
-            } else if (sync.get_node_type () == Json.NodeType.VALUE) {
-                this.capabilities.sync_kind = (TextDocumentSyncKind) sync.get_int ();
-            }
-        }
-
-        // Триггеры автодополнения
-        if (LspFeatures.COMPLETION in this.features) {
-            if (caps.has_member ("completionProvider")) {
-                this.capabilities.completion_provider = true;
-                var comp = caps.get_object_member ("completionProvider");
-                if (comp.has_member ("triggerCharacters")) {
-                    var triggers = comp.get_array_member ("triggerCharacters");
-                    this.capabilities.completion_triggers.clear ();
-                    foreach (var node in triggers.get_elements ()) {
-                        this.capabilities.completion_triggers.add (node.get_string ());
-                    }
-                }
-            }
-        }
-
-        // Hover & Definition
-        this.capabilities.definition_provider = LspFeatures.DEFINTION in this.features && caps.has_member ("definitionProvider");
-        this.capabilities.hover_provider = LspFeatures.HOVER in this.features && caps.has_member ("hoverProvider");
-        this.capabilities.code_actions_provider = LspFeatures.CODE_ACTIONS in this.features && caps.has_member ("codeActionProvider");
-    }
-
-    public async void send_notification_async (string method, Json.Object? params) throws Error {
-        var root = new Json.Object ();
-        root.set_string_member ("jsonrpc", "2.0");
-        root.set_string_member ("method", method);
-        if (params != null)
-            root.set_object_member ("params", params);
-
-        // Вызываем наш атомарный метод записи в поток
-        yield this.send_message_async (root);
-    }
-
-    private Gee.ArrayList<LspDiagnosticPair?> parse_diagnostics (Json.Array diagnostics_array) {
-        var result = new Gee.ArrayList<LspDiagnosticPair?> ();
-
-        foreach (var diag_node in diagnostics_array.get_elements ()) {
-            var diag_obj = diag_node.get_object ();
-            var d = new LspDiagnostic ();
-
-            // Основные поля
-            d.message = diag_obj.get_string_member ("message");
-            if (diag_obj.has_member ("severity")) {
-                d.severity = (int) diag_obj.get_int_member ("severity");
-            }
-
-            // Координаты (Range в LSP содержит start и end объекты)
-            var range = diag_obj.get_object_member ("range");
-            var start = range.get_object_member ("start");
-            var end = range.get_object_member ("end");
-
-            d.start_line = (int) start.get_int_member ("line");
-            d.start_column = (int) start.get_int_member ("character"); // character -> start_column
-            d.end_line = (int) end.get_int_member ("line");
-            d.end_column = (int) end.get_int_member ("character"); // character -> end_column
-
-            d.server_name = this.name ();
-
-            // ===================================================================
-            // СВЯЗЫВАНИЕ: Создаем глубокую копию оригинального JSON-объекта, 
-            // чтобы он гарантированно остался в памяти после очистки RPC-ответа [INDEX]
-            // ===================================================================
-            var node_copy = new Json.Node (Json.NodeType.OBJECT);
-            node_copy.set_object (diag_obj);
-            var cloned_json = node_copy.copy ().get_object ();
-
-            // Упаковываем распарсенный объект и его сырой JSON в структуру [INDEX]
-            var pair = Iide.LspDiagnosticPair (d, cloned_json);
-            result.add (pair);
-        }
-
-        return result;
-    }
+    /////////////////////////////////////////////////////////////
+    // Requests
 
     public async void text_document_did_open (string uri, string language_id, int version, string content) throws Error {
         var params = new Json.Object ();
@@ -829,6 +616,285 @@ public class Iide.LspClient : Object {
 
         yield this.send_notification_async ("textDocument/didClose", params);
     }
+    
+    public async string ? request_hover (string uri, int line, int character) throws Error {
+        var params = new Json.Object ();
+
+        var doc = new Json.Object ();
+        doc.set_string_member ("uri", uri);
+        params.set_object_member ("textDocument", doc);
+
+        var pos = new Json.Object ();
+        pos.set_int_member ("line", line);
+        pos.set_int_member ("character", character);
+        params.set_object_member ("position", pos);
+
+        var response = yield this.send_request ("textDocument/hover", params);
+
+        if (response == null || !response.has_member ("result"))return null;
+
+        return parse_hover_result (response.get_member ("result"));
+    }
+
+    public async Gee.List<DocumentLspSymbol>? document_symbols (string uri, Cancellable ? cancellable = null) throws Error {
+        var params = new Json.Object ();
+
+        var doc = new Json.Object ();
+        doc.set_string_member ("uri", uri);
+        params.set_object_member ("textDocument", doc);
+
+        var response = yield this.send_request ("textDocument/documentSymbol", params, cancellable);
+
+        if (response == null || !response.has_member ("result"))
+            return null;
+
+        var node = new Json.Node(Json.NodeType.OBJECT);
+        node.set_object(response);
+        LoggerService.get_instance ().info("DS", Json.to_string (node, true));
+
+
+        var result = parse_document_lsp_symbols (response.get_member ("result"));
+        
+        return result;
+    }
+
+    public async Gee.List<WorkspaceLspSymbol>? workspace_symbols (string query, Cancellable ? cancellable = null) throws Error {
+        var params = new Json.Object ();
+        params.set_string_member ("query", query);
+
+        var response = yield this.send_request ("workspace/symbol", params, cancellable);
+
+        if (response == null || !response.has_member ("result"))
+            return null;
+
+        return parse_workspace_lsp_symbols (response.get_member ("result"));
+    }
+
+    public async LspCompletionResult ? request_completion (string uri, int line, int character, string? trigger_char = null, CompletionTriggerKind trigger_kind = CompletionTriggerKind.INVOKED) throws Error {
+        var params = new Json.Object ();
+
+        var doc = new Json.Object ();
+        doc.set_string_member ("uri", uri);
+        params.set_object_member ("textDocument", doc);
+
+        var pos = new Json.Object ();
+        pos.set_int_member ("line", line);
+        pos.set_int_member ("character", character);
+        params.set_object_member ("position", pos);
+
+        var context = new Json.Object ();
+        context.set_int_member ("triggerKind", (int) trigger_kind);
+        if (trigger_char != null) {
+            context.set_string_member ("triggerCharacter", trigger_char);
+        }
+        params.set_object_member ("context", context);
+
+        var response = yield this.send_request ("textDocument/completion", params);
+
+        if (response == null || !response.has_member ("result"))return null;
+
+        var result_node = response.get_member ("result");
+        if (result_node.get_node_type () == Json.NodeType.NULL)return null;
+
+        return parse_completion_result (result_node);
+    }
+
+    public async Gee.ArrayList<LspLocation>? request_definition (string uri, int line, int character) throws Error {
+        var params = new Json.Object ();
+
+        var doc = new Json.Object ();
+        doc.set_string_member ("uri", uri);
+        params.set_object_member ("textDocument", doc);
+
+        var pos = new Json.Object ();
+        pos.set_int_member ("line", line);
+        pos.set_int_member ("character", character);
+        params.set_object_member ("position", pos);
+
+        var response = yield this.send_request ("textDocument/definition", params);
+
+        if (response == null || !response.has_member ("result"))return null;
+
+        var result_node = response.get_member ("result");
+        if (result_node.get_node_type () == Json.NodeType.NULL)return null;
+
+        return parse_definition_result (result_node);
+    }
+
+    /**
+     * Запрос доступных Code Actions (быстрых исправлений) для указанного диапазона и списка диагностик
+     * @param diagnostics_json_array Массив Json.Array, содержащий сырые объекты диагностик от сервера для этой строки
+     */
+    public async LspCodeActionResult? request_code_actions (string uri, int start_line, int start_char, int end_line, int end_char, Json.Array diagnostics_json_array) throws Error {
+        var params = new Json.Object ();
+
+        // 1. Указываем документ [INDEX]
+        var doc = new Json.Object ();
+        doc.set_string_member ("uri", uri);
+        params.set_object_member ("textDocument", doc);
+
+        // 2. Указываем диапазон (обычно текущая строка или выделение) [INDEX]
+        var range = new Json.Object ();
+        var start_pos = new Json.Object ();
+        start_pos.set_int_member ("line", start_line);
+        start_pos.set_int_member ("character", start_char);
+        range.set_object_member ("start", start_pos);
+
+        var end_pos = new Json.Object ();
+        end_pos.set_int_member ("line", end_line);
+        end_pos.set_int_member ("character", end_char);
+        range.set_object_member ("end", end_pos);
+        params.set_object_member ("range", range);
+
+        // 3. Формируем контекст с диагностиками [INDEX]
+        var context = new Json.Object ();
+        // Передаем массив диагностик, который мы получили от publishDiagnostics для этой строки [INDEX]
+        context.set_array_member ("diagnostics", diagnostics_json_array);
+        params.set_object_member ("context", context);
+
+        // 4. Отправляем запрос серверу [INDEX]
+        var response = yield this.send_request ("textDocument/codeAction", params);
+
+        if (response == null || !response.has_member ("result")) return null;
+
+        var result_node = response.get_member ("result");
+        if (result_node.get_node_type () == Json.NodeType.NULL) return null;
+
+        return parse_code_action_result (result_node);
+    }
+
+    /**
+     * RPC-запрос Pull-диагностики по спецификации LSP 3.17 (textDocument/diagnostic)
+     */
+    public async void request_pull_diagnostics (string uri) throws Error {
+        var params = new Json.Object ();
+        
+        var doc = new Json.Object ();
+        doc.set_string_member ("uri", uri);
+        params.set_object_member ("textDocument", doc);
+
+        // По спецификации можно передавать previousResultId для инкрементальной диагностики,
+        // но для начала запросим полную (Full) диагностику текущего состояния
+        
+        // Отправляем запрос через нашу атомарную трубу
+        var response = yield this.send_request ("textDocument/diagnostic", params);
+
+        if (response == null || !response.has_member ("result")) return;
+
+        var result_node = response.get_member ("result");
+        if (result_node.get_node_type () != Json.NodeType.OBJECT) return;
+
+        var result_obj = result_node.get_object ();
+        
+        // Сервер возвращает объект с полем "kind": "full" или "unchanged"
+        string kind = result_obj.has_member ("kind") ? result_obj.get_string_member ("kind") : "";
+
+        if (kind == "full" && result_obj.has_member ("items")) {
+            var json_array = result_obj.get_array_member ("items");
+
+            // Парсим JSON-массив в список ваших объектов IdeLspDiagnostic
+            var diag_list = this.parse_diagnostics (json_array);
+
+            // Передаем в главный поток для UI
+            Idle.add (() => {
+                // Передаем данные в глобальную модель
+                diagnostics_service.update_diagnostics (this.name (), uri, diag_list);
+
+                this.diagnostics_received (this.name (), uri, diag_list);
+                return Source.REMOVE;
+            });
+        }
+    }
+
+    /////////////////////////////////////////////////////////////
+    // Parse responses helpers
+    
+    private void parse_capabilities (Json.Object result) {
+        if (!result.has_member ("capabilities"))
+            return;
+        
+        var caps = result.get_object_member ("capabilities");
+
+        if (LspFeatures.DIAGNOSTICS in this.features) {
+            this.capabilities.diagnostics_provider = LspDiagnosticMode.PUSH;
+            if (caps.has_member ("diagnosticProvider")) {
+                this.capabilities.diagnostics_provider = LspDiagnosticMode.PULL;
+            }
+        }
+
+        // Синхронизация документа
+        if (caps.has_member ("textDocumentSync")) {
+            var sync = caps.get_member ("textDocumentSync");
+            if (sync.get_node_type () == Json.NodeType.OBJECT) {
+                var sync_obj = sync.get_object ();
+                if (sync_obj.has_member ("change"))
+                    this.capabilities.sync_kind = (TextDocumentSyncKind) sync_obj.get_int_member ("change");
+            } else if (sync.get_node_type () == Json.NodeType.VALUE) {
+                this.capabilities.sync_kind = (TextDocumentSyncKind) sync.get_int ();
+            }
+        }
+
+        // Триггеры автодополнения
+        if (LspFeatures.COMPLETION in this.features) {
+            if (caps.has_member ("completionProvider")) {
+                this.capabilities.completion_provider = true;
+                var comp = caps.get_object_member ("completionProvider");
+                if (comp.has_member ("triggerCharacters")) {
+                    var triggers = comp.get_array_member ("triggerCharacters");
+                    this.capabilities.completion_triggers.clear ();
+                    foreach (var node in triggers.get_elements ()) {
+                        this.capabilities.completion_triggers.add (node.get_string ());
+                    }
+                }
+            }
+        }
+
+        // Hover & Definition
+        this.capabilities.definition_provider = LspFeatures.DEFINTION in this.features && caps.has_member ("definitionProvider");
+        this.capabilities.hover_provider = LspFeatures.HOVER in this.features && caps.has_member ("hoverProvider");
+        this.capabilities.code_actions_provider = LspFeatures.CODE_ACTIONS in this.features && caps.has_member ("codeActionProvider");
+    }
+
+    private Gee.ArrayList<LspDiagnosticPair?> parse_diagnostics (Json.Array diagnostics_array) {
+        var result = new Gee.ArrayList<LspDiagnosticPair?> ();
+
+        foreach (var diag_node in diagnostics_array.get_elements ()) {
+            var diag_obj = diag_node.get_object ();
+            var d = new LspDiagnostic ();
+
+            // Основные поля
+            d.message = diag_obj.get_string_member ("message");
+            if (diag_obj.has_member ("severity")) {
+                d.severity = (int) diag_obj.get_int_member ("severity");
+            }
+
+            // Координаты (Range в LSP содержит start и end объекты)
+            var range = diag_obj.get_object_member ("range");
+            var start = range.get_object_member ("start");
+            var end = range.get_object_member ("end");
+
+            d.start_line = (int) start.get_int_member ("line");
+            d.start_column = (int) start.get_int_member ("character"); // character -> start_column
+            d.end_line = (int) end.get_int_member ("line");
+            d.end_column = (int) end.get_int_member ("character"); // character -> end_column
+
+            d.server_name = this.name ();
+
+            // ===================================================================
+            // СВЯЗЫВАНИЕ: Создаем глубокую копию оригинального JSON-объекта, 
+            // чтобы он гарантированно остался в памяти после очистки RPC-ответа [INDEX]
+            // ===================================================================
+            var node_copy = new Json.Node (Json.NodeType.OBJECT);
+            node_copy.set_object (diag_obj);
+            var cloned_json = node_copy.copy ().get_object ();
+
+            // Упаковываем распарсенный объект и его сырой JSON в структуру [INDEX]
+            var pair = Iide.LspDiagnosticPair (d, cloned_json);
+            result.add (pair);
+        }
+
+        return result;
+    }
 
     private LspCompletionResult parse_completion_result (Json.Node node) {
         var res = new LspCompletionResult ();
@@ -886,35 +952,6 @@ public class Iide.LspClient : Object {
         return res;
     }
 
-    public async LspCompletionResult ? request_completion (string uri, int line, int character, string? trigger_char = null, CompletionTriggerKind trigger_kind = CompletionTriggerKind.INVOKED) throws Error {
-        var params = new Json.Object ();
-
-        var doc = new Json.Object ();
-        doc.set_string_member ("uri", uri);
-        params.set_object_member ("textDocument", doc);
-
-        var pos = new Json.Object ();
-        pos.set_int_member ("line", line);
-        pos.set_int_member ("character", character);
-        params.set_object_member ("position", pos);
-
-        var context = new Json.Object ();
-        context.set_int_member ("triggerKind", (int) trigger_kind);
-        if (trigger_char != null) {
-            context.set_string_member ("triggerCharacter", trigger_char);
-        }
-        params.set_object_member ("context", context);
-
-        var response = yield this.send_request ("textDocument/completion", params);
-
-        if (response == null || !response.has_member ("result"))return null;
-
-        var result_node = response.get_member ("result");
-        if (result_node.get_node_type () == Json.NodeType.NULL)return null;
-
-        return parse_completion_result (result_node);
-    }
-
     private string ? parse_hover_result (Json.Node node) {
         if (node.get_node_type () != Json.NodeType.OBJECT)
             return null;
@@ -940,59 +977,6 @@ public class Iide.LspClient : Object {
         }
 
         return null;
-    }
-
-    public async string ? request_hover (string uri, int line, int character) throws Error {
-        var params = new Json.Object ();
-
-        var doc = new Json.Object ();
-        doc.set_string_member ("uri", uri);
-        params.set_object_member ("textDocument", doc);
-
-        var pos = new Json.Object ();
-        pos.set_int_member ("line", line);
-        pos.set_int_member ("character", character);
-        params.set_object_member ("position", pos);
-
-        var response = yield this.send_request ("textDocument/hover", params);
-
-        if (response == null || !response.has_member ("result"))return null;
-
-        return parse_hover_result (response.get_member ("result"));
-    }
-
-    public async Gee.List<DocumentLspSymbol>? document_symbols (string uri, Cancellable ? cancellable = null) throws Error {
-        var params = new Json.Object ();
-
-        var doc = new Json.Object ();
-        doc.set_string_member ("uri", uri);
-        params.set_object_member ("textDocument", doc);
-
-        var response = yield this.send_request ("textDocument/documentSymbol", params, cancellable);
-
-        if (response == null || !response.has_member ("result"))
-            return null;
-
-        var node = new Json.Node(Json.NodeType.OBJECT);
-        node.set_object(response);
-        LoggerService.get_instance ().info("DS", Json.to_string (node, true));
-
-
-        var result = parse_document_lsp_symbols (response.get_member ("result"));
-        
-        return result;
-    }
-
-    public async Gee.List<WorkspaceLspSymbol>? workspace_symbols (string query, Cancellable ? cancellable = null) throws Error {
-        var params = new Json.Object ();
-        params.set_string_member ("query", query);
-
-        var response = yield this.send_request ("workspace/symbol", params, cancellable);
-
-        if (response == null || !response.has_member ("result"))
-            return null;
-
-        return parse_workspace_lsp_symbols (response.get_member ("result"));
     }
 
     public Gee.List<WorkspaceLspSymbol> parse_workspace_lsp_symbols (Json.Node root_node) {
@@ -1028,28 +1012,6 @@ public class Iide.LspClient : Object {
         }
 
         return result;
-    }
-
-    public async Gee.ArrayList<LspLocation>? request_definition (string uri, int line, int character) throws Error {
-        var params = new Json.Object ();
-
-        var doc = new Json.Object ();
-        doc.set_string_member ("uri", uri);
-        params.set_object_member ("textDocument", doc);
-
-        var pos = new Json.Object ();
-        pos.set_int_member ("line", line);
-        pos.set_int_member ("character", character);
-        params.set_object_member ("position", pos);
-
-        var response = yield this.send_request ("textDocument/definition", params);
-
-        if (response == null || !response.has_member ("result"))return null;
-
-        var result_node = response.get_member ("result");
-        if (result_node.get_node_type () == Json.NodeType.NULL)return null;
-
-        return parse_definition_result (result_node);
     }
 
     private Gee.ArrayList<LspLocation> parse_definition_result (Json.Node node) {
@@ -1157,48 +1119,6 @@ public class Iide.LspClient : Object {
     }
 
     /**
-     * Запрос доступных Code Actions (быстрых исправлений) для указанного диапазона и списка диагностик
-     * @param diagnostics_json_array Массив Json.Array, содержащий сырые объекты диагностик от сервера для этой строки
-     */
-    public async LspCodeActionResult? request_code_actions (string uri, int start_line, int start_char, int end_line, int end_char, Json.Array diagnostics_json_array) throws Error {
-        var params = new Json.Object ();
-
-        // 1. Указываем документ [INDEX]
-        var doc = new Json.Object ();
-        doc.set_string_member ("uri", uri);
-        params.set_object_member ("textDocument", doc);
-
-        // 2. Указываем диапазон (обычно текущая строка или выделение) [INDEX]
-        var range = new Json.Object ();
-        var start_pos = new Json.Object ();
-        start_pos.set_int_member ("line", start_line);
-        start_pos.set_int_member ("character", start_char);
-        range.set_object_member ("start", start_pos);
-
-        var end_pos = new Json.Object ();
-        end_pos.set_int_member ("line", end_line);
-        end_pos.set_int_member ("character", end_char);
-        range.set_object_member ("end", end_pos);
-        params.set_object_member ("range", range);
-
-        // 3. Формируем контекст с диагностиками [INDEX]
-        var context = new Json.Object ();
-        // Передаем массив диагностик, который мы получили от publishDiagnostics для этой строки [INDEX]
-        context.set_array_member ("diagnostics", diagnostics_json_array);
-        params.set_object_member ("context", context);
-
-        // 4. Отправляем запрос серверу [INDEX]
-        var response = yield this.send_request ("textDocument/codeAction", params);
-
-        if (response == null || !response.has_member ("result")) return null;
-
-        var result_node = response.get_member ("result");
-        if (result_node.get_node_type () == Json.NodeType.NULL) return null;
-
-        return parse_code_action_result (result_node);
-    }
-
-    /**
      * Парсер ответа CodeAction[] от LSP-сервера
      */
     private LspCodeActionResult parse_code_action_result (Json.Node node) {
@@ -1262,123 +1182,82 @@ public class Iide.LspClient : Object {
     }
 
     /**
-     * ДВУХФАЗНОЕ ЗАВЕРШЕНИЕ РАБОТЫ LSP-СЕРВЕРА (Версия для подготовки к рефакторингу)
+     * ЗАВЕРШЕНИЕ РАБОТЫ LSP-СЕРВЕРА
      */
-    public async void shutdown_and_exit_async () {
-        // Если закрытие уже запущено, выходим, чтобы не дублировать запросы
-        if (this.is_stopping) {
+    public async void shutdown_and_exit_async (bool force_abort = true) {
+        if (this.current_process == null) {
+            this.status = LspClientStatus.STOPPED;
             return;
         }
+
+        // 1. ВЗВОДИМ ЩИТ: Блокируем ложные срабатывания сигналов crashed во время тушения!
         this.is_stopping = true;
 
-        LoggerService.get_instance ().info ("LSP", @"Initiating clean shutdown for server...");
+        this.logger.info ("LSP", "Sending protocol 'shutdown' request to '%s'...".printf (this.name ()));
 
         try {
-            // ФАЗА 1: Отправляем запрос 'shutdown' и асинхронно ждем подтверждения от сервера [INDEX]
-            var response = yield this.send_request ("shutdown", null);
-            if (response != null) {
-                LoggerService.get_instance ().debug ("LSP", "Server acknowledged shutdown.");
+            // 2. ФАЗА 1: Протокольное рукопожатие выключения (Обязано идти через yield!) [INDEX]
+            // Мы даем серверу шанс сохранить свои кэши индексов на диск
+            var reply = yield this.send_request ("shutdown", new Json.Object ());
+            
+            if (reply != null) {
+                this.logger.debug ("LSP", "Server '%s' acknowledged shutdown request.".printf (this.name ()));
             }
+
+            // 3. ФАЗА 2: Отправка уведомления на физический выход [INDEX]
+            yield this.send_notification_async ("exit", new Json.Object ());
+            
         } catch (GLib.Error e) {
-            // Если сервер завис — логируем, но принудительно продолжаем выход
-            LoggerService.get_instance ().warning ("LSP", @"Shutdown request failed: $(e.message). Forcing exit...");
+            // Игнорируем ошибки сети: если сервер упал прямо во время shutdown — это нормально
+            this.logger.warning ("LSP", "Network error during protocol shutdown: " + e.message);
         }
 
-        try {
-            // ФАЗА 2: Отправляем обязательное уведомление 'exit' (fire-and-forget) [INDEX]
-            yield this.send_notification_async ("exit", null);
-            LoggerService.get_instance ().info ("LSP", "Sent 'exit' notification to server.");
-        } catch (GLib.Error e) {
-            LoggerService.get_instance ().error ("LSP", @"Failed to send 'exit' notification: $(e.message)");
-        }
-
-        // Шаг 3: Закрываем низкоуровневые асинхронные потоки ввода-вывода
-        yield this.close_transport_streams_async ();
-    }
-
-    /**
-     * Асинхронное закрытие системных потоков ввода-вывода
-     */
-    private async void close_transport_streams_async () {
-        LoggerService.get_instance ().debug ("LSP", "Initiating transport stream cancellation barrier...");
-        
-        // 1. Посылаем сигнал отмены фоновым операциям чтения [INDEX]
-        this.read_cancellable.cancel ();
-
-        // 2. ВЗВОДИМ АСИНХРОННЫЙ БАРЬЕР: Если фоновые потоки чтения еще шевелятся, ложимся спать! [INDEX]
-        if (this.active_read_loops_count > 0) {
-            this.shutdown_barrier_callback = close_transport_streams_async.callback;
-            yield; // Спим строго до тех пор, пока блоки finally не уменьшат счетчик до нуля [INDEX]
-        }
-
-        LoggerService.get_instance ().debug ("LSP", "All background read loops are dead. Safe to close file descriptors.");
-
-        // 3. ТЕПЕРЬ ЭТО НА 100% БЕЗОПАСНО: Outstanding-операций больше физически нет в природе! [INDEX]
-        try {
-            if (this.output_stream != null && !this.output_stream.is_closed ()) {
-                yield this.output_stream.close_async (Priority.DEFAULT, null);
+        // ===================================================================
+        // 4. ФАЗА 3: СТEРИЛИЗАЦИЯ ЗАВИСШИХ ОБEЩАНИЙ (Promises Clean)
+        // Если в момент тушения в мапе висели асинхронные запросы, 
+        // которые спали на yield и ждали ответа от сокета — мы обязаны их разбудить!
+        // ===================================================================
+        if (!this.pending_requests.is_empty) {
+            this.logger.debug ("LSP", "Evicting %d outstanding request(s) during shutdown.".printf (this.pending_requests.size));
+            
+            var aborted_ids = new Gee.ArrayList<int> ();
+            foreach (int id in this.pending_requests.keys) {
+                aborted_ids.add (id);
             }
-            if (this.input_stream != null && !this.input_stream.is_closed ()) {
-                yield this.input_stream.close_async (Priority.DEFAULT, null);
+
+            foreach (int id in aborted_ids) {
+                if (this.pending_requests.has_key (id)) {
+                    var promise = this.pending_requests.get (id);
+                    this.pending_requests.unset (id);
+                    
+                    // Записываем ошибку отмены, чтобы send_request выкинул исключение
+                    var err_obj = new Json.Object ();
+                    var err_details = new Json.Object ();
+                    err_details.set_string_member ("message", "LSP server forcefully stopped by user.");
+                    err_obj.set_object_member ("error", err_details);
+                    this.responses.set (id, err_obj);
+
+                    // Будим уснувший метод в UI-потоке [INDEX]
+                    Idle.add ((owned) promise.callback);
+                }
             }
-            if (this.stderr_stream != null && !this.stderr_stream.is_closed ()) {
-                yield this.stderr_stream.close_async (Priority.DEFAULT, null);
-            }
-            LoggerService.get_instance ().debug ("LSP", "All IO streams closed cleanly without single outstanding error.");
-        } catch (GLib.Error e) {
-            LoggerService.get_instance ().error ("LSP", @"Error closing IO streams: $(e.message)");
+            
+            this.pending_requests.clear ();
+            this.responses.clear ();
         }
 
-        if (this.write_waiters != null) {
-            this.write_waiters.clear ();
-        }
-        
+        // 5. ФАЗА 4: НИЗКОУРОВНEВОE ТУШEНИE ТРАНСПОРТА ОС
+        // Просим LspProcess отменить Cancellable, дождаться смерти читателей 
+        // и закрыть Си-дескрипторы пайпов stdin/stdout/stderr [INDEX, INDEX]
+        yield this.current_process.terminate_async ();
+
+        // СНОСИМ ССЫЛКУ: Полностью выкидываем старый объект процесса на съедение GC [INDEX]
+        this.current_process = null;
+
+        // Переводим конечный автомат в стабильную финальную точку
+        this.status = force_abort ? LspClientStatus.ABORTED : LspClientStatus.STOPPED;
         this.is_stopping = false;
         
-        // Пересоздаем токен отмены, чтобы клиент был готов к повторному мануальному запуску с чистого листа! [INDEX]
-        this.read_cancellable = new GLib.Cancellable ();
-    }
-
-    /**
-     * RPC-запрос Pull-диагностики по спецификации LSP 3.17 (textDocument/diagnostic)
-     */
-    public async void request_pull_diagnostics (string uri) throws Error {
-        var params = new Json.Object ();
-        
-        var doc = new Json.Object ();
-        doc.set_string_member ("uri", uri);
-        params.set_object_member ("textDocument", doc);
-
-        // По спецификации можно передавать previousResultId для инкрементальной диагностики,
-        // но для начала запросим полную (Full) диагностику текущего состояния
-        
-        // Отправляем запрос через нашу атомарную трубу
-        var response = yield this.send_request ("textDocument/diagnostic", params);
-
-        if (response == null || !response.has_member ("result")) return;
-
-        var result_node = response.get_member ("result");
-        if (result_node.get_node_type () != Json.NodeType.OBJECT) return;
-
-        var result_obj = result_node.get_object ();
-        
-        // Сервер возвращает объект с полем "kind": "full" или "unchanged"
-        string kind = result_obj.has_member ("kind") ? result_obj.get_string_member ("kind") : "";
-
-        if (kind == "full" && result_obj.has_member ("items")) {
-            var json_array = result_obj.get_array_member ("items");
-
-            // Парсим JSON-массив в список ваших объектов IdeLspDiagnostic
-            var diag_list = this.parse_diagnostics (json_array);
-
-            // Передаем в главный поток для UI
-            Idle.add (() => {
-                // Передаем данные в глобальную модель
-                diagnostics_service.update_diagnostics (this.name (), uri, diag_list);
-
-                this.diagnostics_received (this.name (), uri, diag_list);
-                return Source.REMOVE;
-            });
-        }
+        this.logger.info ("LSP", "Server '%s' has been cleanly disconnected and stopped.".printf (this.name ()));
     }
 }

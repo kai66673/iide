@@ -233,36 +233,49 @@ public class Iide.DocumentManager : GLib.Object {
         }
     }
 
-    public bool confirm_save_modified_documents () {
-        if (!this.has_modified_documents ())
+    public async bool confirm_save_modified_documents_async (Gtk.Window main_window) {
+        if (!this.has_modified_documents ()) {
             return true;
+        }
 
-        var save_dialog_loop = new MainLoop ();
-        bool result = false;
-
-        var dialog = new Adw.AlertDialog (_("Unsaved Changes"), _("You have unsaved documents. Save before closing?"));
+        // Создаем диалог Libadwaita
+        var dialog = new Adw.AlertDialog (
+            _("Unsaved Changes"), 
+            _("You have unsaved documents. Save before closing?")
+        );
+        
         dialog.add_response ("cancel", _("Cancel"));
         dialog.add_response ("discard", _("Discard"));
         dialog.add_response ("save", _("Save"));
         dialog.set_response_appearance ("save", Adw.ResponseAppearance.SUGGESTED);
+        dialog.set_close_response ("cancel"); // Нажатие Esc сработает как Cancel
+
+        // Взводим асинхронное обещание (колбэк) для ожидания клика пользователя
+        SourceFunc resume_callback = confirm_save_modified_documents_async.callback;
+        string chosen_response = "cancel";
+
         dialog.response.connect ((response) => {
-            switch (response) {
-                case "save":
-                    this.save_modified_documents ();
-                    result = true;
-                    break;
-                case "discard":
-                    result = true;
-                    break;
-                case "cancel":
-                    result = false;
-                    break;
-            }
-            save_dialog_loop.quit ();
+            chosen_response = response;
+            // Будим наш метод, когда пользователь кликнул по кнопке диалога
+            Idle.add_full (Priority.HIGH, (owned) resume_callback);
         });
 
-        dialog.present (this.window);
-        save_dialog_loop.run ();
-        return result;
+        // Показываем диалог на экране
+        dialog.present (main_window);
+        
+        // Дожидаемся выполнения диалога
+        yield; 
+
+        // ПРОСНУЛИСЬ: Обрабатываем честный выбор пользователя
+        switch (chosen_response) {
+            case "save":
+                this.save_modified_documents ();
+                return true;
+            case "discard":
+                return true; // Разрешаем закрыть без сохранения
+            case "cancel":
+            default:
+                return false; // Отмена транзакции!
+        }
     }
 }

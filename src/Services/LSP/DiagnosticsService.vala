@@ -9,6 +9,7 @@ public class Iide.DiagnosticsService : Object {
 
     public signal void diagnostics_updated (string server_name, string uri);
     public signal void lsp_stopped ();
+    public signal void server_stopped (string server_name);
     public signal void total_count_changed (int total_errors, int total_warnings);
 
     public static DiagnosticsService get_instance () {
@@ -79,6 +80,7 @@ public class Iide.DiagnosticsService : Object {
     public void remove_client (string server_name) {
         if (server_map.unset (server_name)) {
             emit_totals ();
+            server_stopped (server_name);
         }
     }
 

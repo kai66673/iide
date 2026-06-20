@@ -183,6 +183,7 @@ public class Iide.DiagnosticsPanel : BasePanel {
         service.diagnostics_updated.connect (on_file_diagnostics_updated);
         service.total_count_changed.connect (on_total_changed);
         service.lsp_stopped.connect (on_diagnostics_cleared);
+        service.server_stopped.connect (on_server_stopped);
     }
 
     public override Panel.Position initial_pos () {
@@ -201,6 +202,14 @@ public class Iide.DiagnosticsPanel : BasePanel {
         } else {
             if (this.get_child () != scrolled)
                 this.set_child (scrolled);
+        }
+    }
+
+    private void on_server_stopped (string server_name) {
+        if (server_groups.has_key (server_name)) {
+            ServerDiagnosticsGroup group_to_remove;
+            server_groups.unset (server_name, out group_to_remove);
+            main_box.remove (group_to_remove);
         }
     }
 

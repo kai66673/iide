@@ -63,7 +63,7 @@ public class Iide.ProjectManager : Object {
         text_file_cache = new Gee.ArrayList<Iide.FileEntry> ();
     }
 
-    public void open_project_folder (GLib.File project_root) {
+    public async void open_project_folder (GLib.File project_root) {
         if (!project_root.query_exists (null)) {
             LoggerService.get_instance ().error ("PROJECT", "Project directory does not exist: %s".printf (project_root.get_path ()));
             return;
@@ -74,34 +74,45 @@ public class Iide.ProjectManager : Object {
             return;
         }
 
-        if (!DocumentManager.get_instance ().confirm_save_modified_documents ())
+        bool save_confirmed = yield DocumentManager.get_instance ()
+            .confirm_save_modified_documents_async (this.window);
+
+        if (!save_confirmed)
             return;
 
         if (current_project_root != null) {
-            close_project ();
+            yield close_project ();
         }
+
+        message ("!!~~~~~~~~~~~~~~~~~~~~~~~~~~~~ 08");
 
         current_project_root = project_root;
         current_project_name = project_root.get_basename ();
 
         this.iide_dir = project_root.get_child (".iide");
         this.ensure_iide_directory_exists ();
+        message ("!!~~~~~~~~~~~~~~~~~~~~~~~~~~~~ 09");
 
         settings.current_project_path = project_root.get_path ();
         settings.add_recent_project (project_root.get_path ());
         settings.last_open_directory = project_root.get_parent ().get_path ();
 
         this.restore_session_and_panels ();
+        message ("!!~~~~~~~~~~~~~~~~~~~~~~~~~~~~ 10");
 
         var bookmark_service = BookmarkService.get_instance ();
         bookmark_service.init_project (settings.current_project_path);
         bookmark_service.refresh_all_documents_bookmarks ();
+        message ("!!~~~~~~~~~~~~~~~~~~~~~~~~~~~~ 11");
 
         rebuild_file_cache_async.begin ();
+        message ("!!~~~~~~~~~~~~~~~~~~~~~~~~~~~~ 12");
 
         setup_directory_monitor (project_root);
+        message ("!!~~~~~~~~~~~~~~~~~~~~~~~~~~~~ 13");
 
         project_opened (project_root);
+        message ("!!~~~~~~~~~~~~~~~~~~~~~~~~~~~~ 14");
     }
 
     private void ensure_iide_directory_exists () {
@@ -132,15 +143,18 @@ public class Iide.ProjectManager : Object {
         }
     }
 
-    public void close_project () {
+    public async void close_project () {
         if (directory_monitor != null) {
             directory_monitor.cancel ();
             directory_monitor = null;
         }
 
         if (current_project_root != null) {
-            shutdown_all_running_lsp_servers ();
+            message ("~~~~~~~~~~~~~~~~~~~~~~~~~~~~ 01");
+            yield shutdown_all_running_lsp_servers_async ();
+            message ("~~~~~~~~~~~~~~~~~~~~~~~~~~~~ 02");
             DiagnosticsService.get_instance ().lsp_stopped ();
+            message ("~~~~~~~~~~~~~~~~~~~~~~~~~~~~ 03");
 
             current_project_root = null;
             current_project_name = null;
@@ -148,9 +162,13 @@ public class Iide.ProjectManager : Object {
             file_cache.clear ();
             text_file_cache.clear ();
             settings.current_project_path = "";
+            message ("~~~~~~~~~~~~~~~~~~~~~~~~~~~~ 04");
             BookmarkService.get_instance ().write_cache_to_json_file ();
+            message ("~~~~~~~~~~~~~~~~~~~~~~~~~~~~ 05");
             this.save_session_and_clear_panels ();
+            message ("~~~~~~~~~~~~~~~~~~~~~~~~~~~~ 06");
             project_closed ();
+            message ("~~~~~~~~~~~~~~~~~~~~~~~~~~~~ 07");
         }
     }
 
@@ -277,7 +295,7 @@ public class Iide.ProjectManager : Object {
         if (path != null && path != "") {
             var file = GLib.File.new_for_path (path);
             if (file.query_exists (null)) {
-                open_project_folder (file);
+                open_project_folder.begin (file);
             }
         }
     }
@@ -309,29 +327,11 @@ public class Iide.ProjectManager : Object {
             var file = yield dialog.select_folder (parent_window, null);
 
             if (file != null) {
-                open_project_folder (file);
+                yield open_project_folder (file);
             }
         } catch {
             // User dismissed dialog or other error - silently ignore
         }
-    }
-
-    public void shutdown_all_running_lsp_servers () {
-        var loop = new MainLoop ();
-
-        SourceFunc run_async = () => {
-            this.shutdown_all_running_lsp_servers_async.begin ((obj, res) => {
-                // Этот callback вызовется, когда async-метод полностью отработает
-                shutdown_all_running_lsp_servers_async.end (res);
-                
-                // Завершаем локальный цикл событий, чтобы разблокировать maybe_save
-                loop.quit ();
-            });
-            return false;
-        };
-
-        run_async ();
-        loop.run ();
     }
 
     /**

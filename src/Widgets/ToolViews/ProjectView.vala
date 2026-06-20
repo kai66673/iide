@@ -25,9 +25,12 @@ public class Iide.FileTreeView : Box {
             var root_store = create_file_model (_root_directory);
             var sorted_root = new SortListModel (root_store, sorter);
 
-            // Если корень есть, строим дерево
+            // Каноничное дерево GTK4. Модель сама лениво дернет эту лямбду,
+            // когда пользователь нажмет стрелочку на UI!
             var tree_model = new TreeListModel (sorted_root, false, false, (item) => {
+                // ПРАВИЛЬНО: На входе всегда оригинальный элемент модели (FileItem)
                 var file_item = item as FileItem;
+                
                 if (file_item != null && file_item.is_directory) {
                     var child_store = create_file_model (file_item.file);
                     return new SortListModel (child_store, sorter);
@@ -99,10 +102,33 @@ public class Iide.FileTreeView : Box {
         try {
             // Запрашиваем только нужные атрибуты
             var enumerator = dir.enumerate_children ("standard::display-name,standard::type", 0, null);
-            GLib.FileInfo info;
-            while ((info = enumerator.next_file (null)) != null) {
-                store.append (new FileItem (dir.get_child (info.get_name ()), info));
+
+            if (enumerator == null) {
+                return store;
             }
+
+            while (true) {
+                GLib.FileInfo? info = null;
+                
+                // Защита №2: Изолируем Си-сбои итератора GIO внутри индивидуального блока try-catch!
+                try {
+                    info = enumerator.next_file (null);
+                } catch (Error e) {
+                    debug (@"Skipping corrupted file node inside $(dir.get_path()): $(e.message)");
+                    continue; // Пропускаем сломанный файл и идем к следующему!
+                }
+
+                // Конец списка папки
+                if (info == null) break;
+
+                // Защита №3: Проверяем валидность имени перед созданием FileItem
+                string name = info.get_name ();
+                if (name != null && name != "") {
+                    store.append (new FileItem (dir.get_child (name), info));
+                }
+            }
+            
+            enumerator.close (null);
         } catch (Error e) {
             // Ошибка может возникнуть при отсутствии прав доступа
             debug ("Cannot read directory: %s", e.message);

@@ -112,6 +112,11 @@ public class Iide.LspService : GLib.Object {
         emit_tasks_changed ();
     }
 
+    public void deregister_monitored_client (string server_name) {
+        progress_map.unset (server_name);
+        emit_tasks_changed ();
+    }
+
     public void register_monitored_client (LspClient client) {
         string server_name = client.name ();
 
@@ -146,6 +151,11 @@ public class Iide.LspService : GLib.Object {
         tasks_changed (all_tasks);
     }
 
+    private void on_client_diagnostics_received (string server_name, string diag_uri, ArrayList<LspDiagnosticPair?> diagnostics) {
+        // Просто перенаправляем данные в ваш оригинальный метод обновления
+        this.diagnostics_updated (server_name, diag_uri, diagnostics);
+    }
+
     public void register_document (string language_id, string? workspace_root, SourceView view) {
         Gee.ArrayList<LspClient>? active_language_clients = this.active_languages.get (language_id);
         if (active_language_clients != null) {
@@ -178,9 +188,9 @@ public class Iide.LspService : GLib.Object {
                 var server_config = registry.get_config_for_server (server_name);
                 if (server_config != null) {
                     var new_client = new LspClient (server_config, router.features_for_server_name (server_name));
-                    new_client.diagnostics_received.connect ((server_name, diag_uri, diagnostics) => {
-                        this.diagnostics_updated (server_name, diag_uri, diagnostics);
-                    });
+                    new_client.diagnostics_received.connect (
+                        this.on_client_diagnostics_received
+                    );
                     this.client_registered (new_client);
                     this.clients.set (server_name, new_client);
                     new_clients.add (new_client);
@@ -231,7 +241,7 @@ public class Iide.LspService : GLib.Object {
             active_shutdowns++;
             
             // Метод .begin запускает shutdown_and_exit_async в фоне и сразу возвращает управление [INDEX]
-            client.shutdown_and_exit_async.begin ((obj, res) => {
+            client.shutdown_and_exit_async.begin (false, (obj, res) => {
                 // Завершаем асинхронную операцию на уровне клиента
                 client.shutdown_and_exit_async.end (res);
                 

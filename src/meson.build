@@ -68,6 +68,7 @@ iide_sources = [
     'Services/LSP/LspTypes.vala',
     'Services/LSP/config/LspConfig.vala',
     'Services/LSP/index/ClangTidy.vala',
+    'Services/LSP/LspProcess.vala',
     'Services/LSP/LspClient.vala',
     'Services/LSP/LspService.vala',
     'Services/LSP/LspDiagnosticsMark.vala',

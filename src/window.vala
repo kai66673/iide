@@ -191,54 +191,29 @@ public class Iide.Window : Panel.DocumentWorkspace {
         setup_lsp_status ();
         setup_global_diag_widget ();
 
+        repair_empty_areas ();
+        setup_switch_document_controller ();
+        
         project_manager.open_project_by_path (settings.current_project_path);
 
         // Handle window close
         this.close_request.connect (() => {
             save_window_settings ();
-            settings.open_documents = document_manager.get_open_document_uris ();
-            bool saved_or_discarded = this.document_manager.confirm_save_modified_documents ();
-            bookmark_service.write_cache_to_json_file ();
+            this.handle_window_close_async.begin ();
             
-            if (saved_or_discarded) {
-                shutdown_all_running_lsp_servers ();
-                DiagnosticsService.get_instance ().lsp_stopped ();
-            }
-            
-            return !saved_or_discarded;
+            return true;
         });
-
-        repair_empty_areas ();
-        setup_switch_document_controller ();
     }
 
-    private void shutdown_all_running_lsp_servers () {
-        var loop = new MainLoop ();
-
-        this.set_cursor (wait_cursor);
-
-        SourceFunc run_async = () => {
-            this.shutdown_all_running_lsp_servers_async.begin ((obj, res) => {
-                // Этот callback вызовется, когда async-метод полностью отработает
-                shutdown_all_running_lsp_servers_async.end (res);
-                
-                // Завершаем локальный цикл событий, чтобы разблокировать maybe_save
-                loop.quit ();
-            });
-            return false;
-        };
-
-        run_async ();
-        loop.run ();
-
-        this.set_cursor (null);
-    }
-
-    private async void shutdown_all_running_lsp_servers_async () {
-        var project_manager = Iide.ProjectManager.get_instance ();
+    private async void handle_window_close_async () {
+        bool save_confirmed = yield this.document_manager.confirm_save_modified_documents_async (this);
+        if (!save_confirmed)
+            return;
+    
+        bookmark_service.write_cache_to_json_file ();
         yield project_manager.shutdown_all_running_lsp_servers_async ();
-        
-        LoggerService.get_instance ().info ("UI", "All background processes are cleanly terminated.");
+
+        this.destroy ();
     }
 
     private void setup_switch_document_controller() {
