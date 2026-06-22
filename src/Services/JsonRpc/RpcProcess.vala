@@ -1,27 +1,7 @@
 /*
 */
 
-// Контейнер, удерживающий контекст отправляемого пакета и колбэк асинхронного метода
-private class Iide.LspWriteTask : GLib.Object {
-    public string payload { get; set; }
-    
-    // Объявляем как обычное приватное поле-указатель, 
-    // полностью избавляясь от логики ARC-владения свойствами!
-    private SourceFunc callback_func;
-
-    public LspWriteTask (string payload, owned SourceFunc callback) {
-        this.payload = payload;
-        this.callback_func = (owned) callback;
-    }
-
-    // Открытый метод для вызова сохраненного фонового потока
-    public void resume () {
-        this.callback_func ();
-    }
-}
-
-public class Iide.LspProcess : GLib.Object {
-    private string[] command;
+public class Iide.RpcProcess : GLib.Object, RpcTransport {
     private GLib.Subprocess? process = null;
     
     private GLib.OutputStream? output_stream = null;
@@ -32,29 +12,23 @@ public class Iide.LspProcess : GLib.Object {
     private GLib.Cancellable read_cancellable;
     
     // Индивидуальная FIFO-очередь мьютекса отправки байт
-    private Gee.Deque<LspWriteTask> write_waiters;
+    private Gee.Deque<RpcWriteTask> write_waiters;
     private bool is_writing = false;
 
     // Счетчик активных фоновых циклов для асинхронного барьера
     private int active_loops_count = 0;
     private SourceFunc? shutdown_barrier_callback = null;
 
-    // Сигналы, которые процесс транслирует вверх в семантическое ядро LspClient
-    public signal void message_received (string json_payload);
-    public signal void stderr_received (string log_line);
-    public signal void unexpected_crash ();
-
-    public LspProcess (string[] command) {
+    public RpcProcess () {
         Object ();
-        this.command = command;
         this.read_cancellable = new GLib.Cancellable ();
-        this.write_waiters = new Gee.ArrayQueue<LspWriteTask> ();
+        this.write_waiters = new Gee.ArrayQueue<RpcWriteTask> ();
     }
 
     /**
      * ФИЗИЧЕСКИЙ СПАВН ПРОЦЕССА В ОПЕРАЦИОННОЙ СИСТЕМЕ
      */
-    public bool spawn (string? workspace_root) {
+    public bool init_channel (string[] command, string? workspace_root) {
         try {
             var launcher = new SubprocessLauncher (
                 SubprocessFlags.STDOUT_PIPE | 
@@ -66,7 +40,7 @@ public class Iide.LspProcess : GLib.Object {
                 launcher.set_cwd (workspace_root.replace ("file://", ""));
             }
             
-            this.process = launcher.spawnv (this.command);
+            this.process = launcher.spawnv (command);
 
             // Захватываем низкоуровневые дескрипторы пайпов ОС
             this.output_stream = this.process.get_stdin_pipe ();
@@ -94,7 +68,7 @@ public class Iide.LspProcess : GLib.Object {
         }
 
         // Упаковываем строку и колбэк текущего проснувшегося метода в одну атомарную задачу
-        var task = new Iide.LspWriteTask (payload, write_message_async.callback);
+        var task = new Iide.RpcWriteTask (payload, write_message_async.callback);
         this.write_waiters.offer_tail (task);
 
         // Если конвейер отправки сейчас спит — будим его!

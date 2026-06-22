@@ -88,7 +88,7 @@ public class Iide.LspClient : Object {
     private LoggerService logger = LoggerService.get_instance ();
 
     // Сильная ссылка на текущий временный низкоуровневый процесс ОС
-    private Iide.LspProcess? current_process = null;
+    private Iide.RpcProcess? current_process = null;
 
     // Текущий статус клиента в конечном автомате
     private LspClientStatus _status = LspClientStatus.STOPPED;
@@ -174,7 +174,7 @@ public class Iide.LspClient : Object {
         this.is_stopping = false;
 
         // 1. Порождаем абсолютно чистый, изолированный объект процесса ОС!
-        this.current_process = new Iide.LspProcess (this.config.command);
+        this.current_process = new Iide.RpcProcess ();
 
         // 2. Связываем низкоуровневые сигналы с методами нашего монолита
         this.current_process.message_received.connect (this.handle_payload);
@@ -190,7 +190,10 @@ public class Iide.LspClient : Object {
         });
 
         // 3. Запускаем физический спавн в ОС
-        bool spawned = this.current_process.spawn (workspace_root);
+        bool spawned = this.current_process.init_channel (
+            this.config.command,
+            workspace_root
+        );
         if (!spawned) {
             this.status = LspClientStatus.FAILED;
             this.current_process = null;
