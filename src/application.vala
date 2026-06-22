@@ -624,7 +624,7 @@ private class Iide.FormatAction : Iide.AppAction {
         if (win != null) {
             var source_view = win.get_active_source_view ();
             if (source_view != null){
-                source_view.format_document.begin ();
+                source_view.lsp_document_client.format_document_async.begin ();
             }
         }
     }

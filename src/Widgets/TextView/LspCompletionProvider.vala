@@ -28,9 +28,11 @@ namespace Iide {
 
     public class LspCompletionProposal : GLib.Object, CompletionProposal {
         public LspCompletionItem item { get; private set; }
+        public LspClient client { get; private set; }
 
-        public LspCompletionProposal (LspCompletionItem item) {
+        public LspCompletionProposal (LspCompletionItem item, LspClient client) {
             this.item = item;
+            this.client = client;
         }
 
         public string get_label () {
@@ -171,6 +173,7 @@ namespace Iide {
                         if (result != null) {
                             // Безопасно сохраняем сырые данные ответа
                             temp_results.add (result);
+                            result.client = client;
                         }
                     } catch (GLib.Error e) {
                         LoggerService.get_instance ().error ("LSP", "Completion failed for '%s': %s".printf (client.name (), e.message));
@@ -195,7 +198,7 @@ namespace Iide {
             // Наполняем модель атомарно, быстро и без риска гонок очистки!
             foreach (var result in temp_results) {
                 foreach (var item in result.items) {
-                    var proposal = new LspCompletionProposal (item);
+                    var proposal = new LspCompletionProposal (item, result.client);
                     base_store.append (proposal);
                 }
             }
@@ -257,6 +260,42 @@ namespace Iide {
             // Вставляем слово
             var p = (LspCompletionProposal) proposal;
             buffer.insert (ref start, p.get_label (), -1);
+
+            // Автоиморт
+            this.apply_auto_imports_async.begin (this.source_view, p);
+        }
+
+        private async void apply_auto_imports_async (SourceView view, LspCompletionProposal proposal) {
+            var item = proposal.item;
+            var client = proposal.client;
+
+            // Кейс А: Если сервер (например, Pyright) отдает импорты лениво — запрашиваем resolve [INDEX]
+            if (item.additional_text_edits == null || item.additional_text_edits.is_empty) {
+                if (item.raw_json != null) {
+                    try {
+                        // Метод отправки "completionItem/resolve", который мы обсудили шагом ранее
+                        item.additional_text_edits = yield client.request_completion_item_resolve (item.raw_json);
+                    } catch (GLib.Error e) {
+                        LoggerService.get_instance ().error ("LSP-COMPLETION", "Resolve item failed: " + e.message);
+                    }
+                }
+            }
+
+            // Кейс Б: Накатываем импорты, если они есть (прилетели сразу от Ruff или доехали от Pyright)
+            if (item.additional_text_edits != null && !item.additional_text_edits.is_empty) {
+                // Переводим исполнение в Main Context GTK4 для безопасной модификации текста
+                Idle.add (() => {
+                    // Оборачиваем в одну транзакцию, чтобы Ctrl+Z отменял и слово, и импорт!
+                    view.buffer.begin_user_action ();
+                    
+                    // Вызываем ваш готовый БЕЗОПАСНЫЙ метод наката правок (снизу вверх) [INDEX]!
+                    // Он добавит "import os" в начало файла, не сдвинув курсор пользователя.
+                    view.apply_lsp_text_edits (item.additional_text_edits);
+                    
+                    view.buffer.end_user_action ();
+                    return Source.REMOVE;
+                });
+            }
         }
 
         // Обязательные методы-заглушки

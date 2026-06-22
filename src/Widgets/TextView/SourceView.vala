@@ -88,6 +88,7 @@ public class Iide.SourceView : GtkSource.View {
     private CodeActionsPopup? code_actions_popup = null;
 
     public signal void breadcrumbs_changed (Gee.List<SourceNodeItem?> crumbs);
+    public signal void full_ts_rehighlight_requested ();
 
     public SourceView (Window window, string uri, GtkSource.Buffer buffer) {
         Object (buffer : buffer);
@@ -432,6 +433,7 @@ public class Iide.SourceView : GtkSource.View {
                 this.folding_gutter.update_blocks_data (blocks);
             });
             this.folding_gutter.update_blocks_data (ts_highlighter.get_cached_indent_blocks ());
+            this.full_ts_rehighlight_requested.connect (ts_highlighter.force_full_reparse);
         } else {
             this.document = new SourceDocument (this);
             this.folding_gutter.visible = false;
@@ -714,10 +716,6 @@ public class Iide.SourceView : GtkSource.View {
         grab_focus ();
     }
 
-    public async void format_document() {
-        yield FormattingService.get_instance ().format_document_async (this);
-    }
-
     public void toggle_bookmark_on_current_line () {
         var source_buffer = this.get_buffer () as GtkSource.Buffer;
         if (source_buffer == null)
@@ -821,6 +819,8 @@ public class Iide.SourceView : GtkSource.View {
 
         buffer.end_user_action ();
         LoggerService.get_instance ().info ("LCA", "Successfully applied %d text edits to buffer.".printf (edits.size));
+
+        this.full_ts_rehighlight_requested ();
     }
 
     private void render_code_actions_popover (Gtk.TextIter cursor_iter, Gee.ArrayList<LspCodeActionResult> results) {

@@ -59,6 +59,12 @@ public class Iide.LspCompletionItem : GLib.Object {
     public int end_line { get; set; default = 0; }
     public int end_column { get; set; default = 0; }
     public LspCompletionKind kind { get; set; default = LspCompletionKind.TEXT; }
+
+    // Массив правок текста для автоимпорта
+    public Gee.ArrayList<Iide.LspTextEdit>? additional_text_edits { get; set; default = null; }
+
+    // Сохраняем ссылку на сырой JSON-объект элемента подсказки
+    public Json.Object? raw_json { get; set; default = null; }
 }
 
 public class Iide.LspDiagnostic : GLib.Object {
@@ -96,6 +102,7 @@ public class Iide.LspLocation : GLib.Object {
 public class Iide.LspCompletionResult : GLib.Object {
     public Gee.ArrayList<LspCompletionItem> items { get; set; }
     public bool is_incomplete { get; set; default = false; }
+    public LspClient client { get; set; }
 }
 
 public enum Iide.SymbolKind {

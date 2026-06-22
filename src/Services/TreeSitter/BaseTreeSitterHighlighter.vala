@@ -36,7 +36,7 @@ public abstract class Iide.BaseTreeSitterHighlighter : Object {
     // Внутренний кэш блоков кода
     protected Gee.List<IndentBlock?> cached_blocks;
 
-    public void force_full_reparse() {
+    public void force_full_reparse () {
         this.set_color_theme();
     }
 

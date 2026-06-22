@@ -41,6 +41,7 @@ public class Iide.ServerCapabilities : Object {
     public bool definition_provider = false;
     public bool hover_provider = false;
     public bool code_actions_provider = false;
+    public bool formatting_provider = false;
 
     // To features...
     public bool references_provider = false;
@@ -775,6 +776,73 @@ public class Iide.LspClient : Object {
         }
     }
 
+    /**
+     * RPC-ЗАПРОС УТОЧНEНИЯ ЭЛEМEНТА ПОДСКАЗКИ (LSP completionItem/resolve)
+     * Принимает сырой JSON-объект CompletionItem, сохраненный при парсинге,
+     * и возвращает обновленный объект с дозаполненными полями импорта/документации
+     */
+    public async Gee.ArrayList<Iide.LspTextEdit>? request_completion_item_resolve (Json.Object raw_item_node) throws Error {
+        if (this.current_process == null || this.status != LspClientStatus.READY) {
+            return null;
+        }
+
+        // По спецификации LSP, параметрами для 'completionItem/resolve' является 
+        // сам исходный объект CompletionItem целиком, БEЗ дополнительных оберток!
+        var response = yield this.send_request ("completionItem/resolve", raw_item_node);
+
+        // Проверяем валидность ответа
+        if (response == null || !response.has_member ("result")) {
+            return null;
+        }
+
+        var result_node = response.get_member ("result");
+        if (result_node.get_node_type () != Json.NodeType.OBJECT) {
+            return null;
+        }
+
+        // Возвращаем дозаполненный объект JSON
+        return this.parse_text_edits_array (result_node);
+    }
+
+    /**
+     * RPC-ЗАПРОС ФОРМАТИРОВАНИЯ ДОКУМЕНТА (LSP textDocument/formatting)
+     * Отправляет текущие настройки табуляции редактора и возвращает 
+     * массив правок TextEdit[] для всего файла
+     */
+    public async Gee.ArrayList<Iide.LspTextEdit>? request_formatting (string uri, int tab_size, bool insert_spaces) throws Error {
+        if (this.current_process == null || this.status != LspClientStatus.READY) {
+            return null;
+        }
+
+        var params = new Json.Object ();
+
+        // 1. Указываем документ
+        var doc = new Json.Object ();
+        doc.set_string_member ("uri", uri);
+        params.set_object_member ("textDocument", doc);
+
+        // 2. Формируем объект опций форматирования по спецификации LSP
+        var options = new Json.Object ();
+        options.set_int_member ("tabSize", tab_size);
+        options.set_boolean_member ("insertSpaces", insert_spaces);
+        params.set_object_member ("options", options);
+
+        // Отправляем запрос через нашу стерильную асинхронную трубу
+        var response = yield this.send_request ("textDocument/formatting", params);
+
+        if (response == null || !response.has_member ("result")) {
+            return null;
+        }
+
+        var result_node = response.get_member ("result");
+        if (result_node.get_node_type () == Json.NodeType.NULL) {
+            return null;
+        }
+
+        // Используем наш универсальный Си-парсер массивов правок!
+        return this.parse_text_edits_array (result_node);
+    }
+
     /////////////////////////////////////////////////////////////
     // Parse responses helpers
     
@@ -822,6 +890,22 @@ public class Iide.LspClient : Object {
         this.capabilities.definition_provider = LspFeatures.DEFINTION in this.features && caps.has_member ("definitionProvider");
         this.capabilities.hover_provider = LspFeatures.HOVER in this.features && caps.has_member ("hoverProvider");
         this.capabilities.code_actions_provider = LspFeatures.CODE_ACTIONS in this.features && caps.has_member ("codeActionProvider");
+
+        bool server_support_formating = false;
+        if (caps.has_member ("documentFormattingProvider")) {
+            var format_node = caps.get_member ("documentFormattingProvider");
+            var node_type = format_node.get_node_type ();
+
+            // Кейс А: Сервер вернул простой булевый флаг (например, true) [INDEX]
+            if (node_type == Json.NodeType.VALUE) {
+                server_support_formating = format_node.get_boolean ();
+            }
+            // Кейс Б: Сервер вернул объект DocumentFormattingOptions { workDoneProgress?: boolean } [INDEX]
+            else if (node_type == Json.NodeType.OBJECT) {
+                server_support_formating = true; // Раз объект есть, фича поддерживается! [INDEX]
+            }
+        }
+        this.capabilities.formatting_provider = LspFeatures.FORMATTING in this.features && server_support_formating;
     }
 
     private Gee.ArrayList<LspDiagnosticPair?> parse_diagnostics (Json.Array diagnostics_array) {
@@ -891,6 +975,8 @@ public class Iide.LspClient : Object {
                 var item_obj = item_node.get_object ();
                 var item = new LspCompletionItem ();
 
+                item.raw_json = item_obj;
+
                 item.label = item_obj.get_string_member ("label");
 
                 // Опциональные поля
@@ -914,7 +1000,80 @@ public class Iide.LspClient : Object {
                         item.documentation = doc_node.get_string ();
                 }
 
+                if (item_obj.has_member ("additionalTextEdits")) {
+                    var edits_node = item_obj.get_member ("additionalTextEdits");
+                    // Вызываем ваш готовый метод, парсящий Json.Node в Gee.ArrayList<LspTextEdit>
+                    item.additional_text_edits = this.parse_text_edits_array (edits_node);
+                }
+
                 res.items.add (item);
+            }
+        }
+
+        return res;
+    }
+
+    public Gee.ArrayList<Iide.LspTextEdit> parse_text_edits_array (Json.Node node) {
+        var res = new Gee.ArrayList<Iide.LspTextEdit> ();
+
+        // Защитный барьер: если сервер прислал null или пустой узел — безопасно выходим
+        if (node == null || node.get_node_type () == Json.NodeType.NULL) {
+            return res;
+        }
+
+        Json.Array? edits_array = null;
+
+        // Кейс 1: Сервер прислал чистый массив правок [TextEdit, TextEdit, ...]
+        if (node.get_node_type () == Json.NodeType.ARRAY) {
+            edits_array = node.get_array ();
+        }
+        // Кейс 2: На случай, если узел обернут в JSON-объект (для совместимости с некоторыми серверами)
+        else if (node.get_node_type () == Json.NodeType.OBJECT) {
+            var obj = node.get_object ();
+            if (obj.has_member ("additionalTextEdits")) {
+                var member_node = obj.get_member ("additionalTextEdits");
+                if (member_node.get_node_type () == Json.NodeType.ARRAY) {
+                    edits_array = member_node.get_array ();
+                }
+            }
+        }
+
+        if (edits_array == null) {
+            return res;
+        }
+
+        // Перебираем элементы массива TextEdit
+        foreach (var edit_node in edits_array.get_elements ()) {
+            if (edit_node.get_node_type () != Json.NodeType.OBJECT) {
+                continue;
+            }
+
+            var edit_obj = edit_node.get_object ();
+            
+            // Железное требование спецификации LSP: TextEdit обязан содержать поля 'range' и 'newText'
+            if (!edit_obj.has_member ("range") || !edit_obj.has_member ("newText")) {
+                continue;
+            }
+
+            var text_edit = new Iide.LspTextEdit ();
+            text_edit.new_text = edit_obj.get_string_member ("newText");
+
+            var range_obj = edit_obj.get_object_member ("range");
+            if (range_obj == null) {
+                continue;
+            }
+
+            // Извлекаем стартовые и финальные координаты диапазона правки
+            var start = range_obj.get_object_member ("start");
+            var end = range_obj.get_object_member ("end");
+
+            if (start != null && end != null) {
+                text_edit.start_line = (int) start.get_int_member ("line");
+                text_edit.start_char = (int) start.get_int_member ("character");
+                text_edit.end_line = (int) end.get_int_member ("line");
+                text_edit.end_char = (int) end.get_int_member ("character");
+
+                res.add (text_edit);
             }
         }
 

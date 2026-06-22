@@ -185,4 +185,60 @@ public class Iide.LspDocumentClient: GLib.Object {
         }
         return null;
     }
+
+    /**
+     * АСИНХРОННОЕ ФОРМАТИРОВАНИЕ ТЕКСТА ТЕКУЩЕЙ ВКЛАДКИ РЕДАКТОРА
+     * Вызывается из UI-экшена SourceView по хоткею Ctrl+Shift+I
+     */
+    public async void format_document_async () {
+        // 1. Перед форматированием принудительно проталкиваем последние 
+        //    неотправленные изменения ввода (дебаунс) в сокеты серверов!
+        yield this.flush_changes_async ();
+
+        // 2. Декларативно ищем сервер текущей вкладки, который умеет форматировать!
+        // Предикат проверяет булево свойство capabilities.document_formatting_provider
+        var formatting_providers = this.active_clients ((lsp_client) => {
+            return lsp_client.client.capabilities.formatting_provider;
+        });
+
+        if (formatting_providers.is_empty) {
+            this.logger.warning ("LSP-UI", "No active LSP servers support formatting for this document.");
+            return;
+        }
+
+        // Берем первый доступный форматировщик (например, Ruff)
+        var target_syncer = formatting_providers.get (0);
+        var client = target_syncer.client;
+
+        // 3. Извлекаем текущие параметры табуляции прямо из виджета SourceView
+        int tab_width = 4;      // TODO: implement from setiings for language_id
+        bool use_spaces = true; // TODO: implement from setiings for language_id
+
+        this.logger.info ("LSP-UI", @"Sending formatting request to '$(client.name())'...");
+
+        try {
+            // Вызываем RPC-метод
+            var edits = yield client.request_formatting (this.source_view.uri, tab_width, use_spaces);
+            
+            if (edits != null && !edits.is_empty) {
+                // Переводим исполнение в MainContext для безопасного изменения UI
+                Idle.add (() => {
+                    // Оборачиваем накат правок в Undo-транзакцию
+                    this.source_view.buffer.begin_user_action ();
+                    
+                    // Вызываем ваш безопасный метод атомарного наката правок (снизу вверх)!
+                    // Код отформатируется идеально, а положение курсора не собьется.
+                    this.source_view.apply_lsp_text_edits (edits);
+                    
+                    this.source_view.buffer.end_user_action ();
+                    return Source.REMOVE;
+                });
+                this.logger.info ("LSP-UI", "Document successfully formatted.");
+            } else {
+                this.logger.info ("LSP-UI", "Document is already perfectly formatted.");
+            }
+        } catch (GLib.Error e) {
+            this.logger.error ("LSP-UI", "Formatting transaction failed: " + e.message);
+        }
+    }
 }
