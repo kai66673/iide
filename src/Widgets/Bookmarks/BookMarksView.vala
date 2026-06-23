@@ -231,7 +231,7 @@ public class Iide.BookmarksView : Gtk.Box {
         }
     }
 
-    private void update_project_bookmarks(Gee.HashMap<string, Gee.ArrayList<BookMarkInfo?>> bookmarks) {
+    private void update_project_bookmarks(Gee.HashMap<string, Gee.ArrayList<TextLineMark?>> bookmarks) {
         // Очистка ListBox
         Gtk.Widget? child;
         while ((child = main_list.get_first_child ()) != null) {

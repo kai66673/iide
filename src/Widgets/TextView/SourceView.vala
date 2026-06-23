@@ -235,7 +235,7 @@ public class Iide.SourceView : GtkSource.View {
         motion_ctrl.motion.connect (this.on_textview_motion);
         this.add_controller (motion_ctrl);
 
-        BookmarkService.get_instance ().apply_bookmarks_to_buffer (this.uri, this.buffer);
+        TextLineMarkService.get_instance ().apply_bookmarks_to_buffer (this.uri, this.buffer);
     }
 
     public override bool grab_focus () {

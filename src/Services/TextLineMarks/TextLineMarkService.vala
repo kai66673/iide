@@ -1,24 +1,26 @@
 /*
 */
 
-public class Iide.BookmarkService : GLib.Object {
-    private static BookmarkService? instance = null;
+public class Iide.TextLineMarkService : GLib.Object {
+    private static TextLineMarkService? _instance = null;
     private string? current_project_root = null;
+    private LoggerService logger;
+
+    public string category { get; construct; }
 
     // Кэш закладок в памяти для файлов, пока они не открыты в UI
     // [file_uri] -> [Список номеров строк (0-indexed)]
-    private Gee.HashMap<string, Gee.ArrayList<BookMarkInfo?>> loaded_json_cache;
+    private Gee.HashMap<string, Gee.ArrayList<TextLineMark?>> loaded_json_cache;
 
-    public static BookmarkService get_instance () {
-        if (instance == null) {
-            instance = new BookmarkService ();
-        }
-        return instance;
+    public static TextLineMarkService get_instance () {
+        return _instance;
     }
 
-    private BookmarkService () {
-        Object ();
-        this.loaded_json_cache = new Gee.HashMap<string, Gee.ArrayList<BookMarkInfo?>> ();
+    public TextLineMarkService (string category) {
+        Object(category: category);
+        TextLineMarkService._instance = this;
+        this.logger = LoggerService.get_instance ();
+        this.loaded_json_cache = new Gee.HashMap<string, Gee.ArrayList<TextLineMark?>> ();
     }
 
     /**
@@ -50,7 +52,7 @@ public class Iide.BookmarkService : GLib.Object {
         Gtk.TextIter start, end;
         source_buffer.get_start_iter(out start);
         source_buffer.get_end_iter(out end);
-        source_buffer.remove_source_marks (start, end, "bookmark");
+        source_buffer.remove_source_marks (start, end, this.category);
 
         // Если для этого файла нет сохраненных закладок — выходим
         if (!this.loaded_json_cache.has_key (file_uri))
@@ -65,11 +67,10 @@ public class Iide.BookmarkService : GLib.Object {
             Gtk.TextIter line_iter;
             source_buffer.get_iter_at_line (out line_iter, bookmark_info.line_number);
 
-            // Создаем нативный GtkSource.Mark категории "bookmark" [INDEX]
-            source_buffer.create_source_mark (null, "bookmark", line_iter);
+            source_buffer.create_source_mark (null, this.category, line_iter);
         }
 
-        LoggerService.get_instance ().info ("Bookmarks", "Successfully spawned %d 'bookmark' marks for: %s".printf (bookmarks_info.size, file_uri));
+        this.logger.info ("MRK", "Successfully spawned %d 'bookmark' marks for: %s".printf (bookmarks_info.size, file_uri));
     }
 
     private string iter_line_text(Gtk.TextIter iter) {
@@ -90,7 +91,7 @@ public class Iide.BookmarkService : GLib.Object {
         Gtk.TextIter iter;
         source_buffer.get_start_iter (out iter);
 
-        var current_file_bookmarks = new Gee.HashMap<int, BookMarkInfo?> ();
+        var current_file_bookmarks = new Gee.HashMap<int, TextLineMark?> ();
 
         // Идем по буферу вперед, прыгая строго от маркера к маркеру категории "bookmark" [INDEX]
         while (!iter.is_end ()) {
@@ -100,7 +101,7 @@ public class Iide.BookmarkService : GLib.Object {
                 int line_num = iter.get_line ();
                 // Чтобы избежать дублирования на одной строке, проверяем наличие
                 if (!current_file_bookmarks.has_key (line_num)) {
-                    BookMarkInfo bookmark = BookMarkInfo () {
+                    TextLineMark bookmark = TextLineMark () {
                         line_number = line_num,
                         line_text = iter_line_text(iter)
                     };
@@ -117,7 +118,7 @@ public class Iide.BookmarkService : GLib.Object {
 
         // Записываем собранные строки в кэш
         if (current_file_bookmarks.size > 0) {
-            Gee.ArrayList<BookMarkInfo?> file_bookmarks = new Gee.ArrayList<BookMarkInfo?> ();
+            Gee.ArrayList<TextLineMark?> file_bookmarks = new Gee.ArrayList<TextLineMark?> ();
             foreach (var bookmark in current_file_bookmarks.values) {
                 file_bookmarks.add (bookmark);
             }
@@ -178,7 +179,7 @@ public class Iide.BookmarkService : GLib.Object {
 
             generator.to_file (config_path);
         } catch (GLib.Error e) {
-            LoggerService.get_instance ().error ("Bookmarks", "Failed to write bookmarks.json: %s".printf (e.message));
+            this.logger.error ("MRK", "Failed to write bookmarks.json: %s".printf (e.message));
         }
     }
 
@@ -197,12 +198,12 @@ public class Iide.BookmarkService : GLib.Object {
             var files_obj = root.get_object_member ("bookmarks");
             foreach (string file_uri in files_obj.get_members ()) {
                 var lines_array = files_obj.get_array_member (file_uri);
-                var bookmarks = new Gee.ArrayList<BookMarkInfo?> ();
+                var bookmarks = new Gee.ArrayList<TextLineMark?> ();
 
                 foreach (var element in lines_array.get_elements ()) {
                     var bookmark_obj = element.get_object ();
                     bookmarks.add (
-                        BookMarkInfo() {
+                        TextLineMark() {
                             line_number = (int) bookmark_obj.get_int_member ("line_number"),
                             line_text = bookmark_obj.get_string_member ("line_text")
                         }
@@ -213,9 +214,9 @@ public class Iide.BookmarkService : GLib.Object {
                     this.loaded_json_cache.set (file_uri, bookmarks);
                 }
             }
-            LoggerService.get_instance ().info ("Bookmarks", "Bookmarks matrix loaded successfully from project storage.");
+            this.logger.info ("MRK", "Bookmarks matrix loaded successfully from project storage.");
         } catch (GLib.Error e) {
-            LoggerService.get_instance ().error ("Bookmarks", "Failed to read bookmarks.json: %s".printf (e.message));
+            this.logger.error ("MRK", "Failed to read bookmarks.json: %s".printf (e.message));
         }
     }
 

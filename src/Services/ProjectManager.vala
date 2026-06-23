@@ -100,7 +100,7 @@ public class Iide.ProjectManager : Object {
         this.restore_session_and_panels ();
         message ("!!~~~~~~~~~~~~~~~~~~~~~~~~~~~~ 10");
 
-        var bookmark_service = BookmarkService.get_instance ();
+        var bookmark_service = TextLineMarkService.get_instance ();
         bookmark_service.init_project (settings.current_project_path);
         bookmark_service.refresh_all_documents_bookmarks ();
         message ("!!~~~~~~~~~~~~~~~~~~~~~~~~~~~~ 11");
@@ -163,7 +163,7 @@ public class Iide.ProjectManager : Object {
             text_file_cache.clear ();
             settings.current_project_path = "";
             message ("~~~~~~~~~~~~~~~~~~~~~~~~~~~~ 04");
-            BookmarkService.get_instance ().write_cache_to_json_file ();
+            TextLineMarkService.get_instance ().write_cache_to_json_file ();
             message ("~~~~~~~~~~~~~~~~~~~~~~~~~~~~ 05");
             this.save_session_and_clear_panels ();
             message ("~~~~~~~~~~~~~~~~~~~~~~~~~~~~ 06");

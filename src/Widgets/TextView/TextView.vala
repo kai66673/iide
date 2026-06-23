@@ -265,7 +265,7 @@ public class Iide.TextView : Panel.Widget {
             file.replace_contents (text.data, null, false, GLib.FileCreateFlags.NONE, null);
             ((GtkSource.Buffer) source_view.buffer).set_modified (false);
             buffer_saved ();
-            BookmarkService.get_instance ().update_buffer_bookmarks (
+            TextLineMarkService.get_instance ().update_buffer_bookmarks (
                 this.uri, this.source_view.buffer
             );
         } catch (Error e) {
@@ -329,7 +329,7 @@ public class Iide.TextView : Panel.Widget {
 
         // Если документ не модифицирован (сохранен), обновляем все закладки документа
         if (!this.is_modified) {
-            BookmarkService.get_instance ().update_buffer_bookmarks (
+            TextLineMarkService.get_instance ().update_buffer_bookmarks (
                 this.source_view.uri, this.source_view.buffer
             );
         }
