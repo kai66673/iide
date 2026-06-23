@@ -102,7 +102,7 @@ public class Iide.ProjectManager : Object {
 
         var bookmark_service = TextLineMarkService.get_instance ();
         bookmark_service.init_project (settings.current_project_path);
-        bookmark_service.refresh_all_documents_bookmarks ();
+        bookmark_service.refresh_all_documents_marks ();
         message ("!!~~~~~~~~~~~~~~~~~~~~~~~~~~~~ 11");
 
         rebuild_file_cache_async.begin ();

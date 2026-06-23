@@ -20,6 +20,6 @@ public class Iide.BookmarksNavigator : GLib.Object {
     }
 
     public void clear_project_bookmarks() {
-        TextLineMarkService.get_instance ().clear_project_bookmarks ();
+        TextLineMarkService.get_instance ().clear_project_marks ();
     }
 }
