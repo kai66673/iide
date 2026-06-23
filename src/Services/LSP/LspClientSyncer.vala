@@ -19,6 +19,9 @@ public class Iide.LspClientSyncer: GLib.Object {
         this.logger = LoggerService.get_instance ();
 
         this.client.state_ready_changed.connect (this.on_state_ready_changed);
+        if (this.is_ready) {
+            this.on_state_ready_changed (true);
+        }
     }
 
     ~LspClientSyncer () {
