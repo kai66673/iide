@@ -747,7 +747,7 @@ public class Iide.SourceView : GtkSource.View {
         }
 
         // Заставляем панель номеров строк мгновенно перерисоваться
-        this.line_numbers_gutter.queue_draw (); // Или метод вызова перерисовки вашего LineNumbersGutter
+        this.line_numbers_gutter.queue_draw ();
 
         BookmarksNavigator.get_instance().document_bookmarks_changed (this.uri, this.buffer);
     }
