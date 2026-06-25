@@ -107,6 +107,7 @@ public class Iide.DocumentBookmarksRow : Adw.ExpanderRow {
 }
 
 public class Iide.BookmarksView : Gtk.Box {
+    private weak Window window;
     private Gtk.ScrolledWindow scrolled;
     private Gtk.ListBox main_list;
     private DocumentBookmarksRow? active_file_row = null;
@@ -114,8 +115,9 @@ public class Iide.BookmarksView : Gtk.Box {
     // Кэш для быстрого доступа к строкам файлов: [URI] -> ExpanderRow
     private Gee.HashMap<string, DocumentBookmarksRow> file_rows = new Gee.HashMap<string, DocumentBookmarksRow> ();
 
-    public BookmarksView () {
+    public BookmarksView (Window window) {
         Object (orientation: Gtk.Orientation.VERTICAL, spacing: 0);
+        this.window = window;
         
         var icon_provider = SymbIconProvider.get_instance ();
 
@@ -165,7 +167,7 @@ public class Iide.BookmarksView : Gtk.Box {
         bookmarks_navigator.document_bookmarks_changed.connect(
             this.update_buffer_bookmarks
         );
-        bookmarks_navigator.project_bookmarks_loaded.connect(
+        this.window.bookmark_service.project_marks_loaded.connect (
             this.update_project_bookmarks
         );
         bookmarks_navigator.goto_next_bookmark.connect(
@@ -177,7 +179,7 @@ public class Iide.BookmarksView : Gtk.Box {
     }
 
     private void on_clear_bookmarks() {
-        BookmarksNavigator.get_instance().clear_project_bookmarks ();
+        this.window.bookmark_service.clear_project_marks ();
     }
 
     private void activate_next_bookmark() {
@@ -231,7 +233,10 @@ public class Iide.BookmarksView : Gtk.Box {
         }
     }
 
-    private void update_project_bookmarks(Gee.HashMap<string, Gee.ArrayList<TextLineMark?>> bookmarks) {
+    private void update_project_bookmarks(string category, Gee.HashMap<string, Gee.ArrayList<TextLineMark?>> bookmarks) {
+        if (category != "bookmarks")
+            return;
+
         // Очистка ListBox
         Gtk.Widget? child;
         while ((child = main_list.get_first_child ()) != null) {
@@ -271,16 +276,18 @@ public class Iide.BookmarksView : Gtk.Box {
         var source_buffer = buffer as GtkSource.Buffer;
         if (source_buffer == null)
             return;
+
+        var bookmarks_category = this.window.bookmark_service.category;
         
         Gtk.TextIter iter;
         source_buffer.get_start_iter (out iter);
 
         var current_file_lines = new Gee.HashMap<int, string> ();
 
-        // Идем по буферу вперед, прыгая строго от маркера к маркеру категории "bookmark" [INDEX]
+        // Идем по буферу вперед, прыгая строго от маркера к маркеру категории
         while (!iter.is_end ()) {
             // Проверяем, есть ли на текущей позиции маркера закладка [INDEX]
-            var marks_at_pos = source_buffer.get_source_marks_at_line (iter.get_line (), "bookmark");
+            var marks_at_pos = source_buffer.get_source_marks_at_line (iter.get_line (), bookmarks_category);
             if (marks_at_pos != null && marks_at_pos.length () > 0) {
                 int line_num = iter.get_line ();
                 // Чтобы избежать дублирования на одной строке, проверяем наличие
@@ -289,10 +296,9 @@ public class Iide.BookmarksView : Gtk.Box {
                 }
             }
 
-            // Перемещаем итератор к СЛЕДУЮЩЕМУ маркеру категории "bookmark".
-            // Это работает в разы быстрее, чем посимвольный перебор всего файла! [INDEX]
-            if (!source_buffer.forward_iter_to_source_mark (ref iter, "bookmark")) {
-                break; // Если маркеров впереди больше нет — завершаем цикл [INDEX]
+            // Перемещаем итератор к СЛЕДУЮЩЕМУ маркеру категории.
+            if (!source_buffer.forward_iter_to_source_mark (ref iter, bookmarks_category)) {
+                break; // Если маркеров впереди больше нет — завершаем цикл
             }
         }
 

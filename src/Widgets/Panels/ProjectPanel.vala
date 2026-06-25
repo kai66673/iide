@@ -1,8 +1,11 @@
+/*
+*/
+
 public class Iide.ProjectPanel : BasePanel {
     public FileTreeView folder_view;
 
-    public ProjectPanel () {
-        base ("Project Tree", ImageFactory.icon_name_for_id (IconID.APP_PROJECT));
+    public ProjectPanel (Window window) {
+        base (window, "Project Tree", ImageFactory.icon_name_for_id (IconID.APP_PROJECT));
         folder_view = new FileTreeView ();
         child = folder_view;
         can_maximize = true;

@@ -235,7 +235,7 @@ public class Iide.SourceView : GtkSource.View {
         motion_ctrl.motion.connect (this.on_textview_motion);
         this.add_controller (motion_ctrl);
 
-        TextLineMarkService.get_instance ().apply_marks_to_buffer (this.uri, this.buffer);
+        this.window.bookmark_service.apply_marks_to_buffer (this.uri, this.buffer);
     }
 
     public override bool grab_focus () {
@@ -721,29 +721,38 @@ public class Iide.SourceView : GtkSource.View {
         if (source_buffer == null)
             return;
 
+        var bookmarks_category = this.window.bookmark_service.category;
+
         // Получаем итератор текущей строки (где стоит курсор)
         Gtk.TextIter cursor_iter;
         source_buffer.get_iter_at_mark (out cursor_iter, source_buffer.get_insert ());
         int current_line = cursor_iter.get_line ();
 
-        // Проверяем, есть ли уже закладки на этой строке [INDEX]
-        var existing_marks = source_buffer.get_source_marks_at_line (current_line, "bookmark");
+        // Проверяем, есть ли уже закладки на этой строке
+        var existing_marks = source_buffer.get_source_marks_at_line (current_line, bookmarks_category);
 
         if (existing_marks != null && existing_marks.length () > 0) {
             // Если маркер уже есть — удаляем его со строки, снимая закладку [INDEX]
             foreach (var mark in existing_marks) {
                 source_buffer.delete_mark (mark);
             }
-            LoggerService.get_instance ().info ("Bookmarks", "Deleted GtkSource.Mark 'bookmark' from line %d".printf (current_line + 1));
+            LoggerService.get_instance ().info (
+                "MRK", "Deleted GtkSource.Mark '%s' from line %d".printf (
+                    bookmarks_category, current_line + 1
+                )
+            );
         } else {
             // Если маркера нет — ставим его строго на начало строки [INDEX]
             Gtk.TextIter line_start_iter;
             source_buffer.get_iter_at_line (out line_start_iter, current_line);
             
-            // Создаем новый SourceMark. Имя (name) можно оставить null, 
-            // главное — передать категорию "bookmark" [INDEX]
-            source_buffer.create_source_mark (null, "bookmark", line_start_iter);
-            LoggerService.get_instance ().info ("Bookmarks", "Created GtkSource.Mark 'bookmark' on line %d".printf (current_line + 1));
+            // Создаем новый SourceMark. 
+            source_buffer.create_source_mark (null, bookmarks_category, line_start_iter);
+            LoggerService.get_instance ().info (
+                "MRK", "Created GtkSource.Mark '%s' on line %d".printf (
+                    bookmarks_category, current_line + 1
+                )
+            );
         }
 
         // Заставляем панель номеров строк мгновенно перерисоваться

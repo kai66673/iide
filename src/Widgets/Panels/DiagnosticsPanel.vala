@@ -160,8 +160,8 @@ public class Iide.DiagnosticsPanel : BasePanel {
     // На верхнем уровне панели остался СТРОГО ОДИН кэш — кэш групп серверов! [INDEX]
     private HashMap<string, ServerDiagnosticsGroup> server_groups = new HashMap<string, ServerDiagnosticsGroup> ();
 
-    public DiagnosticsPanel () {
-        base ("Diagnostics", SymbIconProvider.get_instance ().icon_name (IconID.APP_ISSUES));
+    public DiagnosticsPanel (Window window) {
+        base (window, "Diagnostics", SymbIconProvider.get_instance ().icon_name (IconID.APP_ISSUES));
         can_maximize = true;
 
         this.main_box = new Gtk.Box (Gtk.Orientation.VERTICAL, 18) {

@@ -84,35 +84,27 @@ public class Iide.ProjectManager : Object {
             yield close_project ();
         }
 
-        message ("!!~~~~~~~~~~~~~~~~~~~~~~~~~~~~ 08");
-
         current_project_root = project_root;
         current_project_name = project_root.get_basename ();
 
         this.iide_dir = project_root.get_child (".iide");
         this.ensure_iide_directory_exists ();
-        message ("!!~~~~~~~~~~~~~~~~~~~~~~~~~~~~ 09");
 
         settings.current_project_path = project_root.get_path ();
         settings.add_recent_project (project_root.get_path ());
         settings.last_open_directory = project_root.get_parent ().get_path ();
 
         this.restore_session_and_panels ();
-        message ("!!~~~~~~~~~~~~~~~~~~~~~~~~~~~~ 10");
 
-        var bookmark_service = TextLineMarkService.get_instance ();
+        var bookmark_service = this.window.bookmark_service;
         bookmark_service.init_project (settings.current_project_path);
         bookmark_service.refresh_all_documents_marks ();
-        message ("!!~~~~~~~~~~~~~~~~~~~~~~~~~~~~ 11");
 
         rebuild_file_cache_async.begin ();
-        message ("!!~~~~~~~~~~~~~~~~~~~~~~~~~~~~ 12");
 
         setup_directory_monitor (project_root);
-        message ("!!~~~~~~~~~~~~~~~~~~~~~~~~~~~~ 13");
 
         project_opened (project_root);
-        message ("!!~~~~~~~~~~~~~~~~~~~~~~~~~~~~ 14");
     }
 
     private void ensure_iide_directory_exists () {
@@ -150,11 +142,8 @@ public class Iide.ProjectManager : Object {
         }
 
         if (current_project_root != null) {
-            message ("~~~~~~~~~~~~~~~~~~~~~~~~~~~~ 01");
             yield shutdown_all_running_lsp_servers_async ();
-            message ("~~~~~~~~~~~~~~~~~~~~~~~~~~~~ 02");
             DiagnosticsService.get_instance ().lsp_stopped ();
-            message ("~~~~~~~~~~~~~~~~~~~~~~~~~~~~ 03");
 
             current_project_root = null;
             current_project_name = null;
@@ -162,13 +151,9 @@ public class Iide.ProjectManager : Object {
             file_cache.clear ();
             text_file_cache.clear ();
             settings.current_project_path = "";
-            message ("~~~~~~~~~~~~~~~~~~~~~~~~~~~~ 04");
-            TextLineMarkService.get_instance ().write_cache_to_json_file ();
-            message ("~~~~~~~~~~~~~~~~~~~~~~~~~~~~ 05");
+            this.window.bookmark_service.write_cache_to_json_file ();
             this.save_session_and_clear_panels ();
-            message ("~~~~~~~~~~~~~~~~~~~~~~~~~~~~ 06");
             project_closed ();
-            message ("~~~~~~~~~~~~~~~~~~~~~~~~~~~~ 07");
         }
     }
 

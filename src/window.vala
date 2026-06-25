@@ -26,7 +26,7 @@ public class Iide.Window : Panel.DocumentWorkspace {
 
     private Iide.DocumentManager document_manager;
     private Iide.ProjectManager project_manager;
-    private Iide.TextLineMarkService bookmark_service;
+    public Iide.TextLineMarkService bookmark_service;
     private Iide.SettingsService settings;
 
     private Gtk.Button lsp_btn;
@@ -52,7 +52,7 @@ public class Iide.Window : Panel.DocumentWorkspace {
         settings = SettingsService.get_instance ();
         document_manager = new DocumentManager (this);
         project_manager = new ProjectManager (this);
-        bookmark_service = new TextLineMarkService ("bookmark");
+        bookmark_service = new TextLineMarkService ("bookmarks");
         document_manager.document_opened.connect ((widget) => {
             grid.add (widget);
             widget.raise ();
@@ -301,15 +301,15 @@ public class Iide.Window : Panel.DocumentWorkspace {
     }
 
     private void create_panels () {
-        panel_widget_diagnostics = new DiagnosticsPanel ();
+        panel_widget_diagnostics = new DiagnosticsPanel (this);
 
         panel_widgets = {
-            new ProjectPanel (),
-            new TerminalPanel (),
-            new LogPanel (),
-            new BookmarksPanel (),
+            new ProjectPanel (this),
+            new TerminalPanel (this),
+            new LogPanel (this),
+            new BookmarksPanel (this),
             panel_widget_diagnostics,
-            new LspMonitorPanel(),
+            new LspMonitorPanel (this),
         };
     }
 

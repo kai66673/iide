@@ -68,11 +68,11 @@ public class Iide.LineNumbersGutter : GtkSource.GutterRenderer {
         var source_buffer = view.get_buffer () as GtkSource.Buffer;
         
         if (source_buffer != null) {
-            // Запрашиваем у GtkSource.Buffer все маркеры для текущей строки [INDEX]
-            // Передаем категорию "bookmark", чтобы отсечь другие типы маркеров [INDEX]
-            var marks = source_buffer.get_source_marks_at_line (current_line_iter.get_line (), "bookmark");
+            // Запрашиваем у GtkSource.Buffer все маркеры для текущей строки
+            // TODO: TextLineMarkService.category...
+            var marks = source_buffer.get_source_marks_at_line (current_line_iter.get_line (), "bookmarks");
             
-            // Если список не пустой (length > 0) — значит на этой строке стоит закладка! [INDEX]
+            // Если список не пустой (length > 0) — значит на этой строке стоит закладка!
             if (marks != null && marks.length () > 0) {
                 has_bookmark = true;
             }

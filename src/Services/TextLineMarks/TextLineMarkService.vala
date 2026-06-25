@@ -12,9 +12,7 @@ public class Iide.TextLineMarkService : GLib.Object {
     // [file_uri] -> [Список номеров строк (0-indexed)]
     private Gee.HashMap<string, Gee.ArrayList<TextLineMark?>> loaded_json_cache;
 
-    public static TextLineMarkService get_instance () {
-        return _instance;
-    }
+    public signal void project_marks_loaded(string category, Gee.HashMap<string, Gee.ArrayList<TextLineMark?>> marks);
 
     public TextLineMarkService (string category) {
         Object(category: category);
@@ -30,7 +28,7 @@ public class Iide.TextLineMarkService : GLib.Object {
         this.current_project_root = project_root_path;
         this.loaded_json_cache.clear ();
         this.load_marks_from_json ();
-        BookmarksNavigator.get_instance ().project_bookmarks_loaded (this.loaded_json_cache);
+        this.project_marks_loaded (this.category, this.loaded_json_cache);
     }
 
     /**
@@ -148,7 +146,7 @@ public class Iide.TextLineMarkService : GLib.Object {
     // Внутренний метод записи в JSON
     public void write_cache_to_json_file () {
         string config_dir = Path.build_filename (this.current_project_root, ".iide");
-        string config_path = Path.build_filename (config_dir, "bookmarks.json");
+        string config_path = Path.build_filename (config_dir, this.category + ".json");
 
         try {
             if (!FileUtils.test (config_dir, FileTest.EXISTS)) {
@@ -169,7 +167,7 @@ public class Iide.TextLineMarkService : GLib.Object {
                 files_obj.set_array_member (entry.key, lines_array);
             }
 
-            root_obj.set_object_member ("bookmarks", files_obj);
+            root_obj.set_object_member (this.category, files_obj);
 
             var generator = new Json.Generator ();
             var root_node = new Json.Node (Json.NodeType.OBJECT);
@@ -179,13 +177,13 @@ public class Iide.TextLineMarkService : GLib.Object {
 
             generator.to_file (config_path);
         } catch (GLib.Error e) {
-            this.logger.error ("MRK", "Failed to write bookmarks.json: %s".printf (e.message));
+            this.logger.error ("MRK", "Failed to write %s.json: %s".printf (this.category, e.message));
         }
     }
 
     // Внутренний метод чтения JSON при старте проекта
     private void load_marks_from_json () {
-        string config_path = Path.build_filename (this.current_project_root, ".iide", "bookmarks.json");
+        string config_path = Path.build_filename (this.current_project_root, ".iide", this.category + ".json");
         if (!FileUtils.test (config_path, FileTest.EXISTS)) return;
 
         try {
@@ -193,9 +191,10 @@ public class Iide.TextLineMarkService : GLib.Object {
             parser.load_from_file (config_path);
 
             var root = parser.get_root ().get_object ();
-            if (!root.has_member ("bookmarks")) return;
+            if (!root.has_member (this.category))
+                return;
 
-            var files_obj = root.get_object_member ("bookmarks");
+            var files_obj = root.get_object_member (this.category);
             foreach (string file_uri in files_obj.get_members ()) {
                 var lines_array = files_obj.get_array_member (file_uri);
                 var marks = new Gee.ArrayList<TextLineMark?> ();
@@ -223,7 +222,7 @@ public class Iide.TextLineMarkService : GLib.Object {
     public void clear_project_marks() {
         this.loaded_json_cache.clear ();
         this.write_cache_to_json_file ();
-        BookmarksNavigator.get_instance ().project_bookmarks_loaded (this.loaded_json_cache);
+        this.project_marks_loaded (this.category, this.loaded_json_cache);
         this.refresh_all_documents_marks ();
     }
 }

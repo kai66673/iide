@@ -20,8 +20,8 @@ namespace Iide {
         private HashMap<string, LspServerRow> row_cache = new HashMap<string, LspServerRow> ();
         private string? currently_selected_server = null;
 
-        public LspMonitorPanel () {
-            base ("LSP Monitor", "utilities-system-monitor-symbolic");
+        public LspMonitorPanel (Window window) {
+            base (window, "LSP Monitor", "utilities-system-monitor-symbolic");
 
             // 1. Верхняя часть: Список серверов (Выключаем vexpand!)
             this.list_box = new Gtk.ListBox ();
