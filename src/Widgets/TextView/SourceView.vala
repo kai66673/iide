@@ -140,7 +140,7 @@ public class Iide.SourceView : GtkSource.View {
         var line_numbers = this.buffer.get_line_count();
         this.line_number_symbols_count = line_numbers.to_string ().length;
         show_line_numbers = false;
-        this.line_numbers_gutter = new Iide.LineNumbersGutter ();
+        this.line_numbers_gutter = new Iide.LineNumbersGutter (this.window);
         this.line_numbers_gutter.update_initial_width (
             this.line_number_symbols_count,
             FontSizeHelper.get_size_for_zoom_level (settings.editor_font_size)
@@ -196,12 +196,12 @@ public class Iide.SourceView : GtkSource.View {
         // 2. Устанавливаем типы отображаемых символов
         space_drawer.set_enable_matrix (true);
         space_drawer.set_types_for_locations (
-                                              GtkSource.SpaceLocationFlags.ALL,
-                                              GtkSource.SpaceTypeFlags.NONE
+            GtkSource.SpaceLocationFlags.ALL,
+            GtkSource.SpaceTypeFlags.NONE
         );
         space_drawer.set_types_for_locations (
-                                              GtkSource.SpaceLocationFlags.LEADING | GtkSource.SpaceLocationFlags.TRAILING,
-                                              GtkSource.SpaceTypeFlags.SPACE | GtkSource.SpaceTypeFlags.TAB
+            GtkSource.SpaceLocationFlags.LEADING | GtkSource.SpaceLocationFlags.TRAILING,
+            GtkSource.SpaceTypeFlags.SPACE | GtkSource.SpaceTypeFlags.TAB
         );
 
         // LSP-tooltips
@@ -235,7 +235,9 @@ public class Iide.SourceView : GtkSource.View {
         motion_ctrl.motion.connect (this.on_textview_motion);
         this.add_controller (motion_ctrl);
 
-        this.window.bookmark_service.apply_marks_to_buffer (this.uri, this.buffer);
+        foreach (var mark_service in this.window.marks_service) {
+            mark_service.apply_marks_to_buffer (this.uri, this.buffer);
+        }
     }
 
     public override bool grab_focus () {
@@ -716,12 +718,12 @@ public class Iide.SourceView : GtkSource.View {
         grab_focus ();
     }
 
-    public void toggle_bookmark_on_current_line () {
+    public void toggle_mark_on_current_line (TextLineMarkService mark_service) {
         var source_buffer = this.get_buffer () as GtkSource.Buffer;
         if (source_buffer == null)
             return;
 
-        var bookmarks_category = this.window.bookmark_service.category;
+        var marks_category = mark_service.category;
 
         // Получаем итератор текущей строки (где стоит курсор)
         Gtk.TextIter cursor_iter;
@@ -729,7 +731,7 @@ public class Iide.SourceView : GtkSource.View {
         int current_line = cursor_iter.get_line ();
 
         // Проверяем, есть ли уже закладки на этой строке
-        var existing_marks = source_buffer.get_source_marks_at_line (current_line, bookmarks_category);
+        var existing_marks = source_buffer.get_source_marks_at_line (current_line, marks_category);
 
         if (existing_marks != null && existing_marks.length () > 0) {
             // Если маркер уже есть — удаляем его со строки, снимая закладку [INDEX]
@@ -738,7 +740,7 @@ public class Iide.SourceView : GtkSource.View {
             }
             LoggerService.get_instance ().info (
                 "MRK", "Deleted GtkSource.Mark '%s' from line %d".printf (
-                    bookmarks_category, current_line + 1
+                    marks_category, current_line + 1
                 )
             );
         } else {
@@ -747,10 +749,10 @@ public class Iide.SourceView : GtkSource.View {
             source_buffer.get_iter_at_line (out line_start_iter, current_line);
             
             // Создаем новый SourceMark. 
-            source_buffer.create_source_mark (null, bookmarks_category, line_start_iter);
+            source_buffer.create_source_mark (null, marks_category, line_start_iter);
             LoggerService.get_instance ().info (
                 "MRK", "Created GtkSource.Mark '%s' on line %d".printf (
-                    bookmarks_category, current_line + 1
+                    marks_category, current_line + 1
                 )
             );
         }

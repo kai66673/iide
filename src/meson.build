@@ -76,7 +76,6 @@ iide_sources = [
     'Services/LSP/LspService.vala',
     'Services/LSP/LspDiagnosticsMark.vala',
     'Services/LSP/DiagnosticsService.vala',
-    'Services/DAP/BreakpointsService.vala',
     'Services/DAP/DapTargetConfig.vala',
     'Services/DAP/DapConfig.vala',
     'Services/DAP/DapClient.vala',

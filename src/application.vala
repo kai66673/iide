@@ -63,6 +63,7 @@ public class Iide.Application : Adw.Application {
         action_manager.register_action (this, new ShowDiagnosticsMarksAction (this));
         action_manager.register_action (this, new ShowFoldingAction (this));
         action_manager.register_action (this, new FormatAction ());
+        action_manager.register_action (this, new ToggleBreakpointAction ());
         action_manager.register_action (this, new ToggleBookmarkAction ());
         action_manager.register_action (this, new GotoNextBookmarkAction ());
         action_manager.register_action (this, new GotoPrevBookmarkAction ());
@@ -630,6 +631,30 @@ private class Iide.FormatAction : Iide.AppAction {
     }
 }
 
+private class Iide.ToggleBreakpointAction : Iide.AppAction {
+    public override string id { get { return "toggle-breakpoint"; } }
+    public override string name { get { return _("Toggle Breakpoint"); } }
+    public override string? description { get { return _("Toggle breakpoint at current line"); } }
+    public override string? icon_name { get { return "zoom-original-symbolic"; } }
+    public override string? category { get { return "View"; } }
+    public override string? default_shortcut { get { return "F8"; } }
+
+    public override bool can_execute () {
+        return true;
+    }
+
+    public override void execute () {
+        var app = GLib.Application.get_default () as Iide.Application;
+        var win = app ? .active_window as Iide.Window;
+        if (win != null) {
+            var text_view = win.get_active_text_view ();
+            if (text_view != null){
+                text_view.toggle_mark_on_current_line (win.breakpoint_service);
+            }
+        }
+    }
+}
+
 private class Iide.ToggleBookmarkAction : Iide.AppAction {
     public override string id { get { return "toggle-bookmark"; } }
     public override string name { get { return _("Toggle Bookmark"); } }
@@ -648,7 +673,7 @@ private class Iide.ToggleBookmarkAction : Iide.AppAction {
         if (win != null) {
             var text_view = win.get_active_text_view ();
             if (text_view != null){
-                text_view.toggle_bookmark_on_current_line ();
+                text_view.toggle_mark_on_current_line (win.bookmark_service);
             }
         }
     }

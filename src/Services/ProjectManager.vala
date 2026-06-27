@@ -96,9 +96,10 @@ public class Iide.ProjectManager : Object {
 
         this.restore_session_and_panels ();
 
-        var bookmark_service = this.window.bookmark_service;
-        bookmark_service.init_project (settings.current_project_path);
-        bookmark_service.refresh_all_documents_marks ();
+        foreach (var mark_service in this.window.marks_service) {
+            mark_service.init_project (settings.current_project_path);
+            mark_service.refresh_all_documents_marks ();
+        }
 
         rebuild_file_cache_async.begin ();
 
@@ -151,7 +152,9 @@ public class Iide.ProjectManager : Object {
             file_cache.clear ();
             text_file_cache.clear ();
             settings.current_project_path = "";
-            this.window.bookmark_service.write_cache_to_json_file ();
+            foreach (var mark_service in this.window.marks_service) {
+                mark_service.write_cache_to_json_file ();
+            }
             this.save_session_and_clear_panels ();
             project_closed ();
         }

@@ -3,13 +3,17 @@ using GtkSource;
 using Cairo;
 
 public class Iide.LineNumbersGutter : GtkSource.GutterRenderer {
+    private weak Window window;
+
     private Pango.Layout? pango_layout = null;
     private double current_width = 12.0f; // Базовая ширина панели номеров строк
     private double symbol_width = 12.0f;
     private double horizontal_margin = 2.0f;
 
-    public LineNumbersGutter () {
+    public LineNumbersGutter (Window window) {
         Object ();
+        this.window = window;
+
         // Выравниваем номера по правому краю ячейки (классический вид IDE)
         this.set_alignment_mode (GtkSource.GutterRendererAlignmentMode.CELL);
         this.set_xalign (1.0f); 
@@ -62,21 +66,22 @@ public class Iide.LineNumbersGutter : GtkSource.GutterRenderer {
             return;
 
         // ===================================================================
-        // ПРОВЕРКА НАЛИЧИЯ ЗАКЛАДКИ ЧЕРЕЗ GtkSource.Mark
+        // ЦEПОЧEЧНАЯ МАРШРУТИЗАЦИЯ ОТРИСОВКИ МАРКEРОВ (Сбор всех активных)
         // ===================================================================
-        bool has_bookmark = false;
+        var active_render_services = new Gee.ArrayList<TextLineMarkService> ();
         var source_buffer = view.get_buffer () as GtkSource.Buffer;
-        
-        if (source_buffer != null) {
-            // Запрашиваем у GtkSource.Buffer все маркеры для текущей строки
-            // TODO: TextLineMarkService.category...
-            var marks = source_buffer.get_source_marks_at_line (current_line_iter.get_line (), "bookmarks");
+
+        foreach (var service in this.window.marks_service) {
+            // Опрашиваем GtkSource.Buffer на предмет категории текущего сервиса
+            var marks = source_buffer.get_source_marks_at_line (current_line_iter.get_line (), service.category);
             
-            // Если список не пустой (length > 0) — значит на этой строке стоит закладка!
             if (marks != null && marks.length () > 0) {
-                has_bookmark = true;
+                // УБРАНО: break;
+                // СТАЛО: Собираем ВСЕ сервисы, у которых есть метка на этой строке!
+                active_render_services.add (service);
             }
         }
+
         // ===================================================================
 
         // 3. ИНИЦИАЛИЗАЦИЯ ШРИФТА С УЧЕТОМ ЗУМА
@@ -101,29 +106,33 @@ public class Iide.LineNumbersGutter : GtkSource.GutterRenderer {
         double draw_x = this.horizontal_margin;
         double draw_y = (double) cell_y + ((cell_height - text_height_px) / 2.0);
 
-        if (has_bookmark) {
-            // ПАТТЕРН ADWAITA: Если есть закладка, рисуем синий акцент
-            cr.save ();
-            
-            // Заливаем фон ячейки номера мягким полупрозрачным синим цветом
-            cr.set_source_rgba (0.2, 0.52, 0.89, 0.15); 
-            cr.rectangle (0, cell_y, this.current_width, cell_height);
-            cr.fill ();
+        // Переменная-индикатор: менялся ли цвет шрифта номеров строк кастомным сервисом?
+        bool text_was_rendered_by_service = false;
 
-            // Рисуем яркую вертикальную полоску-маркер у самого левого края гуттера
-            cr.set_source_rgba (0.2, 0.52, 0.89, 1.0); 
-            cr.rectangle (0, cell_y, 3.0, cell_height); 
-            cr.fill ();
+        if (!active_render_services.is_empty) {
+            // Запускаем последовательную цепочку Cairo-отрисовки!
+            foreach (var service in active_render_services) {
+                // Каждый сервис накатывает свои прямоугольники и маркеры поверх предыдущего.
+                // Чтобы они не перерисовывали текст, мы передаем null вместо pango_layout!
+                service.render_func (cr, cell_y, cell_height, this.current_width, draw_x, draw_y, null);
+            }
 
-            // Выводим цифру номера строки контрастным ярко-синим цветом
-            cr.set_source_rgba (0.2, 0.52, 0.89, 1.0);
-            cr.move_to (draw_x, draw_y);
-            Pango.cairo_show_layout (cr, this.pango_layout);
+            // ПРИОРИТEТ ЦВEТА ТEКСТА: 
+            // Если на строке одновременно и закладка (синяя), и брейкпоинт (красный),
+            // давайте покрасим саму цифру номера строки в цвет последнего сработавшего сервиса (например, красный брейкпоинт)
+            var priority_service = active_render_services.get (active_render_services.size - 1);
             
-            cr.restore ();
-        } else {
-            // СТАНДАРТНАЯ ОТРИСОВКА
+            // Вызываем render_func приоритетного сервиса ПOВТOРНO, но передаем параметры так,
+            // чтобы он нарисовал СТРОГО текст (его лямбда просто сделает cairo_show_layout)
+            priority_service.render_func (cr, cell_y, cell_height, this.current_width, draw_x, draw_y, this.pango_layout);
+            
+            text_was_rendered_by_service = true;
+        }
+
+        // 4. ДEФОЛТНЫЙ ТEКСТ (Отрабатывает только если на строке вообще пусто)
+        if (!text_was_rendered_by_service) {
             cr.save ();
+            // Стандартный серый цвет номеров строк
             cr.set_source_rgba (0.5, 0.5, 0.5, 0.6);
             cr.move_to (draw_x, draw_y);
             Pango.cairo_show_layout (cr, this.pango_layout);

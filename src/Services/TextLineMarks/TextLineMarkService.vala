@@ -1,12 +1,17 @@
 /*
 */
+public delegate void Iide.GutterRenderFunc (
+    Cairo.Context cr,
+    double cell_y, double cell_height, double gutter_width,
+    double draw_x, double draw_y, Pango.Layout? layout
+);
 
 public class Iide.TextLineMarkService : GLib.Object {
-    private static TextLineMarkService? _instance = null;
     private string? current_project_root = null;
     private LoggerService logger;
 
     public string category { get; construct; }
+    public Iide.GutterRenderFunc render_func { get; private set; }
 
     // Кэш закладок в памяти для файлов, пока они не открыты в UI
     // [file_uri] -> [Список номеров строк (0-indexed)]
@@ -14,9 +19,9 @@ public class Iide.TextLineMarkService : GLib.Object {
 
     public signal void project_marks_loaded(string category, Gee.HashMap<string, Gee.ArrayList<TextLineMark?>> marks);
 
-    public TextLineMarkService (string category) {
+    public TextLineMarkService (string category, owned Iide.GutterRenderFunc render_func) {
         Object(category: category);
-        TextLineMarkService._instance = this;
+        this.render_func = (owned) render_func;
         this.logger = LoggerService.get_instance ();
         this.loaded_json_cache = new Gee.HashMap<string, Gee.ArrayList<TextLineMark?>> ();
     }

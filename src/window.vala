@@ -24,10 +24,12 @@ using Panel;
 
 public class Iide.Window : Panel.DocumentWorkspace {
 
-    private Iide.DocumentManager document_manager;
-    private Iide.ProjectManager project_manager;
-    public Iide.TextLineMarkService bookmark_service;
-    private Iide.SettingsService settings;
+    private DocumentManager document_manager;
+    private ProjectManager project_manager;
+    public TextLineMarkService bookmark_service;
+    public TextLineMarkService breakpoint_service;
+    public TextLineMarkService[] marks_service;
+    private SettingsService settings;
 
     private Gtk.Button lsp_btn;
     private Gtk.Spinner lsp_spin;
@@ -52,7 +54,80 @@ public class Iide.Window : Panel.DocumentWorkspace {
         settings = SettingsService.get_instance ();
         document_manager = new DocumentManager (this);
         project_manager = new ProjectManager (this);
-        bookmark_service = new TextLineMarkService ("bookmarks");
+
+        // 1. Лямбда закладок (Синий паттерн)
+        this.bookmark_service = new Iide.TextLineMarkService ("bookmarks", (cr, cell_y, cell_height, gutter_width, draw_x, draw_y, layout) => {
+            cr.save ();
+            if (layout == null) {
+                // ФАЗА 1: Рисуем только графические подложки!
+                cr.set_source_rgba (0.2, 0.52, 0.89, 0.15); 
+                cr.rectangle (0, cell_y, gutter_width, cell_height);
+                cr.fill ();
+
+                cr.set_source_rgba (0.2, 0.52, 0.89, 1.0); 
+                cr.rectangle (0, cell_y, 3.0, cell_height); 
+                cr.fill ();
+            } else {
+                // ФАЗА 2: Отрисовываем исключительно цифру текста!
+                cr.set_source_rgba (0.2, 0.52, 0.89, 1.0);
+                cr.move_to (draw_x, draw_y);
+                Pango.cairo_show_layout (cr, layout);
+            }
+            cr.restore ();
+        });
+
+        // Инициализируем Сервис Брейкпоинтов с геометрией правого полуовала "(|"
+        this.breakpoint_service = new Iide.TextLineMarkService ("breakpoints", (cr, cell_y, cell_height, gutter_width, draw_x, draw_y, layout) => {
+            cr.save ();
+            
+            if (layout == null) {
+                // ===================================================================
+                // ФАЗА 1: ГРАФИЧEСКАЯ ПОДЛОЖКА И МАЛEНЬКИЙ АККУРАТНЫЙ ПОЛУОВАЛ
+                // ===================================================================
+                
+                // 1. Мягкий полупрозрачный красный фон всей ячейки строки
+                cr.set_source_rgba (0.92, 0.25, 0.25, 0.12); 
+                cr.rectangle (0, cell_y, gutter_width, cell_height);
+                cr.fill ();
+
+                // 2. ОТРИСОВКА МИНИАТЮРНОГО ПОЛУОВАЛА "(|" У ПРАВОГО КРАЯ
+                cr.set_source_rgba (0.92, 0.25, 0.25, 1.0); 
+
+                // УМEНЬШАEМ РАДИУС ВДВОE: Делаем маркер компактным и ювелирным
+                double radius = cell_height / 4.0; 
+                
+                // Вычисляем математический центр дуги строго по середине ячейки
+                double center_x = gutter_width; 
+                double center_y = cell_y + (cell_height / 2.0);
+
+                // Рисуем левую дугу от 90° (низ) до 270° (верх) по часовой стрелке
+                cr.arc (center_x, center_y, radius, Math.PI / 2.0, 3.0 * Math.PI / 2.0);
+                
+                // ЧEСТНО ЗАМЫКАEМ ФИГУРУ: Рисуем прямую линию по правому краю 
+                // вниз к точке окончания дуги (center_y + radius)
+                cr.line_to (center_x, center_y + radius);
+                
+                // Заливаем миниатюрный полуовал
+                cr.fill ();
+                
+            } else {
+                // ===================================================================
+                // ФАЗА 2: ОТРИСОВКА ЦИФРЫ НОМEРА СТРОКИ
+                // ===================================================================
+                // Выводим цифру номера строки контрастным красным цветом
+                cr.set_source_rgba (0.92, 0.25, 0.25, 1.0);
+                cr.move_to (draw_x, draw_y);
+                Pango.cairo_show_layout (cr, layout);
+            }
+            
+            cr.restore ();
+        });
+
+        marks_service = {
+            bookmark_service,
+            breakpoint_service,
+        };
+        
         document_manager.document_opened.connect ((widget) => {
             grid.add (widget);
             widget.raise ();
@@ -208,7 +283,9 @@ public class Iide.Window : Panel.DocumentWorkspace {
         if (!save_confirmed)
             return;
     
-        bookmark_service.write_cache_to_json_file ();
+        foreach (var mark_service in this.marks_service) {
+            mark_service.write_cache_to_json_file ();
+        }
         yield project_manager.shutdown_all_running_lsp_servers_async ();
 
         this.destroy ();
