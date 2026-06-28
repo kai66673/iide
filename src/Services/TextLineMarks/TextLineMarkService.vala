@@ -26,6 +26,10 @@ public class Iide.TextLineMarkService : GLib.Object {
         this.loaded_json_cache = new Gee.HashMap<string, Gee.ArrayList<TextLineMark?>> ();
     }
 
+    public Gee.HashMap<string, Gee.ArrayList<TextLineMark?>> get_registry () {
+        return this.loaded_json_cache;
+    }
+
     /**
      * Инициализация проекта. Вызывается при открытии рабочей папки IDE.
      */

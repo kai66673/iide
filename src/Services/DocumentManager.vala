@@ -233,7 +233,7 @@ public class Iide.DocumentManager : GLib.Object {
         }
     }
 
-    public async bool confirm_save_modified_documents_async (Gtk.Window main_window) {
+    public async bool confirm_save_modified_documents_async () {
         if (!this.has_modified_documents ()) {
             return true;
         }
@@ -261,7 +261,7 @@ public class Iide.DocumentManager : GLib.Object {
         });
 
         // Показываем диалог на экране
-        dialog.present (main_window);
+        dialog.present (this.window);
         
         // Дожидаемся выполнения диалога
         yield; 

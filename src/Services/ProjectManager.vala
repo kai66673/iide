@@ -75,7 +75,7 @@ public class Iide.ProjectManager : Object {
         }
 
         bool save_confirmed = yield DocumentManager.get_instance ()
-            .confirm_save_modified_documents_async (this.window);
+            .confirm_save_modified_documents_async ();
 
         if (!save_confirmed)
             return;

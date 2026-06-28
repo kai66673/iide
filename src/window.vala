@@ -26,6 +26,7 @@ public class Iide.Window : Panel.DocumentWorkspace {
 
     private DocumentManager document_manager;
     private ProjectManager project_manager;
+    private DapService dap_servive;
     public TextLineMarkService bookmark_service;
     public TextLineMarkService breakpoint_service;
     public TextLineMarkService[] marks_service;
@@ -54,6 +55,7 @@ public class Iide.Window : Panel.DocumentWorkspace {
         settings = SettingsService.get_instance ();
         document_manager = new DocumentManager (this);
         project_manager = new ProjectManager (this);
+        dap_servive = new DapService (this);
 
         // 1. Лямбда закладок (Синий паттерн)
         this.bookmark_service = new Iide.TextLineMarkService ("bookmarks", (cr, cell_y, cell_height, gutter_width, draw_x, draw_y, layout) => {
@@ -250,7 +252,8 @@ public class Iide.Window : Panel.DocumentWorkspace {
 
         header.pack_end (theme_dropdown);
 
-        // statusbar (создаётся после восстановления layout)
+        var dap_toolbar = new DapToolbar ();
+        header.pack_end (dap_toolbar);
 
         create_panels ();
 
@@ -279,7 +282,7 @@ public class Iide.Window : Panel.DocumentWorkspace {
     }
 
     private async void handle_window_close_async () {
-        bool save_confirmed = yield this.document_manager.confirm_save_modified_documents_async (this);
+        bool save_confirmed = yield this.document_manager.confirm_save_modified_documents_async ();
         if (!save_confirmed)
             return;
     

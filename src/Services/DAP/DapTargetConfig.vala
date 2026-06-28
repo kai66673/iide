@@ -55,13 +55,15 @@ public class Iide.DapTargetConfig : GLib.Object {
     /**
      * ГEНEРАЦИЯ ПАРАМEТРOВ ДЛЯ ЗАПРОСА LAUNCH/ATTACH С ПОДСТАНOВКOЙ МАКРOСOВ
      */
-    public Json.Object get_processed_launch_params (string current_file_path, string workspace_root_path) {
+    public Json.Object get_processed_launch_params (string current_file_uri, string workspace_root_path) {
         var result = new Json.Object ();
         
+        string clean_file_path = current_file_uri.replace ("file://", "");
+
         // Если cwd не был передан в JSON, по умолчанию выставляем корень воркспейса
         string calculated_cwd = this.cwd ?? "${workspace_root}";
         calculated_cwd = calculated_cwd.replace ("${workspace_root}", workspace_root_path);
-        calculated_cwd = calculated_cwd.replace ("${file}", current_file_path);
+        calculated_cwd = calculated_cwd.replace ("${file}", clean_file_path);
 
         foreach (var member in this.raw_object.get_members ()) {
             // Пропускаем служебные поля IDE
@@ -70,7 +72,7 @@ public class Iide.DapTargetConfig : GLib.Object {
             var node = this.raw_object.get_member (member);
             if (node.get_node_type () == Json.NodeType.VALUE) {
                 string val = node.get_string ();
-                val = val.replace ("${file}", current_file_path);
+                val = val.replace ("${file}", clean_file_path);
                 val = val.replace ("${workspace_root}", workspace_root_path);
                 result.set_string_member (member, val);
             } else {
@@ -88,7 +90,7 @@ public class Iide.DapTargetConfig : GLib.Object {
         var processed_env_obj = new Json.Object ();
         foreach (var entry in this.env.entries) {
             string env_value = entry.value;
-            env_value = env_value.replace ("${file}", current_file_path);
+            env_value = env_value.replace ("${file}", current_file_uri);
             env_value = env_value.replace ("${workspace_root}", workspace_root_path);
             
             processed_env_obj.set_string_member (entry.key, env_value);

@@ -27,6 +27,7 @@ public class Iide.DapClient : GLib.Object {
     public signal void stopped_on_breakpoint (int thread_id, string reason); // Когда код замер на точке!
     public signal void thread_event (string reason, int thread_id);
     public signal void terminated ();
+    public signal void adapter_ready_for_configuration ();
 
     public DapClient (Iide.DapConfig config) {
         Object ();
@@ -101,10 +102,28 @@ public class Iide.DapClient : GLib.Object {
     }
 
     /**
+     * RPC-ЗАПРОС ЗАВEРШEНИЯ КОНФИГУРАЦИИ (LSP/DAP configurationDone)
+     * Сигнализирует отладчику, что все стартовые настройки и брейкпоинты переданы,
+     * и можно запускать физическое выполнение кода скрипта!
+     */
+    public async bool send_configuration_done_request () throws GLib.Error {
+        this.logger.info ("DAP", "Sending 'configurationDone' to trigger execution loop...");
+        
+        // Запрос configurationDone по спецификации не требует аргументов (null)
+        var reply = yield this.send_request ("configurationDone", null);
+        
+        if (reply != null && reply.has_member ("success")) {
+            return reply.get_boolean_member ("success");
+        }
+        return false;
+    }
+
+    /**
      * 3. ЗАПУСК ОTЛАЖИВАEМOГO СКРИПTА (ПEРEДАЧА launch.json КОНФИГУРАЦИИ)
      */
     public async bool send_launch_request (Json.Object processed_target_args) throws GLib.Error {
         this.logger.info ("DAP", "Sending 'launch' target configuration payload...");
+        this.logger.debug ("DAP", "laaunch with: %s".printf (json_object_to_string (processed_target_args)));
         
         // В DAP параметры запуска передаются в корне объекта 'arguments' запроса launch
         var reply = yield this.send_request ("launch", processed_target_args);
@@ -217,6 +236,15 @@ public class Iide.DapClient : GLib.Object {
         var body = root.has_member ("body") ? root.get_object_member ("body") : null;
 
         switch (event_name) {
+            case "initialized":
+                this.logger.info ("DAP", "Received 'initialized' event from adapter. Signaling service to push configuration...");
+                // Стреляем сигналом наверх, выводя систему из ступора! [INDEX]
+                Idle.add (() => {
+                    this.adapter_ready_for_configuration ();
+                    return Source.REMOVE;
+                });
+                break;
+            
             // Самое главное событие DAP: Отладчик наткнулся на точку останова!
             case "stopped":
                 if (body != null) {
@@ -333,5 +361,59 @@ public class Iide.DapClient : GLib.Object {
         this.responses.clear ();
         this.status = DapClientStatus.STOPPED;
         this.is_stopping = false;
+    }
+
+    /**
+     * RPC-ЗАПРОС УСТАНОВКИ БРEЙКПОИНТОВ ДЛЯ КОНКРEТНОГО ФАЙЛА (LSP/DAP textDocument/setBreakpoints)
+     * Отправляет массив всех строк останова для указанного URI [INDEX]
+     */
+    public async bool request_set_breakpoints (string uri, Gee.ArrayList<int> lines) throws GLib.Error {
+        if (this.transport == null || 
+            this.status == DapClientStatus.STOPPED || 
+            this.status == DapClientStatus.FAILED) {
+            this.logger.warning ("DAP", "Aborting setBreakpoints: transport is dead or client is stopped.");
+            return false;
+        }
+
+        var arguments = new Json.Object ();
+
+        // 1. Указываем спецификацию источника (source) по стандарту DAP
+        var source_obj = new Json.Object ();
+        // DAP работает с абсолютными системными путями, поэтому убираем "file://" префикс [INDEX]
+        string clean_path = uri.replace ("file://", "");
+        source_obj.set_string_member ("path", clean_path);
+        source_obj.set_string_member ("name", Path.get_basename (clean_path));
+        arguments.set_object_member ("source", source_obj);
+
+        // 2. Собираем массив строк останова
+        var lines_array = new Json.Array ();
+        var bp_array = new Json.Array ();
+
+        foreach (int line_idx in lines) {
+            // ВАЖНО: В TextLineMarkService строки хранятся 0-indexed (как в GTK) [INDEX]
+            // Но спецификация DAP требует строго 1-based индексацию строк! Делаем +1 [INDEX]
+            int dap_line = line_idx + 1;
+            
+            lines_array.add_int_element (dap_line);
+
+            // Формируем массив объектов SourceBreakpoint для расширенных свойств
+            var source_bp_obj = new Json.Object ();
+            source_bp_obj.set_int_member ("line", dap_line);
+            bp_array.add_object_element (source_bp_obj);
+        }
+
+        arguments.set_array_member ("lines", lines_array);
+        arguments.set_array_member ("breakpoints", bp_array); // Требование некоторых строгих адаптеров
+
+        this.logger.info ("DAP", @"Sending 'setBreakpoints' for file: $clean_path ($(lines.size) points)...");
+        
+        // Стреляем запросом в сокет отладчика
+        var reply = yield this.send_request ("setBreakpoints", arguments);
+
+        if (reply != null && reply.has_member ("success") && reply.get_boolean_member ("success")) {
+            this.logger.debug ("DAP", @"Breakpoints for $clean_path successfully synchronized with server.");
+            return true;
+        }
+        return false;
     }
 }

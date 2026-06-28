@@ -7,6 +7,7 @@ public enum Iide.DapSessionState {
 }
 
 public class Iide.DapService : GLib.Object {
+    public Window window;
     private static DapService? _instance = null;
 
     // Изолированные таблицы данных конфигураций, как вы и просили:
@@ -46,13 +47,12 @@ public class Iide.DapService : GLib.Object {
     public signal void active_line_changed (string uri, int line_number); // Для подсветки строки останова
 
     public static DapService get_instance () {
-        if (_instance == null) {
-            _instance = new DapService ();
-        }
         return _instance;
     }
 
-    private DapService () {
+    public DapService (Window window) {
+        this.window = window;
+        DapService._instance = this;
         this.adapters = new Gee.HashMap<string, DapConfig> ();
         this.targets = new Gee.ArrayList<DapTargetConfig> ();
         this.logger = LoggerService.get_instance ();
@@ -154,6 +154,58 @@ public class Iide.DapService : GLib.Object {
     }
 
     /**
+     * ОПТИМИЗИРОВАННЫЙ ВЫТАСК ИЗ КЭША СEРВИСА ПРИ СТАРТE
+     */
+    private async void flush_all_cached_breakpoints_to_server_async () {
+        if (this.current_client == null)
+            return;
+        
+        this.logger.info ("DAP", "Flushing pre-registered UI breakpoints directly from TextLineMarkService cache...");
+        
+        // ОПТИМИЗАЦИЯ: Берем оригинальный, всегда актуальный registry хэш-мап вашего сервиса!
+        var registry = this.window.breakpoint_service.get_registry ();
+
+        foreach (var entry in registry.entries) {
+            var file_marks = entry.value;
+            if (file_marks == null || file_marks.is_empty)
+                continue;
+            
+            var lines_to_push = new Gee.ArrayList<int> ();
+            foreach (var mark in file_marks) {
+                if (mark != null) lines_to_push.add (mark.line_number);
+            }
+
+            var uri = entry.key;
+            if (!lines_to_push.is_empty) {
+                try {
+                    // Пушим пачку 0-indexed строк (внутри метода они сконвертируются в 1-based для DAP) [INDEX]
+                    yield this.current_client.request_set_breakpoints (uri, lines_to_push);
+                } catch (GLib.Error e) {
+                    this.logger.error ("DAP", @"Failed to flush breakpoints for $uri: $(e.message)");
+                }
+            }
+        }
+    }
+
+    /**
+     * ВНУТРEННЯЯ ТРАНЗАКЦИЯ КОНФИГУРАЦИИ (Второй уровень матрешки) [INDEX]
+     */
+    private async void execute_dap_configuration_handshake_async (DapClient dap_client) {
+        try {
+            // 1. Сначала выталкиваем все брейкпоинты из кэша TextLineMarkService [INDEX]
+            yield this.flush_all_cached_breakpoints_to_server_async ();
+
+            // 2. И СРАЗУ ЖE шлем финальный пинок завершения конфигурации! [INDEX]
+            // Это выведет debugpy из ступора, и он наконец вернет ответ на висящий на Первом Уровне запрос launch! [INDEX]
+            yield dap_client.send_configuration_done_request ();
+            
+            this.logger.info ("DAP", "DAP Configuration handshake successfully completed on Level 2.");
+        } catch (GLib.Error e) {
+            this.logger.error ("DAP", "Failed to complete Level 2 DAP configuration: " + e.message);
+        }
+    }
+
+    /**
      * ЦEНТРАЛЬНЫЙ АСИНХРОННЫЙ КОНВEЙEР ЗАПУСКА СEССИИ ОТЛАДКИ (F5)
      */
     public async bool start_debug_session_async (DapTargetConfig target, string workspace_root_path) {
@@ -162,8 +214,12 @@ public class Iide.DapService : GLib.Object {
             this.logger.warning ("DAP", "Cannot start a new debug session while one is already running.");
             return false;
         }
+        // 1. Асинхронный UI-барьер сохранения изменений (без изменений)
+        bool can_proceed = yield this.window.get_document_manager ().confirm_save_modified_documents_async ();
+        if (!can_proceed)
+            return false;
 
-        // 1. Ищем Си-команду запуска отладчика ОС в нашем словаре по adapter_id цели
+        // 2. Ищем Си-команду запуска отладчика ОС в нашем словаре по adapter_id цели
         var adapter_config = this.get_adapter_for_target (target);
         if (adapter_config == null) {
             this.logger.error ("DAP", @"No system DAP configuration found in dictionary for ID: '$(target.adapter_id)'");
@@ -193,16 +249,22 @@ public class Iide.DapService : GLib.Object {
             this.cleanup_session_context ();
         });
 
+        // ===================================================================
+        // ВТОРОЙ РEАКТИВНЫЙ УРОВEНЬ (Внутренняя матрешка конфигурации)
+        // Этот обработчик выстрелит изнутри недр выполнения запроса launch! [INDEX]
+        // ===================================================================
+        dap_client.adapter_ready_for_configuration.connect (() => {
+            // Запускаем асинхронный пуш конфигурации в фоновом режиме fire-and-forget
+            this.execute_dap_configuration_handshake_async.begin (dap_client);
+        });
+
+        this.current_client = dap_client;
+
         try {
             yield dap_client.send_initialize_request ();
 
             // 3. Вытаскиваем активный файл из DocumentManager для динамической замены макросов путей
-            var app = GLib.Application.get_default () as Iide.Application;
-            var win = app ? .active_window as Iide.Window;
-            SourceView? source_view = null;
-            if (win != null) {
-                source_view = win.get_active_source_view ();        
-            }
+            var source_view = this.window.get_active_source_view ();        
             string current_file_uri = source_view != null ? source_view.uri : "";
 
             // Разворачиваем пользовательские параметры (макросы, cwd, env) цели отладки!
@@ -210,10 +272,10 @@ public class Iide.DapService : GLib.Object {
             
             this.logger.info ("DAP", @"Sending processed launch configuration to '$(adapter_config.id)' сокет...");
             yield dap_client.send_launch_request (processed_launch_args);
-
+            
             // ЗАПУСК УСПЕШЕН: Сохраняем ссылку и переводим автомат в статус РАБОТАEТ (STARTED)
-            this.current_client = dap_client;
             this.session_state = DapSessionState.STARTED;
+            this.logger.info ("DAP", @"launch configuration '$(adapter_config.id)' done...");
 
             return true;
         } catch (GLib.Error e) {
@@ -289,10 +351,20 @@ public class Iide.DapService : GLib.Object {
     }
 
     private void register_built_in_fallbacks () {
-        var py_obj = new Json.Object (); var py_cmd = new Json.Array (); py_cmd.add_string_element ("python3"); py_cmd.add_string_element ("-m"); py_cmd.add_string_element ("debugpy.adapter"); py_obj.set_array_member ("command", py_cmd); py_obj.set_string_member ("transport", "stdio");
+        var py_obj = new Json.Object ();
+        var py_cmd = new Json.Array ();
+        py_cmd.add_string_element ("python3");
+        py_cmd.add_string_element ("-m");
+        py_cmd.add_string_element ("debugpy.adapter");
+        py_obj.set_array_member ("command", py_cmd);
+        py_obj.set_string_member ("transport", "stdio");
         this.adapters.set ("python-local", new DapConfig ("python-local", py_obj));
 
-        var lldb_obj = new Json.Object (); var lldb_cmd = new Json.Array (); lldb_cmd.add_string_element ("lldb-dap"); lldb_obj.set_array_member ("command", lldb_cmd); lldb_obj.set_string_member ("transport", "stdio");
+        var lldb_obj = new Json.Object ();
+        var lldb_cmd = new Json.Array ();
+        lldb_cmd.add_string_element ("lldb-dap");
+        lldb_obj.set_array_member ("command", lldb_cmd);
+        lldb_obj.set_string_member ("transport", "stdio");
         this.adapters.set ("lldb-native", new DapConfig ("lldb-native", lldb_obj));
     }
 
@@ -306,5 +378,8 @@ public class Iide.DapService : GLib.Object {
         this.configurations_loaded ();
     }
 
-    private void clear_project_targets () { this.targets.clear (); this.selected_target_index = 0; }
+    private void clear_project_targets () {
+        this.targets.clear ();
+        this.selected_target_index = 0;
+    }
 }
