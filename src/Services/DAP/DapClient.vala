@@ -138,6 +138,31 @@ public class Iide.DapClient : GLib.Object {
     }
 
     /**
+     * RPC-ЗАПРОС СТEКА ВЫЗOВOВ (DAP stackTrace)
+     * Возвращает JSON-массив кадров стека для указанного потока
+     */
+    public async Json.Array? request_stack_trace (int thread_id) throws GLib.Error {
+        if (this.transport == null || this.status == DapClientStatus.STOPPED)
+            return null;
+
+        var arguments = new Json.Object ();
+        arguments.set_int_member ("threadId", thread_id);
+        // Нам нужен только самый верхний кадр, чтобы узнать текущую строку,
+        // но для будущего отображения стека в UI можно запросить больше (например, 20)
+        arguments.set_int_member ("levels", 1); 
+
+        var reply = yield this.send_request ("stackTrace", arguments);
+
+        if (reply != null && reply.has_member ("success") && reply.get_boolean_member ("success")) {
+            var body = reply.get_object_member ("body");
+            if (body != null && body.has_member ("stackFrames")) {
+                return body.get_array_member ("stackFrames");
+            }
+        }
+        return null;
+    }
+
+    /**
      * ЦЕНТРАЛЬНЫЙ СEМАНТИЧEСКИЙ RPC-ОТПРАВИТEЛЬ С ПОДДEРЖКOЙ CANCELLABLE
      */
     public async Json.Object? send_request (string command, Json.Object? arguments, Cancellable? cancellable = null) throws GLib.Error {

@@ -240,8 +240,8 @@ public class Iide.DapService : GLib.Object {
             this.session_state = DapSessionState.BREAKPOINT;
             this.last_stopped_thread_id = thread_id; // Запоминаем активный поток!
             
-            // В реальном коде мы тут запросим stackTrace, чтобы понять, в каком файле и на какой строке замер код,
-            // и выстрелим сигналом active_line_changed(uri, line) для подсветки строки в SourceView!
+            // В фоне запускаем асиннадцатый каскад размотки стека (fire-and-forget)
+            this.locate_and_broadcast_active_line_async.begin (thread_id);
         });
 
         dap_client.terminated.connect (() => {
@@ -288,6 +288,50 @@ public class Iide.DapService : GLib.Object {
             // Асинхронно рвем каналы транспорта, чтобы не плодить зомби-процессы в Linux
             yield dap_client.disconnect_and_stop_async ();
             return false;
+        }
+    }
+    
+    /**
+     * АСИНХРOННЫЙ КАСКАД OПРOСА СТEКА ДЛЯ UI ПОДСВEТКИ [INDEX]
+     */
+    private async void locate_and_broadcast_active_line_async (int thread_id) {
+        if (this.current_client == null) return;
+
+        try {
+            // 1. Запрашиваем кадры стека у debugpy [INDEX]
+            var stack_frames = yield this.current_client.request_stack_trace (thread_id);
+            
+            if (stack_frames != null && stack_frames.get_length () > 0) {
+                // Извлекаем самый верхний (активный) кадр стека [INDEX]
+                var top_frame = stack_frames.get_object_element (0);
+                
+                // В DAP строки возвращаются 1-based [INDEX]!
+                int dap_line = (int) top_frame.get_int_member ("line");
+                
+                var source_obj = top_frame.get_object_member ("source");
+                if (source_obj != null && source_obj.has_member ("path")) {
+                    string system_path = source_obj.get_string_member ("path");
+                    
+                    // Конвертируем абсолютный путь Linux обратно в каноничный URI для IDE
+                    var file_obj = GLib.File.new_for_path (system_path);
+                    string file_uri = file_obj.get_uri ();
+
+                    this.logger.info ("DAP", @"Execution paused in file: $system_path at line: $dap_line");
+
+                    // Меняем состояние сессии — это разблокирует кнопки тулбара через Idle.add
+                    this.session_state = DapSessionState.BREAKPOINT;
+
+                    // Выстреливаем сигналом точных координат в UI поток!
+                    // Переводим dap_line в 0-indexed для GTK редактора (делаем -1)
+                    Idle.add (() => {
+                        this.active_line_changed (file_uri, dap_line - 1);
+                        return Source.REMOVE;
+                    });
+                }
+            }
+        } catch (GLib.Error e) {
+            this.logger.error ("DAP", "Failed to resolve active stack frame location: " + e.message);
+            this.session_state = DapSessionState.BREAKPOINT; // Все равно включаем панели
         }
     }
 

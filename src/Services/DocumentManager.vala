@@ -67,6 +67,10 @@ public class Iide.DocumentManager : GLib.Object {
     // ВАЖНО! может содержать уже закрытые документы
     private Gee.ArrayList<SourceView> mru_history;
 
+    // DAP
+    private string? last_highlighted_uri = null;
+
+
     public void add_document_to_mru_history(SourceView source_view) {
         // Если документ уже был в истории — удаляем его со старой позиции
         this.mru_history.remove (source_view);
@@ -277,5 +281,57 @@ public class Iide.DocumentManager : GLib.Object {
             default:
                 return false; // Отмена транзакции!
         }
+    }
+
+    public void highlight_debugger_active_line (string uri, int line_number) {
+        // Сначала стираем старую подсветку, если мы шагнули дальше [INDEX]
+        this.clear_all_debugger_highlights ();
+
+        var file = GLib.File.new_for_uri (uri);
+        var text_view = this.open_document_with_selection (file, line_number, 0, 0, null) as TextView;
+        if (text_view == null)
+            return;
+
+        var source_buffer = text_view.source_view.get_buffer () as GtkSource.Buffer;
+        if (source_buffer == null)
+            return;
+
+        this.last_highlighted_uri = uri;
+
+        // Получаем итератор начала нужной строки [INDEX]
+        TextIter iter;
+        source_buffer.get_iter_at_line (out iter, line_number);
+
+        // Скроллим редактор экрана так, чтобы строка останова гарантированно 
+        // отцентрировалась по вертикали и пользователь увидел её без ручной прокрутки!
+        text_view.source_view.scroll_to_iter (iter, 0.0, true, 0.5, 0.5);
+
+        // Передвигаем курсор каретки ввода на эту строку, чтобы клавиатурный фокус встал туда же
+        source_buffer.place_cursor (iter);
+
+        // Создаем нативный маркер GtkSourceMark специальной категории "active-debug-line" [INDEX]
+        // Имя маркера делаем фиксированным, чтобы его легко было найти при очистке
+        source_buffer.create_source_mark ("current_debug_line", "active-debug-line", iter);
+
+        // Заставляем вьюху перерисовать холст
+        text_view.source_view.queue_draw ();
+    }
+
+    public void clear_all_debugger_highlights () {
+        if (this.last_highlighted_uri == null)
+            return;
+
+        var text_view = this.documents.get (this.last_highlighted_uri);
+        if (text_view != null) {
+            var source_buffer = text_view.source_view.get_buffer () as GtkSource.Buffer;
+            if (source_buffer != null) {
+                Gtk.TextIter start, end;
+                source_buffer.get_bounds (out start, out end);
+                source_buffer.remove_source_marks (start, end, "active-debug-line");
+                text_view.source_view.queue_draw ();
+            }
+        }
+
+        this.last_highlighted_uri = null;
     }
 }

@@ -26,7 +26,7 @@ public class Iide.Window : Panel.DocumentWorkspace {
 
     private DocumentManager document_manager;
     private ProjectManager project_manager;
-    private DapService dap_servive;
+    private DapService dap_service;
     public TextLineMarkService bookmark_service;
     public TextLineMarkService breakpoint_service;
     public TextLineMarkService[] marks_service;
@@ -55,7 +55,7 @@ public class Iide.Window : Panel.DocumentWorkspace {
         settings = SettingsService.get_instance ();
         document_manager = new DocumentManager (this);
         project_manager = new ProjectManager (this);
-        dap_servive = new DapService (this);
+        dap_service = new DapService (this);
 
         // 1. Лямбда закладок (Синий паттерн)
         this.bookmark_service = new Iide.TextLineMarkService ("bookmarks", (cr, cell_y, cell_height, gutter_width, draw_x, draw_y, layout) => {
@@ -129,6 +129,13 @@ public class Iide.Window : Panel.DocumentWorkspace {
             bookmark_service,
             breakpoint_service,
         };
+
+        dap_service.active_line_changed.connect (document_manager.highlight_debugger_active_line);
+        dap_service.session_state_changed.connect ((state) => {
+            if (state == DapSessionState.EMPTY) {
+                document_manager.clear_all_debugger_highlights ();
+            }
+        });
         
         document_manager.document_opened.connect ((widget) => {
             grid.add (widget);

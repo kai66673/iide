@@ -168,6 +168,14 @@ public class Iide.SourceView : GtkSource.View {
         left_gutter.insert (this.folding_gutter, 20);
 
         LspDiagnosticsMark.set_mark_attributes (this);
+        
+        var bp_attrs = new GtkSource.MarkAttributes ();
+        var bp_bg = Gdk.RGBA ();
+        bp_bg.parse ("rgba(181, 18, 42, 0.67)");
+        bp_attrs.set_background (bp_bg);
+
+        // 3. Регистрируем эти графические атрибуты для нашей категории маркеров!
+        this.set_mark_attributes ("active-debug-line", bp_attrs, 100); // 100 — приоритет отрисовки поверх закладок
 
         // Connect to settings changes to apply to all open documents
         settings.editor_setting_changed.connect ((key) => {
