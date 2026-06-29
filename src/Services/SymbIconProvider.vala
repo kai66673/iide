@@ -68,7 +68,13 @@ public enum Iide.IconID {
     LOG_ERASE = 60,
     COD_ERROR = 61,
     COD_WARNING = 62,
-    COD_INFO = 63;
+    COD_INFO = 63,
+    DAP_START = 64,
+    DAP_STOP = 65,
+    DAP_CONTINUE = 66,
+    DAP_STEP_OVER = 67,
+    DAP_STEP_INTO = 68,
+    DAP_STEP_OUT = 69;
 }
 
 public class Iide.SymbIconProvider {
@@ -149,6 +155,12 @@ public class Iide.SymbIconProvider {
             { "cod-error", "cod-error" },
             { "cod-warning", "cod-warning" },
             { "cod-info", "cod-info" },
+            { "dap-start", "" },
+            { "dap-stop", "" },
+            { "dap-continue", "" },
+            { "dap-step-over", "" },
+            { "dap-step-into", "" },
+            { "dap-step-out", "" },
         };
     }
     public Gtk.Image image (IconID icon_id, bool colorize = true, int? pixel_size = null) {

@@ -432,6 +432,24 @@
         "cod-info": {
             "char": "0xea74",
             "style": "cod-info"
+        },
+        "dap-start": {
+            "char": "0xead3"
+        },
+        "dap-stop": {
+            "char": "0xead7"
+        },
+        "dap-continue": {
+            "char": "0xeacf"
+        },
+        "dap-step-over": {
+            "char": "0xead6"
+        },
+        "dap-step-into": {
+            "char": "0xead4"
+        },
+        "dap-step-out": {
+            "char": "0xead5"
         }
     }
 }
