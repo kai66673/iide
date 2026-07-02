@@ -1,10 +1,22 @@
 /*
 */
+public class Iide.TargetLinkPayload : GLib.Object {
+    public string file_path;
+    public int line;
+    public TargetLinkPayload (string path, int line) {
+        this.file_path = path;
+        this.line = line;
+    }
+}
+
 public class Iide.DapConsoleWidget : Gtk.Box {
     private Gtk.TextView output_view;
     private Gtk.TextBuffer buffer;
     private Gtk.Entry input_entry;
     private Gtk.ScrolledWindow scroll_window;
+
+    private Gtk.EventControllerMotion motion_controller;
+    private Gtk.GestureClick click_gesture;
 
     public DapConsoleWidget () {
         Object (orientation: Gtk.Orientation.VERTICAL, spacing: 4);
@@ -44,6 +56,17 @@ public class Iide.DapConsoleWidget : Gtk.Box {
             }
         });
         this.input_entry.sensitive = (dap_service.session_state != DapSessionState.EMPTY);
+        
+        // Включаем поддержку событий мыши для TextView
+        this.motion_controller = new Gtk.EventControllerMotion ();
+        this.motion_controller.motion.connect (this.on_mouse_moved_over_console);
+        this.output_view.add_controller (this.motion_controller);
+
+        // Включаем жест клика мыши
+        this.click_gesture = new Gtk.GestureClick ();
+        this.click_gesture.set_button (1); // Левая кнопка мыши
+        this.click_gesture.pressed.connect (this.on_console_clicked);
+        this.output_view.add_controller (this.click_gesture);
     }
 
     /**
@@ -71,21 +94,97 @@ public class Iide.DapConsoleWidget : Gtk.Box {
         var eval_out_tag = new Gtk.TextTag ("eval_out");
         eval_out_tag.foreground = "#8ff0a4"; // Приятный зеленый цвет ответа REPL
         tag_table.add (eval_out_tag);
+
+        // ТЕГ ДЛЯ ГИПЕРССЫЛОК ФАЙЛОВ
+        var link_tag = new Gtk.TextTag ("link");
+        link_tag.underline = Pango.Underline.SINGLE; // Делаем ссылку подчеркнутой
+        link_tag.foreground = "#3584e4";             // Приятный синий цвет Adwaita для ссылок
+        
+        // Сохраняем в объект тега метаданные (чтобы отличать его от других тегов)
+        link_tag.set_data ("is_link", true);
+        tag_table.add (link_tag);
     }
 
     /**
-     * АВТОМАТИЧЕСКАЯ ДОПИСЬ СЕТЕВЫХ СТРИМОВ В КОНСОЛЬ
-     */
+        * УМНЫЙ АВТОМАТИЧЕСКИЙ ПУШ С ПОИСКОМ ФАЙЛОВЫХ ССЫЛОК
+        */
     public void append_output (string category, string text) {
         Gtk.TextIter end_iter;
         this.buffer.get_end_iter (out end_iter);
-        
-        // Вставляем текст с применением нужного цветового тега
-        this.buffer.insert_with_tags_by_name (ref end_iter, text, -1, category);
 
-        // Автоматически прокручиваем консоль вниз, чтобы пользователь всегда видел свежий вывод
+        // Если это не системный вывод программы, просто пишем как обычно
+        if (category != "stdout" && category != "stderr") {
+            this.buffer.insert_with_tags_by_name (ref end_iter, text, -1, category);
+            this.scroll_to_bottom ();
+            return;
+        }
+
+        try {
+            // Регулярное выражение для поиска путей Python Трейсбеков:
+            // Ищет паттерны вида: File "/home/kai/app.py", line 12
+            var regex = new GLib.Regex ("File \"([^\"]+)\", line (\\d+)");
+            GLib.MatchInfo match_info;
+
+            int last_pos = 0;
+
+            // Пошагово ищем все совпадения в прилетевшем куске текста
+            if (regex.match (text, 0, out match_info)) {
+                while (match_info.matches ()) {
+                    int start_pos, end_pos;
+                    match_info.fetch_pos (0, out start_pos, out end_pos);
+
+                    // 1. Вставляем обычный текст ДО ссылки
+                    if (start_pos > last_pos) {
+                        string normal_chunk = text.substring (last_pos, start_pos - last_pos);
+                        this.buffer.get_end_iter (out end_iter);
+                        this.buffer.insert_with_tags_by_name (ref end_iter, normal_chunk, -1, category);
+                    }
+
+                    // 2. Извлекаем чистые данные из групп захвата регулярки
+                    string file_path = match_info.fetch (1);
+                    string line_num_str = match_info.fetch (2);
+                    string full_match_text = match_info.fetch (0);
+
+                    // 3. Вставляем саму ссылку!
+                    this.buffer.get_end_iter (out end_iter);
+                    
+                    // Запоминаем текущую позицию старта ссылки в буфере
+                    Gtk.TextMark start_mark = this.buffer.create_mark (null, end_iter, true);
+                    
+                    // Вставляем текст ссылки
+                    this.buffer.insert_with_tags_by_name (ref end_iter, full_match_text, -1, "link");
+                    
+                    // Запоминаем позицию конца ссылки
+                    //  Gtk.TextMark end_mark = this.buffer.create_mark (null, end_iter, true);
+
+                    // Привязываем к созданному участку текста скрытые метаданные пути файловой системы ОС
+                    var link_data = new TargetLinkPayload (file_path, int.parse (line_num_str));
+                    start_mark.set_data ("payload", link_data);
+
+                    last_pos = end_pos;
+                    match_info.next ();
+                }
+            }
+
+            // Вставляем оставшийся хвост строки текста
+            if (last_pos < text.length) {
+                string trailing_chunk = text.substring (last_pos);
+                this.buffer.get_end_iter (out end_iter);
+                this.buffer.insert_with_tags_by_name (ref end_iter, trailing_chunk, -1, category);
+            }
+
+        } catch (GLib.Error e) {
+            // Если регулярка сбоит — пишем в безопасный фоллбэк
+            this.buffer.get_end_iter (out end_iter);
+            this.buffer.insert_with_tags_by_name (ref end_iter, text, -1, category);
+        }
+
+        this.scroll_to_bottom ();
+    }
+
+    private void scroll_to_bottom () {
         var adj = this.scroll_window.get_vadjustment ();
-        adj.set_value (adj.get_upper() - adj.get_page_size());
+        adj.set_value (adj.get_upper () - adj.get_page_size ());
     }
 
     /**
@@ -128,5 +227,102 @@ public class Iide.DapConsoleWidget : Gtk.Box {
                 });
             }
         });
+    }
+
+    private void on_mouse_moved_over_console (double x, double y) {
+        // 1. Переводим пиксельные координаты виджета в координаты разметки TextIter буфера GTK
+        int buffer_x, buffer_y;
+        this.output_view.window_to_buffer_coords (
+            Gtk.TextWindowType.TEXT,
+            (int) x,
+            (int) y,
+            out buffer_x,
+            out buffer_y
+        );
+
+        Gtk.TextIter iter;
+        this.output_view.get_iter_at_location (out iter, buffer_x, buffer_y);
+
+        // ===================================================================
+        // СОВРЕМЕННЫЙ GTK4 КАНOН ПРОВЕРКИ МОДИФИКАТOРОВ КЛАВИАТУРЫ
+        // Мы достаем битовую маску зажатых клавиш прямо из нашего контроллера!
+        // ===================================================================
+        Gdk.ModifierType modifiers = this.motion_controller.get_current_event_state ();
+        bool ctrl_pressed = (modifiers & Gdk.ModifierType.CONTROL_MASK) != 0;
+
+        // Проверяем, висит ли на этой букве тег "link"
+        bool is_over_link = iter.has_tag (this.buffer.get_tag_table ().lookup ("link"));
+
+        // Если мы над ссылкой И зажат Ctrl — включаем иконку кликабельной руки!
+        if (is_over_link && ctrl_pressed) {
+            this.output_view.set_cursor_from_name ("pointer");
+        } else {
+            this.output_view.set_cursor_from_name ("text");
+        }
+    }
+
+    private void on_console_clicked (int n_press, double x, double y) {
+        // Извлекаем модификаторы клавиш из текущего системного события GTK4
+        var current_event = this.click_gesture.get_current_event ();
+        if (current_event == null) return;
+
+        Gdk.ModifierType modifiers = current_event.get_modifier_state ();
+        bool ctrl_pressed = (modifiers & Gdk.ModifierType.CONTROL_MASK) != 0;
+
+        // Если Ctrl не зажат — это обычный клик пользователя для выделения текста, выходим
+        if (!ctrl_pressed) return;
+
+        int buffer_x, buffer_y;
+        this.output_view.window_to_buffer_coords (
+            Gtk.TextWindowType.TEXT, 
+            (int) x, 
+            (int) y, 
+            out buffer_x, 
+            out buffer_y
+        );
+
+        Gtk.TextIter iter;
+        this.output_view.get_iter_at_location (out iter, buffer_x, buffer_y);
+
+        var link_tag = this.buffer.get_tag_table ().lookup ("link");
+        if (iter.has_tag (link_tag)) {
+            // Вытаскиваем список всех маркеров на этой позиции, чтобы найти наш payload
+            Gtk.TextIter start_search = iter;
+            start_search.backward_to_tag_toggle (link_tag);
+            
+            // Ищем маркер, в который мы бережно сохранили данные пути в методе append_output
+            Gtk.TextMark? found_mark = null;
+            Gtk.TextIter search_iter = start_search;
+            
+            while (search_iter.compare (iter) <= 0) {
+                var marks = search_iter.get_marks ();
+                foreach (var m in marks) {
+                    if (m.get_data<TargetLinkPayload> ("payload") != null) {
+                        found_mark = m;
+                        break;
+                    }
+                }
+                if (found_mark != null) break;
+                if (!search_iter.forward_char ()) break;
+            }
+
+            if (found_mark != null) {
+                var payload = found_mark.get_data<TargetLinkPayload> ("payload");
+                if (payload != null) {
+                    // Конвертируем системный путь Linux в канонический URI для нашей IDE
+                    var file_obj = GLib.File.new_for_path (payload.file_path);
+                    string file_uri = file_obj.get_uri ();
+
+                    LoggerService.get_instance ().info ("DAP-UI", @"[Ctrl+Click] Navigating to $file_uri line $(payload.line)");
+
+                    // МГНОВЕННЫЙ ПРЫЖОК: Командуем UI открыть файл и подсветить строку!
+                    // Так как в Python трейсбеках строки 1-based, переводим в 0-indexed для GTK (делаем -1)
+                    Idle.add (() => {
+                        DocumentManager.get_instance ().open_document_with_selection (file_obj, payload.line - 1, 0, 0, null);
+                        return Source.REMOVE;
+                    });
+                }
+            }
+        }
     }
 }
