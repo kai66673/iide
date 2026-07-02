@@ -43,6 +43,8 @@ iide_sources = [
     'Widgets/Panels/LSP/LspMonitorPanel.vala',
     'Widgets/Bookmarks/BookMarksView.vala',
     'Widgets/DapToolbar.vala',
+    'Widgets/Panels/DapConsole/DapConsoleWidget.vala',
+    'Widgets/Panels/DapConsole/DapConsolePanel.vala',
     'Services/Utils.vala',
     'Services/JsonUtils.vala',
     'Services/StyleManager.vala',

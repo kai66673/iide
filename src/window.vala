@@ -131,7 +131,7 @@ public class Iide.Window : Panel.DocumentWorkspace {
         };
 
         dap_service.active_line_changed.connect (document_manager.highlight_debugger_active_line);
-        dap_service.session_state_changed.connect ((state) => {
+        dap_service.session_state_changed.connect ((state, old_state) => {
             if (state == DapSessionState.EMPTY) {
                 document_manager.clear_all_debugger_highlights ();
             }
@@ -397,6 +397,7 @@ public class Iide.Window : Panel.DocumentWorkspace {
             new BookmarksPanel (this),
             panel_widget_diagnostics,
             new LspMonitorPanel (this),
+            new DapConsolePanel (this),
         };
     }
 

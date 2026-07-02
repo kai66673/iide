@@ -28,6 +28,8 @@ public class Iide.DapClient : GLib.Object {
     public signal void thread_event (string reason, int thread_id);
     public signal void terminated ();
     public signal void adapter_ready_for_configuration ();
+    public signal void output_received (string category, string text);
+
 
     public DapClient (Iide.DapConfig config) {
         Object ();
@@ -269,6 +271,19 @@ public class Iide.DapClient : GLib.Object {
                     return Source.REMOVE;
                 });
                 break;
+
+            case "output":
+            if (body != null && body.has_member ("output")) {
+                string category = body.has_member ("category") ? body.get_string_member ("category") : "console";
+                string output_text = body.get_string_member ("output");
+                
+                // Пересылаем в UI-поток
+                Idle.add (() => {
+                    this.output_received (category, output_text);
+                    return Source.REMOVE;
+                });
+            }
+            break;
             
             // Самое главное событие DAP: Отладчик наткнулся на точку останова!
             case "stopped":
@@ -440,5 +455,38 @@ public class Iide.DapClient : GLib.Object {
             return true;
         }
         return false;
+    }
+
+    /**
+     * RPC-ЗАПРОС ВЫЧИСЛEНИЯ ВЫРАЖEНИЯ (DAP evaluate)
+     * Вычисляет строку кода Python в текущем контексте кадра стека
+     */
+    public async string? request_evaluate (string expression, int frame_id) throws GLib.Error {
+        if (this.transport == null || this.status == DapClientStatus.STOPPED) return null;
+
+        var arguments = new Json.Object ();
+        arguments.set_string_member ("expression", expression);
+        arguments.set_string_member ("context", "repl"); // Указываем контекст интерактивной консоли
+
+        // Если отладчик стоит на паузе, передаем ему ID текущего кадра стека,
+        // чтобы он мог прочитать локальные переменные этой функции!
+        if (frame_id != -1) {
+            arguments.set_int_member ("frameId", frame_id);
+        }
+
+        this.logger.info ("DAP", @"Sending 'evaluate' request: $expression");
+        var reply = yield this.send_request ("evaluate", arguments);
+
+        if (reply != null && reply.has_member ("success") && reply.get_boolean_member ("success")) {
+            var body = reply.get_object_member ("body");
+            if (body != null && body.has_member ("result")) {
+                // Возвращает строковое строковое представление вычисленного объекта (например, "42" или "[1, 2]")
+                return body.get_string_member ("result");
+            }
+        } else if (reply != null && reply.has_member ("message")) {
+            // Если Python выдал SyntaxError или NameError — возвращаем текст ошибки
+            return "Error: " + reply.get_string_member ("message");
+        }
+        return "No result";
     }
 }

@@ -450,6 +450,9 @@
         },
         "dap-step-out": {
             "char": "0xead5"
+        },
+        "dap-console": {
+            "char": "0xeb9b"
         }
     }
 }

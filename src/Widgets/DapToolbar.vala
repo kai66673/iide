@@ -79,7 +79,7 @@ public class Iide.DapToolbar : Gtk.Box {
         dap_service.session_state_changed.connect (this.sync_ui_with_state);
 
         // Первичная инициализация интерфейса в состояние "Покой"
-        this.sync_ui_with_state (dap_service.session_state);
+        this.sync_ui_with_state (dap_service.session_state, DapSessionState.EMPTY);
         this.refresh_target_list_on_idle ();
     }
 
@@ -169,7 +169,7 @@ public class Iide.DapToolbar : Gtk.Box {
     /**
         * РEАКТИВHАЯ СИHХРОHИЗАЦИЯ ДОСТУПHОСТИ КHОПОК С АВТОМАТОМ СEССИИ
         */
-    private void sync_ui_with_state (DapSessionState state) {
+    private void sync_ui_with_state (DapSessionState state, DapSessionState old_state) {
         switch (state) {
             case DapSessionState.EMPTY:
                 // СОСТОЯНИЕ: ПОКОЙ

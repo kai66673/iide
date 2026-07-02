@@ -20,6 +20,10 @@ public class Iide.DapService : GLib.Object {
     // Поле для хранения ID потока, на котором сейчас стоит пауза
     private int last_stopped_thread_id = 0;
 
+    // Храним ID текущего кадра стека на паузе (нужен для evaluate)
+    public int current_frame_id { get; private set; default = -1; }
+
+
     // ===================================================================
     // УПРАВЛЕНИЕ ЖИЗНЕННЫМ ЦИКЛОМ ТЕКУЩЕЙ СЕССИИ
     // ===================================================================
@@ -31,10 +35,11 @@ public class Iide.DapService : GLib.Object {
         get { return this._session_state; }
         set {
             if (this._session_state != value) {
+                var old_state = this._session_state;
                 this._session_state = value;
                 // Извещаем UI-слой (кнопки панели, gutter, вкладки) о смене фазы отладки!
                 Idle.add_full (Priority.DEFAULT, () => {
-                    this.session_state_changed (value);
+                    this.session_state_changed (value, old_state);
                     return Source.REMOVE; // Выполнить строго один раз
                 });
             }
@@ -43,8 +48,10 @@ public class Iide.DapService : GLib.Object {
 
     // Сигналы вещания состояний для графического слоя IDE
     public signal void configurations_loaded ();
-    public signal void session_state_changed (DapSessionState new_state);
+    public signal void session_state_changed (DapSessionState new_state, DapSessionState old_state);
     public signal void active_line_changed (string uri, int line_number); // Для подсветки строки останова
+    public signal void console_output_append (string category, string text);
+
 
     public static DapService get_instance () {
         return _instance;
@@ -244,6 +251,11 @@ public class Iide.DapService : GLib.Object {
             this.locate_and_broadcast_active_line_async.begin (thread_id);
         });
 
+        dap_client.output_received.connect ((category, text) => {
+            // Пробрасываем сигнал вывода в UI-панель консоли
+            this.console_output_append (category, text);
+        });
+
         dap_client.terminated.connect (() => {
             // Отладчик завершил работу — полностью сбрасываем автомат
             this.cleanup_session_context ();
@@ -304,7 +316,8 @@ public class Iide.DapService : GLib.Object {
             if (stack_frames != null && stack_frames.get_length () > 0) {
                 // Извлекаем самый верхний (активный) кадр стека [INDEX]
                 var top_frame = stack_frames.get_object_element (0);
-                
+                this.current_frame_id = (int) top_frame.get_int_member ("id"); // <-- ЗАПОМИНАЕМ ID КАДРА!
+
                 // В DAP строки возвращаются 1-based [INDEX]!
                 int dap_line = (int) top_frame.get_int_member ("line");
                 

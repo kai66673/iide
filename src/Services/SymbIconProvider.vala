@@ -74,7 +74,8 @@ public enum Iide.IconID {
     DAP_CONTINUE = 66,
     DAP_STEP_OVER = 67,
     DAP_STEP_INTO = 68,
-    DAP_STEP_OUT = 69;
+    DAP_STEP_OUT = 69,
+    DAP_CONSOLE = 70;
 }
 
 public class Iide.SymbIconProvider {
@@ -161,6 +162,7 @@ public class Iide.SymbIconProvider {
             { "dap-step-over", "" },
             { "dap-step-into", "" },
             { "dap-step-out", "" },
+            { "dap-console", "" },
         };
     }
     public Gtk.Image image (IconID icon_id, bool colorize = true, int? pixel_size = null) {
