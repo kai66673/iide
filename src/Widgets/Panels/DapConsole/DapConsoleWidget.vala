@@ -106,77 +106,92 @@ public class Iide.DapConsoleWidget : Gtk.Box {
     }
 
     /**
-        * УМНЫЙ АВТОМАТИЧЕСКИЙ ПУШ С ПОИСКОМ ФАЙЛОВЫХ ССЫЛОК
-        */
+     * УМНЫЙ АВТОМАТИЧЕСКИЙ ПУШ С ПОИСКОМ ФАЙЛОВЫХ ССЫЛОК
+     */
     public void append_output (string category, string text) {
         Gtk.TextIter end_iter;
         this.buffer.get_end_iter (out end_iter);
 
-        // Если это не системный вывод программы, просто пишем как обычно
         if (category != "stdout" && category != "stderr") {
             this.buffer.insert_with_tags_by_name (ref end_iter, text, -1, category);
             this.scroll_to_bottom ();
             return;
         }
 
-        try {
-            // Регулярное выражение для поиска путей Python Трейсбеков:
-            // Ищет паттерны вида: File "/home/kai/app.py", line 12
-            var regex = new GLib.Regex ("File \"([^\"]+)\", line (\\d+)");
-            GLib.MatchInfo match_info;
+        // 1. Собираем массив паттернов из активного адаптера
+        var dap_service = DapService.get_instance ();
+        string[] active_patterns = {};
 
-            int last_pos = 0;
+        if (dap_service.current_client != null) {
+            var config = dap_service.current_client.get_config ();
+            if (config.output_link_regex_patterns.length > 0) {
+                active_patterns = config.output_link_regex_patterns;
+            }
+        }
 
-            // Пошагово ищем все совпадения в прилетевшем куске текста
-            if (regex.match (text, 0, out match_info)) {
-                while (match_info.matches ()) {
-                    int start_pos, end_pos;
-                    match_info.fetch_pos (0, out start_pos, out end_pos);
+        // 2. Компилируем Си-объекты GLib.Regex
+        var active_regexes = new Gee.ArrayList<GLib.Regex> ();
+        foreach (var pattern in active_patterns) {
+            try {
+                active_regexes.add (new GLib.Regex (pattern));
+            } catch (GLib.Error e) {
+                LoggerService.get_instance ().error ("DAP-UI", "Invalid regex pattern in manifest: " + pattern);
+            }
+        }
 
-                    // 1. Вставляем обычный текст ДО ссылки
-                    if (start_pos > last_pos) {
-                        string normal_chunk = text.substring (last_pos, start_pos - last_pos);
-                        this.buffer.get_end_iter (out end_iter);
-                        this.buffer.insert_with_tags_by_name (ref end_iter, normal_chunk, -1, category);
+        // 3. ПОСЛЕДОВАТЕЛЬНЫЙ ДЕКЛАРАТИВНЫЙ ПОИСК ССЫЛОК ПО ВСЕМ РЕГУЛЯРКАМ
+        // Чтобы регулярки не конфликтовали внутри одной строки, мы ищем совпадения по очереди.
+        int last_pos = 0;
+        
+        // Карта для предотвращения наложения тегов: [старт_индекс] -> [TargetLinkPayload]
+        var found_matches = new Gee.HashMap<int, TargetLinkPayload> ();
+        var match_lengths = new Gee.HashMap<int, int> ();
+
+        foreach (var regex in active_regexes) {
+            try {
+                GLib.MatchInfo match_info;
+                if (regex.match (text, 0, out match_info)) {
+                    while (match_info.matches ()) {
+                        int start_pos, end_pos;
+                        match_info.fetch_pos (0, out start_pos, out end_pos);
+
+                        // Проверяем контракт: Группа 1 — путь, Группа 2 — строка
+                        string? file_path = match_info.fetch (1);
+                        string? line_num_str = match_info.fetch (2);
+
+                        if (file_path != null && file_path != "" && line_num_str != null && line_num_str != "") {
+                            // Сохраняем совпадение в промежуточную мапу
+                            var payload = new TargetLinkPayload (file_path, int.parse (line_num_str));
+                            found_matches.set (start_pos, payload);
+                            match_lengths.set (start_pos, end_pos - start_pos);
+                        }
+                        match_info.next ();
                     }
-
-                    // 2. Извлекаем чистые данные из групп захвата регулярки
-                    string file_path = match_info.fetch (1);
-                    string line_num_str = match_info.fetch (2);
-                    string full_match_text = match_info.fetch (0);
-
-                    // 3. Вставляем саму ссылку!
-                    this.buffer.get_end_iter (out end_iter);
-                    
-                    // Запоминаем текущую позицию старта ссылки в буфере
-                    Gtk.TextMark start_mark = this.buffer.create_mark (null, end_iter, true);
-                    
-                    // Вставляем текст ссылки
-                    this.buffer.insert_with_tags_by_name (ref end_iter, full_match_text, -1, "link");
-                    
-                    // Запоминаем позицию конца ссылки
-                    //  Gtk.TextMark end_mark = this.buffer.create_mark (null, end_iter, true);
-
-                    // Привязываем к созданному участку текста скрытые метаданные пути файловой системы ОС
-                    var link_data = new TargetLinkPayload (file_path, int.parse (line_num_str));
-                    start_mark.set_data ("payload", link_data);
-
-                    last_pos = end_pos;
-                    match_info.next ();
                 }
-            }
+            } catch (GLib.RegexError err) {}
+        }
 
-            // Вставляем оставшийся хвост строки текста
-            if (last_pos < text.length) {
-                string trailing_chunk = text.substring (last_pos);
+        // 4. ФИЗИЧЕСКИЙ РЕНДЕРИНГ ИЗ МЕЖДУТOЧНOЙ МАПЫ
+        // Перебираем индексы строки от 0 до конца
+        while (last_pos < text.length) {
+            if (found_matches.has_key (last_pos)) {
+                var payload = found_matches.get (last_pos);
+                int len = match_lengths.get (last_pos);
+                string full_match_text = text.substring (last_pos, len);
+
+                // Вставляем ссылку!
                 this.buffer.get_end_iter (out end_iter);
-                this.buffer.insert_with_tags_by_name (ref end_iter, trailing_chunk, -1, category);
+                Gtk.TextMark start_mark = this.buffer.create_mark (null, end_iter, true);
+                this.buffer.insert_with_tags_by_name (ref end_iter, full_match_text, -1, "link");
+                
+                start_mark.set_data<TargetLinkPayload> ("payload", payload);
+                last_pos += len;
+            } else {
+                // Печатаем посимвольно или до следующего совпадения
+                this.buffer.get_end_iter (out end_iter);
+                this.buffer.insert_with_tags_by_name (ref end_iter, text.substring (last_pos, 1), -1, category);
+                last_pos++;
             }
-
-        } catch (GLib.Error e) {
-            // Если регулярка сбоит — пишем в безопасный фоллбэк
-            this.buffer.get_end_iter (out end_iter);
-            this.buffer.insert_with_tags_by_name (ref end_iter, text, -1, category);
         }
 
         this.scroll_to_bottom ();

@@ -415,6 +415,10 @@ public class Iide.DapService : GLib.Object {
         py_cmd.add_string_element ("debugpy.adapter");
         py_obj.set_array_member ("command", py_cmd);
         py_obj.set_string_member ("transport", "stdio");
+        var array = new Json.Array ();
+        array.add_string_element ("File \"([^\"]+)\", line (\\d+)");
+        array.add_string_element ("([^\\s:]+):(\\d+):");
+        py_obj.set_array_member ("outputLinkRegex", array);
         this.adapters.set ("python-local", new DapConfig ("python-local", py_obj));
 
         var lldb_obj = new Json.Object ();

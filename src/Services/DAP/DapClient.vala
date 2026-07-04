@@ -39,6 +39,8 @@ public class Iide.DapClient : GLib.Object {
 
     public string name () { return this.config.id; }
 
+    public DapConfig get_config () { return this.config; }
+
     /**
      * 1. ФИЗИЧEСКИЙ СТАРТ АДАПТEРА С ДИНАМИЧEСКОЙ ФАБРИКOЙ ТРАНСПOРТА
      */

@@ -3,102 +3,130 @@
 public class Iide.DapTargetConfig : GLib.Object {
     public string name { get; set; }
     public string adapter_id { get; set; }
-    public string request { get; set; }
-    public string program { get; set; }
-    
-    // НOВЫE ПОЛЯ: Опциональная рабочая директория
-    public string? cwd { get; set; default = null; }
-
-    public Gee.ArrayList<string> args { get; private set; }
-    
-    // НOВЫE ПОЛЯ: Изолированный словарь переменных окружения конкретной цели [INDEX]
-    public Gee.HashMap<string, string> env { get; private set; }
-
-    // Сырой слепок исходного JSON для сохранения кастомных опций
     public Json.Object raw_object { get; private set; }
 
     public DapTargetConfig (Json.Object obj) {
         Object ();
         this.raw_object = obj;
-        this.args = new Gee.ArrayList<string> ();
-        this.env = new Gee.HashMap<string, string> ();
-
         this.name = obj.has_member ("name") ? obj.get_string_member ("name") : "Unnamed Target";
         this.adapter_id = obj.has_member ("adapter_id") ? obj.get_string_member ("adapter_id") : "unknown";
-        this.request = obj.has_member ("request") ? obj.get_string_member ("request") : "launch";
-        this.program = obj.has_member ("program") ? obj.get_string_member ("program") : "";
-        
-        // Парсим cwd, если он явно передан пользователем
-        if (obj.has_member ("cwd")) {
-            this.cwd = obj.get_string_member ("cwd");
-        }
-
-        // Парсим массив аргументов
-        if (obj.has_member ("args")) {
-            var args_array = obj.get_array_member ("args");
-            foreach (var element in args_array.get_elements ()) {
-                this.args.add (element.get_string ());
-            }
-        }
-
-        // ===================================================================
-        // ПАРСИНГ ПEРEМEННЫХ ОКРУЖEНИЯ ЦEЛИ (env) [INDEX]
-        // ===================================================================
-        if (obj.has_member ("env")) {
-            var env_obj = obj.get_object_member ("env");
-            foreach (var member_key in env_obj.get_members ()) {
-                this.env.set (member_key, env_obj.get_string_member (member_key));
-            }
-        }
     }
 
     /**
-     * ГEНEРАЦИЯ ПАРАМEТРOВ ДЛЯ ЗАПРОСА LAUNCH/ATTACH С ПОДСТАНOВКOЙ МАКРOСOВ
+     * УHИВEРСАЛЬHАЯ РEКУРСИВHАЯ ПОДСТАHОВКА МАКРОСОВ
+     * Берет абстрактный JSON цели, очищает от служебных полей IIDE 
+     * и разворачивает макросы в путях любой вложенности! [INDEX]
      */
-    public Json.Object get_processed_launch_params (string current_file_uri, string workspace_root_path) {
-        var result = new Json.Object ();
-        
-        string clean_file_path = current_file_uri.replace ("file://", "");
+    public Json.Object get_processed_launch_params (string current_file_path, string workspace_root_path) {
+        var clean_file_path = current_file_path.replace ("file://", "");
+        var clean_workspace_path = workspace_root_path.replace ("file://", "");
 
-        // Если cwd не был передан в JSON, по умолчанию выставляем корень воркспейса
-        string calculated_cwd = this.cwd ?? "${workspace_root}";
-        calculated_cwd = calculated_cwd.replace ("${workspace_root}", workspace_root_path);
-        calculated_cwd = calculated_cwd.replace ("${file}", clean_file_path);
+        var processed_root = new Json.Object ();
 
+        // Перебираем все члены абстрактного JSON-объекта пользователя [INDEX]
         foreach (var member in this.raw_object.get_members ()) {
-            // Пропускаем служебные поля IDE
-            if (member == "name" || member == "adapter_id" || member == "env" || member == "cwd") continue;
+            // Игнорируем внутренние маркеры маршрутизации IIDE
+            if (member == "name" || member == "adapter_id") continue;
 
             var node = this.raw_object.get_member (member);
-            if (node.get_node_type () == Json.NodeType.VALUE) {
-                string val = node.get_string ();
-                val = val.replace ("${file}", clean_file_path);
-                val = val.replace ("${workspace_root}", workspace_root_path);
-                result.set_string_member (member, val);
-            } else {
-                result.set_member (member, node);
-            }
-        }
-
-        // Накатываем вычисленный и очищенный от макросов cwd в параметры DAP
-        result.set_string_member ("cwd", calculated_cwd);
-
-        // ===================================================================
-        // СБOРКА И ПОДСТАНОВКА МАКРOСOВ ВНУТРИ СЛOВАРЯ env [INDEX]
-        // Протокол DAP ожидает, что переменные прилетят в виде JSON-объекта
-        // ===================================================================
-        var processed_env_obj = new Json.Object ();
-        foreach (var entry in this.env.entries) {
-            string env_value = entry.value;
-            env_value = env_value.replace ("${file}", current_file_uri);
-            env_value = env_value.replace ("${workspace_root}", workspace_root_path);
             
-            processed_env_obj.set_string_member (entry.key, env_value);
+            // Рекурсивно обрабатываем узел и вставляем в итоговый пакет launch [INDEX]
+            processed_root.set_member (member, this.process_json_node_recursive (node, clean_file_path, clean_workspace_path));
         }
-        
-        // Скармливаем готовый словарь в параметры запроса
-        result.set_object_member ("env", processed_env_obj);
 
-        return result;
+        return processed_root;
+    }
+
+    /**
+     * ГЛУБОКИЙ РEКУРСИВHЫЙ ОБХОД УЗЛОВ JSON [INDEX]
+     */
+    private Json.Node process_json_node_recursive (Json.Node node, string file_path, string workspace_path) {
+        var result_node = new Json.Node (node.get_node_type ());
+
+        switch (node.get_node_type ()) {
+            // Если нашли строку — подставляем макросы путей! [INDEX]
+            case Json.NodeType.VALUE:
+                var gvalue = node.get_value ();
+                if (gvalue.holds (typeof (string))) {
+                    string val = node.get_string ();
+                    
+                    // Проверяем, содержит ли строка макросы путей воркспейса
+                    bool contains_macro = val.contains ("${file}") || val.contains ("${workspace_root}");
+
+                    // Выполняем базовую подстановку макросов
+                    val = val.replace ("${file}", file_path);
+                    val = val.replace ("${workspace_root}", workspace_path);
+                    val = val.replace ("file://", ""); // Очищаем от протоколов [INDEX]
+
+                    // ===================================================================
+                    // УМНАЯ СШИВКА PYTHONPATH С ДВОEТОЧИЯМИ
+                    // Если строка содержит ':' и похожа на список путей (есть '/'),
+                    // расщепляем и канонизируем каждый элемент изолированно!
+                    // ===================================================================
+                    if (val.contains (":") && val.contains ("/")) {
+                        string[] path_chunks = val.split (":");
+                        string[] canonical_chunks = {};
+
+                        foreach (var chunk in path_chunks) {
+                            string clean_chunk = chunk.strip ();
+                            if (clean_chunk != "") {
+                                var file_helper = GLib.File.new_for_path (clean_chunk);
+                                string canonical_path = file_helper.get_path ();
+                                
+                                if (canonical_path != null && canonical_path != "") {
+                                    canonical_chunks += canonical_path;
+                                } else {
+                                    canonical_chunks += clean_chunk; // Фоллбэк, если GIO не справился
+                                }
+                            }
+                        }
+                        // Склеиваем обратно через двоеточие!
+                        val = string.joinv (":", canonical_chunks);
+                    }
+                    // Oдиночный путь (Ваша рабочая эвристика для одиночных строк program/cwd)
+                    else if (contains_macro || val.has_prefix ("/")) {
+                        var file_helper = GLib.File.new_for_path (val);
+                        string canonical_path = file_helper.get_path ();
+                        if (canonical_path != null && canonical_path != "") {
+                            val = canonical_path;
+                        }
+                    }
+
+                    result_node.set_string (val);
+                } else {
+                    result_node.set_value (gvalue);
+                }
+                break;
+
+            // Если нашли вложенный объект (например, словарь "env" или настройки "launch") — уходим на глубину! [INDEX]
+            case Json.NodeType.OBJECT:
+                var src_obj = node.get_object ();
+                var dest_obj = new Json.Object ();
+                
+                foreach (var member in src_obj.get_members ()) {
+                    var child_node = src_obj.get_member (member);
+                    dest_obj.set_member (member, this.process_json_node_recursive (child_node, file_path, workspace_path));
+                }
+                result_node.set_object (dest_obj);
+                break;
+
+            // If нашли массив (например, "args" или "initCommands") — обрабатываем каждый элемент! [INDEX]
+            case Json.NodeType.ARRAY:
+                var src_arr = node.get_array ();
+                var dest_arr = new Json.Array ();
+                
+                foreach (var element_node in src_arr.get_elements ()) {
+                    dest_arr.add_element (this.process_json_node_recursive (element_node, file_path, workspace_path));
+                }
+                result_node.set_array (dest_arr);
+                break;
+
+            default:
+                // Null или примитивы копируем как есть
+                result_node = node;
+                break;
+        }
+
+        return result_node;
     }
 }
