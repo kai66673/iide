@@ -9,7 +9,10 @@ project(
     ],
 )
 
-add_project_arguments('-DGETTEXT_PACKAGE="' + meson.project_name() + '"', language: 'c')
+add_project_arguments(
+    '-DGETTEXT_PACKAGE="' + meson.project_name() + '"',
+    language: 'c'
+)
 
 tree_sitter_sources = [
     'vendor/tree-sitter/lib/src/lib.c',

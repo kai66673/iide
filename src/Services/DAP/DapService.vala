@@ -26,6 +26,8 @@ public class Iide.DapService : GLib.Object {
     // Защитный затвор от бесконечного зацикливания сигналов
     private bool is_syncing_breakpoints = false;
 
+    // Актуальный кэш локальных переменных текущей точки останова
+    private Gee.ArrayList<DapVariable> local_variables = new Gee.ArrayList<DapVariable> ();
 
     // ===================================================================
     // УПРАВЛЕНИЕ ЖИЗНЕННЫМ ЦИКЛОМ ТЕКУЩЕЙ СЕССИИ
@@ -54,6 +56,8 @@ public class Iide.DapService : GLib.Object {
     public signal void session_state_changed (DapSessionState new_state, DapSessionState old_state);
     public signal void active_line_changed (string uri, int line_number); // Для подсветки строки останова
     public signal void console_output_append (string category, string text);
+    // Сигнал для UI-панели переменных
+    public signal void variables_updated (Gee.ArrayList<DapVariable> variables);
 
 
     public static DapService get_instance () {
@@ -74,6 +78,8 @@ public class Iide.DapService : GLib.Object {
         ProjectManager.get_instance ().project_opened.connect (this.load_project_launch_targets);
         ProjectManager.get_instance ().project_closed.connect (this.clear_project_targets);
     }
+
+    public Gee.ArrayList<DapVariable> get_local_variables () { return this.local_variables; }
 
     public Gee.ArrayList<DapTargetConfig> get_targets () { return this.targets; }
     
@@ -339,6 +345,9 @@ public class Iide.DapService : GLib.Object {
                     // Меняем состояние сессии — это разблокирует кнопки тулбара через Idle.add
                     this.session_state = DapSessionState.BREAKPOINT;
 
+                    // Мягко пинаем фоновое выкачивание переменных в режиме fire-and-forget
+                    this.fetch_variables_for_current_frame_async.begin ();
+
                     // Выстреливаем сигналом точных координат в UI поток!
                     // Переводим dap_line в 0-indexed для GTK редактора (делаем -1)
                     Idle.add (() => {
@@ -408,6 +417,7 @@ public class Iide.DapService : GLib.Object {
      */
     private void cleanup_session_context () {
         this.disconnect_breakpoints_live_sync_bridge ();
+        this.local_variables.clear ();
         this.current_client = null;
         this.session_state = DapSessionState.EMPTY;
         this.logger.info ("DAP", "Debug session context cleared cleanly.");
@@ -524,5 +534,109 @@ public class Iide.DapService : GLib.Object {
     private void disconnect_breakpoints_live_sync_bridge () {
         this.window.bookmark_service.uri_marks_changed.disconnect (this.on_ui_breakpoint_toggled_live);
         this.is_syncing_breakpoints = false;
+    }
+
+    /**
+     * АСИНХРOHHЫЙ КАСКАД ВЫКАЧИВАНИЯ ПEРEМEHHЫХ ИЗ ПАМЯТИ
+     * Вызывается внутри locate_and_broadcast_active_line_async СТРОГО ПОСЛЕ 
+     * того, как мы успешно сохранили `this.current_frame_id = (int) top_frame.get_int_member ("id");`!
+     */
+    public async void fetch_variables_for_current_frame_async () {
+        if (this.current_client == null || this.current_frame_id == -1) return;
+
+        this.local_variables.clear ();
+
+        try {
+            // 1. Шаг А: Запрашиваем Scopes для текущего кадра стека
+            var scopes_array = yield this.current_client.request_scopes (this.current_frame_id);
+            if (scopes_array == null || scopes_array.get_length () == 0) return;
+
+            int locals_reference = -1;
+
+            // Перебираем области видимости, чтобы найти контейнер "Locals" (Локальные переменные)
+            for (int i = 0; i < scopes_array.get_length (); i++) {
+                var scope_obj = scopes_array.get_object_element (i);
+                string scope_name = scope_obj.get_string_member ("name");
+
+                // Нам интересны в первую очередь локальные переменные функции
+                if (scope_name == "Locals" || scope_name == "Local") {
+                    locals_reference = (int) scope_obj.get_int_member ("variablesReference");
+                    break;
+                }
+            }
+
+            // Если Locals не найден, возьмем первую попавшуюся область видимости в качестве фоллбэка
+            if (locals_reference == -1) {
+                var first_scope = scopes_array.get_object_element (0);
+                locals_reference = (int) first_scope.get_int_member ("variablesReference");
+            }
+
+            // 2. Шаг Б: Запрашиваем сами переменные по полученной ссылке!
+            if (locals_reference > 0) {
+                var vars_array = yield this.current_client.request_variables (locals_reference);
+                
+                if (vars_array != null) {
+                    for (int i = 0; i < vars_array.get_length (); i++) {
+                        var var_obj = vars_array.get_object_element (i);
+                        
+                        string name = var_obj.get_string_member ("name");
+                        string val = var_obj.get_string_member ("value");
+                        string type = var_obj.has_member ("type") ? var_obj.get_string_member ("type") : "unknown";
+                        int reference = (int) var_obj.get_int_member ("variablesReference");
+
+                        // Заворачиваем в нашу модель и складываем в кэш сервиса
+                        var variable_item = new DapVariable (name, val, type, reference);
+                        this.local_variables.add (variable_item);
+                    }
+                }
+            }
+
+            this.logger.info ("DAP", @"Successfully fetched $(this.local_variables.size) local variables from frame context.");
+
+            // 3. Выстреливаем сигналом в UI-поток для обновления виджета!
+            Idle.add_full (Priority.DEFAULT, () => {
+                this.variables_updated (this.local_variables);
+                return Source.REMOVE;
+            });
+
+        } catch (GLib.Error e) {
+            this.logger.error ("DAP", "Failed to fetch variables cascade: " + e.message);
+        }
+    }
+    /**
+     * ЛEНИВАЯ ВЫКАЧКА ДОЧEРНИХ ПEРEМEHHЫХ ПО СEТИ (Бэкенд-контроллер)
+     */
+    public async bool fetch_variable_children_lazy_async (DapVariable parent) {
+        // Если объект нельзя раскрыть или данные уже у нас — выходим
+        if (!parent.is_expandable () || parent.children_fetched)
+            return true;
+        if (this.current_client == null)
+            return false;
+
+        try {
+            // Шлем запрос в сокет дебаггера
+            var vars_array = yield this.current_client.request_variables (parent.variables_reference);
+            
+            if (vars_array != null && parent.children != null) {
+                for (int i = 0; i < vars_array.get_length (); i++) {
+                    var var_obj = vars_array.get_object_element (i);
+                    
+                    string name = var_obj.get_string_member ("name");
+                    string val = var_obj.get_string_member ("value");
+                    string type = var_obj.has_member ("type") ? var_obj.get_string_member ("type") : "unknown";
+                    int reference = (int) var_obj.get_int_member ("variablesReference");
+
+                    // Рождаем дочерний чистый объект
+                    var child_var = new DapVariable (name, val, type, reference);
+                    parent.children.add (child_var);
+                }
+            }
+            
+            parent.children_fetched = true;
+            return true;
+        } catch (GLib.Error e) {
+            this.logger.error ("DAP", "Failed to fetch lazy sub-variables: " + e.message);
+            return false;
+        }
     }
 }

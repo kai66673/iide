@@ -5,7 +5,6 @@ public class Iide.DapConsolePanel : BasePanel {
         base (window, "Debug Console", SymbIconProvider.get_instance ().icon_name (IconID.DAP_CONSOLE));
         child = new DapConsoleWidget ();
         can_maximize = true;
-
     }
     
     public override Panel.Position initial_pos () {

@@ -491,4 +491,48 @@ public class Iide.DapClient : GLib.Object {
         }
         return "No result";
     }
+
+    /**
+     * RPC-ЗАПРОС ОБЛАСТEЙ ВИДИМОСТИ (DAP scopes)
+     * Возвращает список доступных лотков (Locals, Globals) для текущего кадра стека
+     */
+    public async Json.Array? request_scopes (int frame_id) throws GLib.Error {
+        if (this.transport == null || this.status == DapClientStatus.STOPPED) return null;
+
+        var arguments = new Json.Object ();
+        arguments.set_int_member ("frameId", frame_id);
+
+        this.logger.info ("DAP", @"Sending 'scopes' request for Frame $frame_id...");
+        var reply = yield this.send_request ("scopes", arguments);
+
+        if (reply != null && reply.has_member ("success") && reply.get_boolean_member ("success")) {
+            var body = reply.get_object_member ("body");
+            if (body != null && body.has_member ("scopes")) {
+                return body.get_array_member ("scopes");
+            }
+        }
+        return null;
+    }
+
+    /**
+     * RPC-ЗАПРОС СПИСКА ПEРEМEHHЫХ (DAP variables)
+     * Возвращает плоский массив переменных для конкретной области видимости или сложного объекта
+     */
+    public async Json.Array? request_variables (int variables_reference) throws GLib.Error {
+        if (this.transport == null || this.status == DapClientStatus.STOPPED) return null;
+
+        var arguments = new Json.Object ();
+        arguments.set_int_member ("variablesReference", variables_reference);
+
+        this.logger.debug ("DAP", @"Sending 'variables' request for Reference $variables_reference...");
+        var reply = yield this.send_request ("variables", arguments);
+
+        if (reply != null && reply.has_member ("success") && reply.get_boolean_member ("success")) {
+            var body = reply.get_object_member ("body");
+            if (body != null && body.has_member ("variables")) {
+                return body.get_array_member ("variables");
+            }
+        }
+        return null;
+    }
 }

@@ -453,6 +453,9 @@
         },
         "dap-console": {
             "char": "0xeb9b"
+        },
+        "dap-variables": {
+            "char": "0xf51e"
         }
     }
 }

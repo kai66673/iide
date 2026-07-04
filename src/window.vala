@@ -398,6 +398,7 @@ public class Iide.Window : Panel.DocumentWorkspace {
             panel_widget_diagnostics,
             new LspMonitorPanel (this),
             new DapConsolePanel (this),
+            new DapVariablesPanel (this),
         };
     }
 
