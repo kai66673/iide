@@ -18,6 +18,7 @@ public class Iide.TextLineMarkService : GLib.Object {
     private Gee.HashMap<string, Gee.ArrayList<TextLineMark?>> loaded_json_cache;
 
     public signal void project_marks_loaded(string category, Gee.HashMap<string, Gee.ArrayList<TextLineMark?>> marks);
+    public signal void uri_marks_changed (string uri, Gee.ArrayList<TextLineMark?> marks);
 
     public TextLineMarkService (string category, owned Iide.GutterRenderFunc render_func) {
         Object(category: category);
@@ -130,9 +131,11 @@ public class Iide.TextLineMarkService : GLib.Object {
                 file_marks.add (mark);
             }
             this.loaded_json_cache.set (file_uri, file_marks);
+            this.uri_marks_changed (file_uri, file_marks);
         } else {
             // Если пользователь снял все закладки — очищаем запись файла из кэша
             this.loaded_json_cache.unset (file_uri);
+            this.uri_marks_changed (file_uri, new Gee.ArrayList<Iide.TextLineMark?> ());
         }
     }
 

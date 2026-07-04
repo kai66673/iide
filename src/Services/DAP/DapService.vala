@@ -23,6 +23,9 @@ public class Iide.DapService : GLib.Object {
     // Храним ID текущего кадра стека на паузе (нужен для evaluate)
     public int current_frame_id { get; private set; default = -1; }
 
+    // Защитный затвор от бесконечного зацикливания сигналов
+    private bool is_syncing_breakpoints = false;
+
 
     // ===================================================================
     // УПРАВЛЕНИЕ ЖИЗНЕННЫМ ЦИКЛОМ ТЕКУЩЕЙ СЕССИИ
@@ -272,6 +275,8 @@ public class Iide.DapService : GLib.Object {
 
         this.current_client = dap_client;
 
+        this.init_breakpoints_live_sync_bridge ();
+
         try {
             yield dap_client.send_initialize_request ();
 
@@ -402,6 +407,7 @@ public class Iide.DapService : GLib.Object {
      * Полная стерилизация контекста сессии при завершении дебага
      */
     private void cleanup_session_context () {
+        this.disconnect_breakpoints_live_sync_bridge ();
         this.current_client = null;
         this.session_state = DapSessionState.EMPTY;
         this.logger.info ("DAP", "Debug session context cleared cleanly.");
@@ -442,5 +448,81 @@ public class Iide.DapService : GLib.Object {
     private void clear_project_targets () {
         this.targets.clear ();
         this.selected_target_index = 0;
+    }
+
+    /**
+     * ИНИЦИАЛИЗАЦИЯ ЖИВОГО МОСТА СИНХРОНИЗАЦИИ
+     * Вызывается внутри start_debug_session_async строго ПОСЛЕ initialize,
+     * но ДО первого flush_all_cached_breakpoints_to_server_async! [INDEX, INDEX]
+     */
+    private void init_breakpoints_live_sync_bridge () {
+        this.window.breakpoint_service.uri_marks_changed.connect (this.on_ui_breakpoint_toggled_live);
+    }
+
+    /**
+     * ОБРАБОТЧИК СИГНАЛА ИЗМEНEНИЯ МАРКEРОВ НА ПОЛЯХ
+     */
+    private void on_ui_breakpoint_toggled_live (string uri, Gee.ArrayList<TextLineMark?> marks) {
+        // Защитный затвор: если изменение инициировано самой сетью — игнорируем,
+        // предотвращая падение рантайма в бесконечную рекурсию!
+        if (this.is_syncing_breakpoints)
+            return;
+
+        // Если отладчик выключен — горячий пуш не нужен, точки просто тихо живут в кэше сервиса [INDEX]
+        if (this.current_client == null || this.session_state == DapSessionState.EMPTY)
+            return;
+
+        this.logger.info ("DAP", @"Hot-reloading breakpoints for modified layout: $uri");
+        
+        // Включаем асиннадцатый сетевой пуш в режиме fire-and-forget
+        this.sync_single_file_breakpoints_live_async.begin (uri, marks);
+    }
+
+    /**
+     * АСИНХРОННЫЙ ЖИВОЙ ПУШ ОБHОВЛEHHОГО МАССИВА СТРОК
+     */
+    private async void sync_single_file_breakpoints_live_async (string uri, Gee.ArrayList<TextLineMark?> marks) {
+        if (this.current_client == null)
+            return;
+
+        var lines_to_push = new Gee.ArrayList<int> ();
+
+        foreach (var mark in marks) {
+            if (mark != null) {
+                lines_to_push.add (mark.line_number);
+            }
+        }
+
+        try {
+            // Включаем защитный затвор перед отправкой по сети
+            this.is_syncing_breakpoints = true;
+
+            // 2. Выстреливаем монолитным пакетом setBreakpoints в сокет отладчика! [INDEX]
+            // Внутри DapClient строки автоматически станут 1-based, а путь очистится через GLib.File [INDEX, INDEX]
+            bool success = yield this.current_client.request_set_breakpoints (uri, lines_to_push);
+            
+            if (success) {
+                this.logger.debug ("DAP", @"Network hot-reload confirmed for $uri.");
+                
+                // TODO: Если debugpy вернул смещенные строки (например, пользователь поставил точку 
+                // на пустую строку, а Python сместил её на следующую инструкцию), 
+                // здесь можно будет точечно обновить кэш TextLineMarkService.
+            }
+
+        } catch (GLib.Error e) {
+            this.logger.error ("DAP", "Failed to hot-reload breakpoints over network: " + e.message);
+        } finally {
+            // ЖEЛEЗНO выключаем затвор в блоке finally, возвращая систему в рабочий режим!
+            this.is_syncing_breakpoints = false;
+        }
+    }
+
+    /**
+     * ОЧИСТКА МОСТА ПРИ ЗАВЕРШЕНИИ СЕССИИ
+     * Вызывается внутри cleanup_session_context()
+     */
+    private void disconnect_breakpoints_live_sync_bridge () {
+        this.window.bookmark_service.uri_marks_changed.disconnect (this.on_ui_breakpoint_toggled_live);
+        this.is_syncing_breakpoints = false;
     }
 }
