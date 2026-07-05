@@ -47,7 +47,10 @@ public class Iide.SearchWindow : Adw.Window {
                                          fzf_search_page.search_icon_name ());
         fzf_search_page.close_requested.connect_after (close);
 
-        var symbols_search_page = new SearchPage (this.parent_window, new SymbolsSearchEngine ());
+        var symbols_search_page = new SearchPage (
+            this.parent_window,
+            new SymbolsSearchEngine (this.parent_window)
+        );
         view_stack.add_titled_with_icon (
                                          symbols_search_page,
                                          symbols_search_page.search_kind (),

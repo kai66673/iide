@@ -117,7 +117,7 @@ namespace Iide {
             // ===================================================================
             // СВЯЗЫВАНИЕ СИГНАЛА РЕГИСТРАЦИИ КЛИЕНТА (РЕАКТИВНЫЙ UI)
             // ===================================================================
-            var lsp_service = LspService.get_instance ();
+            var lsp_service = this.window.lsp_service;
             
             lsp_service.client_registered.connect ((client) => {
                 // Переводим исполнение строго в очередь главного UI-потока

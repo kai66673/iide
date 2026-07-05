@@ -85,6 +85,8 @@ public class Iide.LspClient : Object {
         }
     }
 
+    private weak Window window;
+
     private LoggerService logger = LoggerService.get_instance ();
 
     // Сильная ссылка на текущий временный низкоуровневый процесс ОС
@@ -125,7 +127,6 @@ public class Iide.LspClient : Object {
     public string language_id { get; private set; }
 
     private DiagnosticsService diagnostics_service;
-    private LspService lsp_service;
 
     private bool is_stopping = false;
     
@@ -150,13 +151,13 @@ public class Iide.LspClient : Object {
     // Прогресс индексации проекта
     public signal void progress_updated (string token, string message, int percentage, bool active);
 
-    public LspClient (string language_id, LspConfig config, LspFeatures features) {
+    public LspClient (Window window, string language_id, LspConfig config, LspFeatures features) {
+        this.window = window;
         this.capabilities = new ServerCapabilities ();
         this.config = config;
         this.features = features;
         this.language_id = language_id;
         this.diagnostics_service = DiagnosticsService.get_instance ();
-        this.lsp_service = LspService.get_instance ();
     }
     
     public string name () { return config.command[0]; }
@@ -217,7 +218,7 @@ public class Iide.LspClient : Object {
 
             Idle.add (() => {
                 this.initialized_with_capabilities (this.capabilities);
-                LspService.get_instance ().register_monitored_client (this);
+                this.window.lsp_service.register_monitored_client (this);
                 return Source.REMOVE; // Выполнить один раз
             });
 

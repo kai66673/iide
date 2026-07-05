@@ -1,4 +1,9 @@
 public class Iide.SymbolsSearchEngine : SearchEngine, Object {
+    private weak Window window;
+    
+    public SymbolsSearchEngine (Window window) {
+        this.window = window;
+    }
 
     public string search_entry_placeholder () {
         return _("Enter symbol name (min 3 chars)...");
@@ -21,7 +26,7 @@ public class Iide.SymbolsSearchEngine : SearchEngine, Object {
     }
 
     public async Gee.List<SearchResult> perform_search (string query, GLib.Cancellable cancellable) throws Error {
-        var clients = LspService.get_instance ().get_clients ();
+        var clients = this.window.lsp_service.get_clients ();
         var results = new Gee.ArrayList<WorkspaceLspSymbol> ();
         foreach (var client in clients) {
             results.add_all (yield client.workspace_symbols (query, cancellable));

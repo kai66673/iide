@@ -3,7 +3,7 @@
 public class Iide.DapCallStackPanel : BasePanel {
     public DapCallStackPanel(Window window) {
         base (window, "Debug Stack Trace", SymbIconProvider.get_instance ().icon_name (IconID.DAP_STACK_TRACE));
-        child = new DapCallStackWidget ();
+        child = new DapCallStackWidget (window);
         can_maximize = true;
     }
 

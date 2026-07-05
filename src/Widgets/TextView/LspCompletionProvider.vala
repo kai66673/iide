@@ -80,7 +80,7 @@ namespace Iide {
 
         public LspCompletionProvider (SourceView view) {
             this.source_view = view;
-            this.lsp_service = LspService.get_instance ();
+            this.lsp_service = view.window.lsp_service;
 
             // 1. Создаем хранилище
             base_store = new GLib.ListStore (typeof (LspCompletionProposal));

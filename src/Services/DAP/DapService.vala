@@ -8,7 +8,6 @@ public enum Iide.DapSessionState {
 
 public class Iide.DapService : GLib.Object {
     public weak Window window;
-    private static DapService? _instance = null;
 
     // Изолированные таблицы данных конфигураций, как вы и просили:
     private Gee.HashMap<string, DapConfig> adapters;     // Словарь DapConfig [adapter_id] -> [DapConfig]
@@ -67,14 +66,8 @@ public class Iide.DapService : GLib.Object {
     // Сигнал смены активного кадра пользователем (для Variables View и подсветки строки)
     public signal void active_frame_changed (DapStackFrame frame);
 
-
-    public static DapService get_instance () {
-        return _instance;
-    }
-
     public DapService (Window window) {
         this.window = window;
-        DapService._instance = this;
         this.adapters = new Gee.HashMap<string, DapConfig> ();
         this.targets = new Gee.ArrayList<DapTargetConfig> ();
         this.logger = LoggerService.get_instance ();

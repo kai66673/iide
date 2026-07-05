@@ -157,7 +157,7 @@ public class Iide.LspServerRow : Adw.ActionRow {
         Idle.add(() => {
             var server_name = this.client.name ();
             DiagnosticsService.get_instance ().remove_client (server_name);
-            LspService.get_instance ().deregister_monitored_client (server_name);
+            this.window.lsp_service.deregister_monitored_client (server_name);
             var docs = this.window.document_manager.documents;
             var empty_diags = new Gee.ArrayList<Iide.LspDiagnosticPair?> ();
             foreach (var doc in docs.values) {

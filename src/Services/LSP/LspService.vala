@@ -2,7 +2,8 @@ using GLib;
 using Gee;
 
 public class Iide.LspService : GLib.Object {
-    private static LspService? _instance;
+    public weak Window window;
+
     private Gee.HashMap<string, LspClient> clients;
     private Gee.HashMap<string, Gee.ArrayList<LspClient>> active_languages;
 
@@ -18,22 +19,16 @@ public class Iide.LspService : GLib.Object {
     public signal void tasks_changed (Gee.List<LspTaskInfo?> active_tasks);
     public signal void client_registered (LspClient client);
 
-    construct {
-        clients = new Gee.HashMap<string, LspClient> ();
-        active_languages = new Gee.HashMap<string, Gee.ArrayList<LspClient>> ();
-        logger = LoggerService.get_instance ();
-        registry = LanguageRegistry.get_instance ();
+    public LspService (Window window) {
+        this.window = window;
+        this.clients = new Gee.HashMap<string, LspClient> ();
+        this.active_languages = new Gee.HashMap<string, Gee.ArrayList<LspClient>> ();
+        this.logger = LoggerService.get_instance ();
+        this.registry = LanguageRegistry.get_instance ();
     }
 
     public Gee.HashMap<string, LspClient> get_active_clients () {
         return this.clients;
-    }
-
-    public static unowned LspService get_instance () {
-        if (_instance == null) {
-            _instance = new LspService ();
-        }
-        return _instance;
     }
 
     public string ? get_language_id_for_file (GLib.File file) {
@@ -182,6 +177,7 @@ public class Iide.LspService : GLib.Object {
                 var server_config = registry.get_config_for_server (server_name);
                 if (server_config != null) {
                     var new_client = new LspClient (
+                        this.window,
                         language_id,
                         server_config,
                         router.features_for_server_name (server_name)

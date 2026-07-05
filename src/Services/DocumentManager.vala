@@ -92,7 +92,7 @@ public class Iide.DocumentManager : GLib.Object {
 
     public DocumentManager (Window window) {
         this.window = window;
-        lsp_service = LspService.get_instance ();
+        lsp_service = window.lsp_service;
 
         mru_history = new Gee.ArrayList<SourceView> ();
 

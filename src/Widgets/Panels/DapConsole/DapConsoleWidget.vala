@@ -46,7 +46,7 @@ public class Iide.DapConsoleWidget : Gtk.Box {
         this.append (this.input_entry);
 
         // ПОДКЛЮЧАЕМСЯ К СИГHАЛАМ БЭКЕНДА
-        var dap_service = DapService.get_instance ();
+        var dap_service = this.window.dap_service;
         dap_service.console_output_append.connect (this.append_output);
         
         // Слушаем смену состояний, чтобы блокировать ввод, если отладчик выключен
@@ -121,7 +121,7 @@ public class Iide.DapConsoleWidget : Gtk.Box {
         }
 
         // 1. Собираем массив паттернов из активного адаптера
-        var dap_service = DapService.get_instance ();
+        var dap_service = this.window.dap_service;
         string[] active_patterns = {};
 
         if (dap_service.current_client != null) {
@@ -216,8 +216,9 @@ public class Iide.DapConsoleWidget : Gtk.Box {
         // 1. Печатаем в консоль эхо ввода пользователя в стиле терминала: `>>> my_var`
         this.append_output ("eval_in", ">>> " + expr + "\n");
 
-        var dap_service = DapService.get_instance ();
-        if (dap_service.current_client == null) return;
+        var dap_service = this.window.dap_service;
+        if (dap_service.current_client == null)
+            return;
 
         // Определяем текущий кадр стека (если мы на паузе, передаем его, если код бежит — null)
         int frame_id = (dap_service.session_state == DapSessionState.BREAKPOINT) ? 

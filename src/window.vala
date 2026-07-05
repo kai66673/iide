@@ -27,7 +27,8 @@ public class Iide.Window : Panel.DocumentWorkspace {
     public DocumentManager document_manager;
     public NavigationHistoryService navigation_history_service;
     private ProjectManager project_manager;
-    private DapService dap_service;
+    public DapService dap_service;
+    public LspService lsp_service;
     public TextLineMarkService bookmark_service;
     public TextLineMarkService breakpoint_service;
     public TextLineMarkService[] marks_service;
@@ -54,6 +55,7 @@ public class Iide.Window : Panel.DocumentWorkspace {
 
     construct {
         settings = SettingsService.get_instance ();
+        lsp_service = new LspService (this);
         document_manager = new DocumentManager (this);
         navigation_history_service = new NavigationHistoryService (this);
         project_manager = new ProjectManager (this);
@@ -199,7 +201,7 @@ public class Iide.Window : Panel.DocumentWorkspace {
 
         header.pack_end (theme_dropdown);
 
-        var dap_toolbar = new DapToolbar ();
+        var dap_toolbar = new DapToolbar (this);
         header.pack_end (dap_toolbar);
 
         create_panels ();
@@ -466,8 +468,7 @@ public class Iide.Window : Panel.DocumentWorkspace {
         lsp_btn.clicked.connect (() => lsp_popover.popup ());
 
         // 3. Подписка на сервис
-        var lsp_service = LspService.get_instance ();
-        lsp_service.tasks_changed.connect (update_lsp_ui);
+        this.lsp_service.tasks_changed.connect (update_lsp_ui);
         DiagnosticsService.get_instance ().lsp_stopped.connect (() => {
             lsp_service.clear_lsp_tasks ();
         });

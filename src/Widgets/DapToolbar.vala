@@ -1,6 +1,8 @@
 /*
 */
 public class Iide.DapToolbar : Gtk.Box {
+    private weak Window window;
+
     private LoggerService logger;
     private Gtk.DropDown target_drop_down;
     private Gtk.StringList target_string_list;
@@ -14,8 +16,9 @@ public class Iide.DapToolbar : Gtk.Box {
     private Gtk.Image start_continue_image;
     private bool is_populating_combo = false;
 
-    public DapToolbar () {
+    public DapToolbar (Window window) {
         Object (orientation: Gtk.Orientation.HORIZONTAL, spacing: 0);
+        this.window = window;
         this.logger = LoggerService.get_instance ();
         this.add_css_class ("linked"); // Склеит кнопки в единый монолитный блок
         this.valign = Gtk.Align.CENTER;
@@ -47,31 +50,30 @@ public class Iide.DapToolbar : Gtk.Box {
         this.stop_button.tooltip_text = "Stop Debugging (Shift+F5)";
         this.stop_button.clicked.connect (this.on_stop_clicked);
         this.append (this.stop_button);
+        
+        var dap_service = this.window.dap_service;
 
         // 4. Кнопка Step Over (Шаг через)
         this.step_over_button = new Gtk.Button ();
         this.step_over_button.icon_name = symb_provider.icon_name (IconID.DAP_STEP_OVER);
         this.step_over_button.tooltip_text = "Step Over (F10)";
-        this.step_over_button.clicked.connect (() => { DapService.get_instance ().trigger_step_over (); });
+        this.step_over_button.clicked.connect (() => { dap_service.trigger_step_over (); });
         this.append (this.step_over_button);
 
         // 5. Кнопка Step Into (Шаг в)
         this.step_into_button = new Gtk.Button ();
         this.step_into_button.icon_name = symb_provider.icon_name (IconID.DAP_STEP_INTO);
         this.step_into_button.tooltip_text = "Step Into (F11)";
-        this.step_into_button.clicked.connect (() => { DapService.get_instance ().trigger_step_into (); });
+        this.step_into_button.clicked.connect (() => { dap_service.trigger_step_into (); });
         this.append (this.step_into_button);
 
         // 6. Кнопка Step Out (Шаг из)
         this.step_out_button = new Gtk.Button ();
         this.step_out_button.icon_name = symb_provider.icon_name (IconID.DAP_STEP_OUT);
         this.step_out_button.tooltip_text = "Step Out (Shift+F11)";
-        this.step_out_button.clicked.connect (() => { DapService.get_instance ().trigger_step_out (); });
+        this.step_out_button.clicked.connect (() => { dap_service.trigger_step_out (); });
         this.append (this.step_out_button);
 
-        // СВЯЗЫВАЕМ С БЭКЕНДОМ СИHГЛТОHОВ
-        var dap_service = DapService.get_instance ();
-        
         // А. Слушаем загрузку целей (событие открытия проекта)
         dap_service.configurations_loaded.connect (this.refresh_target_list);
         
@@ -99,7 +101,8 @@ public class Iide.DapToolbar : Gtk.Box {
         // Начисто очищаем строковую модель данных
         this.target_string_list.splice (0, this.target_string_list.get_n_items (), null);
 
-        var targets = DapService.get_instance ().get_targets ();
+        var dap_service = this.window.dap_service;
+        var targets = dap_service.get_targets ();
         
         if (targets.is_empty) {
             this.target_string_list.append ("No Targets Available");
@@ -117,7 +120,7 @@ public class Iide.DapToolbar : Gtk.Box {
 
         // Выставляем первую цель активной в GTK4 DropDown
         this.target_drop_down.selected = 0;
-        DapService.get_instance ().select_target (0);
+        dap_service.select_target (0);
         this.is_populating_combo = false;
     }
 
@@ -132,7 +135,7 @@ public class Iide.DapToolbar : Gtk.Box {
         
         // Проверяем на GTK_INVALID_LIST_POSITION (который равен upper-limit uint, то есть G_MAXUINT)
         if (active_idx != uint.MAX) {
-            DapService.get_instance ().select_target ((int) active_idx);
+            this.window.dap_service.select_target ((int) active_idx);
         }
     }
 
@@ -140,7 +143,7 @@ public class Iide.DapToolbar : Gtk.Box {
      * КHОПКА СТАРТ / ПРОДОЛЖИТЬ (F5)
      */
     private void on_start_continue_clicked () {
-        var dap_service = DapService.get_instance ();
+        var dap_service = this.window.dap_service;
 
         if (dap_service.session_state == DapSessionState.EMPTY) {
             // Если отладчик выключен — извлекаем активную цель и запускаем сессию!
@@ -163,7 +166,7 @@ public class Iide.DapToolbar : Gtk.Box {
     }
 
     private void on_stop_clicked () {
-        DapService.get_instance ().stop_current_debug_session_async.begin ();
+        this.window.dap_service.stop_current_debug_session_async.begin ();
     }
 
     /**

@@ -3,13 +3,16 @@
  * Реализован на базе стабильного Gtk.TreeStore для 100% контроля ленивой загрузки! [INDEX, INDEX]
  */
 public class Iide.DapVariablesWidget : Gtk.Box {
+    private weak Window window;
+
     private Gtk.TreeView tree_view;
     private Gtk.TreeStore tree_store;
     private Gtk.ScrolledWindow scroll_window;
     private LoggerService logger;
 
-    public DapVariablesWidget () {
+    public DapVariablesWidget (Window window) {
         Object (orientation: Gtk.Orientation.VERTICAL, spacing: 0);
+        this.window = window;
         this.logger = LoggerService.get_instance ();
 
         // 1. Инициализируем TreeStore. Задаем три Си-колонки в модели данных:
@@ -49,8 +52,9 @@ public class Iide.DapVariablesWidget : Gtk.Box {
         this.tree_view.row_expanded.connect (this.on_ui_row_expanded_lazy);
 
         // Подключаемся к сигналам центрального автомата отладки [INDEX]
-        DapService.get_instance ().variables_updated.connect (this.on_variables_synchronized);
-        DapService.get_instance ().session_state_changed.connect (this.on_session_state_changed);
+        var dap_service = this.window.dap_service;
+        dap_service.variables_updated.connect (this.on_variables_synchronized);
+        dap_service.session_state_changed.connect (this.on_session_state_changed);
     }
 
     /**
@@ -99,7 +103,7 @@ public class Iide.DapVariablesWidget : Gtk.Box {
      */
     private async void load_children_to_tree_node_async (DapVariable variable, Gtk.TreeIter parent_iter) {
         // Пинаем бэкенд выкачать дочерний массив переменных из дебаггера [INDEX]
-        bool success = yield DapService.get_instance ().fetch_variable_children_lazy_async (variable);
+        bool success = yield this.window.dap_service.fetch_variable_children_lazy_async (variable);
         
         if (success && variable.children != null) {
             // Переходим в UI-поток с низким приоритетом, чтобы дать GTK4 завершить анимацию клика! [INDEX]

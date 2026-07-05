@@ -3,12 +3,15 @@
 namespace Iide {
 
     public class DapCallStackWidget : Gtk.Box {
+        private weak Window window;
+
         private Gtk.TreeView tree_view;
         private Gtk.TreeStore tree_store;
         private Gtk.ScrolledWindow scroll_window;
 
-        public DapCallStackWidget () {
+        public DapCallStackWidget (Window window) {
             Object (orientation: Gtk.Orientation.VERTICAL, spacing: 0);
+            this.window = window;
 
             // Схема TreeStore:
             // Колонка 0: Отображаемый текст строки (string)
@@ -42,8 +45,9 @@ namespace Iide {
             //  this.tree_view.cursor_changed.connect (this.on_ui_cursor_changed);
 
             // СИГНАЛЫ БЭКЕНДА
-            DapService.get_instance ().threads_updated.connect (this.on_threads_synchronized);
-            DapService.get_instance ().session_state_changed.connect (this.on_session_state_changed);
+            var dap_service = this.window.dap_service;
+            dap_service.threads_updated.connect (this.on_threads_synchronized);
+            dap_service.session_state_changed.connect (this.on_session_state_changed);
         }
 
         /**
@@ -89,7 +93,7 @@ namespace Iide {
         }
 
         private async void load_frames_to_ui_async (DapThread thread, Gtk.TreeIter parent_iter) {
-            bool success = yield DapService.get_instance ().fetch_stack_frames_lazy_async (thread);
+            bool success = yield this.window.dap_service.fetch_stack_frames_lazy_async (thread);
 
             if (success) {
                 Idle.add_full (Priority.DEFAULT_IDLE, () => {
@@ -145,7 +149,7 @@ namespace Iide {
                     // сетевые сокеты для выкачки новых переменных!
                     // ===================================================================
                     Idle.add_full (Priority.DEFAULT, () => {
-                        DapService.get_instance ().switch_active_frame (frame);
+                        this.window.dap_service.switch_active_frame (frame);
                         return Source.REMOVE; // Выполнить строго один раз!
                     });
                 }
@@ -172,7 +176,7 @@ namespace Iide {
                     
                     // Железобетонная развязка Си-стека через Idle.add
                     Idle.add_full (Priority.DEFAULT, () => {
-                        DapService.get_instance ().switch_active_frame (frame);
+                        this.window.dap_service.switch_active_frame (frame);
                         return Source.REMOVE;
                     });
                 }

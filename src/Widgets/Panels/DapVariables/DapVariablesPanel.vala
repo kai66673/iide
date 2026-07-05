@@ -3,7 +3,7 @@
 public class Iide.DapVariablesPanel : BasePanel {
     public DapVariablesPanel(Window window) {
         base (window, "Debug Variables", SymbIconProvider.get_instance ().icon_name (IconID.DAP_VARIABLES));
-        child = new DapVariablesWidget ();
+        child = new DapVariablesWidget (window);
         can_maximize = true;
     }
 

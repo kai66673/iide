@@ -330,7 +330,7 @@ public class Iide.ProjectManager : Object {
             return;
         
         LoggerService.get_instance ().info ("PROJECT", "Initiating LSP shutdown sequence via ProjectManager...");
-        yield LspService.get_instance ().shutdown_all_running_lsp_servers_async ();
+        yield this.window.lsp_service.shutdown_all_running_lsp_servers_async ();
     }
 
     /**
