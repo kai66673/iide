@@ -456,6 +456,9 @@
         },
         "dap-variables": {
             "char": "0xf51e"
+        },
+        "dap-stack-trace": {
+            "char": "0xebd0"
         }
     }
 }

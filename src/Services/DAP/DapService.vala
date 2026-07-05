@@ -29,6 +29,9 @@ public class Iide.DapService : GLib.Object {
     // Актуальный кэш локальных переменных текущей точки останова
     private Gee.ArrayList<DapVariable> local_variables = new Gee.ArrayList<DapVariable> ();
 
+    // Кэш потоков текущей сессии останова
+    private Gee.ArrayList<DapThread> current_threads = new Gee.ArrayList<DapThread> ();
+
     // ===================================================================
     // УПРАВЛЕНИЕ ЖИЗНЕННЫМ ЦИКЛОМ ТЕКУЩЕЙ СЕССИИ
     // ===================================================================
@@ -56,8 +59,13 @@ public class Iide.DapService : GLib.Object {
     public signal void session_state_changed (DapSessionState new_state, DapSessionState old_state);
     public signal void active_line_changed (string uri, int line_number); // Для подсветки строки останова
     public signal void console_output_append (string category, string text);
+
     // Сигнал для UI-панели переменных
     public signal void variables_updated (Gee.ArrayList<DapVariable> variables);
+    // Сигнал для Call Stack панели
+    public signal void threads_updated (Gee.ArrayList<DapThread> threads);
+    // Сигнал смены активного кадра пользователем (для Variables View и подсветки строки)
+    public signal void active_frame_changed (DapStackFrame frame);
 
 
     public static DapService get_instance () {
@@ -82,7 +90,9 @@ public class Iide.DapService : GLib.Object {
     public Gee.ArrayList<DapVariable> get_local_variables () { return this.local_variables; }
 
     public Gee.ArrayList<DapTargetConfig> get_targets () { return this.targets; }
-    
+
+    public Gee.ArrayList<DapThread> get_current_threads () { return this.current_threads; }
+
     public DapTargetConfig? get_active_target () {
         if (this.targets.is_empty || selected_target_index >= this.targets.size) return null;
         return this.targets.get (selected_target_index);
@@ -345,8 +355,9 @@ public class Iide.DapService : GLib.Object {
                     // Меняем состояние сессии — это разблокирует кнопки тулбара через Idle.add
                     this.session_state = DapSessionState.BREAKPOINT;
 
-                    // Мягко пинаем фоновое выкачивание переменных в режиме fire-and-forget
+                    // Мягко пинаем фоновое выкачивание переменных и stack-trace
                     this.fetch_variables_for_current_frame_async.begin ();
+                    this.fetch_threads_on_stop_async.begin();
 
                     // Выстреливаем сигналом точных координат в UI поток!
                     // Переводим dap_line в 0-indexed для GTK редактора (делаем -1)
@@ -418,6 +429,7 @@ public class Iide.DapService : GLib.Object {
     private void cleanup_session_context () {
         this.disconnect_breakpoints_live_sync_bridge ();
         this.local_variables.clear ();
+        this.current_threads.clear ();
         this.current_client = null;
         this.session_state = DapSessionState.EMPTY;
         this.logger.info ("DAP", "Debug session context cleared cleanly.");
@@ -638,5 +650,102 @@ public class Iide.DapService : GLib.Object {
             this.logger.error ("DAP", "Failed to fetch lazy sub-variables: " + e.message);
             return false;
         }
+    }
+
+    /**
+     * КАСКАД 1: ПОЛУЧЕНИЕ ВСЕХ ПОТOКOВ ПРИ ОСТАНОВЕ (Вызывается из locate_and_broadcast_active_line_async)
+     */
+    public async void fetch_threads_on_stop_async () {
+        if (this.current_client == null) return;
+        this.current_threads.clear ();
+
+        try {
+            // Шлем запрос threads по спецификации DAP [INDEX]
+            var reply = yield this.current_client.send_request ("threads", null);
+            if (reply != null && reply.has_member ("success") && reply.get_boolean_member ("success")) {
+                var body = reply.get_object_member ("body");
+                if (body != null && body.has_member ("threads")) {
+                    var threads_arr = body.get_array_member ("threads");
+                    
+                    for (int i = 0; i < threads_arr.get_length (); i++) {
+                        var t_obj = threads_arr.get_object_element (i);
+                        int id = (int) t_obj.get_int_member ("id");
+                        string name = t_obj.get_string_member ("name");
+
+                        this.current_threads.add (new DapThread (id, name));
+                    }
+                }
+            }
+
+            // Оповещаем панель Call Stack
+            Idle.add_full (Priority.DEFAULT, () => {
+                this.threads_updated (this.current_threads);
+                return Source.REMOVE;
+            });
+
+        } catch (GLib.Error e) {
+            this.logger.error ("DAP", "Failed to fetch threads: " + e.message);
+        }
+    }
+
+    /**
+     * КАСКАД 2: ЛЕНИВАЯ ВЫКАЧКА КАДРOВ СТЕКА ДЛЯ КОНКРЕТНОГO ПОТOКА (Вызывается при раскрытии ▶ в UI)
+     */
+    public async bool fetch_stack_frames_lazy_async (DapThread thread) {
+        if (thread.stack_fetched || this.current_client == null) return true;
+
+        try {
+            var arguments = new Json.Object ();
+            arguments.set_int_member ("threadId", thread.id);
+            arguments.set_int_member ("levels", 20); // Запрашиваем до 20 уровней вложенности функций
+
+            var reply = yield this.current_client.send_request ("stackTrace", arguments);
+            if (reply != null && reply.has_member ("success") && reply.get_boolean_member ("success")) {
+                var body = reply.get_object_member ("body");
+                if (body != null && body.has_member ("stackFrames")) {
+                    var frames_arr = body.get_array_member ("stackFrames");
+                    
+                    for (int i = 0; i < frames_arr.get_length (); i++) {
+                        var f_obj = frames_arr.get_object_element (i);
+                        int frame_id = (int) f_obj.get_int_member ("id");
+                        string func_name = f_obj.get_string_member ("name");
+                        int dap_line = (int) f_obj.get_int_member ("line");
+
+                        string file_uri = "";
+                        if (f_obj.has_member ("source")) {
+                            var src_obj = f_obj.get_object_member ("source");
+                            if (src_obj != null && src_obj.has_member ("path")) {
+                                file_uri = GLib.File.new_for_path (src_obj.get_string_member ("path")).get_uri ();
+                            }
+                        }
+
+                        // Сохраняем в DTO (переводим строку в 0-indexed для GTK) [INDEX]
+                        var frame = new DapStackFrame (frame_id, func_name, file_uri, dap_line - 1);
+                        thread.frames.add (frame);
+                    }
+                }
+            }
+
+            thread.stack_fetched = true;
+            return true;
+        } catch (GLib.Error e) {
+            this.logger.error ("DAP", "Failed to fetch stack trace: " + e.message);
+            return false;
+        }
+    }
+
+    /**
+     * СМЕНА КОНТЕКСТА КАДРА ПОЛЬЗОВАТЕЛЕМ (Клик на функцию в Call Stack)
+     */
+    public void switch_active_frame (DapStackFrame frame) {
+        this.current_frame_id = frame.id; // Переключаем глобальный frameId!
+        
+        this.logger.info ("DAP", @"Switching context to frame: $(frame.function_name) (ID: $(frame.id))");
+        
+        // 1. Принудительно заставляем Variables View перевыкачать переменные для ЭТОЙ функции! [INDEX]
+        this.fetch_variables_for_current_frame_async.begin ();
+
+        // 2. Стреляем сигналом, чтобы MainWindow подсветил желтым строку именно этой функции! [INDEX]
+        this.active_line_changed (frame.file_uri, frame.line);
     }
 }
