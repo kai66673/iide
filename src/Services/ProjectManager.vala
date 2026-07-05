@@ -140,7 +140,7 @@ public class Iide.ProjectManager : Object {
 
         if (current_project_root != null) {
             yield shutdown_all_running_lsp_servers_async ();
-            DiagnosticsService.get_instance ().lsp_stopped ();
+            this.window.diagnostics_service.lsp_stopped ();
 
             current_project_root = null;
             current_project_name = null;

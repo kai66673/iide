@@ -1,8 +1,6 @@
 /*
 */
 public class Iide.DiagnosticsService : Object {
-    private static DiagnosticsService? _instance;
-
     // Группировка: [ClientID] -> [FileURI] -> [Список диагностик]
     private Gee.HashMap<string, Gee.HashMap<string, Gee.List<LspDiagnostic>>> server_map;
     private uint update_timeout_id = 0;
@@ -12,13 +10,7 @@ public class Iide.DiagnosticsService : Object {
     public signal void server_stopped (string server_name);
     public signal void total_count_changed (int total_errors, int total_warnings);
 
-    public static DiagnosticsService get_instance () {
-        if (_instance == null)
-            _instance = new DiagnosticsService ();
-        return _instance;
-    }
-
-    private DiagnosticsService () {
+    public DiagnosticsService () {
         server_map = new Gee.HashMap<string, Gee.HashMap<string, Gee.List<LspDiagnostic>>> ();
         this.lsp_stopped.connect (() => {
             server_map.clear ();

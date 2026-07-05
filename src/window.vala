@@ -30,6 +30,7 @@ public class Iide.Window : Panel.DocumentWorkspace {
     public DapService dap_service;
     public LanguageRegistry language_registry; 
     public LspService lsp_service;
+    public DiagnosticsService diagnostics_service;
     public TextLineMarkService bookmark_service;
     public TextLineMarkService breakpoint_service;
     public TextLineMarkService[] marks_service;
@@ -60,6 +61,7 @@ public class Iide.Window : Panel.DocumentWorkspace {
         logger_service = new LoggerService ();
         language_registry = new LanguageRegistry (this);
         lsp_service = new LspService (this);
+        diagnostics_service = new DiagnosticsService ();
         document_manager = new DocumentManager (this);
         navigation_history_service = new NavigationHistoryService (this);
         project_manager = new ProjectManager (this);
@@ -464,7 +466,7 @@ public class Iide.Window : Panel.DocumentWorkspace {
 
         // 3. Подписка на сервис
         this.lsp_service.tasks_changed.connect (update_lsp_ui);
-        DiagnosticsService.get_instance ().lsp_stopped.connect (() => {
+        this.diagnostics_service.lsp_stopped.connect (() => {
             lsp_service.clear_lsp_tasks ();
         });
     }
@@ -525,9 +527,8 @@ public class Iide.Window : Panel.DocumentWorkspace {
         this.statusbar.add_prefix (50, global_diag_btn);
 
         // Подключаемся к сервису для обновления состояния
-        var diagnostics_service = DiagnosticsService.get_instance ();
-        diagnostics_service.total_count_changed.connect (update_global_diag_status);
-        diagnostics_service.lsp_stopped.connect (clear_global_diag_status);
+        this.diagnostics_service.total_count_changed.connect (update_global_diag_status);
+        this.diagnostics_service.lsp_stopped.connect (clear_global_diag_status);
     }
 
     private void clear_global_diag_status () {

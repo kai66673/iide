@@ -157,7 +157,7 @@ public class Iide.LspClient : Object {
         this.config = config;
         this.features = features;
         this.language_id = language_id;
-        this.diagnostics_service = DiagnosticsService.get_instance ();
+        this.diagnostics_service = window.diagnostics_service;
     }
     
     public string name () { return config.command[0]; }

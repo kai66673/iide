@@ -182,12 +182,12 @@ public class Iide.DiagnosticsPanel : BasePanel {
 
         this.set_child (empty_page);
 
-        var service = DiagnosticsService.get_instance ();
+        var diagnostics_service = this.window.diagnostics_service;
         // Подключаемся к точечному обновлению вместо глобального
-        service.diagnostics_updated.connect (on_file_diagnostics_updated);
-        service.total_count_changed.connect (on_total_changed);
-        service.lsp_stopped.connect (on_diagnostics_cleared);
-        service.server_stopped.connect (on_server_stopped);
+        diagnostics_service.diagnostics_updated.connect (on_file_diagnostics_updated);
+        diagnostics_service.total_count_changed.connect (on_total_changed);
+        diagnostics_service.lsp_stopped.connect (on_diagnostics_cleared);
+        diagnostics_service.server_stopped.connect (on_server_stopped);
     }
 
     public override Panel.Position initial_pos () {
@@ -235,8 +235,7 @@ public class Iide.DiagnosticsPanel : BasePanel {
      * ЧИСТЫЙ МЕТОД ДИФФЕРЕНЦИАЛЬНОГО ОБНОВЛЕНИЯ
      */
     private void on_file_diagnostics_updated (string server_name, string uri) {
-        var service = DiagnosticsService.get_instance ();
-        var diags = service.get_diagnostics_for_file (server_name, uri);
+        var diags = this.window.diagnostics_service.get_diagnostics_for_file (server_name, uri);
 
         // 1. Гарантируем наличие изолированной группы для этого сервера [INDEX]
         var group = this.ensure_server_group (server_name);
