@@ -83,10 +83,10 @@ public class Iide.LoggerService : Object {
         return _instance;
     }
 
-    private LoggerService () {
+    public LoggerService () {
         entries = new Gee.ArrayList<Iide.LogEntry> ();
         log_file = File.new_for_path (
-                                      Path.build_filename (Environment.get_user_data_dir (), "iide", "iide.log")
+            Path.build_filename (Environment.get_user_data_dir (), "iide", "iide.log")
         );
         try {
             var dir = log_file.get_parent ();

@@ -20,6 +20,8 @@
  */
 
 public class Iide.LogView : Gtk.Box {
+    private weak Window window;
+
     private Gtk.TextView text_view;
     private Gtk.TextBuffer buffer;
     private Gtk.ScrolledWindow scrolled_window;
@@ -42,11 +44,9 @@ public class Iide.LogView : Gtk.Box {
     private const int MAX_VISIBLE_LINES = 5000;
     private int line_count = 0;
 
-    public LogView () {
+    public LogView (Window window) {
         Object (orientation: Gtk.Orientation.VERTICAL, spacing: 0);
-    }
-
-    construct {
+        this.window = window;
         logger = Iide.LoggerService.get_instance ();
 
         var icon_provider = SymbIconProvider.get_instance ();
