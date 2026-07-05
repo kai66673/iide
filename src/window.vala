@@ -24,7 +24,8 @@ using Panel;
 
 public class Iide.Window : Panel.DocumentWorkspace {
 
-    private DocumentManager document_manager;
+    public DocumentManager document_manager;
+    public NavigationHistoryService navigation_history_service;
     private ProjectManager project_manager;
     private DapService dap_service;
     public TextLineMarkService bookmark_service;
@@ -54,14 +55,15 @@ public class Iide.Window : Panel.DocumentWorkspace {
     construct {
         settings = SettingsService.get_instance ();
         document_manager = new DocumentManager (this);
+        navigation_history_service = new NavigationHistoryService (this);
         project_manager = new ProjectManager (this);
         dap_service = new DapService (this);
 
         // 1. Лямбда закладок (Синий паттерн)
-        this.bookmark_service = new BookmarksLineService ("bookmarks");
+        this.bookmark_service = new BookmarksLineService (this, "bookmarks");
 
         // Инициализируем Сервис Брейкпоинтов с геометрией правого полуовала "(|"
-        this.breakpoint_service = new BreakpointsLineService ("breakpoints");
+        this.breakpoint_service = new BreakpointsLineService (this, "breakpoints");
 
         marks_service = {
             bookmark_service,

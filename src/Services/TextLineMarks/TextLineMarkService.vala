@@ -9,6 +9,8 @@ public struct Iide.FgRenderInfo {
 }
 
 public abstract class Iide.TextLineMarkService : GLib.Object {
+    public weak Window window;
+
     private string? current_project_root = null;
     private LoggerService logger;
 
@@ -21,8 +23,9 @@ public abstract class Iide.TextLineMarkService : GLib.Object {
     public signal void project_marks_loaded(string category, Gee.HashMap<string, Gee.ArrayList<TextLineMark?>> marks);
     public signal void uri_marks_changed (string uri, Gee.ArrayList<TextLineMark?> marks);
 
-    protected TextLineMarkService (string category) {
+    protected TextLineMarkService (Window window, string category) {
         Object(category: category);
+        this.window = window;
         this.logger = LoggerService.get_instance ();
         this.loaded_json_cache = new Gee.HashMap<string, Gee.ArrayList<TextLineMark?>> ();
     }
@@ -52,7 +55,7 @@ public abstract class Iide.TextLineMarkService : GLib.Object {
      * Вызывается, когда файл только что загрузился с диска в SourceView.
      */
     public void refresh_all_documents_marks() {
-        foreach (var doc in DocumentManager.get_instance ().documents.values) {
+        foreach (var doc in this.window.document_manager.documents.values) {
             this.apply_marks_to_buffer (doc.uri, doc.source_view.buffer);
         }
     }

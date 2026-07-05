@@ -3,7 +3,7 @@
 public class Iide.DapConsolePanel : BasePanel {
     public DapConsolePanel (Window window) {
         base (window, "Debug Console", SymbIconProvider.get_instance ().icon_name (IconID.DAP_CONSOLE));
-        child = new DapConsoleWidget ();
+        child = new DapConsoleWidget (window);
         can_maximize = true;
     }
     

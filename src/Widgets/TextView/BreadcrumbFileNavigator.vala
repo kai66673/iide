@@ -1,4 +1,7 @@
+/*
+*/
 public class Iide.BreadcrumbFileNavigator : Gtk.Box {
+    private weak Window window;
     private GLib.File root_file;
     private GLib.File current_folder;
 
@@ -9,13 +12,14 @@ public class Iide.BreadcrumbFileNavigator : Gtk.Box {
     private Gtk.Stack stack;
 
     private void open_file (GLib.File file) {
-        DocumentManager.get_instance ().open_document (file, null);
+        this.window.document_manager.open_document (file, null);
     }
 
     public signal void close_requested ();
 
-    public BreadcrumbFileNavigator (GLib.File file) {
+    public BreadcrumbFileNavigator (Window window, GLib.File file) {
         Object (orientation: Gtk.Orientation.VERTICAL, spacing: 6);
+        this.window = window;
         this.root_file = file;
         this.current_folder = file;
         this.set_size_request (300, -1);

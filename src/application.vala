@@ -486,7 +486,7 @@ private class Iide.NavigationBackAction : Iide.AppAction {
     public override void execute () {
         var win = app ? .active_window as Iide.Window;
         if (win != null) {
-            Iide.NavigationHistoryService.get_instance ().navigate_back ();
+            win.navigation_history_service.navigate_back ();
         }
     }
 }
@@ -512,7 +512,7 @@ private class Iide.NavigationForwardAction : Iide.AppAction {
     public override void execute () {
         var win = app ? .active_window as Iide.Window;
         if (win != null) {
-            Iide.NavigationHistoryService.get_instance ().navigate_forward ();
+            win.navigation_history_service.navigate_forward ();
         }
     }
 }

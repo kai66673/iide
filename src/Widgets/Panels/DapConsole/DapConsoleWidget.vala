@@ -10,6 +10,7 @@ public class Iide.TargetLinkPayload : GLib.Object {
 }
 
 public class Iide.DapConsoleWidget : Gtk.Box {
+    private weak Window window;
     private Gtk.TextView output_view;
     private Gtk.TextBuffer buffer;
     private Gtk.Entry input_entry;
@@ -18,8 +19,9 @@ public class Iide.DapConsoleWidget : Gtk.Box {
     private Gtk.EventControllerMotion motion_controller;
     private Gtk.GestureClick click_gesture;
 
-    public DapConsoleWidget () {
+    public DapConsoleWidget (Window window) {
         Object (orientation: Gtk.Orientation.VERTICAL, spacing: 4);
+        this.window = window;
         this.margin_start = 6; this.margin_end = 6; this.margin_top = 4; this.margin_bottom = 6;
 
         // 1. Буфер вывода с тегами стилизации цветов
@@ -333,7 +335,7 @@ public class Iide.DapConsoleWidget : Gtk.Box {
                     // МГНОВЕННЫЙ ПРЫЖОК: Командуем UI открыть файл и подсветить строку!
                     // Так как в Python трейсбеках строки 1-based, переводим в 0-indexed для GTK (делаем -1)
                     Idle.add (() => {
-                        DocumentManager.get_instance ().open_document_with_selection (file_obj, payload.line - 1, 0, 0, null);
+                        this.window.document_manager.open_document_with_selection (file_obj, payload.line - 1, 0, 0, null);
                         return Source.REMOVE;
                     });
                 }

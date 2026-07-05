@@ -29,14 +29,16 @@ public class Iide.DiagnosticsRow : Adw.ActionRow {
 }
 
 public class Iide.FileRow : Adw.ExpanderRow {
+    private weak Window window;
     private Gtk.ListBox content_list;
     private string uri;
     
     // Храним сырой кэш данных, чтобы строить UI только при необходимости
     private Gee.List<LspDiagnostic>? cached_diags = null;
 
-    public FileRow (string uri) {
+    public FileRow (Window window, string uri) {
         Object (title: Path.get_basename (uri.replace ("file://", "")));
+        this.window = window;
         this.uri = uri;
 
         content_list = new Gtk.ListBox ();
@@ -81,7 +83,7 @@ public class Iide.FileRow : Adw.ExpanderRow {
 
             row.activated.connect (() => {
                 var file = GLib.File.new_for_uri (uri);
-                DocumentManager.get_instance ().open_document_with_selection (file, diag.start_line, 0, 0, null);
+                this.window.document_manager.open_document_with_selection (file, diag.start_line, 0, 0, null);
             });
 
             content_list.append (row);
@@ -90,14 +92,16 @@ public class Iide.FileRow : Adw.ExpanderRow {
 }
 
 public class Iide.ServerDiagnosticsGroup : Adw.PreferencesGroup {
+    private weak Window window;
     public Gtk.ListBox file_list { get; private set; }
     public string server_name { get; private set; }
 
     // ИСПРАВЛЕНИЕ: Кэш строк файлов теперь инкапсулирован внутри своей группы!
     private HashMap<string, FileRow> file_rows = new HashMap<string, FileRow> ();
 
-    public ServerDiagnosticsGroup (string server_name) {
+    public ServerDiagnosticsGroup (Window window, string server_name) {
         Object (title: server_name);
+        this.window = window;
         this.server_name = server_name;
 
         this.file_list = new Gtk.ListBox ();
@@ -129,7 +133,7 @@ public class Iide.ServerDiagnosticsGroup : Adw.PreferencesGroup {
         if (this.file_rows.has_key (uri)) {
             file_row = this.file_rows.get (uri);
         } else {
-            file_row = new FileRow (uri);
+            file_row = new FileRow (window, uri);
             this.file_list.append (file_row);
             this.file_rows.set (uri, file_row);
         }
@@ -250,7 +254,7 @@ public class Iide.DiagnosticsPanel : BasePanel {
 
     private ServerDiagnosticsGroup ensure_server_group (string server_name) {
         if (!server_groups.has_key (server_name)) {
-            var group = new ServerDiagnosticsGroup (server_name);
+            var group = new ServerDiagnosticsGroup (this.window, server_name);
             this.main_box.append (group);
             server_groups.set (server_name, group);
             return group;

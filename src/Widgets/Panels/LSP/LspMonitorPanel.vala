@@ -130,7 +130,7 @@ namespace Iide {
                     this.main_group.description = "Select a server to view its isolated streams";
 
                     // Создаем строку и точечно добавляем её в список!
-                    var row = new LspServerRow (client);
+                    var row = new LspServerRow (window, client);
                     this.list_box.append (row);
                     this.row_cache.set (name, row);
                     

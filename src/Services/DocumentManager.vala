@@ -31,11 +31,6 @@ public class Iide.DocumentManager : GLib.Object {
     private string? current_workspace_root;
 
     private LoggerService logger = LoggerService.get_instance ();
-    private static DocumentManager? _instance = null;
-
-    public static DocumentManager get_instance () {
-        return _instance;
-    }
 
     public Gee.HashMap<string, TextView> _documents;
     public Gee.HashMap<string, TextView> documents {
@@ -97,7 +92,6 @@ public class Iide.DocumentManager : GLib.Object {
 
     public DocumentManager (Window window) {
         this.window = window;
-        DocumentManager._instance = this;
         lsp_service = LspService.get_instance ();
 
         mru_history = new Gee.ArrayList<SourceView> ();

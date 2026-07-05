@@ -5,7 +5,7 @@ public class Iide.TabSwitcherPopup : Gtk.Window {
     private int mru_list_size;
     private int current_index = 0;
 
-    public TabSwitcherPopup (Gtk.Window parent_window, bool is_reverse) {
+    public TabSwitcherPopup (Window parent_window, bool is_reverse) {
         Object (
             transient_for: parent_window, // Привязываем к главному окну приложения
             modal: true,                  // Блокируем ввод мимо переключателя, пока зажат Ctrl
@@ -19,7 +19,7 @@ public class Iide.TabSwitcherPopup : Gtk.Window {
         this.list_box.selection_mode = Gtk.SelectionMode.SINGLE;
 
         // Получаем очищенную от закрытых файлов MRU-историю
-        var mru_list = DocumentManager.get_instance ().get_mru_history ();
+        var mru_list = parent_window.document_manager.get_mru_history ();
         this.mru_list_size = mru_list.size;
 
         // Наполняем UI элементами в стиле двухстрочного списка Adwaita

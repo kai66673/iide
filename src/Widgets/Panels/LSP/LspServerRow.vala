@@ -2,6 +2,7 @@
 */
 
 public class Iide.LspServerRow : Adw.ActionRow {
+    private weak Window window;
     public LspClient client { get; private set; }
     
     // Текстовые буферы теперь инкапсулированы внутри виджета строки!
@@ -12,12 +13,13 @@ public class Iide.LspServerRow : Adw.ActionRow {
     private Gtk.Button start_button;
     private Gtk.Button stop_button;
 
-    public LspServerRow (LspClient client) {
+    public LspServerRow (Window window, LspClient client) {
         Object (
             title: client.name (),
             subtitle: "Status: Connected",
             activatable: true // Строка кликабельна для вызова логов
         );
+        this.window = window;
         this.client = client;
 
         // 1. Графический индикатор состояния
@@ -156,7 +158,7 @@ public class Iide.LspServerRow : Adw.ActionRow {
             var server_name = this.client.name ();
             DiagnosticsService.get_instance ().remove_client (server_name);
             LspService.get_instance ().deregister_monitored_client (server_name);
-            var docs = DocumentManager.get_instance ().documents;
+            var docs = this.window.document_manager.documents;
             var empty_diags = new Gee.ArrayList<Iide.LspDiagnosticPair?> ();
             foreach (var doc in docs.values) {
                 doc.update_diagnostics (server_name, empty_diags);

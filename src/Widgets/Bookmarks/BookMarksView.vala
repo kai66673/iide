@@ -19,14 +19,16 @@ public class Iide.BookmarkRow : Adw.ActionRow {
 }
 
 public class Iide.DocumentBookmarksRow : Adw.ExpanderRow {
+    private weak Window window;
     private Gtk.ListBox content_list;
     private string uri;
     private BookmarkRow? active_row = null;
 
     public signal void child_activated (DocumentBookmarksRow self);
 
-    public DocumentBookmarksRow(string uri) {
+    public DocumentBookmarksRow(Window window, string uri) {
         Object (title: Path.get_basename (uri.replace ("file://", "")));
+        this.window = window;
         this.uri = uri;
 
         // Добавляем ListBox в экспандер
@@ -39,7 +41,7 @@ public class Iide.DocumentBookmarksRow : Adw.ExpanderRow {
         var row = new BookmarkRow (uri, line_number, line_text);
         row.activated.connect (() => {
             var file = GLib.File.new_for_uri (uri);
-            DocumentManager.get_instance ().open_document_with_selection (file, line_number, 0, 0, null);
+            this.window.document_manager.open_document_with_selection (file, line_number, 0, 0, null);
             this.active_row = row;
             this.child_activated (this);
         });
@@ -251,7 +253,7 @@ public class Iide.BookmarksView : Gtk.Box {
             foreach (var bi in file_bookmarks.value) {
                 file_lines.set (bi.line_number, bi.line_text);
             }
-            var file_row = new DocumentBookmarksRow (file_uri);
+            var file_row = new DocumentBookmarksRow (this.window, file_uri);
             main_list.append (file_row);
             file_rows.set (file_uri, file_row);
             file_row.update_rows (file_uri, file_lines);
@@ -308,7 +310,7 @@ public class Iide.BookmarksView : Gtk.Box {
             if (file_rows.has_key (file_uri)) {
                 file_row = file_rows.get (file_uri);
             } else {
-                file_row = new DocumentBookmarksRow (file_uri);
+                file_row = new DocumentBookmarksRow (this.window, file_uri);
                 main_list.append (file_row);
                 file_rows.set (file_uri, file_row);
                 file_row.child_activated.connect ((row) => {

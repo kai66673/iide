@@ -20,11 +20,9 @@ public class Iide.ProjectPanel : BasePanel {
             folder_view.set_root_file (null);
         });
 
-        // Handle file activation to open documents
-        var document_manager = DocumentManager.get_instance ();
         folder_view.file_activated.connect ((item) => {
             if (!item.is_directory) {
-                document_manager.open_document (item.file, null);
+                this.window.document_manager.open_document (item.file, null);
             }
         });
     }

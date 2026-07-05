@@ -60,7 +60,7 @@ public class Iide.LspTooltipWidget : Gtk.Box {
 }
 
 public class Iide.SourceView : GtkSource.View {
-    public Window window;
+    public weak Window window;
     public string uri { get; private set; }
     private Iide.TreeSitterManager ts_manager;
     public Iide.LineNumbersGutter line_numbers_gutter;
@@ -95,7 +95,7 @@ public class Iide.SourceView : GtkSource.View {
         this.window = window;
         this.uri = uri;
         this.ts_manager = new TreeSitterManager ();
-        this.history = NavigationHistoryService.get_instance ();
+        this.history = this.window.navigation_history_service;
 
         this.tooltip_widget = new LspTooltipWidget ();
 
@@ -250,7 +250,7 @@ public class Iide.SourceView : GtkSource.View {
 
     public override bool grab_focus () {
         bool result = base.grab_focus();
-        DocumentManager.get_instance ().add_document_to_mru_history (this);
+        this.window.document_manager.add_document_to_mru_history (this);
         return result;
     }
 

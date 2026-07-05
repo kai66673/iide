@@ -3,8 +3,8 @@
 public class Iide.BookmarksLineService : TextLineMarkService {
     private FgRenderInfo _fg_render_info;
 
-    public BookmarksLineService (string category) {
-        base (category);
+    public BookmarksLineService (Window window, string category) {
+        base (window, category);
         this._fg_render_info = FgRenderInfo () {
             red = 0.2, green = 0.52, blue = 0.89, alpha = 1.0, priority = 1
         };

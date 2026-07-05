@@ -39,7 +39,7 @@ public class Iide.SearchWindow : Adw.Window {
     }
 
     private void setup_pages () {
-        var fzf_search_page = new SearchPage (new FzfSearchEngine ());
+        var fzf_search_page = new SearchPage (this.parent_window, new FzfSearchEngine ());
         view_stack.add_titled_with_icon (
                                          fzf_search_page,
                                          fzf_search_page.search_kind (),
@@ -47,7 +47,7 @@ public class Iide.SearchWindow : Adw.Window {
                                          fzf_search_page.search_icon_name ());
         fzf_search_page.close_requested.connect_after (close);
 
-        var symbols_search_page = new SearchPage (new SymbolsSearchEngine ());
+        var symbols_search_page = new SearchPage (this.parent_window, new SymbolsSearchEngine ());
         view_stack.add_titled_with_icon (
                                          symbols_search_page,
                                          symbols_search_page.search_kind (),
@@ -55,7 +55,7 @@ public class Iide.SearchWindow : Adw.Window {
                                          symbols_search_page.search_icon_name ());
         symbols_search_page.close_requested.connect_after (close);
 
-        var text_search_page = new SearchPage (new TextSearchEngine ());
+        var text_search_page = new SearchPage (this.parent_window, new TextSearchEngine ());
         view_stack.add_titled_with_icon (
                                          text_search_page,
                                          text_search_page.search_kind (),

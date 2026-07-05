@@ -7,7 +7,7 @@ public enum Iide.DapSessionState {
 }
 
 public class Iide.DapService : GLib.Object {
-    public Window window;
+    public weak Window window;
     private static DapService? _instance = null;
 
     // Изолированные таблицы данных конфигураций, как вы и просили:

@@ -21,7 +21,7 @@ public class Iide.FileEntry : Object {
 }
 
 public class Iide.ProjectManager : Object {
-    public Window window;
+    public weak Window window;
     private static ProjectManager? _instance = null;
 
     private GLib.File? current_project_root;
@@ -74,7 +74,7 @@ public class Iide.ProjectManager : Object {
             return;
         }
 
-        bool save_confirmed = yield DocumentManager.get_instance ()
+        bool save_confirmed = yield this.window.document_manager
             .confirm_save_modified_documents_async ();
 
         if (!save_confirmed)
