@@ -66,7 +66,7 @@ public class Iide.LineNumbersGutter : GtkSource.GutterRenderer {
             return;
 
         // ===================================================================
-        // ЦEПОЧEЧНАЯ МАРШРУТИЗАЦИЯ ОТРИСОВКИ МАРКEРОВ (Сбор всех активных)
+        // Сбор маркеров на текущей строке
         // ===================================================================
         var active_render_services = new Gee.ArrayList<TextLineMarkService> ();
         var source_buffer = view.get_buffer () as GtkSource.Buffer;
@@ -76,12 +76,9 @@ public class Iide.LineNumbersGutter : GtkSource.GutterRenderer {
             var marks = source_buffer.get_source_marks_at_line (current_line_iter.get_line (), service.category);
             
             if (marks != null && marks.length () > 0) {
-                // УБРАНО: break;
-                // СТАЛО: Собираем ВСЕ сервисы, у которых есть метка на этой строке!
                 active_render_services.add (service);
             }
         }
-
         // ===================================================================
 
         // 3. ИНИЦИАЛИЗАЦИЯ ШРИФТА С УЧЕТОМ ЗУМА
