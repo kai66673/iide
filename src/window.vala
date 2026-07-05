@@ -23,7 +23,6 @@ using Adw;
 using Panel;
 
 public class Iide.Window : Panel.DocumentWorkspace {
-
     public DocumentManager document_manager;
     public NavigationHistoryService navigation_history_service;
     public ProjectManager project_manager;
@@ -32,6 +31,7 @@ public class Iide.Window : Panel.DocumentWorkspace {
     public TextLineMarkService bookmark_service;
     public TextLineMarkService breakpoint_service;
     public TextLineMarkService[] marks_service;
+
     private SettingsService settings;
 
     private Gtk.Button lsp_btn;
@@ -428,15 +428,6 @@ public class Iide.Window : Panel.DocumentWorkspace {
             return null;
 
         return (active_widget as TextView);
-    }
-
-    public void start_switch_document(bool next) {
-        // TODO: implement...
-        if (next) {
-            LoggerService.get_instance ().info ("SD", "TODO next...");
-        } else {
-            LoggerService.get_instance ().info ("SD", "TODO prev...");
-        }
     }
 
     private void setup_lsp_status () {

@@ -4,7 +4,7 @@
 public class Iide.LogPanel : BasePanel {
     public LogPanel (Window window) {
         base (window, "Logs", SymbIconProvider.get_instance ().icon_name (IconID.APP_LOG));
-        child = new LogView ();
+        child = new LogView (window);
         can_maximize = true;
     }
 
