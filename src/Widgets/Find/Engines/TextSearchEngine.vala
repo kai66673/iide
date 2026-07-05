@@ -1,5 +1,5 @@
 public class Iide.TextSearchEngine : SearchEngine, Object {
-
+    private weak Window window;
     private Iide.ProjectManager project_manager;
 
     private Gee.List<SearchResult> search_cache = new Gee.ArrayList<SearchResult> ();
@@ -68,9 +68,10 @@ public class Iide.TextSearchEngine : SearchEngine, Object {
         }
     }
 
-    public TextSearchEngine () {
+    public TextSearchEngine (Window window) {
         Object ();
-        project_manager = ProjectManager.get_instance ();
+        this.window = window;
+        project_manager = window.project_manager;
 
         // 1. Инициализируем пул ОДИН РАЗ в конструкторе
         try {

@@ -26,7 +26,7 @@ public class Iide.Window : Panel.DocumentWorkspace {
 
     public DocumentManager document_manager;
     public NavigationHistoryService navigation_history_service;
-    private ProjectManager project_manager;
+    public ProjectManager project_manager;
     public DapService dap_service;
     public LspService lsp_service;
     public TextLineMarkService bookmark_service;

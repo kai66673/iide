@@ -22,7 +22,6 @@ public class Iide.FileEntry : Object {
 
 public class Iide.ProjectManager : Object {
     public weak Window window;
-    private static ProjectManager? _instance = null;
 
     private GLib.File? current_project_root;
     private string? current_project_name;
@@ -47,13 +46,8 @@ public class Iide.ProjectManager : Object {
     public signal void file_cache_updated ();
     public signal void file_cache_invalidated ();
 
-    public static unowned ProjectManager get_instance () {
-        return _instance;
-    }
-
     public ProjectManager (Window window) {
         this.window = window;
-        ProjectManager._instance = this;
 
         current_project_root = null;
         current_project_name = null;

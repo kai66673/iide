@@ -151,7 +151,7 @@ public class Iide.DapToolbar : Gtk.Box {
             if (target == null)
                 return;
 
-            string workspace_root = ProjectManager.get_instance ().get_current_project_root ().get_path ();
+            string workspace_root = this.window.project_manager.get_current_project_root ().get_path ();
 
             this.start_continue_button.sensitive = false;
             dap_service.start_debug_session_async.begin (target, workspace_root, (obj, res) => {

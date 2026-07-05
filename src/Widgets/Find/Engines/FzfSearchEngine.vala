@@ -1,12 +1,13 @@
 public class Iide.FzfSearchEngine : SearchEngine, Object {
-
+    private weak Window window;
     private Iide.ProjectManager project_manager;
 
     private const int MAX_RESULTS = 100;
 
-    public FzfSearchEngine () {
+    public FzfSearchEngine (Window window) {
         Object ();
-        project_manager = ProjectManager.get_instance ();
+        this.window = window;
+        project_manager = window.project_manager;
     }
 
     public string search_entry_placeholder () {

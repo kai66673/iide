@@ -76,8 +76,9 @@ public class Iide.DapService : GLib.Object {
         this.load_global_dap_manifest ();
 
         // 2. Биндим автоматическое чтение целей при открытии/закрытии папок проектов
-        ProjectManager.get_instance ().project_opened.connect (this.load_project_launch_targets);
-        ProjectManager.get_instance ().project_closed.connect (this.clear_project_targets);
+        var project_manager = this.window.project_manager;
+        project_manager.project_opened.connect (this.load_project_launch_targets);
+        project_manager.project_closed.connect (this.clear_project_targets);
     }
 
     public Gee.ArrayList<DapVariable> get_local_variables () { return this.local_variables; }

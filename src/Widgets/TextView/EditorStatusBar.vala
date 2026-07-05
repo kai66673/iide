@@ -18,8 +18,10 @@ public class Iide.EditorStatusBar : Gtk.Box {
         // Левая часть: Breadcrumbs | FindBar
         this.breadcrumps_bar = new BreadcrumbsBar (source_view);
         this.breadcrumps_bar.hexpand = true;
-        this.breadcrumps_bar.update_file_path (GLib.File.new_for_uri (source_view.uri),
-                                          GLib.File.new_for_path (ProjectManager.get_instance ().get_workspace_root_path ()));
+        this.breadcrumps_bar.update_file_path (
+            GLib.File.new_for_uri (source_view.uri),
+            GLib.File.new_for_path (this.source_view.window.project_manager.get_workspace_root_path ())
+        );
 
         this.find_bar = new FindBar (source_view);
         this.find_bar.hexpand = true;

@@ -138,7 +138,7 @@ namespace Iide {
                 });
             });
 
-            var prj_manager = ProjectManager.get_instance ();
+            var prj_manager = this.window.project_manager;
             prj_manager.project_closed.connect (this.on_project_closed);
 
             // Секундный таймер обновления точек-статусов

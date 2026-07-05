@@ -11,7 +11,7 @@ public class Iide.ProjectPanel : BasePanel {
         can_maximize = true;
 
         // Подключаем сигналы менеджера проекта
-        var project_manager = ProjectManager.get_instance ();
+        var project_manager = this.window.project_manager;
         project_manager.project_opened.connect ((project_root) => {
             folder_view.set_root_file (project_root);
         });
