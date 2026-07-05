@@ -58,72 +58,10 @@ public class Iide.Window : Panel.DocumentWorkspace {
         dap_service = new DapService (this);
 
         // 1. Лямбда закладок (Синий паттерн)
-        this.bookmark_service = new Iide.TextLineMarkService ("bookmarks", (cr, cell_y, cell_height, gutter_width, draw_x, draw_y, layout) => {
-            cr.save ();
-            if (layout == null) {
-                // ФАЗА 1: Рисуем только графические подложки!
-                cr.set_source_rgba (0.2, 0.52, 0.89, 0.15); 
-                cr.rectangle (0, cell_y, gutter_width, cell_height);
-                cr.fill ();
-
-                cr.set_source_rgba (0.2, 0.52, 0.89, 1.0); 
-                cr.rectangle (0, cell_y, 3.0, cell_height); 
-                cr.fill ();
-            } else {
-                // ФАЗА 2: Отрисовываем исключительно цифру текста!
-                cr.set_source_rgba (0.2, 0.52, 0.89, 1.0);
-                cr.move_to (draw_x, draw_y);
-                Pango.cairo_show_layout (cr, layout);
-            }
-            cr.restore ();
-        });
+        this.bookmark_service = new BookmarksLineService ("bookmarks");
 
         // Инициализируем Сервис Брейкпоинтов с геометрией правого полуовала "(|"
-        this.breakpoint_service = new Iide.TextLineMarkService ("breakpoints", (cr, cell_y, cell_height, gutter_width, draw_x, draw_y, layout) => {
-            cr.save ();
-            
-            if (layout == null) {
-                // ===================================================================
-                // ФАЗА 1: ГРАФИЧEСКАЯ ПОДЛОЖКА И МАЛEНЬКИЙ АККУРАТНЫЙ ПОЛУОВАЛ
-                // ===================================================================
-                
-                // 1. Мягкий полупрозрачный красный фон всей ячейки строки
-                cr.set_source_rgba (0.92, 0.25, 0.25, 0.12); 
-                cr.rectangle (0, cell_y, gutter_width, cell_height);
-                cr.fill ();
-
-                // 2. ОТРИСОВКА МИНИАТЮРНОГО ПОЛУОВАЛА "(|" У ПРАВОГО КРАЯ
-                cr.set_source_rgba (0.92, 0.25, 0.25, 1.0); 
-
-                // УМEНЬШАEМ РАДИУС ВДВОE: Делаем маркер компактным и ювелирным
-                double radius = cell_height / 4.0; 
-                
-                // Вычисляем математический центр дуги строго по середине ячейки
-                double center_x = gutter_width; 
-                double center_y = cell_y + (cell_height / 2.0);
-
-                // Рисуем левую дугу от 90° (низ) до 270° (верх) по часовой стрелке
-                cr.arc (center_x, center_y, radius, Math.PI / 2.0, 3.0 * Math.PI / 2.0);
-                
-                // ЧEСТНО ЗАМЫКАEМ ФИГУРУ: Рисуем прямую линию по правому краю 
-                // вниз к точке окончания дуги (center_y + radius)
-                cr.line_to (center_x, center_y + radius);
-                
-                // Заливаем миниатюрный полуовал
-                cr.fill ();
-                
-            } else {
-                // ===================================================================
-                // ФАЗА 2: ОТРИСОВКА ЦИФРЫ НОМEРА СТРОКИ
-                // ===================================================================
-                // Выводим цифру номера строки контрастным красным цветом
-                cr.set_source_rgba (0.92, 0.25, 0.25, 1.0);
-                cr.move_to (draw_x, draw_y);
-                Pango.cairo_show_layout (cr, layout);
-            }
-            
-            cr.restore ();
-        });
+        this.breakpoint_service = new BreakpointsLineService ("breakpoints");
 
         marks_service = {
             bookmark_service,

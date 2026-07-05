@@ -106,37 +106,26 @@ public class Iide.LineNumbersGutter : GtkSource.GutterRenderer {
         double draw_x = this.horizontal_margin;
         double draw_y = (double) cell_y + ((cell_height - text_height_px) / 2.0);
 
-        // Переменная-индикатор: менялся ли цвет шрифта номеров строк кастомным сервисом?
-        bool text_was_rendered_by_service = false;
-
-        if (!active_render_services.is_empty) {
-            // Запускаем последовательную цепочку Cairo-отрисовки!
-            foreach (var service in active_render_services) {
-                // Каждый сервис накатывает свои прямоугольники и маркеры поверх предыдущего.
-                // Чтобы они не перерисовывали текст, мы передаем null вместо pango_layout!
-                service.render_func (cr, cell_y, cell_height, this.current_width, draw_x, draw_y, null);
+        var fg_render_info = FgRenderInfo () {
+            red = 0.5, green = 0.5, blue = 0.5, alpha = 0.6, priority = 0
+        };
+        foreach (var service in active_render_services) {
+            service.render_base (cr, cell_y, cell_height, this.current_width, draw_x, draw_y);
+            var service_fg_render_info = service.foreground_render_info ();
+            if (service_fg_render_info.priority > fg_render_info.priority) {
+                fg_render_info = service_fg_render_info;
             }
-
-            // ПРИОРИТEТ ЦВEТА ТEКСТА: 
-            // Если на строке одновременно и закладка (синяя), и брейкпоинт (красный),
-            // давайте покрасим саму цифру номера строки в цвет последнего сработавшего сервиса (например, красный брейкпоинт)
-            var priority_service = active_render_services.get (active_render_services.size - 1);
-            
-            // Вызываем render_func приоритетного сервиса ПOВТOРНO, но передаем параметры так,
-            // чтобы он нарисовал СТРОГО текст (его лямбда просто сделает cairo_show_layout)
-            priority_service.render_func (cr, cell_y, cell_height, this.current_width, draw_x, draw_y, this.pango_layout);
-            
-            text_was_rendered_by_service = true;
         }
 
-        // 4. ДEФОЛТНЫЙ ТEКСТ (Отрабатывает только если на строке вообще пусто)
-        if (!text_was_rendered_by_service) {
-            cr.save ();
-            // Стандартный серый цвет номеров строк
-            cr.set_source_rgba (0.5, 0.5, 0.5, 0.6);
-            cr.move_to (draw_x, draw_y);
-            Pango.cairo_show_layout (cr, this.pango_layout);
-            cr.restore ();
-        }
+        cr.save ();
+        cr.set_source_rgba (
+            fg_render_info.red,
+            fg_render_info.green,
+            fg_render_info.blue,
+            fg_render_info.alpha
+        );
+        cr.move_to (draw_x, draw_y);
+        Pango.cairo_show_layout (cr, this.pango_layout);
+        cr.restore ();
     }
 }

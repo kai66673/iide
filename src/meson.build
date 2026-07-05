@@ -58,6 +58,8 @@ iide_sources = [
     'Services/DocumentManager.vala',
     'Services/PendingChange.vala',
     'Services/TextLineMarks/TextLineMark.vala',
+    'Services/TextLineMarks/BookmarksLineService.vala',
+    'Services/TextLineMarks/BreakpointsLineService.vala',
     'Services/TextLineMarks/TextLineMarkService.vala',
     'Services/Bookmarks/BookmarksNavigator.vala',
     'Services/LSP/LspDocumentClient.vala',

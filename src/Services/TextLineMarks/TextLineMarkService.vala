@@ -1,17 +1,18 @@
 /*
 */
-public delegate void Iide.GutterRenderFunc (
-    Cairo.Context cr,
-    double cell_y, double cell_height, double gutter_width,
-    double draw_x, double draw_y, Pango.Layout? layout
-);
+public struct Iide.FgRenderInfo {
+    double red;
+    double green;
+    double blue;
+    double alpha;
+    int priority;
+}
 
-public class Iide.TextLineMarkService : GLib.Object {
+public abstract class Iide.TextLineMarkService : GLib.Object {
     private string? current_project_root = null;
     private LoggerService logger;
 
     public string category { get; construct; }
-    public Iide.GutterRenderFunc render_func { get; private set; }
 
     // Кэш закладок в памяти для файлов, пока они не открыты в UI
     // [file_uri] -> [Список номеров строк (0-indexed)]
@@ -20,12 +21,17 @@ public class Iide.TextLineMarkService : GLib.Object {
     public signal void project_marks_loaded(string category, Gee.HashMap<string, Gee.ArrayList<TextLineMark?>> marks);
     public signal void uri_marks_changed (string uri, Gee.ArrayList<TextLineMark?> marks);
 
-    public TextLineMarkService (string category, owned Iide.GutterRenderFunc render_func) {
+    protected TextLineMarkService (string category) {
         Object(category: category);
-        this.render_func = (owned) render_func;
         this.logger = LoggerService.get_instance ();
         this.loaded_json_cache = new Gee.HashMap<string, Gee.ArrayList<TextLineMark?>> ();
     }
+
+    public abstract FgRenderInfo foreground_render_info ();
+    public abstract void render_base(
+        Cairo.Context cr, double cell_y, double cell_height,
+        double gutter_width, double draw_x, double draw_y
+    );
 
     public Gee.HashMap<string, Gee.ArrayList<TextLineMark?>> get_registry () {
         return this.loaded_json_cache;
