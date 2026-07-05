@@ -13,7 +13,7 @@ public class Iide.DapVariablesWidget : Gtk.Box {
     public DapVariablesWidget (Window window) {
         Object (orientation: Gtk.Orientation.VERTICAL, spacing: 0);
         this.window = window;
-        this.logger = LoggerService.get_instance ();
+        this.logger = window.logger_service;
 
         // 1. Инициализируем TreeStore. Задаем три Си-колонки в модели данных:
         //    Колонка 0: Имя (string)

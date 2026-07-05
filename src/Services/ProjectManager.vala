@@ -22,6 +22,7 @@ public class Iide.FileEntry : Object {
 
 public class Iide.ProjectManager : Object {
     public weak Window window;
+    private weak LoggerService logger;
 
     private GLib.File? current_project_root;
     private string? current_project_name;
@@ -48,6 +49,7 @@ public class Iide.ProjectManager : Object {
 
     public ProjectManager (Window window) {
         this.window = window;
+        this.logger = window.logger_service;
 
         current_project_root = null;
         current_project_name = null;
@@ -59,12 +61,12 @@ public class Iide.ProjectManager : Object {
 
     public async void open_project_folder (GLib.File project_root) {
         if (!project_root.query_exists (null)) {
-            LoggerService.get_instance ().error ("PROJECT", "Project directory does not exist: %s".printf (project_root.get_path ()));
+            logger.error ("PROJECT", "Project directory does not exist: %s".printf (project_root.get_path ()));
             return;
         }
 
         if (current_project_root != null && current_project_root.get_path () == project_root.get_path ()) {
-            LoggerService.get_instance ().warning ("PROJECT", "Selected project folder already opened.");
+            logger.warning ("PROJECT", "Selected project folder already opened.");
             return;
         }
 
@@ -106,9 +108,9 @@ public class Iide.ProjectManager : Object {
         if (this.iide_dir != null && !this.iide_dir.query_exists (null)) {
             try {
                 this.iide_dir.make_directory (null);
-                LoggerService.get_instance ().info ("PROJECT", "Created internal .iide/ directory for workspace config.");
+                logger.info ("PROJECT", "Created internal .iide/ directory for workspace config.");
             } catch (GLib.Error e) {
-                LoggerService.get_instance ().error ("PROJECT", "Failed to create .iide directory: " + e.message);
+                logger.error ("PROJECT", "Failed to create .iide directory: " + e.message);
             }
         }
     }
@@ -323,7 +325,7 @@ public class Iide.ProjectManager : Object {
         if (!this.has_open_project ())
             return;
         
-        LoggerService.get_instance ().info ("PROJECT", "Initiating LSP shutdown sequence via ProjectManager...");
+        logger.info ("PROJECT", "Initiating LSP shutdown sequence via ProjectManager...");
         yield this.window.lsp_service.shutdown_all_running_lsp_servers_async ();
     }
 
@@ -391,7 +393,7 @@ public class Iide.ProjectManager : Object {
             }
 
         } catch (GLib.Error e) {
-            LoggerService.get_instance ().error ("PROJECT", "Failed to read workspace.json: " + e.message);
+            logger.error ("PROJECT", "Failed to read workspace.json: " + e.message);
             docs.clear ();
             panels = null;
         }
@@ -430,7 +432,7 @@ public class Iide.ProjectManager : Object {
         try {
             generator.to_file (config_path);
         } catch (GLib.Error e) {
-            LoggerService.get_instance ().error ("PROJECT", "Failed to write workspace.json: " + e.message);
+            logger.error ("PROJECT", "Failed to write workspace.json: " + e.message);
         }
     }
 

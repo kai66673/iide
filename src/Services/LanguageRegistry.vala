@@ -65,7 +65,8 @@ namespace Iide {
     }
 
     public class LanguageRegistry : GLib.Object {
-        private static LanguageRegistry? _instance = null;
+        private weak Window window;
+        private weak LoggerService logger;
 
         // Встроенный глобальный JSON по умолчанию
         private const string DEFAULT_LANGUAGES_JSON = """
@@ -172,14 +173,9 @@ namespace Iide {
         private Json.Object merged_servers;
         private Json.Object merged_routing;
 
-        public static unowned LanguageRegistry get_instance () {
-            if (_instance == null) {
-                _instance = new LanguageRegistry ();
-            }
-            return _instance;
-        }
-
-        private LanguageRegistry () {
+        public LanguageRegistry (Window window) {
+            this.window = window;
+            this.logger = window.logger_service;
             this.merged_servers = new Json.Object ();
             this.merged_routing = new Json.Object ();
             this.reset_to_defaults ();
@@ -197,7 +193,7 @@ namespace Iide {
                 this.merged_servers = root.dup_member ("servers").get_object ();
                 this.merged_routing = root.dup_member ("routing").get_object ();
             } catch (GLib.Error e) {
-                LoggerService.get_instance ().error ("LSP", "Failed to parse DEFAULT_LANGUAGES_JSON: " + e.message);
+                logger.error ("LSP", "Failed to parse DEFAULT_LANGUAGES_JSON: " + e.message);
             }
         }
 
@@ -209,7 +205,7 @@ namespace Iide {
             this.reset_to_defaults ();
 
             if (!FileUtils.test (lsp_json_path, FileTest.EXISTS)) {
-                LoggerService.get_instance ().info ("LSP", "Local lsp.json not found. Running with global stock profile.");
+                logger.info ("LSP", "Local lsp.json not found. Running with global stock profile.");
                 return;
             }
 
@@ -230,10 +226,10 @@ namespace Iide {
                     this.deep_merge_objects (this.merged_routing, local_routing);
                 }
 
-                LoggerService.get_instance ().info ("LSP", "Successfully executed deep merge of local lsp.json configuration.");
+                logger.info ("LSP", "Successfully executed deep merge of local lsp.json configuration.");
 
             } catch (GLib.Error e) {
-                LoggerService.get_instance ().error ("LSP", "Failed to merge workspace lsp.json: " + e.message);
+                logger.error ("LSP", "Failed to merge workspace lsp.json: " + e.message);
             }
         }
 
@@ -245,7 +241,7 @@ namespace Iide {
             
             var server_json_obj = this.merged_servers.get_object_member (server_name);
             // Вызываем ваш нативный фабричный метод, который мы научили читать поля, шаблоны и секции настроек! [INDEX]
-            return LspConfig.from_json (server_json_obj);
+            return LspConfig.from_json (this.window, server_json_obj);
         }
 
         private void parse_route (Json.Object? lang_json_obj, LspLanguageRouter router, string json_field, LspFeatures feature) {

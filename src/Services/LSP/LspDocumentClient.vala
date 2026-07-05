@@ -15,7 +15,7 @@ public class Iide.LspDocumentClient: GLib.Object {
     public LspDocumentClient(SourceView source_view) {
         Object();
         this.source_view = source_view;
-        this.logger = LoggerService.get_instance ();
+        this.logger = source_view.window.logger_service;
     }
 
     public Gee.ArrayList<LspClientSyncer> active_clients (ProviderPredicate? predicate = null) { 

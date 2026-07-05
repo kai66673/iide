@@ -61,6 +61,8 @@ public class Iide.LspTooltipWidget : Gtk.Box {
 
 public class Iide.SourceView : GtkSource.View {
     public weak Window window;
+    private weak LoggerService logger;
+
     public string uri { get; private set; }
     private Iide.TreeSitterManager ts_manager;
     public Iide.LineNumbersGutter line_numbers_gutter;
@@ -93,6 +95,7 @@ public class Iide.SourceView : GtkSource.View {
     public SourceView (Window window, string uri, GtkSource.Buffer buffer) {
         Object (buffer : buffer);
         this.window = window;
+        this.logger = window.logger_service;
         this.uri = uri;
         this.ts_manager = new TreeSitterManager ();
         this.history = this.window.navigation_history_service;
@@ -670,12 +673,12 @@ public class Iide.SourceView : GtkSource.View {
         try {
             locations = yield lsp_document_client.request_definition (uri, line, col);
         } catch (GLib.Error e) {
-            LoggerService.get_instance ().error ("LSP", "Failed to request defintion.");
+            logger.error ("LSP", "Failed to request defintion.");
             return;
         }
 
         if (locations == null || locations.size == 0) {
-            LoggerService.get_instance ().warning ("LSP", "No locations found for goto definition");
+            logger.warning ("LSP", "No locations found for goto definition");
             return;
         }
 
@@ -746,7 +749,7 @@ public class Iide.SourceView : GtkSource.View {
             foreach (var mark in existing_marks) {
                 source_buffer.delete_mark (mark);
             }
-            LoggerService.get_instance ().info (
+            logger.info (
                 "MRK", "Deleted GtkSource.Mark '%s' from line %d".printf (
                     marks_category, current_line + 1
                 )
@@ -758,7 +761,7 @@ public class Iide.SourceView : GtkSource.View {
             
             // Создаем новый SourceMark. 
             source_buffer.create_source_mark (null, marks_category, line_start_iter);
-            LoggerService.get_instance ().info (
+            logger.info (
                 "MRK", "Created GtkSource.Mark '%s' on line %d".printf (
                     marks_category, current_line + 1
                 )
@@ -837,7 +840,7 @@ public class Iide.SourceView : GtkSource.View {
         }
 
         buffer.end_user_action ();
-        LoggerService.get_instance ().info ("LCA", "Successfully applied %d text edits to buffer.".printf (edits.size));
+        logger.info ("LCA", "Successfully applied %d text edits to buffer.".printf (edits.size));
 
         this.full_ts_rehighlight_requested ();
     }
@@ -871,14 +874,14 @@ public class Iide.SourceView : GtkSource.View {
         // 1. Собираем сырые диагностики текущей строки [INDEX]
         var raw_diagnostics = this.collect_raw_diagnostics_for_line (current_line);
         if (raw_diagnostics == null) {
-            LoggerService.get_instance ().info ("LCA", "No diagnostics on current line.");
+            logger.info ("LCA", "No diagnostics on current line.");
             return;
         }
 
         lsp_document_client.request_code_actions.begin (this.uri, current_line, 0, current_line, 99, raw_diagnostics, (obj, res) => {
             var results = lsp_document_client.request_code_actions.end(res);
             if (results.size == 0) {
-                LoggerService.get_instance ().info ("LCA", "LSP returned 0 available code actions.");
+                logger.info ("LCA", "LSP returned 0 available code actions.");
                 return;
             }
 

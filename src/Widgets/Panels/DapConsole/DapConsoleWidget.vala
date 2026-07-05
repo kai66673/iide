@@ -11,6 +11,8 @@ public class Iide.TargetLinkPayload : GLib.Object {
 
 public class Iide.DapConsoleWidget : Gtk.Box {
     private weak Window window;
+    private weak LoggerService logger;
+
     private Gtk.TextView output_view;
     private Gtk.TextBuffer buffer;
     private Gtk.Entry input_entry;
@@ -22,6 +24,7 @@ public class Iide.DapConsoleWidget : Gtk.Box {
     public DapConsoleWidget (Window window) {
         Object (orientation: Gtk.Orientation.VERTICAL, spacing: 4);
         this.window = window;
+        this.logger = window.logger_service;
         this.margin_start = 6; this.margin_end = 6; this.margin_top = 4; this.margin_bottom = 6;
 
         // 1. Буфер вывода с тегами стилизации цветов
@@ -137,7 +140,7 @@ public class Iide.DapConsoleWidget : Gtk.Box {
             try {
                 active_regexes.add (new GLib.Regex (pattern));
             } catch (GLib.Error e) {
-                LoggerService.get_instance ().error ("DAP-UI", "Invalid regex pattern in manifest: " + pattern);
+                logger.error ("DAP-UI", "Invalid regex pattern in manifest: " + pattern);
             }
         }
 
@@ -331,7 +334,7 @@ public class Iide.DapConsoleWidget : Gtk.Box {
                     var file_obj = GLib.File.new_for_path (payload.file_path);
                     string file_uri = file_obj.get_uri ();
 
-                    LoggerService.get_instance ().info ("DAP-UI", @"[Ctrl+Click] Navigating to $file_uri line $(payload.line)");
+                    logger.info ("DAP-UI", @"[Ctrl+Click] Navigating to $file_uri line $(payload.line)");
 
                     // МГНОВЕННЫЙ ПРЫЖОК: Командуем UI открыть файл и подсветить строку!
                     // Так как в Python трейсбеках строки 1-based, переводим в 0-indexed для GTK (делаем -1)

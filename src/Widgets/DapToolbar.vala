@@ -2,8 +2,8 @@
 */
 public class Iide.DapToolbar : Gtk.Box {
     private weak Window window;
-
-    private LoggerService logger;
+    private weak LoggerService logger;
+    
     private Gtk.DropDown target_drop_down;
     private Gtk.StringList target_string_list;
 
@@ -19,7 +19,7 @@ public class Iide.DapToolbar : Gtk.Box {
     public DapToolbar (Window window) {
         Object (orientation: Gtk.Orientation.HORIZONTAL, spacing: 0);
         this.window = window;
-        this.logger = LoggerService.get_instance ();
+        this.logger = window.logger_service;
         this.add_css_class ("linked"); // Склеит кнопки в единый монолитный блок
         this.valign = Gtk.Align.CENTER;
 

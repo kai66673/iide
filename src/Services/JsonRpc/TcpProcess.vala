@@ -1,6 +1,9 @@
 /*
 */
 public class Iide.TcpProcess : GLib.Object, RpcTransport {
+    private weak Window window;
+    private weak LoggerService logger;
+
     private GLib.SocketConnection? connection = null;
     private GLib.OutputStream? output_stream = null;
     private GLib.DataInputStream? input_stream = null;
@@ -19,8 +22,10 @@ public class Iide.TcpProcess : GLib.Object, RpcTransport {
     // Реализация сигналов интерфейса RpcTransport [INDEX]
     // (Они подхватятся DapClient.vala автоматически)
 
-    public TcpProcess () {
+    public TcpProcess (Window window) {
         Object ();
+        this.window = window;
+        this.logger = window.logger_service;
         this.read_cancellable = new GLib.Cancellable ();
         this.write_waiters = new Gee.ArrayQueue<RpcWriteTask> ();
     }
@@ -48,7 +53,7 @@ public class Iide.TcpProcess : GLib.Object, RpcTransport {
             try {
                 this.connect_socket_async.end (res);
             } catch (GLib.Error e) {
-                LoggerService.get_instance ().error ("TCP-TRANSPORT", "Connection transaction failed: " + e.message);
+                logger.error ("TCP-TRANSPORT", "Connection transaction failed: " + e.message);
                 this.unexpected_crash (); // Оповещаем DapClient о сбое коннекта
             }
         });
@@ -57,7 +62,7 @@ public class Iide.TcpProcess : GLib.Object, RpcTransport {
     }
 
     private async void connect_socket_async (string host, uint16 port) throws GLib.Error {
-        LoggerService.get_instance ().info ("TCP-TRANSPORT", @"Connecting to debug adapter at $host:$port...");
+        logger.info ("TCP-TRANSPORT", @"Connecting to debug adapter at $host:$port...");
 
         var client = new GLib.SocketClient ();
         // Устанавливаем таймаут подключения в 5 секунд, чтобы IDE не зависла вечно
@@ -70,7 +75,7 @@ public class Iide.TcpProcess : GLib.Object, RpcTransport {
         this.output_stream = this.connection.get_output_stream ();
         this.input_stream = new DataInputStream (this.connection.get_input_stream ());
 
-        LoggerService.get_instance ().info ("TCP-TRANSPORT", "Network TCP channel established successfully.");
+        logger.info ("TCP-TRANSPORT", "Network TCP channel established successfully.");
 
         // Запускаем фоновый поток чтения RPC-чанков
         this.active_read_loops_count = 0;
@@ -107,7 +112,7 @@ public class Iide.TcpProcess : GLib.Object, RpcTransport {
                 // Пушим байты по сети через write_all_async сокета [INDEX]
                 yield this.output_stream.write_all_async (data, Priority.DEFAULT, this.read_cancellable, out bytes_written);
             } catch (GLib.Error e) {
-                LoggerService.get_instance ().error ("TCP-TRANSPORT", "Network write failed: " + e.message);
+                logger.error ("TCP-TRANSPORT", "Network write failed: " + e.message);
             } finally {
                 // Возвращаем управление в UI-поток
                 Idle.add (() => {
@@ -123,7 +128,7 @@ public class Iide.TcpProcess : GLib.Object, RpcTransport {
         * АТОМАРНЫЙ БАРЬЕР ТУШЕНИЯ СЕТЕВЫХ СТРИМОВ (0% Outstanding-операций)
         */
     public async void terminate_async () {
-        LoggerService.get_instance ().debug ("TCP-TRANSPORT", "Cancelling network read operations...");
+        logger.debug ("TCP-TRANSPORT", "Cancelling network read operations...");
         this.read_cancellable.cancel ();
 
         // Асинхронный затвор: ждем, пока фоновый читатель сети полностью выйдет из цикла
@@ -132,7 +137,7 @@ public class Iide.TcpProcess : GLib.Object, RpcTransport {
             yield;
         }
 
-        LoggerService.get_instance ().debug ("TCP-TRANSPORT", "Safe to close network sockets cleanly.");
+        logger.debug ("TCP-TRANSPORT", "Safe to close network sockets cleanly.");
 
         try {
             if (this.output_stream != null && !this.output_stream.is_closed ()) yield this.output_stream.close_async (Priority.DEFAULT, null);

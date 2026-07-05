@@ -4,6 +4,8 @@ using Json;
 namespace Iide {
 
     public class LspConfig : GLib.Object {
+        private weak Window window;
+
         public string[] command { get; set; }
         public bool capability_formatting { get; set; default = true; }
         public bool capability_hover { get; set; default = true; }
@@ -39,7 +41,7 @@ namespace Iide {
                 parser.load_from_data (processed_json, -1);
                 return parser.get_root ().copy ();
             } catch (GLib.Error e) {
-                LoggerService.get_instance ().error ("LSP", "Failed to process dynamic initialize_template: %s".printf (e.message));
+                this.window.logger_service.error ("LSP", "Failed to process dynamic initialize_template: %s".printf (e.message));
                 return new Json.Node (Json.NodeType.NULL);
             }
         }
@@ -85,7 +87,7 @@ namespace Iide {
                         response_settings = target_node.copy ().get_object ();
                     }
                 } else {
-                    LoggerService.get_instance ().warning ("LSP", "Server requested unknown configuration section: '%s'. Returning empty object.".printf (section));
+                    this.window.logger_service.warning ("LSP", "Server requested unknown configuration section: '%s'. Returning empty object.".printf (section));
                 }
 
                 results.add_object_element (response_settings);
@@ -96,8 +98,12 @@ namespace Iide {
             return results_node;
         }
 
-        public static LspConfig from_json (Json.Object obj) {
-            var config = new LspConfig ();
+        public LspConfig (Window window) {
+            this.window = window;
+        }
+
+        public static LspConfig from_json (Window window, Json.Object obj) {
+            var config = new LspConfig (window);
             
             // Читаем массив команды
             if (obj.has_member ("command")) {

@@ -67,7 +67,6 @@ public class Iide.LogEntry : Object {
 }
 
 public class Iide.LoggerService : Object {
-    private static LoggerService? _instance;
     private Gee.ArrayList<Iide.LogEntry> entries;
     private int max_entries = 1000;
     private bool enable_logging = true;
@@ -75,13 +74,6 @@ public class Iide.LoggerService : Object {
 
     public signal void log_added (Iide.LogEntry entry);
     public signal void log_cleared ();
-
-    public static LoggerService get_instance () {
-        if (_instance == null) {
-            _instance = new LoggerService ();
-        }
-        return _instance;
-    }
 
     public LoggerService () {
         entries = new Gee.ArrayList<Iide.LogEntry> ();

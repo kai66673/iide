@@ -23,8 +23,8 @@ public class Iide.LspService : GLib.Object {
         this.window = window;
         this.clients = new Gee.HashMap<string, LspClient> ();
         this.active_languages = new Gee.HashMap<string, Gee.ArrayList<LspClient>> ();
-        this.logger = LoggerService.get_instance ();
-        this.registry = LanguageRegistry.get_instance ();
+        this.logger = window.logger_service;
+        this.registry = this.window.language_registry;
     }
 
     public Gee.HashMap<string, LspClient> get_active_clients () {

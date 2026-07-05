@@ -26,7 +26,7 @@ public abstract class Iide.TextLineMarkService : GLib.Object {
     protected TextLineMarkService (Window window, string category) {
         Object(category: category);
         this.window = window;
-        this.logger = LoggerService.get_instance ();
+        this.logger = window.logger_service;
         this.loaded_json_cache = new Gee.HashMap<string, Gee.ArrayList<TextLineMark?>> ();
     }
 

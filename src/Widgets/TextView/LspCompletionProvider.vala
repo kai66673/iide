@@ -58,6 +58,7 @@ namespace Iide {
 
     public class LspCompletionProvider : GLib.Object, CompletionProvider {
         private weak SourceView source_view;
+        private weak LoggerService logger;
         private LspService lsp_service;
         private GLib.ListStore base_store;
         private Gtk.FilterListModel filter_model;
@@ -80,6 +81,7 @@ namespace Iide {
 
         public LspCompletionProvider (SourceView view) {
             this.source_view = view;
+            this.logger = view.window.logger_service;
             this.lsp_service = view.window.lsp_service;
 
             // 1. Создаем хранилище
@@ -176,7 +178,7 @@ namespace Iide {
                             result.client = client;
                         }
                     } catch (GLib.Error e) {
-                        LoggerService.get_instance ().error ("LSP", "Completion failed for '%s': %s".printf (client.name (), e.message));
+                        logger.error ("LSP", "Completion failed for '%s': %s".printf (client.name (), e.message));
                     } finally {
                         active_requests--;
                         // Будим основной метод ТОЛЬКО когда ответил самый последний сокет!
@@ -276,7 +278,7 @@ namespace Iide {
                         // Метод отправки "completionItem/resolve", который мы обсудили шагом ранее
                         item.additional_text_edits = yield client.request_completion_item_resolve (item.raw_json);
                     } catch (GLib.Error e) {
-                        LoggerService.get_instance ().error ("LSP-COMPLETION", "Resolve item failed: " + e.message);
+                        logger.error ("LSP-COMPLETION", "Resolve item failed: " + e.message);
                     }
                 }
             }

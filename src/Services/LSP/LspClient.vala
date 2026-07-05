@@ -86,8 +86,7 @@ public class Iide.LspClient : Object {
     }
 
     private weak Window window;
-
-    private LoggerService logger = LoggerService.get_instance ();
+    private weak LoggerService logger;
 
     // Сильная ссылка на текущий временный низкоуровневый процесс ОС
     private Iide.RpcProcess? current_process = null;
@@ -153,6 +152,7 @@ public class Iide.LspClient : Object {
 
     public LspClient (Window window, string language_id, LspConfig config, LspFeatures features) {
         this.window = window;
+        this.logger = window.logger_service;
         this.capabilities = new ServerCapabilities ();
         this.config = config;
         this.features = features;
@@ -175,7 +175,7 @@ public class Iide.LspClient : Object {
         this.is_stopping = false;
 
         // 1. Порождаем абсолютно чистый, изолированный объект процесса ОС!
-        this.current_process = new Iide.RpcProcess ();
+        this.current_process = new Iide.RpcProcess (this.window);
 
         // 2. Связываем низкоуровневые сигналы с методами нашего монолита
         this.current_process.message_received.connect (this.handle_payload);
@@ -202,7 +202,7 @@ public class Iide.LspClient : Object {
         }
 
         this.status = LspClientStatus.INITIALIZING;
-        LoggerService.get_instance ().info ("LSP", "Server '%s' process spawned. Handshaking 'initialize'...".printf (this.name ()));
+        logger.info ("LSP", "Server '%s' process spawned. Handshaking 'initialize'...".printf (this.name ()));
 
         // 4. Прогоняем фазу initialize через стерильную трубу
         try {
@@ -226,7 +226,7 @@ public class Iide.LspClient : Object {
             
             // Смена статуса ДО опустошения очереди, чтобыdidOpen проскочил напрямую
             this.status = LspClientStatus.READY;
-            LoggerService.get_instance ().info ("LSP", "Server '%s' started and initialized successfully.".printf (this.name ()));
+            logger.info ("LSP", "Server '%s' started and initialized successfully.".printf (this.name ()));
 
             return true;
         } catch (GLib.Error e) {
@@ -624,7 +624,7 @@ public class Iide.LspClient : Object {
 
         var node = new Json.Node(Json.NodeType.OBJECT);
         node.set_object(response);
-        LoggerService.get_instance ().info("DS", Json.to_string (node, true));
+        logger.info("DS", Json.to_string (node, true));
 
 
         var result = parse_document_lsp_symbols (response.get_member ("result"));

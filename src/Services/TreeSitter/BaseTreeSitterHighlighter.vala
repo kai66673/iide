@@ -10,7 +10,7 @@ public abstract class Iide.BaseTreeSitterHighlighter : Object {
 
     // GTK объекты
     protected GtkSource.Buffer buffer;
-    protected SourceView view;
+    public SourceView view;
 
     //  private TreeSitter.Input ts_input;
 

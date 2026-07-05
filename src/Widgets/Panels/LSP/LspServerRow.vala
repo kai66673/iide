@@ -3,6 +3,7 @@
 
 public class Iide.LspServerRow : Adw.ActionRow {
     private weak Window window;
+    private weak LoggerService logger;
     public LspClient client { get; private set; }
     
     // Текстовые буферы теперь инкапсулированы внутри виджета строки!
@@ -20,6 +21,7 @@ public class Iide.LspServerRow : Adw.ActionRow {
             activatable: true // Строка кликабельна для вызова логов
         );
         this.window = window;
+        this.logger = window.logger_service;
         this.client = client;
 
         // 1. Графический индикатор состояния
@@ -139,14 +141,14 @@ public class Iide.LspServerRow : Adw.ActionRow {
             try {
                 this.execute_stop_async.end (res);
             } catch (GLib.Error e) {
-                LoggerService.get_instance ().error ("LSP-UI", "Stop transaction failed: " + e.message);
+                logger.error ("LSP-UI", "Stop transaction failed: " + e.message);
                 this.refresh_ui ();
             }
         });
     }
 
     private async void execute_stop_async () throws GLib.Error {
-        LoggerService.get_instance ().info ("LSP-UI", @"[Manual Stop] Shutting down process: '$(this.client.name())'...");
+        logger.info ("LSP-UI", @"[Manual Stop] Shutting down process: '$(this.client.name())'...");
         
         // Тушим потоки ввода-вывода
         yield this.client.shutdown_and_exit_async ();
@@ -184,7 +186,7 @@ public class Iide.LspServerRow : Adw.ActionRow {
             try {
                 this.execute_start_async.end (res);
             } catch (GLib.Error e) {
-                LoggerService.get_instance ().error ("LSP-UI", "Start transaction failed: " + e.message);
+                logger.error ("LSP-UI", "Start transaction failed: " + e.message);
                 this.refresh_ui ();
             }
         });
@@ -195,7 +197,7 @@ public class Iide.LspServerRow : Adw.ActionRow {
         string? workspace_root = prj_manager.has_open_project () ?
             prj_manager.get_current_project_root ().get_uri () : null;
 
-        LoggerService.get_instance ().info ("LSP-UI", @"[Manual Start] Spawning process for '$(this.client.name())'...");
+        logger.info ("LSP-UI", @"[Manual Start] Spawning process for '$(this.client.name())'...");
 
         // Принудительно выбиваем сервер из статуса ABORTED/FAILED, переводя в STOPPED, чтобы старт_async пропустил его
         this.client.status = LspClientStatus.STOPPED;

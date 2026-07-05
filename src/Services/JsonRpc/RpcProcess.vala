@@ -2,6 +2,9 @@
 */
 
 public class Iide.RpcProcess : GLib.Object, RpcTransport {
+    private weak Window window;
+    private weak LoggerService logger;
+
     private GLib.Subprocess? process = null;
     
     private GLib.OutputStream? output_stream = null;
@@ -19,8 +22,10 @@ public class Iide.RpcProcess : GLib.Object, RpcTransport {
     private int active_loops_count = 0;
     private SourceFunc? shutdown_barrier_callback = null;
 
-    public RpcProcess () {
+    public RpcProcess (Window window) {
         Object ();
+        this.window = window;
+        this.logger = window.logger_service;
         this.read_cancellable = new GLib.Cancellable ();
         this.write_waiters = new Gee.ArrayQueue<RpcWriteTask> ();
     }
@@ -54,7 +59,7 @@ public class Iide.RpcProcess : GLib.Object, RpcTransport {
             
             return true;
         } catch (GLib.Error e) {
-            LoggerService.get_instance ().error ("LSP-PROCESS", "Failed to spawn OS sub-process: " + e.message);
+            logger.error ("LSP-PROCESS", "Failed to spawn OS sub-process: " + e.message);
             return false;
         }
     }
@@ -100,7 +105,7 @@ public class Iide.RpcProcess : GLib.Object, RpcTransport {
                 // Передаем токен отмены, индивидуальный для этого запуска процесса ОС
                 yield this.output_stream.write_all_async (data, Priority.DEFAULT, this.read_cancellable, out bytes_written);
             } catch (GLib.Error e) {
-                LoggerService.get_instance ().error ("LSP-PROCESS", "Write error inside channel: " + e.message);
+                logger.error ("LSP-PROCESS", "Write error inside channel: " + e.message);
             } finally {
                 // Обязательно возвращаем выполнение вызвавшему методу, продвигая очередь дальше
                 Idle.add (() => {
@@ -117,7 +122,7 @@ public class Iide.RpcProcess : GLib.Object, RpcTransport {
      * ЖЕЛЕЗОБЕТОННЫЙ ДВУХФАЗНЫЙ БАРЬЕР ТУШЕНИЯ СОКЕТОВ
      */
     public async void terminate_async () {
-        LoggerService.get_instance ().debug ("LSP-PROCESS", "Sending cancellation token to background loops...");
+        logger.debug ("LSP-PROCESS", "Sending cancellation token to background loops...");
         
         // 1. Шлем прерывание во все висящие операции чтения read_line_async
         this.read_cancellable.cancel ();
@@ -128,7 +133,7 @@ public class Iide.RpcProcess : GLib.Object, RpcTransport {
             yield; 
         }
 
-        LoggerService.get_instance ().debug ("LSP-PROCESS", "All background readers are dead. Safe to close file descriptors.");
+        logger.debug ("LSP-PROCESS", "All background readers are dead. Safe to close file descriptors.");
 
         // 3. Теперь закрытие на 100% стерильно. Ни одной outstanding операции нет в природе!
         try {

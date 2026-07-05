@@ -70,7 +70,7 @@ public class Iide.DapService : GLib.Object {
         this.window = window;
         this.adapters = new Gee.HashMap<string, DapConfig> ();
         this.targets = new Gee.ArrayList<DapTargetConfig> ();
-        this.logger = LoggerService.get_instance ();
+        this.logger = window.logger_service;
 
         // 1. Сразу при старте IDE в абсолютной тишине загружаем глобальный манифест отладчиков
         this.load_global_dap_manifest ();
@@ -249,7 +249,7 @@ public class Iide.DapService : GLib.Object {
         this.logger.info ("DAP", @"[Launch] Spawning process for adapter tool: '$(adapter_config.id)'...");
 
         // 2. Создаем DapClient (Семантическое ядро отладчика)
-        var dap_client = new DapClient (adapter_config);
+        var dap_client = new DapClient (this.window, adapter_config);
         bool spawned = yield dap_client.start_adapter_process_async (workspace_root_path);
         if (!spawned)
             return false;

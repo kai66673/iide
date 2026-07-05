@@ -47,7 +47,7 @@ public class Iide.LogView : Gtk.Box {
     public LogView (Window window) {
         Object (orientation: Gtk.Orientation.VERTICAL, spacing: 0);
         this.window = window;
-        logger = Iide.LoggerService.get_instance ();
+        logger = window.logger_service;
 
         var icon_provider = SymbIconProvider.get_instance ();
 

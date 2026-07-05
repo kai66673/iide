@@ -9,6 +9,8 @@ public enum Iide.DapClientStatus {
 }
 
 public class Iide.DapClient : GLib.Object {
+    private weak Window window;
+
     // Полиморфный интерфейс транспорта (может быть RpcProcess или TcpProcess!)
     private Iide.RpcTransport? transport = null;
     private Iide.DapConfig config;
@@ -31,10 +33,11 @@ public class Iide.DapClient : GLib.Object {
     public signal void output_received (string category, string text);
 
 
-    public DapClient (Iide.DapConfig config) {
+    public DapClient (Window window, Iide.DapConfig config) {
         Object ();
+        this.window = window;
         this.config = config;
-        this.logger = LoggerService.get_instance ();
+        this.logger = window.logger_service;
     }
 
     public string name () { return this.config.id; }
@@ -51,10 +54,10 @@ public class Iide.DapClient : GLib.Object {
 
         // ДИНАМИЧЕСКИЙ ВЫБОР ДВИЖКА ТРАНСПОРТА!
         if (this.config.transport == "tcp") {
-            this.transport = new Iide.TcpProcess (); 
+            this.transport = new Iide.TcpProcess (this.window);
         } else {
             // Используем наш универсальный переименованный RpcProcess
-            this.transport = new Iide.RpcProcess ();
+            this.transport = new Iide.RpcProcess (this.window);
         }
 
         // Биндим сигналы транспорта на методы нашего семантического ядра

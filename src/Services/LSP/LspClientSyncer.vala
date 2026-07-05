@@ -16,7 +16,7 @@ public class Iide.LspClientSyncer: GLib.Object {
         Object ();
         this.source_view = source_view;
         this.client = client;
-        this.logger = LoggerService.get_instance ();
+        this.logger = source_view.window.logger_service;
 
         this.client.state_ready_changed.connect (this.on_state_ready_changed);
         if (this.is_ready) {

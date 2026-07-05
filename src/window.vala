@@ -23,10 +23,12 @@ using Adw;
 using Panel;
 
 public class Iide.Window : Panel.DocumentWorkspace {
+    public LoggerService logger_service;
     public DocumentManager document_manager;
     public NavigationHistoryService navigation_history_service;
     public ProjectManager project_manager;
     public DapService dap_service;
+    public LanguageRegistry language_registry; 
     public LspService lsp_service;
     public TextLineMarkService bookmark_service;
     public TextLineMarkService breakpoint_service;
@@ -55,6 +57,8 @@ public class Iide.Window : Panel.DocumentWorkspace {
 
     construct {
         settings = SettingsService.get_instance ();
+        logger_service = new LoggerService ();
+        language_registry = new LanguageRegistry (this);
         lsp_service = new LspService (this);
         document_manager = new DocumentManager (this);
         navigation_history_service = new NavigationHistoryService (this);

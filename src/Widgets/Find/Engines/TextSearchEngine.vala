@@ -313,7 +313,7 @@ public class Iide.TextSearchEngine : SearchEngine, Object {
             if (res.score > 50)all_task_results.add (res);
         }
 
-        LoggerService.get_instance ().debug ("SEARCH TEXT", "results count=" + all_task_results.size.to_string ());
+        this.window.logger_service.debug ("SEARCH TEXT", "results count=" + all_task_results.size.to_string ());
         var all_results = new Gee.ArrayList<SearchResult> ();
         if (all_task_results.size > 4000) {
             var top_results = new Gee.TreeSet<SearchResult> ((a, b) => {
