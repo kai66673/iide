@@ -125,17 +125,17 @@ public class Iide.Application : Adw.Application {
         var css_provider = new Gtk.CssProvider ();
         css_provider.load_from_resource ("/org/github/kai66673/iide/style.css");
         add_provider_to_display (
-                                 Gdk.Display.get_default (),
-                                 css_provider,
-                                 Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION
+            Gdk.Display.get_default (),
+            css_provider,
+            Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION
         );
 
         var css_symbol_provider = new Gtk.CssProvider ();
         css_symbol_provider.load_from_resource ("/org/github/kai66673/iide/symbols/symbols.css");
         add_provider_to_display (
-                                 Gdk.Display.get_default (),
-                                 css_symbol_provider,
-                                 Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION
+            Gdk.Display.get_default (),
+            css_symbol_provider,
+            Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION
         );
 
         register_embedded_fonts ();
