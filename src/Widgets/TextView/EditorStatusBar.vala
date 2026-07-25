@@ -20,7 +20,7 @@ public class Iide.EditorStatusBar : Gtk.Box {
         this.breadcrumps_bar.hexpand = true;
         this.breadcrumps_bar.update_file_path (
             GLib.File.new_for_uri (source_view.uri),
-            GLib.File.new_for_path (this.source_view.session.project_manager.get_workspace_root_path ())
+            GLib.File.new_for_path (this.source_view.session.current_project_root.get_path ())
         );
 
         this.find_bar = new FindBar (source_view);

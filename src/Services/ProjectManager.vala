@@ -24,10 +24,6 @@ public class Iide.ProjectManager : Object {
     public weak WindowSession session;
     private weak LoggerService logger;
 
-    private GLib.File? current_project_root;
-    private string? current_project_name;
-    // Путь к скрытой папке настроек текущего проекта (/path/to/project/.iide)
-    private GLib.File? iide_dir;
     private Iide.SettingsService settings;
 
     private Gee.List<Iide.FileEntry> file_cache;
@@ -51,9 +47,6 @@ public class Iide.ProjectManager : Object {
         this.session = session;
         this.logger = session.logger_service;
 
-        current_project_root = null;
-        current_project_name = null;
-        iide_dir = null;
         settings = Iide.SettingsService.get_instance ();
         file_cache = new Gee.ArrayList<Iide.FileEntry> ();
         text_file_cache = new Gee.ArrayList<Iide.FileEntry> ();
@@ -65,25 +58,6 @@ public class Iide.ProjectManager : Object {
             return;
         }
 
-        if (current_project_root != null && current_project_root.get_path () == project_root.get_path ()) {
-            logger.warning ("PROJECT", "Selected project folder already opened.");
-            return;
-        }
-
-        bool save_confirmed = yield this.session.document_manager
-            .confirm_save_modified_documents_async ();
-
-        if (!save_confirmed)
-            return;
-
-        if (current_project_root != null) {
-            yield close_project ();
-        }
-
-        current_project_root = project_root;
-        current_project_name = project_root.get_basename ();
-
-        this.iide_dir = project_root.get_child (".iide");
         this.ensure_iide_directory_exists ();
 
         settings.current_project_path = project_root.get_path ();
@@ -105,9 +79,10 @@ public class Iide.ProjectManager : Object {
     }
 
     private void ensure_iide_directory_exists () {
-        if (this.iide_dir != null && !this.iide_dir.query_exists (null)) {
+        var iide_dir = session.get_iide_dir ();
+        if (!iide_dir.query_exists (null)) {
             try {
-                this.iide_dir.make_directory (null);
+                iide_dir.make_directory (null);
                 logger.info ("PROJECT", "Created internal .iide/ directory for workspace config.");
             } catch (GLib.Error e) {
                 logger.error ("PROJECT", "Failed to create .iide directory: " + e.message);
@@ -138,29 +113,21 @@ public class Iide.ProjectManager : Object {
             directory_monitor = null;
         }
 
-        if (current_project_root != null) {
-            yield shutdown_all_running_lsp_servers_async ();
-            this.session.diagnostics_service.lsp_stopped ();
+        yield shutdown_all_running_lsp_servers_async ();
+        this.session.diagnostics_service.lsp_stopped ();
 
-            current_project_root = null;
-            current_project_name = null;
-            cache_valid = false;
-            file_cache.clear ();
-            text_file_cache.clear ();
-            settings.current_project_path = "";
-            foreach (var mark_service in this.session.marks_service) {
-                mark_service.write_cache_to_json_file ();
-            }
-            this.save_session_and_clear_panels ();
-            project_closed ();
+        cache_valid = false;
+        file_cache.clear ();
+        text_file_cache.clear ();
+        settings.current_project_path = "";
+        foreach (var mark_service in this.session.marks_service) {
+            mark_service.write_cache_to_json_file ();
         }
+        this.save_session_and_clear_panels ();
+        project_closed ();
     }
 
     public async void rebuild_file_cache_async () {
-        if (current_project_root == null) {
-            return;
-        }
-
         if (cache_loading) {
             return;
         }
@@ -170,7 +137,8 @@ public class Iide.ProjectManager : Object {
         text_file_cache.clear ();
 
         try {
-            yield scan_directory_async (current_project_root, current_project_root.get_path ());
+            var root = session.current_project_root;
+            yield scan_directory_async (root, root.get_path ());
 
             file_cache.sort ((a, b) => a.name.collate (b.name));
             text_file_cache.sort ((a, b) => a.name.collate (b.name));
@@ -268,13 +236,6 @@ public class Iide.ProjectManager : Object {
         file_cache_invalidated ();
     }
 
-    public string ? get_workspace_root_path () {
-        if (current_project_root != null) {
-            return current_project_root.get_path ();
-        }
-        return null;
-    }
-
     public void open_project_by_path (string path) {
         if (path != null && path != "") {
             var file = GLib.File.new_for_path (path);
@@ -282,18 +243,6 @@ public class Iide.ProjectManager : Object {
                 open_project_folder.begin (file);
             }
         }
-    }
-
-    public GLib.File? get_current_project_root () {
-        return current_project_root;
-    }
-
-    public string ? get_current_project_name () {
-        return current_project_name;
-    }
-
-    public bool has_open_project () {
-        return current_project_root != null;
     }
 
     public async void open_project_dialog (Window parent_window) {
@@ -313,8 +262,11 @@ public class Iide.ProjectManager : Object {
             if (file != null) {
                 yield open_project_folder (file);
             }
-        } catch {
-            // User dismissed dialog or other error - silently ignore
+        } catch (Error e) {
+            // User dismissed dialog — not an error
+            if (!(e is IOError.CANCELLED)) {
+                logger.error ("PROJECT", "Failed to show open project dialog: " + e.message);
+            }
         }
     }
 
@@ -322,9 +274,6 @@ public class Iide.ProjectManager : Object {
      * АСИНХРОННОЕ ЗАКРЫТИЕ СЕРВЕРОВ (Вызывается из вашего нового метода Window.shutdown_all_running_lsp_servers_async)
      */
     public async void shutdown_all_running_lsp_servers_async () {
-        if (!this.has_open_project ())
-            return;
-        
         logger.info ("PROJECT", "Initiating LSP shutdown sequence via ProjectManager...");
         yield this.session.lsp_service.shutdown_all_running_lsp_servers_async ();
     }
@@ -334,9 +283,7 @@ public class Iide.ProjectManager : Object {
      * Используется другими сервисами приложения
      */
     public string? get_project_config_file_path (string filename) {
-        if (this.iide_dir == null)
-            return null;
-        return GLib.Path.build_filename (this.iide_dir.get_path (), filename);
+        return GLib.Path.build_filename (session.get_iide_dir ().get_path (), filename);
     }
 
     private void restore_session_and_panels () {

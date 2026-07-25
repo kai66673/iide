@@ -140,7 +140,43 @@ public class Iide.Application : Adw.Application {
 
         register_embedded_fonts ();
 
-        var win = this.active_window ?? new Iide.Window (this);
+        // Если нет сохранённого проекта — показываем WelcomeDialog
+        if (this.active_window != null) {
+            this.active_window.present ();
+            return;
+        }
+
+        var settings = Iide.SettingsService.get_instance ();
+        string project_path = settings.current_project_path;
+
+        if (project_path == null || project_path == "") {
+            show_welcome_dialog ();
+        } else {
+            var project_root = GLib.File.new_for_path (project_path);
+            create_main_window (project_root);
+        }
+    }
+
+    public void show_welcome_dialog () {
+        var welcome = new Iide.WelcomeDialog (this);
+
+        welcome.project_selected.connect ((project_root) => {
+            var settings = Iide.SettingsService.get_instance ();
+            settings.current_project_path = project_root.get_path ();
+            settings.add_recent_project (project_root.get_path ());
+            if (project_root.get_parent () != null) {
+                settings.last_open_directory = project_root.get_parent ().get_path ();
+            }
+            var main_win = new Iide.Window (this, project_root);
+            main_win.present ();
+            welcome.destroy ();
+        });
+
+        welcome.present ();
+    }
+
+    private void create_main_window (GLib.File project_root) {
+        var win = new Iide.Window (this, project_root);
         win.present ();
     }
 }
@@ -188,8 +224,12 @@ private class Iide.OpenProjectAction : Iide.AppAction {
     }
 
     public override void execute () {
-        var win = app ? .active_window as Iide.Window;
-        win?.open_project_dialog ();
+        var win = app?.active_window as Iide.Window;
+        if (win != null) {
+            win.open_project_dialog ();
+        } else {
+            app?.show_welcome_dialog ();
+        }
     }
 }
 

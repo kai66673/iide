@@ -12,6 +12,14 @@ public class Iide.WindowSession : Object {
     // Обратная ссылка на Window (нужна для UI: диалоги, grid, add_widget)
     public weak Iide.Window window { get; construct set; }
 
+    // Корневая директория проекта (non-nullable — одно окно = один проект)
+    public GLib.File current_project_root { get; set; }
+
+    // Convenience-методы
+    public owned string get_project_name () { return current_project_root.get_basename (); }
+    public owned string get_project_root_path () { return current_project_root.get_path (); }
+    public owned GLib.File get_iide_dir () { return current_project_root.get_child (".iide"); }
+
     // Сервисы проекта
     public LoggerService logger_service { get; construct set; }
     public LanguageRegistry language_registry { get; construct set; }
@@ -29,8 +37,9 @@ public class Iide.WindowSession : Object {
     public Panel.Grid grid { get; construct set; }
     public Panel.Dock dock { get; construct set; }
 
-    public WindowSession (Iide.Window window) {
+    public WindowSession (Iide.Window window, GLib.File project_root) {
         this.window = window;
+        this.current_project_root = project_root;
 
         this.logger_service = new LoggerService ();
 

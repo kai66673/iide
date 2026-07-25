@@ -33,6 +33,7 @@ iide_sources = [
     'Widgets/Find/Engines/TextSearchEngine.vala',
     'Widgets/Find/SearchWindow.vala',
     'Widgets/PreferencesDialog.vala',
+    'Widgets/WelcomeDialog.vala',
     'Widgets/Panels/BasePanel.vala',
     'Widgets/Panels/LogPanel.vala',
     'Widgets/Panels/TerminalPanel.vala',

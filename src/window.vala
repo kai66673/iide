@@ -41,17 +41,17 @@ public class Iide.Window : Panel.DocumentWorkspace {
 
     private BasePanel[] panel_widgets;
 
-    public Window (Gtk.Application app) {
-        Object (application: app);
+    public GLib.File project_root { get; construct set; }
+
+    public Window (Gtk.Application app, GLib.File project_root) {
+        Object (application: app, project_root: project_root);
         GtkSource.init ();
     }
 
     construct {
         settings = SettingsService.get_instance ();
 
-        // Создаём сессию проекта (порядок сервисов определён в конструкторе WindowSession)
-        // Конструктор WindowSession также прокидывает сервисы обратно в window.* для совместимости
-        session = new WindowSession (this);
+        session = new WindowSession (this, project_root);
 
         session.dap_service.active_line_changed.connect (session.document_manager.highlight_debugger_active_line);
         session.dap_service.session_state_changed.connect ((state, old_state) => {
@@ -205,23 +205,59 @@ public class Iide.Window : Panel.DocumentWorkspace {
         // Handle window close
         this.close_request.connect (() => {
             save_window_settings ();
-            this.handle_window_close_async.begin ();
-            
+            this.handle_close ();
             return true;
         });
     }
 
-    private async void handle_window_close_async () {
-        bool save_confirmed = yield this.session.document_manager.confirm_save_modified_documents_async ();
-        if (!save_confirmed)
-            return;
-    
+    private void handle_close () {
+        // Если есть изменённые документы — показываем диалог
+        if (this.session.document_manager.has_modified_documents ()) {
+            var dialog = new Adw.AlertDialog (
+                _("Unsaved Changes"),
+                _("You have unsaved documents. Save before closing?")
+            );
+
+            dialog.add_response ("cancel", _("Cancel"));
+            dialog.add_response ("discard", _("Discard"));
+            dialog.add_response ("save", _("Save"));
+            dialog.set_response_appearance ("save", Adw.ResponseAppearance.SUGGESTED);
+            dialog.set_close_response ("cancel");
+
+            dialog.response.connect ((response) => {
+                switch (response) {
+                    case "save":
+                        this.session.document_manager.save_modified_documents ();
+                        do_close ();
+                        break;
+                    case "discard":
+                        do_close ();
+                        break;
+                    case "cancel":
+                    default:
+                        break;
+                }
+            });
+
+            dialog.present (this);
+        } else {
+            do_close ();
+        }
+    }
+
+    private void do_close () {
         foreach (var mark_service in this.session.marks_service) {
             mark_service.write_cache_to_json_file ();
         }
-        yield session.project_manager.shutdown_all_running_lsp_servers_async ();
 
-        this.destroy ();
+        // Закрываем LSP-серверы, но не ждём — окно уже закрывается
+        session.project_manager.shutdown_all_running_lsp_servers_async.begin ();
+
+        // Даём GC время завершить операции, затем уничтожаем окно
+        Timeout.add (200, () => {
+            this.destroy ();
+            return Source.REMOVE;
+        });
     }
 
     private void setup_switch_document_controller() {
@@ -384,7 +420,36 @@ public class Iide.Window : Panel.DocumentWorkspace {
     }
 
     public void open_project_dialog () {
-        session.project_manager.open_project_dialog.begin (this);
+        var dialog = new Gtk.FileDialog () {
+            title = _("Open Project"),
+            modal = true
+        };
+
+        var last_dir = settings.last_open_directory;
+        if (last_dir != null && last_dir != "") {
+            dialog.initial_folder = GLib.File.new_for_path (last_dir);
+        }
+
+        dialog.select_folder.begin (this, null, (obj, res) => {
+            try {
+                var file = dialog.select_folder.end (res);
+                if (file == null) return;
+
+                settings.current_project_path = file.get_path ();
+                settings.add_recent_project (file.get_path ());
+                if (file.get_parent () != null) {
+                    settings.last_open_directory = file.get_parent ().get_path ();
+                }
+
+                var app = this.application as Iide.Application;
+                var new_win = new Iide.Window (app, file);
+                new_win.present ();
+
+                this.destroy ();
+            } catch (Error e) {
+                // User dismissed dialog
+            }
+        });
     }
 
     public Iide.DocumentManager get_document_manager () {

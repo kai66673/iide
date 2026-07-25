@@ -194,8 +194,7 @@ public class Iide.LspServerRow : Adw.ActionRow {
 
     private async void execute_start_async () throws GLib.Error {
         var prj_manager = this.session.project_manager;
-        string? workspace_root = prj_manager.has_open_project () ?
-            prj_manager.get_current_project_root ().get_uri () : null;
+        string? workspace_root = this.session.current_project_root.get_uri ();
 
         logger.info ("LSP-UI", @"[Manual Start] Spawning process for '$(this.client.name())'...");
 
