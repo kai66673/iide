@@ -29,16 +29,16 @@ public class Iide.DiagnosticsRow : Adw.ActionRow {
 }
 
 public class Iide.FileRow : Adw.ExpanderRow {
-    private weak Window window;
+    private weak WindowSession session;
     private Gtk.ListBox content_list;
     private string uri;
     
     // Храним сырой кэш данных, чтобы строить UI только при необходимости
     private Gee.List<LspDiagnostic>? cached_diags = null;
 
-    public FileRow (Window window, string uri) {
+    public FileRow (WindowSession session, string uri) {
         Object (title: Path.get_basename (uri.replace ("file://", "")));
-        this.window = window;
+        this.session = session;
         this.uri = uri;
 
         content_list = new Gtk.ListBox ();
@@ -83,7 +83,7 @@ public class Iide.FileRow : Adw.ExpanderRow {
 
             row.activated.connect (() => {
                 var file = GLib.File.new_for_uri (uri);
-                this.window.document_manager.open_document_with_selection (file, diag.start_line, 0, 0, null);
+                this.session.document_manager.open_document_with_selection (file, diag.start_line, 0, 0, null);
             });
 
             content_list.append (row);
@@ -92,16 +92,16 @@ public class Iide.FileRow : Adw.ExpanderRow {
 }
 
 public class Iide.ServerDiagnosticsGroup : Adw.PreferencesGroup {
-    private weak Window window;
+    private weak WindowSession session;
     public Gtk.ListBox file_list { get; private set; }
     public string server_name { get; private set; }
 
     // ИСПРАВЛЕНИЕ: Кэш строк файлов теперь инкапсулирован внутри своей группы!
     private HashMap<string, FileRow> file_rows = new HashMap<string, FileRow> ();
 
-    public ServerDiagnosticsGroup (Window window, string server_name) {
+    public ServerDiagnosticsGroup (WindowSession session, string server_name) {
         Object (title: server_name);
-        this.window = window;
+        this.session = session;
         this.server_name = server_name;
 
         this.file_list = new Gtk.ListBox ();
@@ -133,7 +133,7 @@ public class Iide.ServerDiagnosticsGroup : Adw.PreferencesGroup {
         if (this.file_rows.has_key (uri)) {
             file_row = this.file_rows.get (uri);
         } else {
-            file_row = new FileRow (window, uri);
+            file_row = new FileRow (session, uri);
             this.file_list.append (file_row);
             this.file_rows.set (uri, file_row);
         }
@@ -164,8 +164,8 @@ public class Iide.DiagnosticsPanel : BasePanel {
     // На верхнем уровне панели остался СТРОГО ОДИН кэш — кэш групп серверов! [INDEX]
     private HashMap<string, ServerDiagnosticsGroup> server_groups = new HashMap<string, ServerDiagnosticsGroup> ();
 
-    public DiagnosticsPanel (Window window) {
-        base (window, "Diagnostics", SymbIconProvider.get_instance ().icon_name (IconID.APP_ISSUES));
+    public DiagnosticsPanel (WindowSession session) {
+        base (session, "Diagnostics", SymbIconProvider.get_instance ().icon_name (IconID.APP_ISSUES));
         can_maximize = true;
 
         this.main_box = new Gtk.Box (Gtk.Orientation.VERTICAL, 18) {
@@ -182,7 +182,7 @@ public class Iide.DiagnosticsPanel : BasePanel {
 
         this.set_child (empty_page);
 
-        var diagnostics_service = this.window.diagnostics_service;
+        var diagnostics_service = this.session.diagnostics_service;
         // Подключаемся к точечному обновлению вместо глобального
         diagnostics_service.diagnostics_updated.connect (on_file_diagnostics_updated);
         diagnostics_service.total_count_changed.connect (on_total_changed);
@@ -235,7 +235,7 @@ public class Iide.DiagnosticsPanel : BasePanel {
      * ЧИСТЫЙ МЕТОД ДИФФЕРЕНЦИАЛЬНОГО ОБНОВЛЕНИЯ
      */
     private void on_file_diagnostics_updated (string server_name, string uri) {
-        var diags = this.window.diagnostics_service.get_diagnostics_for_file (server_name, uri);
+        var diags = this.session.diagnostics_service.get_diagnostics_for_file (server_name, uri);
 
         // 1. Гарантируем наличие изолированной группы для этого сервера [INDEX]
         var group = this.ensure_server_group (server_name);
@@ -253,7 +253,7 @@ public class Iide.DiagnosticsPanel : BasePanel {
 
     private ServerDiagnosticsGroup ensure_server_group (string server_name) {
         if (!server_groups.has_key (server_name)) {
-            var group = new ServerDiagnosticsGroup (this.window, server_name);
+            var group = new ServerDiagnosticsGroup (this.session, server_name);
             this.main_box.append (group);
             server_groups.set (server_name, group);
             return group;

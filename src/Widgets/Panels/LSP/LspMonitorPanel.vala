@@ -20,8 +20,8 @@ namespace Iide {
         private HashMap<string, LspServerRow> row_cache = new HashMap<string, LspServerRow> ();
         private string? currently_selected_server = null;
 
-        public LspMonitorPanel (Window window) {
-            base (window, "LSP Monitor", "utilities-system-monitor-symbolic");
+        public LspMonitorPanel (WindowSession session) {
+            base (session, "LSP Monitor", "utilities-system-monitor-symbolic");
 
             // 1. Верхняя часть: Список серверов (Выключаем vexpand!)
             this.list_box = new Gtk.ListBox ();
@@ -117,7 +117,7 @@ namespace Iide {
             // ===================================================================
             // СВЯЗЫВАНИЕ СИГНАЛА РЕГИСТРАЦИИ КЛИЕНТА (РЕАКТИВНЫЙ UI)
             // ===================================================================
-            var lsp_service = this.window.lsp_service;
+            var lsp_service = this.session.lsp_service;
             
             lsp_service.client_registered.connect ((client) => {
                 // Переводим исполнение строго в очередь главного UI-потока
@@ -130,7 +130,7 @@ namespace Iide {
                     this.main_group.description = "Select a server to view its isolated streams";
 
                     // Создаем строку и точечно добавляем её в список!
-                    var row = new LspServerRow (window, client);
+                    var row = new LspServerRow (this.session, client);
                     this.list_box.append (row);
                     this.row_cache.set (name, row);
                     
@@ -138,7 +138,7 @@ namespace Iide {
                 });
             });
 
-            var prj_manager = this.window.project_manager;
+            var prj_manager = this.session.project_manager;
             prj_manager.project_closed.connect (this.on_project_closed);
 
             // Секундный таймер обновления точек-статусов

@@ -1,7 +1,7 @@
 /*
 */
 public class Iide.DapToolbar : Gtk.Box {
-    private weak Window window;
+    private weak WindowSession session;
     private weak LoggerService logger;
     
     private Gtk.DropDown target_drop_down;
@@ -16,10 +16,10 @@ public class Iide.DapToolbar : Gtk.Box {
     private Gtk.Image start_continue_image;
     private bool is_populating_combo = false;
 
-    public DapToolbar (Window window) {
+    public DapToolbar (WindowSession session) {
         Object (orientation: Gtk.Orientation.HORIZONTAL, spacing: 0);
-        this.window = window;
-        this.logger = window.logger_service;
+        this.session = session;
+        this.logger = session.logger_service;
         this.add_css_class ("linked"); // Склеит кнопки в единый монолитный блок
         this.valign = Gtk.Align.CENTER;
 
@@ -51,7 +51,7 @@ public class Iide.DapToolbar : Gtk.Box {
         this.stop_button.clicked.connect (this.on_stop_clicked);
         this.append (this.stop_button);
         
-        var dap_service = this.window.dap_service;
+        var dap_service = this.session.dap_service;
 
         // 4. Кнопка Step Over (Шаг через)
         this.step_over_button = new Gtk.Button ();
@@ -101,7 +101,7 @@ public class Iide.DapToolbar : Gtk.Box {
         // Начисто очищаем строковую модель данных
         this.target_string_list.splice (0, this.target_string_list.get_n_items (), null);
 
-        var dap_service = this.window.dap_service;
+        var dap_service = this.session.dap_service;
         var targets = dap_service.get_targets ();
         
         if (targets.is_empty) {
@@ -135,7 +135,7 @@ public class Iide.DapToolbar : Gtk.Box {
         
         // Проверяем на GTK_INVALID_LIST_POSITION (который равен upper-limit uint, то есть G_MAXUINT)
         if (active_idx != uint.MAX) {
-            this.window.dap_service.select_target ((int) active_idx);
+            this.session.dap_service.select_target ((int) active_idx);
         }
     }
 
@@ -143,7 +143,7 @@ public class Iide.DapToolbar : Gtk.Box {
      * КHОПКА СТАРТ / ПРОДОЛЖИТЬ (F5)
      */
     private void on_start_continue_clicked () {
-        var dap_service = this.window.dap_service;
+        var dap_service = this.session.dap_service;
 
         if (dap_service.session_state == DapSessionState.EMPTY) {
             // Если отладчик выключен — извлекаем активную цель и запускаем сессию!
@@ -151,7 +151,7 @@ public class Iide.DapToolbar : Gtk.Box {
             if (target == null)
                 return;
 
-            string workspace_root = this.window.project_manager.get_current_project_root ().get_path ();
+            string workspace_root = this.session.project_manager.get_current_project_root ().get_path ();
 
             this.start_continue_button.sensitive = false;
             dap_service.start_debug_session_async.begin (target, workspace_root, (obj, res) => {
@@ -166,7 +166,7 @@ public class Iide.DapToolbar : Gtk.Box {
     }
 
     private void on_stop_clicked () {
-        this.window.dap_service.stop_current_debug_session_async.begin ();
+        this.session.dap_service.stop_current_debug_session_async.begin ();
     }
 
     /**

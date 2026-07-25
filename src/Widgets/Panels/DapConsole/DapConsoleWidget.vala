@@ -10,7 +10,7 @@ public class Iide.TargetLinkPayload : GLib.Object {
 }
 
 public class Iide.DapConsoleWidget : Gtk.Box {
-    private weak Window window;
+    private weak WindowSession session;
     private weak LoggerService logger;
 
     private Gtk.TextView output_view;
@@ -21,10 +21,10 @@ public class Iide.DapConsoleWidget : Gtk.Box {
     private Gtk.EventControllerMotion motion_controller;
     private Gtk.GestureClick click_gesture;
 
-    public DapConsoleWidget (Window window) {
+    public DapConsoleWidget (WindowSession session) {
         Object (orientation: Gtk.Orientation.VERTICAL, spacing: 4);
-        this.window = window;
-        this.logger = window.logger_service;
+        this.session = session;
+        this.logger = session.logger_service;
         this.margin_start = 6; this.margin_end = 6; this.margin_top = 4; this.margin_bottom = 6;
 
         // 1. Буфер вывода с тегами стилизации цветов
@@ -49,7 +49,7 @@ public class Iide.DapConsoleWidget : Gtk.Box {
         this.append (this.input_entry);
 
         // ПОДКЛЮЧАЕМСЯ К СИГHАЛАМ БЭКЕНДА
-        var dap_service = this.window.dap_service;
+        var dap_service = this.session.dap_service;
         dap_service.console_output_append.connect (this.append_output);
         
         // Слушаем смену состояний, чтобы блокировать ввод, если отладчик выключен
@@ -124,7 +124,7 @@ public class Iide.DapConsoleWidget : Gtk.Box {
         }
 
         // 1. Собираем массив паттернов из активного адаптера
-        var dap_service = this.window.dap_service;
+        var dap_service = this.session.dap_service;
         string[] active_patterns = {};
 
         if (dap_service.current_client != null) {
@@ -219,7 +219,7 @@ public class Iide.DapConsoleWidget : Gtk.Box {
         // 1. Печатаем в консоль эхо ввода пользователя в стиле терминала: `>>> my_var`
         this.append_output ("eval_in", ">>> " + expr + "\n");
 
-        var dap_service = this.window.dap_service;
+        var dap_service = this.session.dap_service;
         if (dap_service.current_client == null)
             return;
 
@@ -339,7 +339,7 @@ public class Iide.DapConsoleWidget : Gtk.Box {
                     // МГНОВЕННЫЙ ПРЫЖОК: Командуем UI открыть файл и подсветить строку!
                     // Так как в Python трейсбеках строки 1-based, переводим в 0-indexed для GTK (делаем -1)
                     Idle.add (() => {
-                        this.window.document_manager.open_document_with_selection (file_obj, payload.line - 1, 0, 0, null);
+                        this.session.document_manager.open_document_with_selection (file_obj, payload.line - 1, 0, 0, null);
                         return Source.REMOVE;
                     });
                 }

@@ -85,7 +85,7 @@ public class Iide.LspClient : Object {
         }
     }
 
-    private weak Window window;
+    private weak WindowSession session;
     private weak LoggerService logger;
 
     // Сильная ссылка на текущий временный низкоуровневый процесс ОС
@@ -150,14 +150,14 @@ public class Iide.LspClient : Object {
     // Прогресс индексации проекта
     public signal void progress_updated (string token, string message, int percentage, bool active);
 
-    public LspClient (Window window, string language_id, LspConfig config, LspFeatures features) {
-        this.window = window;
-        this.logger = window.logger_service;
+    public LspClient (WindowSession session, string language_id, LspConfig config, LspFeatures features) {
+        this.session = session;
+        this.logger = session.logger_service;
         this.capabilities = new ServerCapabilities ();
         this.config = config;
         this.features = features;
         this.language_id = language_id;
-        this.diagnostics_service = window.diagnostics_service;
+        this.diagnostics_service = session.diagnostics_service;
     }
     
     public string name () { return config.command[0]; }
@@ -175,7 +175,7 @@ public class Iide.LspClient : Object {
         this.is_stopping = false;
 
         // 1. Порождаем абсолютно чистый, изолированный объект процесса ОС!
-        this.current_process = new Iide.RpcProcess (this.window);
+                this.current_process = new Iide.RpcProcess (this.session);
 
         // 2. Связываем низкоуровневые сигналы с методами нашего монолита
         this.current_process.message_received.connect (this.handle_payload);
@@ -218,7 +218,7 @@ public class Iide.LspClient : Object {
 
             Idle.add (() => {
                 this.initialized_with_capabilities (this.capabilities);
-                this.window.lsp_service.register_monitored_client (this);
+                this.session.lsp_service.register_monitored_client (this);
                 return Source.REMOVE; // Выполнить один раз
             });
 

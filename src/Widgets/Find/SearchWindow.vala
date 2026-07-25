@@ -4,12 +4,12 @@ using Adw;
 public class Iide.SearchWindow : Adw.Window {
     private ViewStack view_stack;
     private ViewSwitcher view_switcher;
-    private Window parent_window;
+    private WindowSession parent_session;
     private Iide.DocumentManager document_manager;
 
-    public SearchWindow (Window parent_window, Iide.DocumentManager document_manager) {
-        Object (transient_for: parent_window, modal: true);
-        this.parent_window = parent_window;
+    public SearchWindow (WindowSession parent_session, Iide.DocumentManager document_manager) {
+        Object (transient_for: parent_session.window, modal: true);
+        this.parent_session = parent_session;
         this.document_manager = document_manager;
         set_default_size (600, 450);
 
@@ -40,8 +40,8 @@ public class Iide.SearchWindow : Adw.Window {
 
     private void setup_pages () {
         var fzf_search_page = new SearchPage (
-            this.parent_window,
-            new FzfSearchEngine (this.parent_window)
+            this.parent_session,
+            new FzfSearchEngine (this.parent_session)
         );
         view_stack.add_titled_with_icon (
                                          fzf_search_page,
@@ -51,8 +51,8 @@ public class Iide.SearchWindow : Adw.Window {
         fzf_search_page.close_requested.connect_after (close);
 
         var symbols_search_page = new SearchPage (
-            this.parent_window,
-            new SymbolsSearchEngine (this.parent_window)
+            this.parent_session,
+            new SymbolsSearchEngine (this.parent_session)
         );
         view_stack.add_titled_with_icon (
                                          symbols_search_page,
@@ -62,8 +62,8 @@ public class Iide.SearchWindow : Adw.Window {
         symbols_search_page.close_requested.connect_after (close);
 
         var text_search_page = new SearchPage (
-            this.parent_window,
-            new TextSearchEngine (this.parent_window)
+            this.parent_session,
+            new TextSearchEngine (this.parent_session)
         );
         view_stack.add_titled_with_icon (
                                          text_search_page,

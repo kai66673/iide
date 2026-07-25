@@ -25,7 +25,7 @@ using Gtk;
 using Panel;
 
 public class Iide.DocumentManager : GLib.Object {
-    public Window window;
+    public WindowSession session;
     private LspService lsp_service;
 
     private string? current_workspace_root;
@@ -36,7 +36,7 @@ public class Iide.DocumentManager : GLib.Object {
     public Gee.HashMap<string, TextView> documents {
         get {
             _documents = new Gee.HashMap<string, TextView> ();
-            window.grid.foreach_frame ((frame) => {
+            this.session.window.grid.foreach_frame ((frame) => {
                 var pages = frame.get_pages ();
 
                 for (uint i = 0; i < pages.get_n_items (); i++) {
@@ -90,10 +90,10 @@ public class Iide.DocumentManager : GLib.Object {
         return mru_history;
     }
 
-    public DocumentManager (Window window) {
-        this.window = window;
-        this.logger = window.logger_service;
-        lsp_service = window.lsp_service;
+    public DocumentManager (WindowSession session) {
+        this.session = session;
+        this.logger = session.logger_service;
+        lsp_service = session.lsp_service;
 
         mru_history = new Gee.ArrayList<SourceView> ();
 
@@ -140,16 +140,16 @@ public class Iide.DocumentManager : GLib.Object {
             file_loader.load_async.begin (Priority.DEFAULT, null, null, (obj, res) => {
                 try {
                     file_loader.load_async.end (res);
-                    panel_widget = new Iide.TextView (file, buffer, window);
+                    panel_widget = new Iide.TextView (file, buffer, this.session);
 
                     panel_widget.buffer_saved.connect (() => {
                         panel_widget.source_view.lsp_document_client.save_document ();
                     });
 
                     if (pos == null) {
-                        window.grid.add (panel_widget);
+                        this.session.window.grid.add (panel_widget);
                     } else {
-                        window.add_widget (panel_widget, pos);
+                        this.session.window.add_widget (panel_widget, pos);
                     }
                     panel_widget.raise ();
                     panel_widget.view_grab_focus ();
@@ -260,7 +260,7 @@ public class Iide.DocumentManager : GLib.Object {
         });
 
         // Показываем диалог на экране
-        dialog.present (this.window);
+        dialog.present (this.session.window);
         
         // Дожидаемся выполнения диалога
         yield; 

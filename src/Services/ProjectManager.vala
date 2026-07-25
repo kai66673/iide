@@ -21,7 +21,7 @@ public class Iide.FileEntry : Object {
 }
 
 public class Iide.ProjectManager : Object {
-    public weak Window window;
+    public weak WindowSession session;
     private weak LoggerService logger;
 
     private GLib.File? current_project_root;
@@ -47,9 +47,9 @@ public class Iide.ProjectManager : Object {
     public signal void file_cache_updated ();
     public signal void file_cache_invalidated ();
 
-    public ProjectManager (Window window) {
-        this.window = window;
-        this.logger = window.logger_service;
+    public ProjectManager (WindowSession session) {
+        this.session = session;
+        this.logger = session.logger_service;
 
         current_project_root = null;
         current_project_name = null;
@@ -70,7 +70,7 @@ public class Iide.ProjectManager : Object {
             return;
         }
 
-        bool save_confirmed = yield this.window.document_manager
+        bool save_confirmed = yield this.session.document_manager
             .confirm_save_modified_documents_async ();
 
         if (!save_confirmed)
@@ -92,7 +92,7 @@ public class Iide.ProjectManager : Object {
 
         this.restore_session_and_panels ();
 
-        foreach (var mark_service in this.window.marks_service) {
+        foreach (var mark_service in this.session.marks_service) {
             mark_service.init_project (settings.current_project_path);
             mark_service.refresh_all_documents_marks ();
         }
@@ -140,7 +140,7 @@ public class Iide.ProjectManager : Object {
 
         if (current_project_root != null) {
             yield shutdown_all_running_lsp_servers_async ();
-            this.window.diagnostics_service.lsp_stopped ();
+            this.session.diagnostics_service.lsp_stopped ();
 
             current_project_root = null;
             current_project_name = null;
@@ -148,7 +148,7 @@ public class Iide.ProjectManager : Object {
             file_cache.clear ();
             text_file_cache.clear ();
             settings.current_project_path = "";
-            foreach (var mark_service in this.window.marks_service) {
+            foreach (var mark_service in this.session.marks_service) {
                 mark_service.write_cache_to_json_file ();
             }
             this.save_session_and_clear_panels ();
@@ -326,7 +326,7 @@ public class Iide.ProjectManager : Object {
             return;
         
         logger.info ("PROJECT", "Initiating LSP shutdown sequence via ProjectManager...");
-        yield this.window.lsp_service.shutdown_all_running_lsp_servers_async ();
+        yield this.session.lsp_service.shutdown_all_running_lsp_servers_async ();
     }
 
     /**
@@ -399,7 +399,7 @@ public class Iide.ProjectManager : Object {
         }
 
         // Восстанавливаем панели
-        this.window.restore_documents_grid (docs);
+        this.session.window.restore_documents_grid (docs);
     }
 
     /**
@@ -414,11 +414,11 @@ public class Iide.ProjectManager : Object {
         var session = new Json.Object ();
         session.set_object_member (
             "grid_layout",
-            PanelLayoutHelper.grid_documents_to_json (this.window.grid).get_object ()
+            PanelLayoutHelper.grid_documents_to_json (this.session.window.grid).get_object ()
         );
         session.set_object_member (
             "dock_layout",
-            PanelLayoutHelper.dock_to_json (this.window.dock).get_object ()
+            PanelLayoutHelper.dock_to_json (this.session.window.dock).get_object ()
         );
 
         root.set_object_member ("session", session);
@@ -440,6 +440,6 @@ public class Iide.ProjectManager : Object {
         this.save_documents_grid ();
 
         // Выполняем очистку панелей
-        this.window.clear_documents_grid ();
+        this.session.window.clear_documents_grid ();
     }
 }

@@ -23,17 +23,7 @@ using Adw;
 using Panel;
 
 public class Iide.Window : Panel.DocumentWorkspace {
-    public LoggerService logger_service;
-    public DocumentManager document_manager;
-    public NavigationHistoryService navigation_history_service;
-    public ProjectManager project_manager;
-    public DapService dap_service;
-    public LanguageRegistry language_registry; 
-    public LspService lsp_service;
-    public DiagnosticsService diagnostics_service;
-    public TextLineMarkService bookmark_service;
-    public TextLineMarkService breakpoint_service;
-    public TextLineMarkService[] marks_service;
+    public WindowSession session;
 
     private SettingsService settings;
 
@@ -58,45 +48,30 @@ public class Iide.Window : Panel.DocumentWorkspace {
 
     construct {
         settings = SettingsService.get_instance ();
-        logger_service = new LoggerService ();
-        language_registry = new LanguageRegistry (this);
-        lsp_service = new LspService (this);
-        diagnostics_service = new DiagnosticsService ();
-        document_manager = new DocumentManager (this);
-        navigation_history_service = new NavigationHistoryService (this);
-        project_manager = new ProjectManager (this);
-        dap_service = new DapService (this);
 
-        // 1. Лямбда закладок (Синий паттерн)
-        this.bookmark_service = new BookmarksLineService (this, "bookmarks");
+        // Создаём сессию проекта (порядок сервисов определён в конструкторе WindowSession)
+        // Конструктор WindowSession также прокидывает сервисы обратно в window.* для совместимости
+        session = new WindowSession (this);
 
-        // Инициализируем Сервис Брейкпоинтов с геометрией правого полуовала "(|"
-        this.breakpoint_service = new BreakpointsLineService (this, "breakpoints");
-
-        marks_service = {
-            bookmark_service,
-            breakpoint_service,
-        };
-
-        dap_service.active_line_changed.connect (document_manager.highlight_debugger_active_line);
-        dap_service.session_state_changed.connect ((state, old_state) => {
+        session.dap_service.active_line_changed.connect (session.document_manager.highlight_debugger_active_line);
+        session.dap_service.session_state_changed.connect ((state, old_state) => {
             if (state == DapSessionState.EMPTY) {
-                document_manager.clear_all_debugger_highlights ();
+                session.document_manager.clear_all_debugger_highlights ();
             }
         });
         
-        document_manager.document_opened.connect ((widget) => {
+        session.document_manager.document_opened.connect ((widget) => {
             grid.add (widget);
             widget.raise ();
             widget.view_grab_focus ();
         });
 
-        project_manager.project_opened.connect ((project_root) => {
-            document_manager.set_workspace_root (project_root.get_uri ());
+        session.project_manager.project_opened.connect ((project_root) => {
+            session.document_manager.set_workspace_root (project_root.get_uri ());
         });
 
-        project_manager.project_closed.connect (() => {
-            document_manager.set_workspace_root (null);
+        session.project_manager.project_closed.connect (() => {
+            session.document_manager.set_workspace_root (null);
         });
 
         // Header
@@ -207,7 +182,7 @@ public class Iide.Window : Panel.DocumentWorkspace {
 
         header.pack_end (theme_dropdown);
 
-        var dap_toolbar = new DapToolbar (this);
+        var dap_toolbar = new DapToolbar (this.session);
         header.pack_end (dap_toolbar);
 
         create_panels ();
@@ -225,7 +200,7 @@ public class Iide.Window : Panel.DocumentWorkspace {
         repair_empty_areas ();
         setup_switch_document_controller ();
         
-        project_manager.open_project_by_path (settings.current_project_path);
+        session.project_manager.open_project_by_path (settings.current_project_path);
 
         // Handle window close
         this.close_request.connect (() => {
@@ -237,14 +212,14 @@ public class Iide.Window : Panel.DocumentWorkspace {
     }
 
     private async void handle_window_close_async () {
-        bool save_confirmed = yield this.document_manager.confirm_save_modified_documents_async ();
+        bool save_confirmed = yield this.session.document_manager.confirm_save_modified_documents_async ();
         if (!save_confirmed)
             return;
     
-        foreach (var mark_service in this.marks_service) {
+        foreach (var mark_service in this.session.marks_service) {
             mark_service.write_cache_to_json_file ();
         }
-        yield project_manager.shutdown_all_running_lsp_servers_async ();
+        yield session.project_manager.shutdown_all_running_lsp_servers_async ();
 
         this.destroy ();
     }
@@ -336,18 +311,18 @@ public class Iide.Window : Panel.DocumentWorkspace {
     }
 
     private void create_panels () {
-        panel_widget_diagnostics = new DiagnosticsPanel (this);
+        panel_widget_diagnostics = new DiagnosticsPanel (this.session);
 
         panel_widgets = {
-            new ProjectPanel (this),
-            new TerminalPanel (this),
-            new LogPanel (this),
-            new BookmarksPanel (this),
+            new ProjectPanel (this.session),
+            new TerminalPanel (this.session),
+            new LogPanel (this.session),
+            new BookmarksPanel (this.session),
             panel_widget_diagnostics,
-            new LspMonitorPanel (this),
-            new DapConsolePanel (this),
-            new DapVariablesPanel (this),
-            new DapCallStackPanel (this),
+            new LspMonitorPanel (this.session),
+            new DapConsolePanel (this.session),
+            new DapVariablesPanel (this.session),
+            new DapCallStackPanel (this.session),
         };
     }
 
@@ -375,7 +350,7 @@ public class Iide.Window : Panel.DocumentWorkspace {
     }
 
     private void save_window_settings () {
-        this.project_manager.save_documents_grid ();
+        this.session.project_manager.save_documents_grid ();
 
         settings.panel_layout = Iide.PanelLayoutHelper.serialize_dock (dock);
 
@@ -397,7 +372,7 @@ public class Iide.Window : Panel.DocumentWorkspace {
     }
 
     public void save_modified () {
-        foreach (var entry in document_manager.documents.entries) {
+        foreach (var entry in session.document_manager.documents.entries) {
             var widget = entry.value;
             if (widget is Iide.TextView) {
                 var tv = widget as Iide.TextView;
@@ -409,11 +384,11 @@ public class Iide.Window : Panel.DocumentWorkspace {
     }
 
     public void open_project_dialog () {
-        project_manager.open_project_dialog.begin (this);
+        session.project_manager.open_project_dialog.begin (this);
     }
 
     public Iide.DocumentManager get_document_manager () {
-        return document_manager;
+        return session.document_manager;
     }
 
     public SourceView ? get_active_source_view () {
@@ -465,9 +440,9 @@ public class Iide.Window : Panel.DocumentWorkspace {
         lsp_btn.clicked.connect (() => lsp_popover.popup ());
 
         // 3. Подписка на сервис
-        this.lsp_service.tasks_changed.connect (update_lsp_ui);
-        this.diagnostics_service.lsp_stopped.connect (() => {
-            lsp_service.clear_lsp_tasks ();
+        this.session.lsp_service.tasks_changed.connect (update_lsp_ui);
+        this.session.diagnostics_service.lsp_stopped.connect (() => {
+            session.lsp_service.clear_lsp_tasks ();
         });
     }
 
@@ -527,8 +502,8 @@ public class Iide.Window : Panel.DocumentWorkspace {
         this.statusbar.add_prefix (50, global_diag_btn);
 
         // Подключаемся к сервису для обновления состояния
-        this.diagnostics_service.total_count_changed.connect (update_global_diag_status);
-        this.diagnostics_service.lsp_stopped.connect (clear_global_diag_status);
+        this.session.diagnostics_service.total_count_changed.connect (update_global_diag_status);
+        this.session.diagnostics_service.lsp_stopped.connect (clear_global_diag_status);
     }
 
     private void clear_global_diag_status () {
@@ -577,7 +552,7 @@ public class Iide.Window : Panel.DocumentWorkspace {
             pos.area = Panel.Area.CENTER;
             pos.column = doc_info.column;
             pos.row = doc_info.row;
-            document_manager.open_document (file, pos);
+            session.document_manager.open_document (file, pos);
         }
     }
 }

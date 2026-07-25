@@ -3,16 +3,16 @@ using GtkSource;
 using Cairo;
 
 public class Iide.LineNumbersGutter : GtkSource.GutterRenderer {
-    private weak Window window;
+    private weak WindowSession session;
 
     private Pango.Layout? pango_layout = null;
     private double current_width = 12.0f; // Базовая ширина панели номеров строк
     private double symbol_width = 12.0f;
     private double horizontal_margin = 2.0f;
 
-    public LineNumbersGutter (Window window) {
+    public LineNumbersGutter (WindowSession session) {
         Object ();
-        this.window = window;
+        this.session = session;
 
         // Выравниваем номера по правому краю ячейки (классический вид IDE)
         this.set_alignment_mode (GtkSource.GutterRendererAlignmentMode.CELL);
@@ -71,7 +71,7 @@ public class Iide.LineNumbersGutter : GtkSource.GutterRenderer {
         var active_render_services = new Gee.ArrayList<TextLineMarkService> ();
         var source_buffer = view.get_buffer () as GtkSource.Buffer;
 
-        foreach (var service in this.window.marks_service) {
+        foreach (var service in this.session.marks_service) {
             // Опрашиваем GtkSource.Buffer на предмет категории текущего сервиса
             var marks = source_buffer.get_source_marks_at_line (current_line_iter.get_line (), service.category);
             

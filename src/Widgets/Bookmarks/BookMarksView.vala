@@ -19,16 +19,16 @@ public class Iide.BookmarkRow : Adw.ActionRow {
 }
 
 public class Iide.DocumentBookmarksRow : Adw.ExpanderRow {
-    private weak Window window;
+    private weak WindowSession session;
     private Gtk.ListBox content_list;
     private string uri;
     private BookmarkRow? active_row = null;
 
     public signal void child_activated (DocumentBookmarksRow self);
 
-    public DocumentBookmarksRow(Window window, string uri) {
+    public DocumentBookmarksRow(WindowSession session, string uri) {
         Object (title: Path.get_basename (uri.replace ("file://", "")));
-        this.window = window;
+        this.session = session;
         this.uri = uri;
 
         // Добавляем ListBox в экспандер
@@ -41,7 +41,7 @@ public class Iide.DocumentBookmarksRow : Adw.ExpanderRow {
         var row = new BookmarkRow (uri, line_number, line_text);
         row.activated.connect (() => {
             var file = GLib.File.new_for_uri (uri);
-            this.window.document_manager.open_document_with_selection (file, line_number, 0, 0, null);
+            this.session.document_manager.open_document_with_selection (file, line_number, 0, 0, null);
             this.active_row = row;
             this.child_activated (this);
         });
@@ -109,7 +109,7 @@ public class Iide.DocumentBookmarksRow : Adw.ExpanderRow {
 }
 
 public class Iide.BookmarksView : Gtk.Box {
-    private weak Window window;
+    private weak WindowSession session;
     private Gtk.ScrolledWindow scrolled;
     private Gtk.ListBox main_list;
     private DocumentBookmarksRow? active_file_row = null;
@@ -117,9 +117,9 @@ public class Iide.BookmarksView : Gtk.Box {
     // Кэш для быстрого доступа к строкам файлов: [URI] -> ExpanderRow
     private Gee.HashMap<string, DocumentBookmarksRow> file_rows = new Gee.HashMap<string, DocumentBookmarksRow> ();
 
-    public BookmarksView (Window window) {
+    public BookmarksView (WindowSession session) {
         Object (orientation: Gtk.Orientation.VERTICAL, spacing: 0);
-        this.window = window;
+        this.session = session;
         
         var icon_provider = SymbIconProvider.get_instance ();
 
@@ -169,7 +169,7 @@ public class Iide.BookmarksView : Gtk.Box {
         bookmarks_navigator.document_bookmarks_changed.connect(
             this.update_buffer_bookmarks
         );
-        this.window.bookmark_service.project_marks_loaded.connect (
+        this.session.bookmark_service.project_marks_loaded.connect (
             this.update_project_bookmarks
         );
         bookmarks_navigator.goto_next_bookmark.connect(
@@ -181,7 +181,7 @@ public class Iide.BookmarksView : Gtk.Box {
     }
 
     private void on_clear_bookmarks() {
-        this.window.bookmark_service.clear_project_marks ();
+        this.session.bookmark_service.clear_project_marks ();
     }
 
     private void activate_next_bookmark() {
@@ -253,7 +253,7 @@ public class Iide.BookmarksView : Gtk.Box {
             foreach (var bi in file_bookmarks.value) {
                 file_lines.set (bi.line_number, bi.line_text);
             }
-            var file_row = new DocumentBookmarksRow (this.window, file_uri);
+            var file_row = new DocumentBookmarksRow (this.session, file_uri);
             main_list.append (file_row);
             file_rows.set (file_uri, file_row);
             file_row.update_rows (file_uri, file_lines);
@@ -279,7 +279,7 @@ public class Iide.BookmarksView : Gtk.Box {
         if (source_buffer == null)
             return;
 
-        var bookmarks_category = this.window.bookmark_service.category;
+        var bookmarks_category = this.session.bookmark_service.category;
         
         Gtk.TextIter iter;
         source_buffer.get_start_iter (out iter);
@@ -310,7 +310,7 @@ public class Iide.BookmarksView : Gtk.Box {
             if (file_rows.has_key (file_uri)) {
                 file_row = file_rows.get (file_uri);
             } else {
-                file_row = new DocumentBookmarksRow (this.window, file_uri);
+                file_row = new DocumentBookmarksRow (this.session, file_uri);
                 main_list.append (file_row);
                 file_rows.set (file_uri, file_row);
                 file_row.child_activated.connect ((row) => {

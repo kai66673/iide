@@ -79,16 +79,16 @@ public class Iide.SearchResultItem : Gtk.Box {
 
 // Наследуемся от Box — это безопаснее и проще
 public class Iide.SearchResultsView : Gtk.Box {
-    protected weak Window window;
+    protected weak WindowSession session;
     public Gtk.ListView list_view; // ListView теперь ВНУТРИ
     public Gtk.SingleSelection selection;
     private GLib.ListStore results;
 
     private const int MAX_RESULTS = 100;
 
-    public SearchResultsView (Window window) {
+    public SearchResultsView (WindowSession session) {
         Object(orientation: Gtk.Orientation.VERTICAL, spacing: 0);
-        this.window = window;
+        this.session = session;
 
         results = new GLib.ListStore(typeof (SearchResult));
         selection = new Gtk.SingleSelection(results);
@@ -171,7 +171,7 @@ public class Iide.SearchResultsView : Gtk.Box {
                 end_col = result.matches[0].end;
             }
 
-            this.window.document_manager.open_document_with_selection(
+            this.session.document_manager.open_document_with_selection(
                 file, result.line_number, start_col, end_col, null
             );
             return true;

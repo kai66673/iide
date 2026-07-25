@@ -1,8 +1,8 @@
 public class Iide.SymbolsSearchEngine : SearchEngine, Object {
-    private weak Window window;
+    private weak WindowSession session;
     
-    public SymbolsSearchEngine (Window window) {
-        this.window = window;
+    public SymbolsSearchEngine (WindowSession session) {
+        this.session = session;
     }
 
     public string search_entry_placeholder () {
@@ -26,7 +26,7 @@ public class Iide.SymbolsSearchEngine : SearchEngine, Object {
     }
 
     public async Gee.List<SearchResult> perform_search (string query, GLib.Cancellable cancellable) throws Error {
-        var clients = this.window.lsp_service.get_clients ();
+        var clients = this.session.lsp_service.get_clients ();
         var results = new Gee.ArrayList<WorkspaceLspSymbol> ();
         foreach (var client in clients) {
             results.add_all (yield client.workspace_symbols (query, cancellable));

@@ -58,17 +58,17 @@ public class Iide.TextView : Panel.Widget {
     private Iide.SettingsService settings;
     private EditorStatusBar editor_status_bar;
 
-    public Window window;
+    public WindowSession session;
     public string uri { get; private set; }
 
     public bool is_modified { get { return ((GtkSource.Buffer) source_view.buffer).get_modified (); } }
 
     public signal void buffer_saved ();
 
-    public TextView (GLib.File file, GtkSource.Buffer buffer, Window window) {
+    public TextView (GLib.File file, GtkSource.Buffer buffer, WindowSession session) {
         Object ();
         this.uri = file.get_uri ();
-        this.window = window;
+        this.session = session;
         this.settings = Iide.SettingsService.get_instance ();
 
         var adw_style_manager = Adw.StyleManager.get_default ();
@@ -88,7 +88,7 @@ public class Iide.TextView : Panel.Widget {
             }
         });
 
-        source_view = new SourceView (window, uri, buffer);
+        source_view = new SourceView (this.session, uri, buffer);
         source_view.bottom_margin = 400;
 
         // icon_name = source_view.icon_name;
@@ -265,7 +265,7 @@ public class Iide.TextView : Panel.Widget {
             file.replace_contents (text.data, null, false, GLib.FileCreateFlags.NONE, null);
             ((GtkSource.Buffer) source_view.buffer).set_modified (false);
             buffer_saved ();
-            foreach (var mark_service in this.window.marks_service) {
+            foreach (var mark_service in this.session.marks_service) {
                 mark_service.update_buffer_marks (this.uri, this.source_view.buffer);
             }
             return true;

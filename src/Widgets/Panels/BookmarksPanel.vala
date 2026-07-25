@@ -2,9 +2,9 @@
 */
 
 public class Iide.BookmarksPanel : BasePanel {
-    public BookmarksPanel (Window window) {
-        base (window, "Bookmarks", SymbIconProvider.get_instance ().icon_name (IconID.APP_BOOKMARKS));
-        child = new BookmarksView (window);
+    public BookmarksPanel (WindowSession session) {
+        base (session, "Bookmarks", SymbIconProvider.get_instance ().icon_name (IconID.APP_BOOKMARKS));
+        child = new BookmarksView (session);
         can_maximize = true;
     }
 

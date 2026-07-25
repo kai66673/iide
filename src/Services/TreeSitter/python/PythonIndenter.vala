@@ -34,7 +34,7 @@ public class Iide.PythonIndenter: GtkSource.Indenter, Object {
         this.query = new TreeSitter.Query (lang, source, (uint32) source.length, out error_offset, out error_type);
 
         if (error_type != TreeSitter.QueryError.None) {
-            this.ts_highlighter.view.window.logger_service.error (
+            this.ts_highlighter.view.session.logger_service.error (
                 "TS", "TreeSitter Query Error at %u: %s".printf (error_offset, error_type.to_string ())
             );
             this.is_valid = false;

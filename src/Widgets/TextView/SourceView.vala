@@ -60,7 +60,7 @@ public class Iide.LspTooltipWidget : Gtk.Box {
 }
 
 public class Iide.SourceView : GtkSource.View {
-    public weak Window window;
+    public weak WindowSession session;
     private weak LoggerService logger;
 
     public string uri { get; private set; }
@@ -92,13 +92,13 @@ public class Iide.SourceView : GtkSource.View {
     public signal void breadcrumbs_changed (Gee.List<SourceNodeItem?> crumbs);
     public signal void full_ts_rehighlight_requested ();
 
-    public SourceView (Window window, string uri, GtkSource.Buffer buffer) {
+    public SourceView (WindowSession session, string uri, GtkSource.Buffer buffer) {
         Object (buffer : buffer);
-        this.window = window;
-        this.logger = window.logger_service;
+        this.session = session;
+        this.logger = session.logger_service;
         this.uri = uri;
         this.ts_manager = new TreeSitterManager ();
-        this.history = this.window.navigation_history_service;
+        this.history = this.session.navigation_history_service;
 
         this.tooltip_widget = new LspTooltipWidget ();
 
@@ -143,7 +143,7 @@ public class Iide.SourceView : GtkSource.View {
         var line_numbers = this.buffer.get_line_count();
         this.line_number_symbols_count = line_numbers.to_string ().length;
         show_line_numbers = false;
-        this.line_numbers_gutter = new Iide.LineNumbersGutter (this.window);
+        this.line_numbers_gutter = new Iide.LineNumbersGutter (this.session);
         this.line_numbers_gutter.update_initial_width (
             this.line_number_symbols_count,
             FontSizeHelper.get_size_for_zoom_level (settings.editor_font_size)
@@ -246,14 +246,14 @@ public class Iide.SourceView : GtkSource.View {
         motion_ctrl.motion.connect (this.on_textview_motion);
         this.add_controller (motion_ctrl);
 
-        foreach (var mark_service in this.window.marks_service) {
+        foreach (var mark_service in this.session.marks_service) {
             mark_service.apply_marks_to_buffer (this.uri, this.buffer);
         }
     }
 
     public override bool grab_focus () {
         bool result = base.grab_focus();
-        this.window.document_manager.add_document_to_mru_history (this);
+        this.session.document_manager.add_document_to_mru_history (this);
         return result;
     }
 
@@ -453,7 +453,7 @@ public class Iide.SourceView : GtkSource.View {
             this.mark_renderer.visible = false;
         }
 
-        this.lsp_document_client = new LspDocumentClient (this);
+        this.lsp_document_client = new LspDocumentClient (this, this.session.logger_service);
         this.document.document_changed.connect(this.lsp_document_client.add_change);
         this.document.breadcrumbs_changed.connect ((crumbs) => {
             this.breadcrumbs_changed(crumbs);
@@ -686,7 +686,7 @@ public class Iide.SourceView : GtkSource.View {
         if (this.uri == loc.uri) {
             this.select_and_scroll (loc.start_line, loc.start_column, loc.end_column, false);
         } else {
-            window.get_document_manager ().open_document_with_selection
+            session.document_manager.open_document_with_selection
                 (File.new_for_uri (loc.uri), loc.start_line, loc.start_column, loc.end_column, null);
         }
     }

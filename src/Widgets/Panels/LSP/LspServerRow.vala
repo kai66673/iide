@@ -2,7 +2,7 @@
 */
 
 public class Iide.LspServerRow : Adw.ActionRow {
-    private weak Window window;
+    private weak WindowSession session;
     private weak LoggerService logger;
     public LspClient client { get; private set; }
     
@@ -14,14 +14,14 @@ public class Iide.LspServerRow : Adw.ActionRow {
     private Gtk.Button start_button;
     private Gtk.Button stop_button;
 
-    public LspServerRow (Window window, LspClient client) {
+    public LspServerRow (WindowSession session, LspClient client) {
         Object (
             title: client.name (),
             subtitle: "Status: Connected",
             activatable: true // Строка кликабельна для вызова логов
         );
-        this.window = window;
-        this.logger = window.logger_service;
+        this.session = session;
+        this.logger = session.logger_service;
         this.client = client;
 
         // 1. Графический индикатор состояния
@@ -158,9 +158,9 @@ public class Iide.LspServerRow : Adw.ActionRow {
 
         Idle.add(() => {
             var server_name = this.client.name ();
-            this.window.diagnostics_service.remove_client (server_name);
-            this.window.lsp_service.deregister_monitored_client (server_name);
-            var docs = this.window.document_manager.documents;
+            this.session.diagnostics_service.remove_client (server_name);
+            this.session.lsp_service.deregister_monitored_client (server_name);
+            var docs = this.session.document_manager.documents;
             var empty_diags = new Gee.ArrayList<Iide.LspDiagnosticPair?> ();
             foreach (var doc in docs.values) {
                 doc.update_diagnostics (server_name, empty_diags);
@@ -193,7 +193,7 @@ public class Iide.LspServerRow : Adw.ActionRow {
     }
 
     private async void execute_start_async () throws GLib.Error {
-        var prj_manager = this.window.project_manager;
+        var prj_manager = this.session.project_manager;
         string? workspace_root = prj_manager.has_open_project () ?
             prj_manager.get_current_project_root ().get_uri () : null;
 

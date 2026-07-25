@@ -11,7 +11,7 @@ public class Iide.SearchPage : Gtk.Box {
 
     public signal void close_requested ();
 
-    public SearchPage (Window window, SearchEngine search_engine) {
+    public SearchPage (WindowSession session, SearchEngine search_engine) {
         Object (
                 orientation : Gtk.Orientation.VERTICAL,
                 spacing: 8,
@@ -28,7 +28,7 @@ public class Iide.SearchPage : Gtk.Box {
         };
         this.append (search_entry);
 
-        results_view = new SearchResultsView (window);
+        results_view = new SearchResultsView (session);
 
         status_stack = new Gtk.Stack ();
         status_stack.transition_type = Gtk.StackTransitionType.CROSSFADE;

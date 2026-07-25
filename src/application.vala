@@ -402,7 +402,7 @@ private class Iide.FuzzyFinderAction : Iide.AppAction {
     public override void execute () {
         var win = app ? .active_window as Iide.Window;
         if (win != null) {
-            var dialog = new Iide.SearchWindow (win, win.get_document_manager ());
+            var dialog = new Iide.SearchWindow (win.session, win.session.document_manager);
             dialog.set_active_page ("files");
             dialog.present ();
         }
@@ -430,7 +430,7 @@ private class Iide.SearchSymbolAction : Iide.AppAction {
     public override void execute () {
         var win = app ? .active_window as Iide.Window;
         if (win != null) {
-            var dialog = new Iide.SearchWindow (win, win.get_document_manager ());
+            var dialog = new Iide.SearchWindow (win.session, win.session.document_manager);
             dialog.set_active_page ("symbols");
             dialog.present ();
         }
@@ -458,7 +458,7 @@ private class Iide.SearchInFilesAction : Iide.AppAction {
     public override void execute () {
         var win = app ? .active_window as Iide.Window;
         if (win != null) {
-            var dialog = new Iide.SearchWindow (win, win.get_document_manager ());
+            var dialog = new Iide.SearchWindow (win.session, win.session.document_manager);
             dialog.set_active_page ("text");
             dialog.present ();
         }
@@ -486,7 +486,7 @@ private class Iide.NavigationBackAction : Iide.AppAction {
     public override void execute () {
         var win = app ? .active_window as Iide.Window;
         if (win != null) {
-            win.navigation_history_service.navigate_back ();
+            win.session.navigation_history_service.navigate_back ();
         }
     }
 }
@@ -512,7 +512,7 @@ private class Iide.NavigationForwardAction : Iide.AppAction {
     public override void execute () {
         var win = app ? .active_window as Iide.Window;
         if (win != null) {
-            win.navigation_history_service.navigate_forward ();
+            win.session.navigation_history_service.navigate_forward ();
         }
     }
 }
@@ -649,7 +649,7 @@ private class Iide.ToggleBreakpointAction : Iide.AppAction {
         if (win != null) {
             var text_view = win.get_active_text_view ();
             if (text_view != null) {
-                text_view.toggle_mark_on_current_line (win.breakpoint_service);
+                text_view.toggle_mark_on_current_line (win.session.breakpoint_service);
             }
         }
     }
@@ -673,7 +673,7 @@ private class Iide.ToggleBookmarkAction : Iide.AppAction {
         if (win != null) {
             var text_view = win.get_active_text_view ();
             if (text_view != null) {
-                text_view.toggle_mark_on_current_line (win.bookmark_service);
+                text_view.toggle_mark_on_current_line (win.session.bookmark_service);
             }
         }
     }

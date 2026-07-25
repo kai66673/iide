@@ -10,7 +10,7 @@ public class Iide.DiagnosticsService : Object {
     public signal void server_stopped (string server_name);
     public signal void total_count_changed (int total_errors, int total_warnings);
 
-    public DiagnosticsService () {
+    public DiagnosticsService (WindowSession session) {
         server_map = new Gee.HashMap<string, Gee.HashMap<string, Gee.List<LspDiagnostic>>> ();
         this.lsp_stopped.connect (() => {
             server_map.clear ();

@@ -2,8 +2,8 @@
 */
 
 public class Iide.TerminalPanel : BasePanel {
-    public TerminalPanel (Window window) {
-        base (window, "Terminal", SymbIconProvider.get_instance ().icon_name (IconID.APP_TERMINAL));
+    public TerminalPanel (WindowSession session) {
+        base (session, "Terminal", SymbIconProvider.get_instance ().icon_name (IconID.APP_TERMINAL));
         child = new Iide.Terminal ();
         can_maximize = true;
     }

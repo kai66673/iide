@@ -1,7 +1,7 @@
 /*
 */
 public class Iide.TcpProcess : GLib.Object, RpcTransport {
-    private weak Window window;
+    private weak WindowSession session;
     private weak LoggerService logger;
 
     private GLib.SocketConnection? connection = null;
@@ -22,10 +22,10 @@ public class Iide.TcpProcess : GLib.Object, RpcTransport {
     // Реализация сигналов интерфейса RpcTransport [INDEX]
     // (Они подхватятся DapClient.vala автоматически)
 
-    public TcpProcess (Window window) {
+    public TcpProcess (WindowSession session) {
         Object ();
-        this.window = window;
-        this.logger = window.logger_service;
+        this.session = session;
+        this.logger = session.logger_service;
         this.read_cancellable = new GLib.Cancellable ();
         this.write_waiters = new Gee.ArrayQueue<RpcWriteTask> ();
     }

@@ -1,5 +1,5 @@
 public class Iide.TextSearchEngine : SearchEngine, Object {
-    private weak Window window;
+    private weak WindowSession session;
     private Iide.ProjectManager project_manager;
 
     private Gee.List<SearchResult> search_cache = new Gee.ArrayList<SearchResult> ();
@@ -68,10 +68,10 @@ public class Iide.TextSearchEngine : SearchEngine, Object {
         }
     }
 
-    public TextSearchEngine (Window window) {
+    public TextSearchEngine (WindowSession session) {
         Object ();
-        this.window = window;
-        project_manager = window.project_manager;
+        this.session = session;
+        project_manager = session.project_manager;
 
         // 1. Инициализируем пул ОДИН РАЗ в конструкторе
         try {
@@ -313,7 +313,7 @@ public class Iide.TextSearchEngine : SearchEngine, Object {
             if (res.score > 50)all_task_results.add (res);
         }
 
-        this.window.logger_service.debug ("SEARCH TEXT", "results count=" + all_task_results.size.to_string ());
+        this.session.logger_service.debug ("SEARCH TEXT", "results count=" + all_task_results.size.to_string ());
         var all_results = new Gee.ArrayList<SearchResult> ();
         if (all_task_results.size > 4000) {
             var top_results = new Gee.TreeSet<SearchResult> ((a, b) => {

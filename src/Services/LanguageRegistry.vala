@@ -65,7 +65,7 @@ namespace Iide {
     }
 
     public class LanguageRegistry : GLib.Object {
-        private weak Window window;
+        private weak WindowSession session;
         private weak LoggerService logger;
 
         // Встроенный глобальный JSON по умолчанию
@@ -173,9 +173,9 @@ namespace Iide {
         private Json.Object merged_servers;
         private Json.Object merged_routing;
 
-        public LanguageRegistry (Window window) {
-            this.window = window;
-            this.logger = window.logger_service;
+        public LanguageRegistry (WindowSession session) {
+            this.session = session;
+            this.logger = session.logger_service;
             this.merged_servers = new Json.Object ();
             this.merged_routing = new Json.Object ();
             this.reset_to_defaults ();
@@ -241,7 +241,7 @@ namespace Iide {
             
             var server_json_obj = this.merged_servers.get_object_member (server_name);
             // Вызываем ваш нативный фабричный метод, который мы научили читать поля, шаблоны и секции настроек! [INDEX]
-            return LspConfig.from_json (this.window, server_json_obj);
+            return LspConfig.from_json (this.session, server_json_obj);
         }
 
         private void parse_route (Json.Object? lang_json_obj, LspLanguageRouter router, string json_field, LspFeatures feature) {

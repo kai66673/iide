@@ -3,8 +3,8 @@
 public class Iide.BreakpointsLineService : TextLineMarkService {
     private FgRenderInfo _fg_render_info;
     
-    public BreakpointsLineService (Window window, string category) {
-        base (window, category);
+    public BreakpointsLineService (WindowSession session, string category) {
+        base (session, category);
         this._fg_render_info = FgRenderInfo () {
             red = 0.92, green = 0.25, blue = 0.25, alpha = 1.0, priority = 2
         };

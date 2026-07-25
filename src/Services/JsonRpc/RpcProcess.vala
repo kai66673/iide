@@ -2,7 +2,7 @@
 */
 
 public class Iide.RpcProcess : GLib.Object, RpcTransport {
-    private weak Window window;
+    private weak WindowSession session;
     private weak LoggerService logger;
 
     private GLib.Subprocess? process = null;
@@ -22,10 +22,10 @@ public class Iide.RpcProcess : GLib.Object, RpcTransport {
     private int active_loops_count = 0;
     private SourceFunc? shutdown_barrier_callback = null;
 
-    public RpcProcess (Window window) {
+    public RpcProcess (WindowSession session) {
         Object ();
-        this.window = window;
-        this.logger = window.logger_service;
+        this.session = session;
+        this.logger = session.logger_service;
         this.read_cancellable = new GLib.Cancellable ();
         this.write_waiters = new Gee.ArrayQueue<RpcWriteTask> ();
     }

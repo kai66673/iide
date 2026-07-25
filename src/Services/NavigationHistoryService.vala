@@ -12,7 +12,7 @@ public class Iide.NavigationPoint : Object {
 }
 
 public class Iide.NavigationHistoryService : Object {
-    public weak Window window;
+    public weak WindowSession session;
 
     // В libgee LinkedList — основная реализация Deque
     private Deque<NavigationPoint> back_stack = new LinkedList<NavigationPoint> ();
@@ -20,8 +20,8 @@ public class Iide.NavigationHistoryService : Object {
     private const int MAX_HISTORY = 50;
     private bool is_navigate = true;
 
-    public NavigationHistoryService (Window window) {
-        this.window = window;
+    public NavigationHistoryService (WindowSession session) {
+        this.session = session;
     }
 
     public void start_navigation () {
@@ -65,7 +65,7 @@ public class Iide.NavigationHistoryService : Object {
             var target = back_stack.peek_head ();
 
             // 3. Переходим (тихо)
-            if (this.window.document_manager.navigate_to (target)) {
+            if (this.session.document_manager.navigate_to (target)) {
                 break;
             }
             // Если не смогли перейти, значит эта точка битая — удаляем её.
@@ -81,7 +81,7 @@ public class Iide.NavigationHistoryService : Object {
         while (!forward_stack.is_empty) {
             var point = forward_stack.poll_head ();
 
-            if (this.window.document_manager.navigate_to (point)) {
+            if (this.session.document_manager.navigate_to (point)) {
                 back_stack.offer_head (point);
                 break;
             }

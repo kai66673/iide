@@ -1,9 +1,9 @@
 /*
 */
 public class Iide.DapConsolePanel : BasePanel {
-    public DapConsolePanel (Window window) {
-        base (window, "Debug Console", SymbIconProvider.get_instance ().icon_name (IconID.DAP_CONSOLE));
-        child = new DapConsoleWidget (window);
+    public DapConsolePanel (WindowSession session) {
+        base (session, "Debug Console", SymbIconProvider.get_instance ().icon_name (IconID.DAP_CONSOLE));
+        child = new DapConsoleWidget (session);
         can_maximize = true;
     }
     

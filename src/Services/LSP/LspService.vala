@@ -2,7 +2,7 @@ using GLib;
 using Gee;
 
 public class Iide.LspService : GLib.Object {
-    public weak Window window;
+    public weak WindowSession session;
 
     private Gee.HashMap<string, LspClient> clients;
     private Gee.HashMap<string, Gee.ArrayList<LspClient>> active_languages;
@@ -19,12 +19,12 @@ public class Iide.LspService : GLib.Object {
     public signal void tasks_changed (Gee.List<LspTaskInfo?> active_tasks);
     public signal void client_registered (LspClient client);
 
-    public LspService (Window window) {
-        this.window = window;
+    public LspService (WindowSession session) {
+        this.session = session;
         this.clients = new Gee.HashMap<string, LspClient> ();
         this.active_languages = new Gee.HashMap<string, Gee.ArrayList<LspClient>> ();
-        this.logger = window.logger_service;
-        this.registry = this.window.language_registry;
+        this.logger = session.logger_service;
+        this.registry = this.session.language_registry;
     }
 
     public Gee.HashMap<string, LspClient> get_active_clients () {
@@ -177,7 +177,7 @@ public class Iide.LspService : GLib.Object {
                 var server_config = registry.get_config_for_server (server_name);
                 if (server_config != null) {
                     var new_client = new LspClient (
-                        this.window,
+                        this.session,
                         language_id,
                         server_config,
                         router.features_for_server_name (server_name)

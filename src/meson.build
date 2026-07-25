@@ -53,6 +53,7 @@ iide_sources = [
     'Services/JsonUtils.vala',
     'Services/StyleManager.vala',
     'Services/LoggerService.vala',
+    'Services/WindowSession.vala',
     'Services/LanguageConfig.vala',
     'Services/LanguageRegistry.vala',
     'Services/DocumentManager.vala',

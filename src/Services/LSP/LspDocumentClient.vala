@@ -12,10 +12,10 @@ public class Iide.LspDocumentClient: GLib.Object {
 
     private string tooltip_separator = "────────────────────────────────────────";
 
-    public LspDocumentClient(SourceView source_view) {
+    public LspDocumentClient(SourceView source_view, LoggerService logger) {
         Object();
         this.source_view = source_view;
-        this.logger = source_view.window.logger_service;
+        this.logger = logger;
     }
 
     public Gee.ArrayList<LspClientSyncer> active_clients (ProviderPredicate? predicate = null) { 
@@ -32,7 +32,7 @@ public class Iide.LspDocumentClient: GLib.Object {
 
     public void register_lsp_clients (Gee.ArrayList<LspClient> clients) {
         foreach (var client in clients) {
-            this.clients.add (new LspClientSyncer (this.source_view, client));
+            this.clients.add (new LspClientSyncer (this.source_view, client, this.logger));
         }
     }
 

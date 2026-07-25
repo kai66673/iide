@@ -1,9 +1,9 @@
 /*
 */
 public class Iide.DapCallStackPanel : BasePanel {
-    public DapCallStackPanel(Window window) {
-        base (window, "Debug Stack Trace", SymbIconProvider.get_instance ().icon_name (IconID.DAP_STACK_TRACE));
-        child = new DapCallStackWidget (window);
+    public DapCallStackPanel(WindowSession session) {
+        base (session, "Debug Stack Trace", SymbIconProvider.get_instance ().icon_name (IconID.DAP_STACK_TRACE));
+        child = new DapCallStackWidget (session);
         can_maximize = true;
     }
 

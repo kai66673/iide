@@ -46,7 +46,7 @@ public class Iide.BreadcrumbFileSegment : Gtk.Box {
 
         button.notify["active"].connect (() => {
             if (button.active) {
-                var navigator = new BreadcrumbFileNavigator (this.source_view.window, this.file);
+                var navigator = new BreadcrumbFileNavigator (this.source_view.session, this.file);
 
                 popover.set_child (navigator);
                 navigator.search_entry.set_key_capture_widget (popover);

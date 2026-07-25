@@ -1,9 +1,9 @@
 /*
 */
 public class Iide.DapVariablesPanel : BasePanel {
-    public DapVariablesPanel(Window window) {
-        base (window, "Debug Variables", SymbIconProvider.get_instance ().icon_name (IconID.DAP_VARIABLES));
-        child = new DapVariablesWidget (window);
+    public DapVariablesPanel(WindowSession session) {
+        base (session, "Debug Variables", SymbIconProvider.get_instance ().icon_name (IconID.DAP_VARIABLES));
+        child = new DapVariablesWidget (session);
         can_maximize = true;
     }
 

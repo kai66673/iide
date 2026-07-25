@@ -7,7 +7,7 @@ public enum Iide.DapSessionState {
 }
 
 public class Iide.DapService : GLib.Object {
-    public weak Window window;
+    public weak WindowSession session;
 
     // Изолированные таблицы данных конфигураций, как вы и просили:
     private Gee.HashMap<string, DapConfig> adapters;     // Словарь DapConfig [adapter_id] -> [DapConfig]
@@ -66,17 +66,17 @@ public class Iide.DapService : GLib.Object {
     // Сигнал смены активного кадра пользователем (для Variables View и подсветки строки)
     public signal void active_frame_changed (DapStackFrame frame);
 
-    public DapService (Window window) {
-        this.window = window;
+    public DapService (WindowSession session) {
+        this.session = session;
         this.adapters = new Gee.HashMap<string, DapConfig> ();
         this.targets = new Gee.ArrayList<DapTargetConfig> ();
-        this.logger = window.logger_service;
+        this.logger = session.logger_service;
 
         // 1. Сразу при старте IDE в абсолютной тишине загружаем глобальный манифест отладчиков
         this.load_global_dap_manifest ();
 
         // 2. Биндим автоматическое чтение целей при открытии/закрытии папок проектов
-        var project_manager = this.window.project_manager;
+        var project_manager = this.session.project_manager;
         project_manager.project_opened.connect (this.load_project_launch_targets);
         project_manager.project_closed.connect (this.clear_project_targets);
     }
@@ -183,7 +183,7 @@ public class Iide.DapService : GLib.Object {
         this.logger.info ("DAP", "Flushing pre-registered UI breakpoints directly from TextLineMarkService cache...");
         
         // ОПТИМИЗАЦИЯ: Берем оригинальный, всегда актуальный registry хэш-мап вашего сервиса!
-        var registry = this.window.breakpoint_service.get_registry ();
+        var registry = this.session.breakpoint_service.get_registry ();
 
         foreach (var entry in registry.entries) {
             var file_marks = entry.value;
@@ -235,7 +235,7 @@ public class Iide.DapService : GLib.Object {
             return false;
         }
         // 1. Асинхронный UI-барьер сохранения изменений (без изменений)
-        bool can_proceed = yield this.window.get_document_manager ().confirm_save_modified_documents_async ();
+        bool can_proceed = yield this.session.document_manager.confirm_save_modified_documents_async ();
         if (!can_proceed)
             return false;
 
@@ -249,7 +249,7 @@ public class Iide.DapService : GLib.Object {
         this.logger.info ("DAP", @"[Launch] Spawning process for adapter tool: '$(adapter_config.id)'...");
 
         // 2. Создаем DapClient (Семантическое ядро отладчика)
-        var dap_client = new DapClient (this.window, adapter_config);
+        var dap_client = new DapClient (this.session, adapter_config);
         bool spawned = yield dap_client.start_adapter_process_async (workspace_root_path);
         if (!spawned)
             return false;
@@ -291,7 +291,7 @@ public class Iide.DapService : GLib.Object {
             yield dap_client.send_initialize_request ();
 
             // 3. Вытаскиваем активный файл из DocumentManager для динамической замены макросов путей
-            var source_view = this.window.get_active_source_view ();        
+            var source_view = this.session.window.get_active_source_view ();        
             string current_file_uri = source_view != null ? source_view.uri : "";
 
             // Разворачиваем пользовательские параметры (макросы, cwd, env) цели отладки!
@@ -472,7 +472,7 @@ public class Iide.DapService : GLib.Object {
      * но ДО первого flush_all_cached_breakpoints_to_server_async! [INDEX, INDEX]
      */
     private void init_breakpoints_live_sync_bridge () {
-        this.window.breakpoint_service.uri_marks_changed.connect (this.on_ui_breakpoint_toggled_live);
+        this.session.breakpoint_service.uri_marks_changed.connect (this.on_ui_breakpoint_toggled_live);
     }
 
     /**
@@ -538,7 +538,7 @@ public class Iide.DapService : GLib.Object {
      * Вызывается внутри cleanup_session_context()
      */
     private void disconnect_breakpoints_live_sync_bridge () {
-        this.window.breakpoint_service.uri_marks_changed.disconnect (this.on_ui_breakpoint_toggled_live);
+        this.session.breakpoint_service.uri_marks_changed.disconnect (this.on_ui_breakpoint_toggled_live);
         this.is_syncing_breakpoints = false;
     }
 
