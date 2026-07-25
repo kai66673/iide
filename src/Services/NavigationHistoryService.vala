@@ -51,41 +51,41 @@ public class Iide.NavigationHistoryService : Object {
     }
 
     public void navigate_back () {
-        if (back_stack.size < 2)// Нужно иметь хотя бы (Текущая + Куда вернуться)
+        if (back_stack.size < 2) // Нужно иметь хотя бы (Текущая + Куда вернуться)
             return;
-
-        // 1. Снимаем текущую позицию и отправляем её в будущее
-        var current = back_stack.poll_head ();
-        forward_stack.offer_head (current);
-
-        // 2. Теперь на вершине лежит то, что было "предпоследним"
-        var target = back_stack.peek_head ();
 
         is_navigate = true;
 
-        // 3. Переходим (тихо)
-        if (!this.window.document_manager.navigate_to (target)) {
-            // Если не смогли перейти, значит эта точка битая.
-            // Удаляем её и пробуем еще раз.
+        while (back_stack.size >= 2) {
+            // 1. Снимаем текущую позицию и отправляем её в будущее
+            var current = back_stack.poll_head ();
+            forward_stack.offer_head (current);
+
+            // 2. Теперь на вершине лежит то, что было "предпоследним"
+            var target = back_stack.peek_head ();
+
+            // 3. Переходим (тихо)
+            if (this.window.document_manager.navigate_to (target)) {
+                break;
+            }
+            // Если не смогли перейти, значит эта точка битая — удаляем её.
             back_stack.poll_head ();
-            navigate_back ();
         }
 
         is_navigate = false;
     }
 
     public void navigate_forward () {
-        if (forward_stack.is_empty)
-            return;
-
-        var point = forward_stack.poll_head ();
-
         is_navigate = true;
 
-        if (this.window.document_manager.navigate_to (point)) {
-            back_stack.offer_head (point);
-        } else {
-            navigate_forward ();
+        while (!forward_stack.is_empty) {
+            var point = forward_stack.poll_head ();
+
+            if (this.window.document_manager.navigate_to (point)) {
+                back_stack.offer_head (point);
+                break;
+            }
+            // Битая точка молча удаляется из истории
         }
 
         is_navigate = false;
