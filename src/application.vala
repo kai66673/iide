@@ -125,17 +125,17 @@ public class Iide.Application : Adw.Application {
         var css_provider = new Gtk.CssProvider ();
         css_provider.load_from_resource ("/org/github/kai66673/iide/style.css");
         add_provider_to_display (
-            Gdk.Display.get_default (),
-            css_provider,
-            Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION
+                                 Gdk.Display.get_default (),
+                                 css_provider,
+                                 Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION
         );
 
         var css_symbol_provider = new Gtk.CssProvider ();
         css_symbol_provider.load_from_resource ("/org/github/kai66673/iide/symbols/symbols.css");
         add_provider_to_display (
-            Gdk.Display.get_default (),
-            css_symbol_provider,
-            Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION
+                                 Gdk.Display.get_default (),
+                                 css_symbol_provider,
+                                 Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION
         );
 
         register_embedded_fonts ();
@@ -522,7 +522,7 @@ private class Iide.ShowLineNumbersAction : Iide.AppAction {
 
     public ShowLineNumbersAction (Iide.Application app) {
         this.app = app;
-        this.state = Iide.SettingsService.get_instance ().show_minimap;
+        this.state = Iide.SettingsService.get_instance ().show_line_numbers;
     }
 
     public override string id { get { return "show-line-numbers"; } }
@@ -552,7 +552,7 @@ private class Iide.ShowDiagnosticsMarksAction : Iide.AppAction {
 
     public ShowDiagnosticsMarksAction (Iide.Application app) {
         this.app = app;
-        this.state = Iide.SettingsService.get_instance ().show_minimap;
+        this.state = Iide.SettingsService.get_instance ().show_diagnostics_marks;
     }
 
     public override string id { get { return "show-diagnostics-marks"; } }
@@ -582,7 +582,7 @@ private class Iide.ShowFoldingAction : Iide.AppAction {
 
     public ShowFoldingAction (Iide.Application app) {
         this.app = app;
-        this.state = Iide.SettingsService.get_instance ().show_minimap;
+        this.state = Iide.SettingsService.get_instance ().show_folding_gutter;
     }
 
     public override string id { get { return "show-folding-gutter"; } }
@@ -624,7 +624,7 @@ private class Iide.FormatAction : Iide.AppAction {
         var win = app ? .active_window as Iide.Window;
         if (win != null) {
             var source_view = win.get_active_source_view ();
-            if (source_view != null){
+            if (source_view != null) {
                 source_view.lsp_document_client.format_document_async.begin ();
             }
         }
@@ -648,7 +648,7 @@ private class Iide.ToggleBreakpointAction : Iide.AppAction {
         var win = app ? .active_window as Iide.Window;
         if (win != null) {
             var text_view = win.get_active_text_view ();
-            if (text_view != null){
+            if (text_view != null) {
                 text_view.toggle_mark_on_current_line (win.breakpoint_service);
             }
         }
@@ -672,14 +672,14 @@ private class Iide.ToggleBookmarkAction : Iide.AppAction {
         var win = app ? .active_window as Iide.Window;
         if (win != null) {
             var text_view = win.get_active_text_view ();
-            if (text_view != null){
+            if (text_view != null) {
                 text_view.toggle_mark_on_current_line (win.bookmark_service);
             }
         }
     }
 }
 
-private class Iide.GotoNextBookmarkAction: Iide.AppAction {
+private class Iide.GotoNextBookmarkAction : Iide.AppAction {
     public override string id { get { return "next-bookmark"; } }
     public override string name { get { return _("Next Bookmark"); } }
     public override string? description { get { return _("Goto next bookmark"); } }
@@ -696,7 +696,7 @@ private class Iide.GotoNextBookmarkAction: Iide.AppAction {
     }
 }
 
-private class Iide.GotoPrevBookmarkAction: Iide.AppAction {
+private class Iide.GotoPrevBookmarkAction : Iide.AppAction {
     public override string id { get { return "prev-bookmark"; } }
     public override string name { get { return _("Previous Bookmark"); } }
     public override string? description { get { return _("Goto previous bookmark"); } }
@@ -713,7 +713,7 @@ private class Iide.GotoPrevBookmarkAction: Iide.AppAction {
     }
 }
 
-private class Iide.ShowFindBarAction: Iide.AppAction {
+private class Iide.ShowFindBarAction : Iide.AppAction {
     public override string id { get { return "show-findbar"; } }
     public override string name { get { return _("Show Find Bar"); } }
     public override string? description { get { return _("Show find bar in active editor"); } }
@@ -730,14 +730,14 @@ private class Iide.ShowFindBarAction: Iide.AppAction {
         var win = app ? .active_window as Iide.Window;
         if (win != null) {
             var text_view = win.get_active_text_view ();
-            if (text_view != null){
+            if (text_view != null) {
                 text_view.show_search_bar ();
             }
         }
     }
 }
 
-private class Iide.LspCodeActionsAction: Iide.AppAction {
+private class Iide.LspCodeActionsAction : Iide.AppAction {
     public override string id { get { return "code-actions"; } }
     public override string name { get { return _("Code Actions"); } }
     public override string? description { get { return _("Show code actions menu in current row of active editor"); } }
@@ -754,7 +754,7 @@ private class Iide.LspCodeActionsAction: Iide.AppAction {
         var win = app ? .active_window as Iide.Window;
         if (win != null) {
             var source_view = win.get_active_source_view ();
-            if (source_view != null){
+            if (source_view != null) {
                 source_view.show_code_actions_menu ();
             }
         }

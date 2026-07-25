@@ -538,7 +538,7 @@ public class Iide.DapService : GLib.Object {
      * Вызывается внутри cleanup_session_context()
      */
     private void disconnect_breakpoints_live_sync_bridge () {
-        this.window.bookmark_service.uri_marks_changed.disconnect (this.on_ui_breakpoint_toggled_live);
+        this.window.breakpoint_service.uri_marks_changed.disconnect (this.on_ui_breakpoint_toggled_live);
         this.is_syncing_breakpoints = false;
     }
 

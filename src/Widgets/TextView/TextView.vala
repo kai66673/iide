@@ -268,10 +268,11 @@ public class Iide.TextView : Panel.Widget {
             foreach (var mark_service in this.window.marks_service) {
                 mark_service.update_buffer_marks (this.uri, this.source_view.buffer);
             }
+            return true;
         } catch (Error e) {
             critical (e.message);
+            return false;
         }
-        return true;
     }
 
     public void update_diagnostics (string server_name, Gee.ArrayList<LspDiagnosticPair?> diagnostics) {

@@ -81,8 +81,6 @@ public class Iide.CodeActionsPopup : Gtk.Window {
         scrolled.max_content_height = 400;
         scrolled.propagate_natural_height = true;
 
-        this.set_child (scrolled);
-
         // Кладим настроенный скролл в окно
         this.set_child (scrolled);
     }
