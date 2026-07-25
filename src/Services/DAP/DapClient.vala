@@ -73,7 +73,7 @@ public class Iide.DapClient : GLib.Object {
         });
 
         // Инициализируем физический запуск (stdio спавн или tcp коннект)
-        bool success = this.transport.init_channel (this.config.command, workspace_root);
+        bool success = yield this.transport.init_channel (this.config.command, workspace_root);
         if (!success) {
             this.status = DapClientStatus.FAILED;
             this.transport = null;

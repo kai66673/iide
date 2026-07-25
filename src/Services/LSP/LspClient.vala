@@ -191,7 +191,7 @@ public class Iide.LspClient : Object {
         });
 
         // 3. Запускаем физический спавн в ОС
-        bool spawned = this.current_process.init_channel (
+        bool spawned = yield this.current_process.init_channel (
             this.config.command,
             workspace_root
         );

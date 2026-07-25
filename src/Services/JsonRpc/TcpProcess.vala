@@ -34,7 +34,7 @@ public class Iide.TcpProcess : GLib.Object, RpcTransport {
         * РEАЛИЗАЦИЯ МEТОДА ИНТEРФEЙСА RpcTransport
         * Асинхронное подключение к TCP-порту отладочного адаптера
         */
-    public bool init_channel (string[] command, string? workspace_root) {
+    public async bool init_channel (string[] command, string? workspace_root) {
         // Парсим хост и порт из параметров (например, "127.0.0.1:5678" или просто порт)
         string address_str = (command.length > 0) ? command[0] : "127.0.0.1:5678";
         string host = "127.0.0.1";
@@ -48,17 +48,14 @@ public class Iide.TcpProcess : GLib.Object, RpcTransport {
             port = (uint16) int.parse (address_str);
         }
 
-        // Запускаем асиннадцатый коннект сокета в фоновом MainContext
-        this.connect_socket_async.begin (host, port, (obj, res) => {
-            try {
-                this.connect_socket_async.end (res);
-            } catch (GLib.Error e) {
-                logger.error ("TCP-TRANSPORT", "Connection transaction failed: " + e.message);
-                this.unexpected_crash (); // Оповещаем DapClient о сбое коннекта
-            }
-        });
+        try {
+            yield this.connect_socket_async (host, port);
+        } catch (GLib.Error e) {
+            logger.error ("TCP-TRANSPORT", "Connection failed: " + e.message);
+            return false;
+        }
 
-        return true; // Возвращаем true, сигнализируя о начале инициализации канала
+        return true;
     }
 
     private async void connect_socket_async (string host, uint16 port) throws GLib.Error {

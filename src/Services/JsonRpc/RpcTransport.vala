@@ -7,7 +7,7 @@ public interface Iide.RpcTransport : GLib.Object {
     public signal void unexpected_crash ();
 
     // Методы управления жизненным циклом канала
-    public abstract bool init_channel (string[] command, string? workspace_root);
+    public abstract async bool init_channel (string[] command, string? workspace_root);
     public abstract async void write_message_async (string payload) throws GLib.Error;
     public abstract async void terminate_async ();
 }

@@ -33,7 +33,7 @@ public class Iide.RpcProcess : GLib.Object, RpcTransport {
     /**
      * ФИЗИЧЕСКИЙ СПАВН ПРОЦЕССА В ОПЕРАЦИОННОЙ СИСТЕМЕ
      */
-    public bool init_channel (string[] command, string? workspace_root) {
+    public async bool init_channel (string[] command, string? workspace_root) {
         try {
             var launcher = new SubprocessLauncher (
                 SubprocessFlags.STDOUT_PIPE | 
