@@ -32,22 +32,18 @@ public class Iide.DocumentManager : GLib.Object {
 
     private LoggerService logger;
 
-    public Gee.HashMap<string, TextView> _documents;
+    private Gee.HashMap<string, TextView> _documents = new Gee.HashMap<string, TextView> ();
+
     public Gee.HashMap<string, TextView> documents {
         get {
-            _documents = new Gee.HashMap<string, TextView> ();
+            _documents.clear ();
             this.session.window.grid.foreach_frame ((frame) => {
                 var pages = frame.get_pages ();
-
                 for (uint i = 0; i < pages.get_n_items (); i++) {
                     var item = pages.get_item (i) as Adw.TabPage;
-                    if (item == null) {
-                        continue;
-                    }
+                    if (item == null) continue;
                     var child = item.get_child ();
-                    if (child == null) {
-                        continue;
-                    }
+                    if (child == null) continue;
                     var text_view = child as TextView;
                     if (text_view != null) {
                         _documents.set (text_view.uri, text_view);
