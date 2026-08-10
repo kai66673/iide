@@ -42,8 +42,10 @@ namespace Iide {
                 .replace("<", "&lt;")
                 .replace(">", "&gt;");
     }
+}
 
-    private uint32 get_byte_offset_safe (Gtk.TextIter iter) {
+public class Utils : Object {
+    public uint32 get_byte_offset_safe (Gtk.TextIter iter) {
         int target_line = iter.get_line ();
         int current_line_bytes = iter.get_line_index (); // Байты от начала текущей строки (O(1))
 
