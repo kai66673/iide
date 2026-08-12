@@ -847,6 +847,47 @@ public class Iide.LspClient : Object {
         return this.parse_text_edits_array (result_node);
     }
 
+    /**
+     * RPC-ЗАПРОС ПЕРЕИМЕНОВАНИЯ СИМВОЛА (LSP textDocument/rename)
+     * Отправляет позицию курсора и новое имя, возвращает карту правок
+     * WorkspaceEdit: [uri] -> [массив TextEdit]
+     */
+    public async Gee.HashMap<string, Gee.ArrayList<LspTextEdit>>? request_rename (string uri, int line, int character, string new_name) throws Error {
+        if (this.current_process == null || this.status != LspClientStatus.READY) {
+            return null;
+        }
+
+        var params = new Json.Object ();
+
+        // 1. Указываем документ
+        var doc = new Json.Object ();
+        doc.set_string_member ("uri", uri);
+        params.set_object_member ("textDocument", doc);
+
+        // 2. Указываем позицию курсора
+        var pos = new Json.Object ();
+        pos.set_int_member ("line", line);
+        pos.set_int_member ("character", character);
+        params.set_object_member ("position", pos);
+
+        // 3. Новое имя символа
+        params.set_string_member ("newName", new_name);
+
+        // Отправляем запрос через нашу асинхронную трубу
+        var response = yield this.send_request ("textDocument/rename", params);
+
+        if (response == null || !response.has_member ("result")) {
+            return null;
+        }
+
+        var result_node = response.get_member ("result");
+        if (result_node.get_node_type () == Json.NodeType.NULL) {
+            return null;
+        }
+
+        return this.parse_workspace_edit (result_node);
+    }
+
     /////////////////////////////////////////////////////////////
     // Parse responses helpers
     
@@ -894,6 +935,8 @@ public class Iide.LspClient : Object {
         this.capabilities.definition_provider = LspFeatures.DEFINTION in this.features && caps.has_member ("definitionProvider");
         this.capabilities.hover_provider = LspFeatures.HOVER in this.features && caps.has_member ("hoverProvider");
         this.capabilities.code_actions_provider = LspFeatures.CODE_ACTIONS in this.features && caps.has_member ("codeActionProvider");
+        // RenameProvider может быть булевым флагом или объектом { prepareProvider: boolean } [INDEX]
+        this.capabilities.rename_provider = LspFeatures.RENAME in this.features && caps.has_member ("renameProvider");
 
         bool server_support_formating = false;
         if (caps.has_member ("documentFormattingProvider")) {
@@ -1082,6 +1125,67 @@ public class Iide.LspClient : Object {
         }
 
         return res;
+    }
+
+    /**
+     * Парсер результата WorkspaceEdit (для textDocument/rename).
+     * Поддерживает оба формата спецификации LSP:
+     *  - "changes":      { [uri]: TextEdit[] }
+     *  - "documentChanges": [ TextDocumentEdit { textDocument: {...}, edits: TextEdit[] }, ... ]
+     * @return Карта [uri] -> [массив правок], либо null если разобрать не удалось
+     */
+    private Gee.HashMap<string, Gee.ArrayList<LspTextEdit>>? parse_workspace_edit (Json.Node node) {
+        if (node == null || node.get_node_type () != Json.NodeType.OBJECT) {
+            return null;
+        }
+
+        var result = new Gee.HashMap<string, Gee.ArrayList<LspTextEdit>> ();
+        var edit_obj = node.get_object ();
+
+        // Формат 1: "changes" — простая карта URI -> TextEdit[]
+        if (edit_obj.has_member ("changes")) {
+            var changes_obj = edit_obj.get_object_member ("changes");
+            foreach (string file_uri in changes_obj.get_members ()) {
+                var edits_node = changes_obj.get_member (file_uri);
+                if (edits_node.get_node_type () != Json.NodeType.ARRAY) {
+                    continue;
+                }
+                var edits_list = this.parse_text_edits_array (edits_node);
+                if (!edits_list.is_empty) {
+                    result.set (file_uri, edits_list);
+                }
+            }
+        }
+
+        // Формат 2: "documentChanges" — массив TextDocumentEdit (или операций с файлами)
+        if (edit_obj.has_member ("documentChanges")) {
+            var doc_changes = edit_obj.get_array_member ("documentChanges");
+            foreach (var change_node in doc_changes.get_elements ()) {
+                if (change_node.get_node_type () != Json.NodeType.OBJECT) {
+                    continue;
+                }
+                var change_obj = change_node.get_object ();
+
+                // Интересует только TextDocumentEdit (не CreateFile/RenameFile/DeleteFile)
+                if (change_obj.has_member ("textDocument") && change_obj.has_member ("edits")) {
+                    var text_doc = change_obj.get_object_member ("textDocument");
+                    if (text_doc.has_member ("uri")) {
+                        string file_uri = text_doc.get_string_member ("uri");
+                        var edits_node = change_obj.get_member ("edits");
+                        var edits_list = this.parse_text_edits_array (edits_node);
+
+                        // Несколько TextDocumentEdit для одного файла — объединяем списки
+                        if (result.has_key (file_uri)) {
+                            result.get (file_uri).add_all (edits_list);
+                        } else if (!edits_list.is_empty) {
+                            result.set (file_uri, edits_list);
+                        }
+                    }
+                }
+            }
+        }
+
+        return result.is_empty ? null : result;
     }
 
     private string ? parse_hover_result (Json.Node node) {

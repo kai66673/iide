@@ -73,6 +73,7 @@ public class Iide.SourceView : GtkSource.View {
         new Gee.HashMap<string, Gee.ArrayList<LspDiagnosticsMark>> ();
 
     private WordRange? last_hover_range = null;
+    private bool suppress_lsp_echo = false;
     private LspTooltipWidget tooltip_widget;
     private string tooltip_separator = "────────────────────────────────────────";
 
@@ -88,6 +89,10 @@ public class Iide.SourceView : GtkSource.View {
     private int line_number_symbols_count = 1;
 
     private CodeActionsPopup? code_actions_popup = null;
+    private RenamePreviewDialog? rename_preview_dialog = null;
+
+    // Отложенные правки переименования для файлов, которые ещё не открыты
+
 
     public signal void breadcrumbs_changed (Gee.List<SourceNodeItem?> crumbs);
     public signal void full_ts_rehighlight_requested ();
@@ -454,10 +459,23 @@ public class Iide.SourceView : GtkSource.View {
         }
 
         this.lsp_document_client = new LspDocumentClient (this, this.session.logger_service);
-        this.document.document_changed.connect(this.lsp_document_client.add_change);
+        this.document.document_changed.connect(this.on_lsp_document_changed);
         this.document.breadcrumbs_changed.connect ((crumbs) => {
             this.breadcrumbs_changed(crumbs);
         });
+    }
+
+    /**
+     * Промежуточный обработчик изменений буфера.
+     *
+     * Во время применения LSP-правок (rename/code actions/auto-imports)
+     * не отправляем инкрементальные диффы серверам: они уже применили эти
+     * правки у себя. Синхронизация выполняется после через force_full_sync.
+     */
+    private void on_lsp_document_changed (PendingChange change) {
+        if (this.suppress_lsp_echo)
+            return;
+        this.lsp_document_client.add_change (change);
     }
 
     public void expand_selection() {
@@ -520,29 +538,40 @@ public class Iide.SourceView : GtkSource.View {
         }
     }
 
+    private static bool is_identifier_char (unichar c) {
+        return c.isalnum () || c == '_';
+    }
+
     public WordRange ? get_word_range_under_cursor (Gtk.TextIter cursor_iter) {
-        // 2. Нюанс: Если курсор на пробеле или переносе строки, слова под ним нет
-        unichar c = cursor_iter.get_char ();
-        if (c.isspace () || c == '\0') {
+        // 1. Нюанс: Если курсор на пробеле, разделителе или переносе строки, слова под ним нет.
+        // Важно: используем собственные границы идентификатора (буквы/цифры/_),
+        // а не GtkTextIter.starts_word/ends_word, которые режут идентификаторы по '_'.
+        if (!is_identifier_char (cursor_iter.get_char ())) {
             return null;
         }
 
-        // 3. Создаем копию для поиска конца слова
+        var buffer = this.get_buffer ();
+
+        // 2. Ищем начало слова: идём назад, пока перед курсором стоят символы идентификатора
+        Gtk.TextIter start_iter = cursor_iter;
+        while (start_iter.backward_char ()) {
+            if (!is_identifier_char (start_iter.get_char ())) {
+                start_iter.forward_char ();
+                break;
+            }
+        }
+
+        // 3. Ищем конец слова (исключающий): идём вперёд от курсора
         Gtk.TextIter end_iter = cursor_iter;
-
-        // 4. Ищем начало слова
-        // Если курсор уже в начале слова, backward_word_start вернет false или уйдет на слово назад.
-        // Поэтому проверяем, не стоим ли мы уже на начале.
-        if (!cursor_iter.starts_word ()) {
-            cursor_iter.backward_word_start ();
+        while (is_identifier_char (end_iter.get_char ())) {
+            if (!end_iter.forward_char ()) {
+                // Символ находится в самом конце буфера — конец диапазона равен концу буфера
+                buffer.get_end_iter (out end_iter);
+                break;
+            }
         }
 
-        // 5. Ищем конец слова
-        if (!end_iter.ends_word ()) {
-            end_iter.forward_word_end ();
-        }
-
-        return new WordRange (cursor_iter.get_line (), cursor_iter.get_line_offset (), end_iter.get_line_offset ());
+        return new WordRange (cursor_iter.get_line (), start_iter.get_line_offset (), end_iter.get_line_offset ());
     }
 
     private bool on_lsp_diagnostics_tooltip (GLib.SList<weak GtkSource.Mark> marks, Gtk.Tooltip tooltip) {
@@ -823,6 +852,10 @@ public class Iide.SourceView : GtkSource.View {
         // Оборачиваем всю замену в единый Undo-блок [INDEX]
         buffer.begin_user_action ();
 
+        // Подавляем эхо инкрементальных диффов: сервер уже применил эти правки
+        // у себя, повторная отправка привела бы к двойному применению.
+        this.suppress_lsp_echo = true;
+
         foreach (var edit in edits) {
             Gtk.TextIter start_iter, end_iter;
             buffer.get_iter_at_line_index (out start_iter, edit.start_line, edit.start_char);
@@ -840,6 +873,12 @@ public class Iide.SourceView : GtkSource.View {
         }
 
         buffer.end_user_action ();
+        this.suppress_lsp_echo = false;
+
+        // Приводим состояние серверов в точное соответствие с буфером
+        // (полный текст, идемпотентно для любого типа синхронизации).
+        this.lsp_document_client.force_full_sync ();
+
         logger.info ("LCA", "Successfully applied %d text edits to buffer.".printf (edits.size));
 
         this.full_ts_rehighlight_requested ();
@@ -891,5 +930,160 @@ public class Iide.SourceView : GtkSource.View {
                 return Source.REMOVE;
             });
         });
+    }
+
+    /**
+     * ПЕРЕИМЕНОВАНИЕ СИМВОЛА ПОД КУРСОРОМ (Shift+F6)
+     * Показывает диалог ввода нового имени, затем запрашивает textDocument/rename у LSP.
+     */
+    public void show_rename_dialog () {
+        var buffer = this.get_buffer ();
+        Gtk.TextIter cursor_iter;
+        buffer.get_iter_at_mark (out cursor_iter, buffer.get_insert ());
+
+        WordRange? word_range = get_word_range_under_cursor (cursor_iter);
+        if (word_range == null) {
+            logger.info ("LRN", "No word under cursor to rename.");
+            return;
+        }
+
+        // Извлекаем текущее слово из буфера
+        Gtk.TextIter start_iter, end_iter;
+        buffer.get_iter_at_line_index (out start_iter, word_range.line, word_range.start_column);
+        buffer.get_iter_at_line_index (out end_iter, word_range.line, word_range.end_column);
+        string current_word = buffer.get_text (start_iter, end_iter, false).strip ();
+        if (current_word == "") {
+            logger.info ("LRN", "No word under cursor to rename.");
+            return;
+        }
+
+        var root_window = this.get_root () as Gtk.Window;
+        if (root_window == null)
+            return;
+
+        var rename_dialog = new Adw.AlertDialog (
+            _("Rename Symbol"),
+            _("Enter a new name for \"%s\"").printf (current_word)
+        );
+        rename_dialog.add_response ("cancel", _("Cancel"));
+        rename_dialog.add_response ("rename", _("Rename"));
+        rename_dialog.set_response_appearance ("rename", Adw.ResponseAppearance.SUGGESTED);
+        rename_dialog.set_default_response ("rename");
+        rename_dialog.set_close_response ("cancel");
+
+        var entry = new Gtk.Entry () {
+            text = current_word,
+            placeholder_text = _("New name"),
+            halign = Gtk.Align.FILL,
+            margin_top = 12
+        };
+        entry.width_chars = 40;
+        // Выделяем весь текст, чтобы ввод сразу заменил старое имя
+        entry.select_region (0, current_word.length);
+
+        rename_dialog.set_extra_child (entry);
+
+        rename_dialog.response.connect ((response) => {
+            if (response != "rename")
+                return;
+            this.try_apply_rename (entry, word_range, current_word);
+        });
+
+        // Enter в поле ввода подтверждает переименование и закрывает диалог
+        entry.activate.connect (() => {
+            if (this.try_apply_rename (entry, word_range, current_word))
+                rename_dialog.close ();
+        });
+
+        rename_dialog.present (root_window);
+        entry.grab_focus ();
+    }
+
+    private bool try_apply_rename (Gtk.Entry entry, WordRange word_range, string current_word) {
+        string new_name = entry.text.strip ();
+        if (new_name == "" || new_name == current_word)
+            return false;
+
+        this.perform_rename.begin (word_range, new_name);
+        return true;
+    }
+
+    private async void perform_rename (WordRange word_range, string new_name) {
+        logger.info ("LRN", "Requesting rename of symbol at %d:%d to '%s'...".printf (
+            word_range.line, word_range.start_column, new_name
+        ));
+
+        var edits_map = yield this.lsp_document_client.request_rename_async (
+            this.uri, word_range.line, word_range.start_column, new_name
+        );
+
+        if (edits_map == null || edits_map.is_empty) {
+            logger.info ("LRN", "Rename returned no edits.");
+            return;
+        }
+
+        this.apply_rename_edits (edits_map);
+    }
+
+    /**
+     * Применение результата переименования (WorkspaceEdit).
+     * Если все правки относятся к одному файлу (активному) — применяем автоматически.
+     * Если правки затрагивают несколько файлов — показываем диалог подтверждения.
+     */
+    public void apply_rename_edits (Gee.HashMap<string, Gee.ArrayList<LspTextEdit>> edits_map) {
+        if (edits_map.size == 1) {
+            foreach (var entry in edits_map.entries) {
+                this.apply_edits_to_file (entry.key, entry.value);
+            }
+            return;
+        }
+
+        var root_window = this.get_root () as Gtk.Window;
+        if (root_window == null)
+            return;
+
+        if (this.rename_preview_dialog != null) {
+            this.rename_preview_dialog.destroy ();
+            this.rename_preview_dialog = null;
+        }
+
+        this.rename_preview_dialog = new RenamePreviewDialog (root_window, this, edits_map);
+        this.rename_preview_dialog.confirmed.connect ((selected_edits) => {
+            foreach (var entry in selected_edits.entries) {
+                this.apply_edits_to_file (entry.key, entry.value);
+            }
+        });
+        this.rename_preview_dialog.present ();
+    }
+
+    private void apply_edits_to_file (string file_uri, Gee.ArrayList<LspTextEdit> edits) {
+        // Файл уже открыт — применяем правки в его редакторе
+        var text_view = this.session.document_manager.documents.get (file_uri) as Iide.TextView;
+        if (text_view != null) {
+            text_view.source_view.apply_lsp_text_edits (edits);
+            return;
+        }
+
+        // Файл ещё не открыт: открываем и ждём появления документа в сетке вкладок,
+        // после чего применяем правки в загруженном редакторе.
+        this.wait_for_document_and_apply.begin (file_uri, edits);
+        this.session.document_manager.open_document_by_uri (file_uri);
+    }
+
+    private async void wait_for_document_and_apply (string file_uri, Gee.ArrayList<LspTextEdit> edits) {
+        int attempts = 0;
+        while (attempts < 200) {
+            var text_view = this.session.document_manager.documents.get (file_uri) as Iide.TextView;
+            if (text_view != null) {
+                text_view.source_view.apply_lsp_text_edits (edits);
+                return;
+            }
+
+            attempts++;
+            Timeout.add (50, wait_for_document_and_apply.callback);
+            yield;
+        }
+
+        this.logger.warning ("LRN", "Timed out waiting for document to open: %s".printf (file_uri));
     }
 }

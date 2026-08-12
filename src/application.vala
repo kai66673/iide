@@ -69,6 +69,7 @@ public class Iide.Application : Adw.Application {
         action_manager.register_action (this, new GotoPrevBookmarkAction ());
         action_manager.register_action (this, new ShowFindBarAction ());
         action_manager.register_action (this, new LspCodeActionsAction ());
+        action_manager.register_action (this, new RenameSymbolAction ());
 
         // Ins/Ovr toggle
         // Действие переключения режима
@@ -796,6 +797,30 @@ private class Iide.LspCodeActionsAction : Iide.AppAction {
             var source_view = win.get_active_source_view ();
             if (source_view != null) {
                 source_view.show_code_actions_menu ();
+            }
+        }
+    }
+}
+
+private class Iide.RenameSymbolAction : Iide.AppAction {
+    public override string id { get { return "rename-symbol"; } }
+    public override string name { get { return _("Rename Symbol"); } }
+    public override string? description { get { return _("Rename the symbol under the cursor via LSP"); } }
+    public override string? icon_name { get { return "edit-rename-symbolic"; } }
+    public override string? category { get { return "Edit"; } }
+    public override string? default_shortcut { get { return "<shift>F6"; } }
+
+    public override bool can_execute () {
+        return true;
+    }
+
+    public override void execute () {
+        var app = GLib.Application.get_default () as Iide.Application;
+        var win = app ? .active_window as Iide.Window;
+        if (win != null) {
+            var source_view = win.get_active_source_view ();
+            if (source_view != null) {
+                source_view.show_rename_dialog ();
             }
         }
     }

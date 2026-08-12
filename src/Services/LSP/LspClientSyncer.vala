@@ -9,6 +9,7 @@ public class Iide.LspClientSyncer: GLib.Object {
     public int document_version { get; private set; default = 0; }
     private uint debounce_id = 0;
     public bool document_added { get; private set; default = false; }
+    private bool pending_full_sync = false;
 
     public bool is_ready { get { return this.client.status == LspClientStatus.READY; } }
 
@@ -54,6 +55,7 @@ public class Iide.LspClientSyncer: GLib.Object {
         }
         this.document_version = 0;
         this.document_added = false;
+        this.pending_full_sync = false;
 
         if (is_ready) {
             this.client.text_document_did_open.begin (
@@ -66,6 +68,15 @@ public class Iide.LspClientSyncer: GLib.Object {
                 try {
                     this.client.text_document_did_open.end (res);
                     this.document_added = true;
+
+                    // Если во время полета didOpen запросили полную синхронизацию
+                    // (например, после применения правок rename в только что
+                    // открытом файле) — досылаем её, используя текущий текст буфера.
+                    if (this.pending_full_sync) {
+                        this.pending_full_sync = false;
+                        this.send_full_text_did_change ();
+                    }
+
                     this.logger.info ("LSP", "Document %s opened in '%s'".printf (source_view.uri, this.client.name ()));
                 } catch (GLib.Error e) {
                     this.logger.error ("LSP", "Document %s failed to open in '%s'".printf (source_view.uri, this.client.name ()));
@@ -172,5 +183,56 @@ public class Iide.LspClientSyncer: GLib.Object {
             case TextDocumentSyncKind.NONE:
                 break;
         }
+    }
+
+    /**
+     * Полная текстовая синхронизация после применения LSP-правок
+     * (rename/code actions/auto-imports).
+     *
+     * Сервер уже применил эти правки у себя, когда генерировал WorkspaceEdit,
+     * поэтому эхо тех же инкрементальных диффов через didChange привело бы к
+     * их двойному применению и рассинхронизации. Вместо этого отправляем
+     * полный текст документа (change без range) — это идемпотентно для любого
+     * типа синхронизации и приводит состояние сервера в точное соответствие
+     * с буфером.
+     */
+    public void force_full_sync () {
+        // Отбрасываем устаревшие накопленные диффы и висящий дебаунс
+        if (debounce_id > 0) {
+            Source.remove (debounce_id);
+            debounce_id = 0;
+        }
+        this.pending_queue = new Gee.ArrayList<PendingChange> ();
+
+        if (this.client.status != LspClientStatus.READY)
+            return;
+
+        // didOpen еще в полете — документ на сервере пока не открыт.
+        // Откладываем полную синхронизацию до завершения didOpen.
+        // send_full_text_did_change читает живой текст буфера, поэтому даже если
+        // пользователь успеет отменить правки (Ctrl+Z) до этого момента,
+        // сервер получит актуальное содержимое.
+        if (!this.document_added) {
+            this.pending_full_sync = true;
+            return;
+        }
+
+        this.send_full_text_did_change ();
+    }
+
+    private void send_full_text_did_change () {
+        this.document_version++;
+        this.client.text_document_did_change.begin (
+            this.source_view.uri, this.document_version, this.source_view.buffer.text, (obj, res) =>
+        {
+            try {
+                this.client.text_document_did_change.end (res);
+            } catch (GLib.Error e) {
+                this.logger.error ("LSP", "Error on full sync for document %s: %s".printf (this.source_view.uri, e.message));
+            }
+            if (this.client.capabilities.diagnostics_provider == LspDiagnosticMode.PULL) {
+                this.client.request_pull_diagnostics.begin (this.source_view.uri);
+            }
+        });
     }
 }

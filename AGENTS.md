@@ -22,7 +22,7 @@ There is no test suite, linter, or typecheck step — **compilation is the only 
 
 ## System dependencies
 
-`valac` (>= 0.56), `gtk4`, `libadwaita-1`, `gtksourceview-5`, `libpanel-1`, `gee-0.8`, `json-glib-1.0`, `jsonrpc-glib-1.0`, `vte-2.91-gtk4` (>= 0.75.0). All `-dev` packages required.
+`meson` (>= 1.0.0), `valac` (>= 0.56), `gtk4`, `libadwaita-1`, `gtksourceview-5`, `libpanel-1`, `gee-0.8`, `json-glib-1.0`, `jsonrpc-glib-1.0`, `vte-2.91-gtk4` (>= 0.75.0), plus `python3` (icon codegen). All `-dev` packages required.
 
 ## Project structure
 
@@ -33,7 +33,8 @@ There is no test suite, linter, or typecheck step — **compilation is the only 
 - `vendor/tree-sitter/` — vendored tree-sitter runtime (git submodule, use the `albfan` fork)
 - `vapi/libtreesitter.vapi` — Vala bindings for tree-sitter C API
 - `data/` — GSchema, desktop file, metainfo, icons
-- `symbols/` — icon/symbol resources
+- `symbols/` — icon/symbol resources (generated at build time, see Build quirks)
+- `src/icons/`, `src/fonts/` — embedded mimetype icons / font, bundled via `src/iide.gresource.xml` (distinct from `symbols/`)
 - `po/` — gettext translations
 - `.iide/` — per-project session config (LSP overrides, etc.)
 
@@ -44,7 +45,7 @@ There is no test suite, linter, or typecheck step — **compilation is the only 
 ## Conventions
 
 - All source is Vala (namespace `Iide.*`). New files must be added to `src/meson.build` `iide_sources` array.
-- Tree-sitter parser C sources are listed explicitly in the root `meson.build` — adding a new language parser requires updating that list.
+- Tree-sitter parser C sources are listed explicitly in the root `meson.build` — adding a new language parser requires updating that list. Grammars are git submodules under `parsers/`. Most compile into the shared `tree-sitter-runtime` static lib, but XML, C, TypeScript, and PHP are built as **separate** static libs due to their nested repo layout (`parsers/xml/xml/src/…`, etc.). Highlighters (when needed) live in `src/Services/TreeSitter/<lang>/` and are instantiated in `TreeSitterManager`.
 - Actions are defined as private subclasses of `Iide.AppAction` in `src/application.vala`, registered via `AppActionsManager`.
 - UI XML files live alongside their widgets; GResource XML is `src/iide.gresource.xml`.
 - App ID: `org.github.kai66673.iide`.
@@ -55,3 +56,8 @@ There is no test suite, linter, or typecheck step — **compilation is the only 
 - Flatpak manifest (`org.github.kai66673.iide.json`) hardcodes `file:///home/kai/Projects` as the source URL — needs updating if you move the repo.
 - Doxygen docs are optional: `meson compile -C builddir docs` (requires `doxygen` installed).
 - `vendor/tree-sitter` is a fork (`albfan/tree-sitter`), not upstream — respect this when updating.
+
+## Build quirks
+
+- `symbols/` icons are **generated at build time**: `symbols/export_glyph.py` (meson `custom_target`) turns `symbols/icons.json` + `symbols/fonts/SYMBOLIC.ttf` into SVGs and a gresource (`symbols_res`), which is wired into the executable in `src/meson.build`. Requires `python3`.
+- `meson install` runs `scripts/install-local-settings.sh`, which copies the GSettings schema and icons into `~/.local/share` for development. Runtime may need `XDG_DATA_DIRS="$HOME/.local/share:$XDG_DATA_DIRS"` to pick up the schema.

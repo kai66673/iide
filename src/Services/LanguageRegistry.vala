@@ -12,7 +12,8 @@ namespace Iide {
         FORMATTING,
         CODE_ACTIONS,
         DEFINTION,
-        HOVER
+        HOVER,
+        RENAME
     }
 
     // Легковесный класс для хранения карты обязанностей конкретного языка
@@ -163,7 +164,8 @@ namespace Iide {
       "formatting": ["ruff"],
       "code_actions": ["basedpyright", "ruff"],
       "definition": ["basedpyright"],
-      "hover": ["basedpyright"]
+      "hover": ["basedpyright"],
+      "rename": ["basedpyright"]
     }
   }
 }
@@ -268,6 +270,7 @@ namespace Iide {
             parse_route (lang_json_obj, router, "code_actions", LspFeatures.CODE_ACTIONS);
             parse_route (lang_json_obj, router, "definition", LspFeatures.DEFINTION);
             parse_route (lang_json_obj, router, "hover", LspFeatures.HOVER);
+            parse_route (lang_json_obj, router, "rename", LspFeatures.RENAME);
 
             return router;
         }

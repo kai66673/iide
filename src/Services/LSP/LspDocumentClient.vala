@@ -53,6 +53,12 @@ public class Iide.LspDocumentClient: GLib.Object {
             yield client.flush_changes_async ();
         }
     }
+
+    public void force_full_sync () {
+        foreach (var client in clients) {
+            client.force_full_sync ();
+        }
+    }
     
     ////////
     public void save_document() {
@@ -184,6 +190,47 @@ public class Iide.LspDocumentClient: GLib.Object {
             return yield lsp_client.client.request_definition (uri, line, character);
         }
         return null;
+    }
+
+    /**
+     * АСИНХРОННОЕ ПЕРЕИМЕНОВАНИЕ СИМВОЛА В ТЕКУЩЕЙ ВКЛАДКЕ РЕДАКТОРА
+     * Вызывается из UI-экшена SourceView по хоткею Shift+F6.
+     * @return Карта правок WorkspaceEdit [uri] -> [массив TextEdit] или null.
+     */
+    public async Gee.HashMap<string, Gee.ArrayList<LspTextEdit>>? request_rename_async (string uri, int line, int character, string new_name) {
+        // 1. Перед запросом принудительно проталкиваем неотправленные изменения ввода в сокеты серверов!
+        yield this.flush_changes_async ();
+
+        // 2. Ищем сервер текущей вкладки, который умеет переименовывать символы
+        var rename_providers = this.active_clients ((lsp_client) => {
+            return lsp_client.client.capabilities.rename_provider;
+        });
+
+        if (rename_providers.is_empty) {
+            this.logger.warning ("LSP-UI", "No active LSP servers support rename for this document.");
+            return null;
+        }
+
+        // 3. Берем первый доступный сервер с поддержкой rename
+        var target_syncer = rename_providers.get (0);
+        var client = target_syncer.client;
+
+        this.logger.info ("LSP-UI", "Sending rename request to '%s'...".printf (client.name ()));
+
+        try {
+            var edits_map = yield client.request_rename (uri, line, character, new_name);
+            if (edits_map != null && !edits_map.is_empty) {
+                this.logger.info ("LSP-UI", "Rename of '%s' to '%s' completed across %d file(s).".printf (
+                    uri, new_name, edits_map.size
+                ));
+            } else {
+                this.logger.info ("LSP-UI", "Rename returned no edits.");
+            }
+            return edits_map;
+        } catch (GLib.Error e) {
+            this.logger.error ("LSP-UI", "Rename request failed for '%s': %s".printf (client.name (), e.message));
+            return null;
+        }
     }
 
     /**
