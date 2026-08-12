@@ -43,6 +43,9 @@ public class Iide.Window : Panel.DocumentWorkspace {
 
     public GLib.File project_root { get; construct set; }
 
+    private Gtk.PopoverMenu context_popover;
+    private SimpleActionGroup menu_action_group;
+
     public Window (Gtk.Application app, GLib.File project_root) {
         Object (application: app, project_root: project_root);
         GtkSource.init ();
@@ -208,6 +211,138 @@ public class Iide.Window : Panel.DocumentWorkspace {
             this.handle_close ();
             return true;
         });
+
+        setup_dock_headers_events ();
+    }
+
+    private void setup_dock_headers_events () {
+        var click_gesture = new Gtk.GestureClick ();
+        click_gesture.set_button (3); // Правый клик
+
+        click_gesture.pressed.connect ((n_press, x, y) => {
+            // 1. Находим самый глубокий виджет в точке клика (работает на всем пространстве Дока)
+            var target_widget = dock.pick (x, y, Gtk.PickFlags.DEFAULT);
+            
+            if (target_widget != null) {
+                Gtk.Widget? current = target_widget;
+                
+                // 2. Поднимаемся вверх, ища контейнер фрейма (Panel.Frame)
+                while (current != null && current != dock) {
+                    
+                    // Проверяем, уперлись ли мы во фрейм libpanel
+                    if (current.get_type ().name () == "PanelFrame" || current is Panel.Frame) {
+                        var frame = current as Panel.Frame;
+
+                        var panels = new Gee.ArrayList<Iide.BasePanel> ();
+                        for (var i = 0; i < frame.get_n_pages (); i++) {
+                            var panel = frame.get_page (i) as Iide.BasePanel;
+                            if (panel != null) {
+                                panels.add (panel);
+                            }
+                        }
+
+                        this.show_context_menu_for_panels(frame, panels, x, y);
+
+                        break;
+                    }
+                    current = current.get_parent ();
+                }
+            }
+        });
+
+        dock.add_controller (click_gesture);
+    }
+
+    private void show_context_menu_for_panels (Panel.Frame frame, Gee.ArrayList<Iide.BasePanel> panels, double x, double y) {
+        // 1. Очищаем старое меню и группу экшенов, если они были
+        if (context_popover != null) {
+            context_popover.unparent ();
+        }
+        
+        var menu_model = new GLib.Menu ();
+        menu_action_group = new SimpleActionGroup ();
+    
+        var context_panels = new Gee.ArrayList<Iide.BasePanel> ();
+        context_panels.add_all (panels);
+        foreach (var panel in this.panel_widgets) {
+            if (!panel.is_content_visible) {
+                context_panels.add (panel);
+            }
+        }
+
+        // 2. Наполняем меню пунктами-переключателями (Check items)
+        foreach (var panel in context_panels) {
+            string action_name = "toggle_" + panel.panel_id ();
+            
+            // Создаем State-full Action (экшен с состоянием типа boolean)
+            // Начальное состояние берем из текущей видимости контента панели
+            var action = new SimpleAction.stateful (
+                action_name, 
+                null, 
+                new GLib.Variant.boolean (panel.is_content_visible)
+            );
+
+            // При клике на пункт меню инвертируем состояние экшена и самой панели
+            action.activate.connect ((param) => {
+                bool current_state = action.get_state ().get_boolean ();
+                bool new_state = !current_state;
+                
+                action.set_state (new GLib.Variant.boolean (new_state));
+                if (new_state) {
+                    // Включаем видимость
+                    frame.add (panel);
+                    panel.add_to_frame (frame);
+                    panel.raise ();
+                } else {
+                    // Выключаем видимость
+                    panel.remove_from_frame (frame);
+                    this.handle_panel_removed_from_frame (frame);
+                }
+            });
+
+            menu_action_group.add_action (action);
+
+            // Создаем пункт меню, который отображается как Checkbox
+            var menu_item = new GLib.MenuItem (panel.title, "dock_menu." + action_name);
+            menu_model.append_item (menu_item);
+        }
+
+        // 3. Создаем виджет PopoverMenu в GTK4
+        context_popover = new Gtk.PopoverMenu.from_model (menu_model);
+        context_popover.set_parent (this.dock); // Привязываем к доку
+        context_popover.set_has_arrow (true);
+
+        // Регистрируем нашу группу экшенов под префиксом "dock_menu"
+        context_popover.insert_action_group ("dock_menu", menu_action_group);
+
+        // 4. Позиционируем меню ровно в место клика мыши
+        Gdk.Rectangle rect = Gdk.Rectangle ();
+        rect.x = (int)x;
+        rect.y = (int)y;
+        rect.width = 1;
+        rect.height = 1;
+        
+        context_popover.set_pointing_to (rect);
+        context_popover.popup ();
+    }
+
+    private void handle_panel_removed_from_frame (Panel.Frame frame) {
+        var pages_count = frame.get_n_pages ();
+        if (pages_count > 0) {
+            return;
+        }
+        var frame_area_empty = true;
+        var frame_area = frame.get_position ().area;
+        this.dock.foreach_frame ((dock_frame) => {
+            if (dock_frame != frame && dock_frame.visible && dock_frame.get_position ().area == frame_area) {
+                frame_area_empty = false;
+            }
+        });
+        if (frame_area_empty) {
+            frame.activate_action ("frame.close", null);
+        } else {
+            frame.set_visible (false);
+        }
     }
 
     private void handle_close () {
@@ -302,19 +437,21 @@ public class Iide.Window : Panel.DocumentWorkspace {
         bool empty_bottom = true;
         bool empty_end = true;
         dock.foreach_frame ((frame) => {
-            var position = frame.get_position ();
-            switch (position.area) {
-                case Panel.Area.START:
-                    empty_start = false;
-                    break;
-                case Panel.Area.BOTTOM:
-                    empty_bottom = false;
-                    break;
-                case Panel.Area.END:
-                    empty_end = false;
-                    break;
-                default:
-                    break;
+            if (frame.visible) {
+                var position = frame.get_position ();
+                switch (position.area) {
+                    case Panel.Area.START:
+                        empty_start = false;
+                        break;
+                    case Panel.Area.BOTTOM:
+                        empty_bottom = false;
+                        break;
+                    case Panel.Area.END:
+                        empty_end = false;
+                        break;
+                    default:
+                        break;
+                }
             }
         });
 
@@ -364,7 +501,7 @@ public class Iide.Window : Panel.DocumentWorkspace {
 
     public void initialize_panels () {
         foreach (var panel in panel_widgets) {
-            add_widget (panel, panel.initial_pos ());
+            panel.initial_add (this);
         }
     }
 
@@ -379,9 +516,9 @@ public class Iide.Window : Panel.DocumentWorkspace {
 
         foreach (var panel_widget in panel_widgets) {
             var widget_layout = widget_layouts.get (panel_widget.panel_id ());
-            var pos = widget_layout != null? widget_layout.to_pos () : panel_widget.initial_pos ();
-
-            add_widget (panel_widget, pos);
+            if (widget_layout != null) {
+                panel_widget.initial_add (this, widget_layout.to_pos ());
+            }
         }
     }
 
