@@ -71,6 +71,22 @@ public class Iide.LspDocumentClient: GLib.Object {
         }
     }
 
+    /**
+     * Отправляет textDocument/didClose всем серверам, у которых документ открыт.
+     * Вызывается при закрытии вкладки (например, перед переименованием файла).
+     */
+    public void send_did_close () {
+        foreach (var syncer in this.active_clients ()) {
+            syncer.client.text_document_did_close.begin (this.source_view.uri, (obj, res) => {
+                try {
+                    syncer.client.text_document_did_close.end (res);
+                } catch (GLib.Error e) {
+                    this.logger.error ("LSP", "Failed to send textDocument/didClose for %s: %s".printf (this.source_view.uri, e.message));
+                }
+            });
+        }
+    }
+
     public async string ? request_hover (string uri, int line, int character) {
         this.flush_changes ();
 

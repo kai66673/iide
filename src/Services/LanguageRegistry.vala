@@ -96,7 +96,13 @@ namespace Iide {
               }
             }
           },
-          "workspace": { "configuration": true },
+          "workspace": {
+            "configuration": true,
+            "fileOperations": {
+              "willRename": true,
+              "didRename": true
+            }
+          },
           "window": { "workDoneProgress": true }
         },
         "initializationOptions": {

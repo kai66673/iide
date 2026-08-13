@@ -41,6 +41,22 @@ public abstract class Iide.TextLineMarkService : GLib.Object {
     }
 
     /**
+     * Переносит закладки/брейкпоинты файла под новый URI
+     * (вызывается после переименования файла).
+     */
+    public void move_marks_uri (string old_uri, string new_uri) {
+        if (!this.loaded_json_cache.has_key (old_uri))
+            return;
+
+        var marks = this.loaded_json_cache.get (old_uri);
+        this.loaded_json_cache.unset (old_uri);
+        this.loaded_json_cache.set (new_uri, marks);
+
+        this.uri_marks_changed (old_uri, new Gee.ArrayList<Iide.TextLineMark?> ());
+        this.uri_marks_changed (new_uri, marks);
+    }
+
+    /**
      * Инициализация проекта. Вызывается при открытии рабочей папки IDE.
      */
     public void init_project (string project_root_path) {

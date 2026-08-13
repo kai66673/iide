@@ -25,6 +25,23 @@ public class Iide.ProjectPanel : BasePanel {
                 this.session.document_manager.open_document (item.file, null);
             }
         });
+
+        folder_view.file_rename_requested.connect ((item) => {
+            if (item.is_directory)
+                return;
+
+            var dialog = new RenameFileDialog (this.session.window, item.file);
+            dialog.confirmed.connect ((new_name) => {
+                var new_file = item.file.get_parent ().get_child (new_name);
+                this.session.file_operations_service.rename_file_async.begin (item.file, new_file, (obj, res) => {
+                    bool renamed = this.session.file_operations_service.rename_file_async.end (res);
+                    if (renamed) {
+                        this.folder_view.refresh ();
+                    }
+                });
+            });
+            dialog.present ();
+        });
     }
 
     public override Panel.Position initial_pos () {

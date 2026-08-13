@@ -192,6 +192,53 @@ public class Iide.DocumentManager : GLib.Object {
         }
     }
 
+    /**
+     * Закрывает вкладку документа (если открыта).
+     * Перед закрытием отправляет серверам LSP textDocument/didClose.
+     * Применяется при переименовании файла (close+reopen).
+     */
+    public void close_document (string uri) {
+        var doc = documents.get (uri) as Iide.TextView;
+        if (doc == null)
+            return;
+
+        doc.source_view.lsp_document_client.send_did_close ();
+        (doc as Panel.Widget).force_close ();
+    }
+
+    /**
+     * Применяет правки LSP к файлу.
+     * Если файл уже открыт — применяет их в его буфере;
+     * иначе открывает документ и применяет правки после загрузки.
+     */
+    public void apply_edits_to_file (string file_uri, Gee.ArrayList<LspTextEdit> edits) {
+        var text_view = documents.get (file_uri) as Iide.TextView;
+        if (text_view != null) {
+            text_view.source_view.apply_lsp_text_edits (edits);
+            return;
+        }
+
+        this.wait_for_document_and_apply.begin (file_uri, edits);
+        this.open_document_by_uri (file_uri);
+    }
+
+    private async void wait_for_document_and_apply (string file_uri, Gee.ArrayList<LspTextEdit> edits) {
+        int attempts = 0;
+        while (attempts < 200) {
+            var text_view = documents.get (file_uri) as Iide.TextView;
+            if (text_view != null) {
+                text_view.source_view.apply_lsp_text_edits (edits);
+                return;
+            }
+
+            attempts++;
+            Timeout.add (50, wait_for_document_and_apply.callback);
+            yield;
+        }
+
+        logger.warning ("Doc", "Timed out waiting for document to open: %s".printf (file_uri));
+    }
+
     public bool navigate_to (NavigationPoint nav_point) {
         var docs = documents;
         var uri = nav_point.file.get_uri ();

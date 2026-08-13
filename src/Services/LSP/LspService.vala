@@ -202,6 +202,55 @@ public class Iide.LspService : GLib.Object {
     }
 
     /**
+     * Рассылает workspace/willRenameFiles всем клиентам, заявившим поддержку.
+     * Объединяет возвращённые WorkspaceEdit'ы в одну карту [uri] -> [правки].
+     * Возвращает null, если ни один сервер не прислал правок.
+     */
+    public async Gee.HashMap<string, Gee.ArrayList<LspTextEdit>>? will_rename_files_async (string old_uri, string new_uri) {
+        var merged = new Gee.HashMap<string, Gee.ArrayList<LspTextEdit>> ();
+        bool any_edits = false;
+
+        foreach (var client in this.clients.values) {
+            if (!client.capabilities.will_rename_files_provider) continue;
+
+            try {
+                var edits = yield client.request_will_rename_files (old_uri, new_uri);
+                if (edits == null) continue;
+
+                foreach (var entry in edits.entries) {
+                    if (!merged.has_key (entry.key)) {
+                        merged.set (entry.key, new Gee.ArrayList<LspTextEdit> ());
+                    }
+                    foreach (var edit in entry.value) {
+                        merged.get (entry.key).add (edit);
+                    }
+                }
+                any_edits = true;
+            } catch (Error e) {
+                this.logger.warning ("LSP", "workspace/willRenameFiles to %s failed: %s".printf (client.name (), e.message));
+            }
+        }
+
+        return any_edits ? merged : null;
+    }
+
+    /**
+     * Рассылает workspace/didRenameFiles всем клиентам, заявившим поддержку,
+     * после фактического переименования файла на диске.
+     */
+    public async void notify_did_rename_files (string old_uri, string new_uri) {
+        foreach (var client in this.clients.values) {
+            if (!client.capabilities.did_rename_files_provider) continue;
+
+            try {
+                yield client.notify_did_rename_files (old_uri, new_uri);
+            } catch (Error e) {
+                this.logger.warning ("LSP", "workspace/didRenameFiles to %s failed: %s".printf (client.name (), e.message));
+            }
+        }
+    }
+
+    /**
      * Асинхронно и параллельно остановить все активные LSP-серверы текущего проекта
      */
     public async void shutdown_all_running_lsp_servers_async () {

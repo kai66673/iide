@@ -32,6 +32,7 @@ public class Iide.WindowSession : Object {
     public TextLineMarkService bookmark_service { get; construct set; }
     public TextLineMarkService breakpoint_service { get; construct set; }
     public TextLineMarkService[] marks_service { get; private set; }
+    public FileOperationsService file_operations_service { get; construct set; }
 
     // GTK-виджеты проекта
     public Panel.Grid grid { get; construct set; }
@@ -62,6 +63,8 @@ public class Iide.WindowSession : Object {
         this.breakpoint_service = new BreakpointsLineService (this, "breakpoints");
 
         this.marks_service = { this.bookmark_service, this.breakpoint_service };
+
+        this.file_operations_service = new FileOperationsService (this);
 
         // GTK-виджеты проекта
         this.grid = window.grid;

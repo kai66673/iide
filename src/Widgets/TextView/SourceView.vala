@@ -1033,7 +1033,7 @@ public class Iide.SourceView : GtkSource.View {
     public void apply_rename_edits (Gee.HashMap<string, Gee.ArrayList<LspTextEdit>> edits_map) {
         if (edits_map.size == 1) {
             foreach (var entry in edits_map.entries) {
-                this.apply_edits_to_file (entry.key, entry.value);
+                this.session.document_manager.apply_edits_to_file (entry.key, entry.value);
             }
             return;
         }
@@ -1050,40 +1050,9 @@ public class Iide.SourceView : GtkSource.View {
         this.rename_preview_dialog = new RenamePreviewDialog (root_window, this, edits_map);
         this.rename_preview_dialog.confirmed.connect ((selected_edits) => {
             foreach (var entry in selected_edits.entries) {
-                this.apply_edits_to_file (entry.key, entry.value);
+                this.session.document_manager.apply_edits_to_file (entry.key, entry.value);
             }
         });
         this.rename_preview_dialog.present ();
-    }
-
-    private void apply_edits_to_file (string file_uri, Gee.ArrayList<LspTextEdit> edits) {
-        // Файл уже открыт — применяем правки в его редакторе
-        var text_view = this.session.document_manager.documents.get (file_uri) as Iide.TextView;
-        if (text_view != null) {
-            text_view.source_view.apply_lsp_text_edits (edits);
-            return;
-        }
-
-        // Файл ещё не открыт: открываем и ждём появления документа в сетке вкладок,
-        // после чего применяем правки в загруженном редакторе.
-        this.wait_for_document_and_apply.begin (file_uri, edits);
-        this.session.document_manager.open_document_by_uri (file_uri);
-    }
-
-    private async void wait_for_document_and_apply (string file_uri, Gee.ArrayList<LspTextEdit> edits) {
-        int attempts = 0;
-        while (attempts < 200) {
-            var text_view = this.session.document_manager.documents.get (file_uri) as Iide.TextView;
-            if (text_view != null) {
-                text_view.source_view.apply_lsp_text_edits (edits);
-                return;
-            }
-
-            attempts++;
-            Timeout.add (50, wait_for_document_and_apply.callback);
-            yield;
-        }
-
-        this.logger.warning ("LRN", "Timed out waiting for document to open: %s".printf (file_uri));
     }
 }

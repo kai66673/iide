@@ -7,6 +7,10 @@ public class Iide.FileTreeView : Box {
     private CustomSorter sorter;
 
     public signal void file_activated (FileItem item);
+    public signal void file_rename_requested (FileItem item);
+
+    private Gtk.Popover? context_popover = null;
+    private FileItem? context_item = null;
 
     // Свойство с поддержкой null
     public GLib.File? root_directory {
@@ -40,6 +44,74 @@ public class Iide.FileTreeView : Box {
 
             selection = new SingleSelection (tree_model);
             column_view.model = selection;
+        }
+    }
+
+    /**
+     * Перестраивает дерево проекта с диска, сохраняя развёрнутые директории.
+     */
+    public void refresh () {
+        var root = this._root_directory;
+        if (root == null || this.selection == null)
+            return;
+
+        // 1. Запоминаем, какие директории сейчас развёрнуты
+        var expanded_uris = new Gee.HashSet<string> ();
+        var current_tree = this.selection.model as TreeListModel;
+        if (current_tree != null) {
+            for (uint i = 0; i < current_tree.get_n_items (); i++) {
+                this.collect_expanded_uris (current_tree.get_row (i), expanded_uris);
+            }
+        }
+
+        // 2. Перестраиваем модель с диска
+        this.root_directory = root;
+
+        // 3. Восстанавливаем развёрнутые директории
+        var new_tree = this.selection.model as TreeListModel;
+        if (new_tree != null) {
+            for (uint i = 0; i < new_tree.get_n_items (); i++) {
+                this.expand_uri_path (new_tree.get_row (i), expanded_uris);
+            }
+        }
+    }
+
+    private void collect_expanded_uris (Gtk.TreeListRow row, Gee.HashSet<string> acc) {
+        if (row == null)
+            return;
+
+        var item = row.get_item () as FileItem;
+        if (item == null)
+            return;
+
+        if (row.is_expandable () && row.expanded) {
+            acc.add (item.file.get_uri ());
+            var children = row.get_children ();
+            if (children != null) {
+                for (uint i = 0; i < children.get_n_items (); i++) {
+                    this.collect_expanded_uris (row.get_child_row (i), acc);
+                }
+            }
+        }
+    }
+
+    private void expand_uri_path (Gtk.TreeListRow row, Gee.HashSet<string> uris) {
+        if (row == null)
+            return;
+
+        var item = row.get_item () as FileItem;
+        if (item == null)
+            return;
+
+        if (uris.contains (item.file.get_uri ()) && row.is_expandable ()) {
+            // Разворачиваем директорию — дети загружаются лениво
+            row.set_expanded (true);
+            var children = row.get_children ();
+            if (children != null) {
+                for (uint i = 0; i < children.get_n_items (); i++) {
+                    this.expand_uri_path (row.get_child_row (i), uris);
+                }
+            }
         }
     }
 
@@ -95,6 +167,45 @@ public class Iide.FileTreeView : Box {
                 }
             }
         });
+
+        setup_context_menu ();
+    }
+
+    private void setup_context_menu () {
+        var menu_box = new Gtk.Box (Orientation.VERTICAL, 0);
+
+        var rename_button = new Gtk.Button.with_label (_("Rename…"));
+        rename_button.add_css_class ("flat");
+        rename_button.hexpand = true;
+        rename_button.halign = Gtk.Align.FILL;
+        rename_button.clicked.connect (() => {
+            if (this.context_popover != null)
+                this.context_popover.popdown ();
+            if (this.context_item != null)
+                this.file_rename_requested (this.context_item);
+        });
+        menu_box.append (rename_button);
+
+        this.context_popover = new Gtk.Popover ();
+        this.context_popover.child = menu_box;
+        // Родителем делаем стабильный виджет дерева, а позицию задаём
+        // координатами клика относительно него (см. open_context_menu)
+        this.context_popover.set_parent (this.column_view);
+    }
+
+    private void open_context_menu (Gtk.Widget anchor, FileItem item, double x, double y) {
+        this.context_item = item;
+
+        double dx = x, dy = y;
+        anchor.translate_coordinates (this.column_view, x, y, out dx, out dy);
+
+        this.context_popover.set_pointing_to (Gdk.Rectangle () {
+            x = (int) dx,
+            y = (int) dy,
+            width = 1,
+            height = 1
+        });
+        this.context_popover.popup ();
     }
 
     private GLib.ListStore create_file_model (GLib.File dir) {
@@ -175,10 +286,19 @@ public class Iide.FileTreeView : Box {
 
                 if (!file_item.is_directory) {
                     var click = new Gtk.GestureClick ();
+                    click.set_button (1);
                     click.released.connect (() => {
                         file_activated (file_item);
                     });
                     box.add_controller (click);
+
+                    // Правый клик — контекстное меню файла (Rename…)
+                    var right_click = new Gtk.GestureClick ();
+                    right_click.set_button (3);
+                    right_click.pressed.connect ((n_press, x, y) => {
+                        this.open_context_menu (box, file_item, x, y);
+                    });
+                    box.add_controller (right_click);
                 }
             }
         });

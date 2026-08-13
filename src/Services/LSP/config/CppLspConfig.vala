@@ -47,6 +47,10 @@ public class Iide.CppLspConfig : Iide.LspConfig {
                 },
                 "executeCommand": {
                   "dynamicRegistration": true
+                },
+                "fileOperations": {
+                  "willRename": true,
+                  "didRename": true
                 }
               },
               "textDocument": {

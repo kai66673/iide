@@ -46,6 +46,10 @@ public class Iide.ServerCapabilities : Object {
     // To features...
     public bool references_provider = false;
     public bool rename_provider = false;
+
+    // Workspace file operations (workspace/willRenameFiles, workspace/didRenameFiles)
+    public bool will_rename_files_provider = false;
+    public bool did_rename_files_provider = false;
 }
 
 public struct Iide.LspTaskInfo {
@@ -888,9 +892,62 @@ public class Iide.LspClient : Object {
         return this.parse_workspace_edit (result_node);
     }
 
+    /**
+     * RPC-ЗАПРОС workspace/willRenameFiles (LSP 3.16+)
+     * Спрашивает сервер перед переименованием файла: сервер может
+     * вернуть WorkspaceEdit с правками (например, обновить ссылки/импорты).
+     * Возвращает null, если правок нет или сервер их не поддерживает.
+     */
+    public async Gee.HashMap<string, Gee.ArrayList<LspTextEdit>>? request_will_rename_files (string old_uri, string new_uri) throws Error {
+        if (this.current_process == null || this.status != LspClientStatus.READY) {
+            return null;
+        }
+
+        var params = new Json.Object ();
+        var files = new Json.Array ();
+        var file = new Json.Object ();
+        file.set_string_member ("oldUri", old_uri);
+        file.set_string_member ("newUri", new_uri);
+        files.add_object_element (file);
+        params.set_array_member ("files", files);
+
+        var response = yield this.send_request ("workspace/willRenameFiles", params);
+
+        if (response == null || !response.has_member ("result")) {
+            return null;
+        }
+
+        var result_node = response.get_member ("result");
+        if (result_node.get_node_type () == Json.NodeType.NULL) {
+            return null;
+        }
+
+        return this.parse_workspace_edit (result_node);
+    }
+
+    /**
+     * RPC-УВЕДОМЛЕНИЕ workspace/didRenameFiles (LSP 3.16+)
+     * Оповещает сервер о свершившемся переименовании файла.
+     */
+    public async void notify_did_rename_files (string old_uri, string new_uri) throws Error {
+        if (this.current_process == null || this.status != LspClientStatus.READY) {
+            return;
+        }
+
+        var params = new Json.Object ();
+        var files = new Json.Array ();
+        var file = new Json.Object ();
+        file.set_string_member ("oldUri", old_uri);
+        file.set_string_member ("newUri", new_uri);
+        files.add_object_element (file);
+        params.set_array_member ("files", files);
+
+        yield this.send_notification_async ("workspace/didRenameFiles", params);
+    }
+
     /////////////////////////////////////////////////////////////
     // Parse responses helpers
-    
+
     private void parse_capabilities (Json.Object result) {
         if (!result.has_member ("capabilities"))
             return;
@@ -953,6 +1010,16 @@ public class Iide.LspClient : Object {
             }
         }
         this.capabilities.formatting_provider = LspFeatures.FORMATTING in this.features && server_support_formating;
+
+        // Workspace file operations: willRenameFiles / didRenameFiles [INDEX]
+        if (caps.has_member ("workspace")) {
+            var ws_caps = caps.get_object_member ("workspace");
+            if (ws_caps.has_member ("fileOperations")) {
+                var file_ops = ws_caps.get_object_member ("fileOperations");
+                this.capabilities.will_rename_files_provider = file_ops.has_member ("willRename");
+                this.capabilities.did_rename_files_provider = file_ops.has_member ("didRename");
+            }
+        }
     }
 
     private Gee.ArrayList<LspDiagnosticPair?> parse_diagnostics (Json.Array diagnostics_array) {

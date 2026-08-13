@@ -90,4 +90,30 @@ public class Iide.NavigationHistoryService : Object {
 
         is_navigate = false;
     }
+
+    /**
+     * Переписывает точки навигации, указывающие на переименованный файл.
+     * Сохраняет порядок и глубину истории.
+     */
+    public void rewrite_file_uri (string old_uri, string new_uri) {
+        var new_back = new LinkedList<NavigationPoint> ();
+        foreach (var point in back_stack) {
+            new_back.offer_tail (
+                point.file.get_uri () == old_uri
+                    ? new NavigationPoint (GLib.File.new_for_uri (new_uri), point.line, point.column)
+                    : point
+            );
+        }
+        back_stack = new_back;
+
+        var new_forward = new LinkedList<NavigationPoint> ();
+        foreach (var point in forward_stack) {
+            new_forward.offer_tail (
+                point.file.get_uri () == old_uri
+                    ? new NavigationPoint (GLib.File.new_for_uri (new_uri), point.line, point.column)
+                    : point
+            );
+        }
+        forward_stack = new_forward;
+    }
 }
