@@ -4,6 +4,8 @@
 
 A native Linux IDE written in **Vala** (GTK4 + Libadwaita + Libpanel). Tree-sitter for syntax, LSP for semantics, DAP for debugging (WIP). Meson build system.
 
+Note: code comments, the README, and commit messages are largely in **Russian** — don't rewrite them.
+
 ## Build & Run
 
 ```bash
@@ -22,7 +24,7 @@ There is no test suite, linter, or typecheck step — **compilation is the only 
 
 ## System dependencies
 
-`meson` (>= 1.0.0), `valac` (>= 0.56), `gtk4`, `libadwaita-1`, `gtksourceview-5`, `libpanel-1`, `gee-0.8`, `json-glib-1.0`, `jsonrpc-glib-1.0`, `vte-2.91-gtk4` (>= 0.75.0), plus `python3` (icon codegen). All `-dev` packages required.
+`meson` (>= 1.0.0), `valac` (>= 0.56), `gtk4`, `libadwaita-1` (>= 1.4), `gtksourceview-5`, `libpanel-1` (>= 1.7), `gee-0.8`, `json-glib-1.0`, `jsonrpc-glib-1.0`, `vte-2.91-gtk4` (>= 0.75.0), plus `python3` (icon codegen). All `-dev` packages required.
 
 ## Project structure
 
@@ -36,7 +38,7 @@ There is no test suite, linter, or typecheck step — **compilation is the only 
 - `symbols/` — icon/symbol resources (generated at build time, see Build quirks)
 - `src/icons/`, `src/fonts/` — embedded mimetype icons / font, bundled via `src/iide.gresource.xml` (distinct from `symbols/`)
 - `po/` — gettext translations
-- `.iide/` — per-project session config (LSP overrides, etc.)
+- `.iide/` — per-project session config: `workspace.json` (tabs/session, written by `ProjectManager`) and `lsp.json` (per-project LSP overrides, deep-merged over the default matrix in `LanguageRegistry.load_project_lsp_matrix`). Bookmarks are **in-memory only** — not persisted.
 
 ## Multiple build directories
 
@@ -54,8 +56,9 @@ There is no test suite, linter, or typecheck step — **compilation is the only 
 
 - `GSK_RENDERER` is force-set to `ngl` in `main.vala:22` — do not remove this.
 - Flatpak manifest (`org.github.kai66673.iide.json`) hardcodes `file:///home/kai/Projects` as the source URL — needs updating if you move the repo.
-- Doxygen docs are optional: `meson compile -C builddir docs` (requires `doxygen` installed).
+- Doxygen docs are optional: `meson compile -C builddir docs` (requires `doxygen` installed). `scripts/gen-docs.sh` hardcodes the output to `build/docs/html` (not `builddir/`) and serves it on `localhost:8080`.
 - `vendor/tree-sitter` is a fork (`albfan/tree-sitter`), not upstream — respect this when updating.
+- The repo's own `.iide/lsp.json` is committed and overrides the default LSP matrix: clangd runs as `clangd --header-insertion=never` for `*.cpp`/`*.hpp`.
 
 ## Build quirks
 

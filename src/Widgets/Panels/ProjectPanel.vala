@@ -42,6 +42,35 @@ public class Iide.ProjectPanel : BasePanel {
             });
             dialog.present ();
         });
+
+        folder_view.create_entry_requested.connect ((item, is_directory) => {
+            // Новый элемент создаётся внутри папки под курсором,
+            // либо в родительской папке, если под курсором файл
+            var parent_dir = item.is_directory ? item.file : item.file.get_parent ();
+            if (parent_dir == null)
+                return;
+
+            var dialog = new CreateFileDialog (this.session.window, parent_dir, is_directory);
+            dialog.confirmed.connect ((name) => {
+                this.session.file_operations_service.create_entry_async.begin (parent_dir, name, is_directory, (obj, res) => {
+                    bool created = this.session.file_operations_service.create_entry_async.end (res);
+                    if (created) {
+                        this.folder_view.refresh ();
+
+                        var new_file = parent_dir.get_child (name);
+
+                        // Раскрываем дерево до созданного элемента и выделяем его
+                        this.folder_view.select_file (new_file);
+
+                        // Новый файл сразу открываем в редакторе
+                        if (!is_directory) {
+                            this.session.document_manager.open_document (new_file, null);
+                        }
+                    }
+                });
+            });
+            dialog.present ();
+        });
     }
 
     public override Panel.Position initial_pos () {

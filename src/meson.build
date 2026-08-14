@@ -18,6 +18,7 @@ iide_sources = [
     'Widgets/TextView/CodeActionsPopup.vala',
     'Widgets/TextView/RenamePreviewDialog.vala',
     'Widgets/TextView/RenameFileDialog.vala',
+    'Widgets/TextView/CreateFileDialog.vala',
     'Widgets/TextView/TreeSitterFoldingGutter.vala',
     'Widgets/TextView/EditorOverlayLayer.vala',
     'Widgets/TextView/PreviewSourceView.vala',

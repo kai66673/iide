@@ -11,6 +11,7 @@ public class Iide.FileOperationsService : GLib.Object {
     private LoggerService logger;
 
     public signal void file_renamed (string old_uri, string new_uri);
+    public signal void file_created (string uri, bool is_directory);
 
     public FileOperationsService (WindowSession session) {
         this.session = session;
@@ -98,6 +99,46 @@ public class Iide.FileOperationsService : GLib.Object {
 
         this.file_renamed (old_uri, new_uri);
         this.logger.info ("FS-OP", "Renamed %s -> %s".printf (old_file.get_path (), new_file.get_path ()));
+        return true;
+    }
+
+    /**
+     * Создаёт новый файл или директорию в указанной родительской папке.
+     *
+     * @param parent_dir родительская директория, в которой создаётся элемент
+     * @param name        имя (basename) нового файла/директории
+     * @param is_directory true — создать директорию, false — пустой файл
+     * @return true если элемент создан, false если имя невалидно,
+     *         элемент уже существует или произошла ошибка.
+     */
+    public async bool create_entry_async (GLib.File parent_dir, string name, bool is_directory) {
+        string cleaned = name.strip ();
+        if (cleaned.length == 0 || cleaned == "." || cleaned == ".."
+                || cleaned.contains ("/")) {
+            this.logger.error ("FS-OP", "Cannot create '%s': invalid name".printf (name));
+            return false;
+        }
+
+        var target = parent_dir.get_child (cleaned);
+        if (target.query_exists (null)) {
+            this.logger.error ("FS-OP", "Cannot create '%s': already exists".printf (target.get_path ()));
+            return false;
+        }
+
+        try {
+            if (is_directory) {
+                target.make_directory (null);
+            } else {
+                var stream = target.create (GLib.FileCreateFlags.NONE, null);
+                stream.close (null);
+            }
+        } catch (GLib.Error e) {
+            this.logger.error ("FS-OP", "Create %s failed: %s".printf (is_directory ? "directory" : "file", e.message));
+            return false;
+        }
+
+        this.file_created (target.get_uri (), is_directory);
+        this.logger.info ("FS-OP", "Created %s %s".printf (is_directory ? "directory" : "file", target.get_path ()));
         return true;
     }
 

@@ -8,9 +8,11 @@ public class Iide.FileTreeView : Box {
 
     public signal void file_activated (FileItem item);
     public signal void file_rename_requested (FileItem item);
+    public signal void create_entry_requested (FileItem item, bool is_directory);
 
     private Gtk.Popover? context_popover = null;
     private FileItem? context_item = null;
+    private Gtk.Button? rename_button = null;
 
     // Свойство с поддержкой null
     public GLib.File? root_directory {
@@ -72,6 +74,76 @@ public class Iide.FileTreeView : Box {
         if (new_tree != null) {
             for (uint i = 0; i < new_tree.get_n_items (); i++) {
                 this.expand_uri_path (new_tree.get_row (i), expanded_uris);
+            }
+        }
+    }
+
+    /**
+     * Разворачивает в дереве путь до указанной директории (включая её саму),
+     * чтобы после создания файла/папки новый элемент был виден.
+     */
+    public void expand_to_directory (GLib.File dir) {
+        var tree = this.selection.model as TreeListModel;
+        if (tree == null)
+            return;
+
+        string target_uri = dir.get_uri ();
+        for (uint i = 0; i < tree.get_n_items (); i++) {
+            this.expand_to_uri (tree.get_row (i), target_uri);
+        }
+    }
+
+    /**
+     * Раскрывает дерево до указанного элемента (раскрывает его родителя),
+     * затем выделяет сам элемент и прокручивает к нему список.
+     * Нужно для подсветки только что созданного файла/папки.
+     */
+    public void select_file (GLib.File file) {
+        var tree = this.selection.model as TreeListModel;
+        if (tree == null)
+            return;
+
+        // Сначала раскрываем родителя, чтобы элемент появился в плоской модели
+        var parent = file.get_parent ();
+        if (parent != null)
+            this.expand_to_directory (parent);
+
+        string target_uri = file.get_uri ();
+        for (uint i = 0; i < tree.get_n_items (); i++) {
+            var item = tree.get_row (i).get_item () as FileItem;
+            if (item != null && item.file.get_uri () == target_uri) {
+                this.selection.selected = i;
+                this.column_view.scroll_to (i, null, Gtk.ListScrollFlags.SELECT, null);
+                return;
+            }
+        }
+    }
+
+    private void expand_to_uri (Gtk.TreeListRow row, string target_uri) {
+        if (row == null)
+            return;
+
+        var item = row.get_item () as FileItem;
+        if (item == null || !item.is_directory)
+            return;
+
+        // Директория — предок или сама цель: разворачиваем и идём глубже.
+        // Сравниваем по префиксу с учётом разделителя пути, чтобы
+        // file:///a/b не совпадал с file:///a/bc.
+        string uri = item.file.get_uri ();
+        if (!target_uri.has_prefix (uri))
+            return;
+        string rest = target_uri[uri.length:];
+        if (rest != "" && !rest.has_prefix ("/"))
+            return;
+
+        if (row.is_expandable ())
+            row.set_expanded (true);
+
+        var children = row.get_children ();
+        if (children != null) {
+            for (uint i = 0; i < children.get_n_items (); i++) {
+                this.expand_to_uri (row.get_child_row (i), target_uri);
             }
         }
     }
@@ -174,17 +246,43 @@ public class Iide.FileTreeView : Box {
     private void setup_context_menu () {
         var menu_box = new Gtk.Box (Orientation.VERTICAL, 0);
 
-        var rename_button = new Gtk.Button.with_label (_("Rename…"));
-        rename_button.add_css_class ("flat");
-        rename_button.hexpand = true;
-        rename_button.halign = Gtk.Align.FILL;
-        rename_button.clicked.connect (() => {
+        var new_file_button = new Gtk.Button.with_label (_("New File…"));
+        new_file_button.add_css_class ("flat");
+        new_file_button.hexpand = true;
+        new_file_button.halign = Gtk.Align.FILL;
+        new_file_button.clicked.connect (() => {
+            if (this.context_popover != null)
+                this.context_popover.popdown ();
+            if (this.context_item != null)
+                this.create_entry_requested (this.context_item, false);
+        });
+        menu_box.append (new_file_button);
+
+        var new_dir_button = new Gtk.Button.with_label (_("New Directory…"));
+        new_dir_button.add_css_class ("flat");
+        new_dir_button.hexpand = true;
+        new_dir_button.halign = Gtk.Align.FILL;
+        new_dir_button.clicked.connect (() => {
+            if (this.context_popover != null)
+                this.context_popover.popdown ();
+            if (this.context_item != null)
+                this.create_entry_requested (this.context_item, true);
+        });
+        menu_box.append (new_dir_button);
+
+        menu_box.append (new Gtk.Separator (Orientation.HORIZONTAL));
+
+        this.rename_button = new Gtk.Button.with_label (_("Rename…"));
+        this.rename_button.add_css_class ("flat");
+        this.rename_button.hexpand = true;
+        this.rename_button.halign = Gtk.Align.FILL;
+        this.rename_button.clicked.connect (() => {
             if (this.context_popover != null)
                 this.context_popover.popdown ();
             if (this.context_item != null)
                 this.file_rename_requested (this.context_item);
         });
-        menu_box.append (rename_button);
+        menu_box.append (this.rename_button);
 
         this.context_popover = new Gtk.Popover ();
         this.context_popover.child = menu_box;
@@ -195,6 +293,10 @@ public class Iide.FileTreeView : Box {
 
     private void open_context_menu (Gtk.Widget anchor, FileItem item, double x, double y) {
         this.context_item = item;
+
+        // Ренейм пока поддерживается только для файлов
+        if (this.rename_button != null)
+            this.rename_button.sensitive = !item.is_directory;
 
         double dx = x, dy = y;
         anchor.translate_coordinates (this.column_view, x, y, out dx, out dy);
@@ -291,15 +393,15 @@ public class Iide.FileTreeView : Box {
                         file_activated (file_item);
                     });
                     box.add_controller (click);
-
-                    // Правый клик — контекстное меню файла (Rename…)
-                    var right_click = new Gtk.GestureClick ();
-                    right_click.set_button (3);
-                    right_click.pressed.connect ((n_press, x, y) => {
-                        this.open_context_menu (box, file_item, x, y);
-                    });
-                    box.add_controller (right_click);
                 }
+
+                // Правый клик — контекстное меню (New File…/New Directory…/Rename…)
+                var right_click = new Gtk.GestureClick ();
+                right_click.set_button (3);
+                right_click.pressed.connect ((n_press, x, y) => {
+                    this.open_context_menu (box, file_item, x, y);
+                });
+                box.add_controller (right_click);
             }
         });
 
