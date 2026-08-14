@@ -857,6 +857,10 @@ public class Iide.SourceView : GtkSource.View {
         this.suppress_lsp_echo = true;
 
         foreach (var edit in edits) {
+            logger.debug ("LCA", "apply edit: [%d:%d]-[%d:%d] newText='%s'".printf (
+                edit.start_line, edit.start_char, edit.end_line, edit.end_char, edit.new_text
+            ));
+
             Gtk.TextIter start_iter, end_iter;
             buffer.get_iter_at_line_index (out start_iter, edit.start_line, edit.start_char);
             buffer.get_iter_at_line_index (out end_iter, edit.end_line, edit.end_char);
@@ -919,6 +923,15 @@ public class Iide.SourceView : GtkSource.View {
 
         lsp_document_client.request_code_actions.begin (this.uri, current_line, 0, current_line, 99, raw_diagnostics, (obj, res) => {
             var results = lsp_document_client.request_code_actions.end(res);
+            logger.info ("LCA", "Code actions received: %d result(s).".printf (results.size));
+            foreach (var r in results) {
+                foreach (var a in r.actions) {
+                    logger.info ("LCA", "  action '%s' kind='%s' from '%s' (%d edits for this uri)".printf (
+                        a.title, a.kind, r.server_name,
+                        a.changes.has_key (this.uri) ? a.changes.get (this.uri).size : -1
+                    ));
+                }
+            }
             if (results.size == 0) {
                 logger.info ("LCA", "LSP returned 0 available code actions.");
                 return;

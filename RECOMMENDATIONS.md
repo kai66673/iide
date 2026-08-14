@@ -56,7 +56,7 @@
 
 ### 8. Hardcoded параметры форматирования
 
-`src/Services/LSP/LspDocumentClient.vala:214-215` — `tab_width = 4`, `use_spaces = true` захардкожены вместо чтения из `SettingsService` или конфига языка.
+`src/Services/LSP/LspDocumentClient.vala:329-330` — `tab_width = 4`, `use_spaces = true` захардкожены вместо чтения из `SettingsService` или конфига языка.
 
 **Решение:** Добавить чтение из `SettingsService` с fallback на значение по умолчанию.
 
@@ -72,8 +72,43 @@
 
 ### 10. Остаточный debug-логging в продакшене
 
-- `application.vala:512` — `message ("MIME: _ " + mime_type);`
-- `LspClient.vala:436` — `message ("!!!handle_incoming_notification ...")`
-- `SourceView.vala:512` — `message ("MIME: _ " + mime_type);`
+- `SourceView.vala:530` — `message ("MIME: _ " + mime_type);`
+
+> `application.vala:512` (MIME) и `LspClient.vala:436` (`!!!handle_incoming_notification`) — исправлены: лог от `handle_incoming_notification` заменён на JSON-RPC диспетчер `handle_payload`/`handle_server_request` (LspClient.vala:411-432).
 
 **Решение:** Заменить на `LoggerService` или удалить.
+
+---
+
+## Знания — LSP: уроки clangd / code actions
+
+Накоплено в ходе отладки code actions (clangd, ruff, basedpyright). Компиляция — единственная верификация, поэтому поведение серверов проверялось отдельными харнессами (Python-скрипт: `initialize` + `didOpen` + `codeAction` поверх stdio).
+
+### 1. clangd шлёт code actions не только как `edit`
+
+Часть действий («Apply fix: remove #include directive») clangd возвращает как **Command**: `{command: "clangd.applyFix", arguments: [{changes: {...}}]}`, где готовый WorkspaceEdit лежит в `arguments[0]`, а поле `edit` отсутствует. Такое поведение — следствие того, что iide **не объявляет** `codeActionLiteralSupport`/`resolveSupport` в initialize (шаблон в `LanguageRegistry.DEFAULT_LANGUAGES_JSON`).
+
+- `parse_code_action` (LspClient.vala:1634) покрывает **три** формата правок: `edit.changes`, `edit.documentChanges` и `command.arguments[0]` как WorkspaceEdit (`parse_workspace_edit_into`, LspClient.vala:1678), плюс сохраняет `data` для `codeAction/resolve`.
+- **При написании тест-харнесса копируй точный initialize-шаблон из `LanguageRegistry`, а не «идеальный» по спецификации.** Ранний харнесс объявлял `codeActionLiteralSupport`/`resolveSupport` — clangd присылал правки инлайн в `edit`, что вводило в заблуждение и не соответствовало реальному клиенту.
+
+### 2. На запросы сервера (id + method) отвечать обязательно
+
+По JSON-RPC клиент обязан ответить даже на неизвестный запрос. Диспетчер `handle_payload`/`handle_server_request` (LspClient.vala:411-432): `workspace/applyEdit` → `session.document_manager.apply_edits_to_file`, `workspace/configuration`/`workspace/workspaceFolders` → дефолты, остальное — ack `null`. Новые обработчики не должны бросать запрос без ответа.
+
+### 3. `completionItem/resolve` — только при наличии `data`
+
+Спецификация разрешает resolve лишь для элементов, у которых есть поле `data`. Gate `has_member ("data")` перед вызовом сохраняется.
+
+### 4. Попап code actions
+
+`Gtk.ListBox.row_activated` может не срабатывать по клику — активация продублирована `Gtk.GestureClick.released` на каждой строке (CodeActionsPopup.vala). Guard `applied` защищает от двойного применения; `Esc` и focus-leave закрывают попап.
+
+### 5. Отладка
+
+Домены логов: `LCA` — получение/применение правок (LspClient.vala/`SourceView.show_code_actions_menu`), `LCA-POPUP` — активация действия (CodeActionsPopup.vala). Файл лога — `~/.local/share/iide/iide.log`.
+
+### 6. Известное ограничение: гейт «нет диагностик на строке»
+
+`show_code_actions_menu` (SourceView.vala:918-919) ранне-возвращается, если на текущей строке нет диагностик. Из-за этого **source/refactor-действия не показываются**, если сервер отдаёт их и с пустыми диагностиками — например, ruff всегда отвечает «Fix all auto-fixable problems» и «Organize imports». Проверено харнессом: при `context.diagnostics: []` ruff возвращает 2 source-действия, clangd — 0 (регрессии нет).
+
+**Решение (когда понадобится):** слать запрос с пустым массивом диагностик, если `collect_raw_diagnostics_for_line` вернул `null`.

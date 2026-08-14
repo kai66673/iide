@@ -87,7 +87,6 @@ iide_sources = [
     'Services/JsonRpc/TcpProcess.vala',
     'Services/LSP/LspClient.vala',
     'Services/LSP/LspClientSyncer.vala',
-    'Services/LSP/LspClient.vala',
     'Services/LSP/LspService.vala',
     'Services/LSP/LspDiagnosticsMark.vala',
     'Services/LSP/DiagnosticsService.vala',

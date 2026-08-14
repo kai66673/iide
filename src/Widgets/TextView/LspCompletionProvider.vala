@@ -259,9 +259,13 @@ namespace Iide {
                 }
             }
 
-            // Вставляем слово
+            // Вставляем слово.
+            // ВАЖНО: берём ЧИСТЫЙ текст из insert_text, а не label!
+            // Некоторые серверы (clangd) декорируют label служебными символами:
+            // ведущий пробел (без вставки #include) или маркер "•" (со вставкой
+            // заголовка). Вставка label приводила к сдвигу на один символ.
             var p = (LspCompletionProposal) proposal;
-            buffer.insert (ref start, p.get_label (), -1);
+            buffer.insert (ref start, p.get_text (), -1);
 
             // Автоиморт
             this.apply_auto_imports_async.begin (this.source_view, p);
@@ -272,8 +276,12 @@ namespace Iide {
             var client = proposal.client;
 
             // Кейс А: Если сервер (например, Pyright) отдает импорты лениво — запрашиваем resolve [INDEX]
+            // По спецификации LSP resolve вызывается ТОЛЬКО для элементов с полем 'data'.
+            // clangd его не шлёт и не поддерживает resolve (метод не зарегистрирован) —
+            // попытка resolve проваливается с ошибкой. Зато правки автоимпорта (#include)
+            // clangd отдаёт сразу в completion-ответе (additionalTextEdits).
             if (item.additional_text_edits == null || item.additional_text_edits.is_empty) {
-                if (item.raw_json != null) {
+                if (item.raw_json != null && item.raw_json.has_member ("data")) {
                     try {
                         // Метод отправки "completionItem/resolve", который мы обсудили шагом ранее
                         item.additional_text_edits = yield client.request_completion_item_resolve (item.raw_json);

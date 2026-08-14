@@ -5,6 +5,8 @@ public class Iide.LspPromise : Object {
     public SourceFunc callback;
     // Можно добавить время создания для контроля таймаутов
     public int64 creation_time;
+    // Идентификатор таймаута запроса (0 — таймаут не взведён)
+    public uint timeout_id = 0;
 
     public LspPromise (owned SourceFunc cb) {
         this.callback = (owned) cb;
@@ -123,11 +125,17 @@ public class Iide.LspClient : Object {
         }
     }
 
-    private int next_id = 0;
+    private int next_id = 1;
     private Map<int, LspPromise> pending_requests = new HashMap<int, LspPromise> ();
     private Map<int, Json.Object?> responses = new HashMap<int, Json.Object?> ();
     private LspConfig config;
     public string language_id { get; private set; }
+
+    // Таймаут ожидания ответа на запрос в миллисекундах (0 — отключён)
+    public uint request_timeout_ms { get; set; default = 15000; }
+
+    // Множество URI документов, открытых на этом сервере (для pull-диагностики)
+    private Gee.HashSet<string> open_documents = new Gee.HashSet<string> ();
 
     private DiagnosticsService diagnostics_service;
 
@@ -235,6 +243,7 @@ public class Iide.LspClient : Object {
             return true;
         } catch (GLib.Error e) {
             this.status = LspClientStatus.FAILED;
+            this.logger.error ("LSP", "Server '%s' failed to initialize: %s".printf (this.name (), e.message));
             if (this.current_process != null) {
                 yield this.current_process.terminate_async ();
                 this.current_process = null;
@@ -250,7 +259,7 @@ public class Iide.LspClient : Object {
         if (this.current_process == null)
             return null;
 
-        int id = next_id--;
+        int id = next_id++;
 
         var root = new Json.Object ();
         root.set_string_member ("jsonrpc", "2.0");
@@ -263,6 +272,24 @@ public class Iide.LspClient : Object {
         var promise = new LspPromise (send_request.callback);
         pending_requests.set (id, promise);
 
+        // Таймаут: если сервер не ответил — будим запрос с error-ответом
+        if (this.request_timeout_ms > 0) {
+            promise.timeout_id = Timeout.add (this.request_timeout_ms, () => {
+                if (pending_requests.has_key (id)) {
+                    pending_requests.unset (id);
+                    var err_obj = new Json.Object ();
+                    var err_details = new Json.Object ();
+                    err_details.set_int_member ("code", -32801);
+                    err_details.set_string_member ("message", "Request '%s' (id: %d) timed out".printf (method, id));
+                    err_obj.set_object_member ("error", err_details);
+                    responses.set (id, err_obj);
+                    // Пробуждаем метод. Idle.add важен для возврата в UI поток.
+                    Idle.add ((owned) promise.callback);
+                }
+                return Source.REMOVE;
+            });
+        }
+
         // Обработка отмены: если произойдет отмена, пока мы спим, нужно "разбудить" метод
         ulong handler_id = 0;
         if (cancellable != null) {
@@ -270,6 +297,7 @@ public class Iide.LspClient : Object {
                 // Если мы всё еще ждем этот запрос, выбиваем его из очереди
                 if (pending_requests.has_key (id)) {
                     pending_requests.unset (id);
+                    this.cancel_request_timeout (promise);
                     // Пробуждаем метод. Idle.add важен для возврата в UI поток.
                     Idle.add ((owned) promise.callback);
                 }
@@ -291,12 +319,37 @@ public class Iide.LspClient : Object {
             // Если не отмена, забираем результат
             var response = responses.get (id);
             responses.unset (id);
+
+            // Поверхность ошибок LSP: error-ответ (или таймаут) превращаем в исключение
+            if (response != null && response.has_member ("error")) {
+                string msg = "LSP error";
+                int code = 0;
+                var err_obj = response.get_object_member ("error");
+                if (err_obj.has_member ("message"))
+                    msg = err_obj.get_string_member ("message");
+                if (err_obj.has_member ("code"))
+                    code = (int) err_obj.get_int_member ("code");
+                throw new IOError.FAILED ("%s (id: %d) failed with LSP error %d: %s".printf (method, id, code, msg));
+            }
+
             return response;
         } finally {
             // Обязательно отключаем обработчик, чтобы не плодить утечки памяти
             if (handler_id > 0) {
                 cancellable.disconnect (handler_id);
             }
+            // Запрос мог завершиться ошибкой отправки (не дождавшись ответа) — чистим остатки
+            if (pending_requests.has_key (id)) {
+                pending_requests.unset (id);
+            }
+            this.cancel_request_timeout (promise);
+        }
+    }
+
+    private void cancel_request_timeout (LspPromise promise) {
+        if (promise.timeout_id > 0) {
+            Source.remove (promise.timeout_id);
+            promise.timeout_id = 0;
         }
     }
 
@@ -349,6 +402,11 @@ public class Iide.LspClient : Object {
     
     /**
      * Приемщик сырых JSON пакетов от LspProcess.message_received
+     *
+     * Строгий трёхпутевой диспетчер по правилам JSON-RPC:
+     *  - есть id и method  → запрос от сервера (обязаны ответить);
+     *  - есть id, нет method → ответ на наш запрос;
+     *  - есть method, нет id → уведомление.
      */
     private void handle_payload (string payload) {
         try {
@@ -356,29 +414,17 @@ public class Iide.LspClient : Object {
             parser.load_from_data (payload);
             var root = parser.get_root ().get_object ();
 
-            if (root.has_member ("method")) {
-                string method = root.get_string_member ("method");
-                if (method == "window/workDoneProgress/create" && root.has_member ("id")) {
-                    // Мы просто подтверждаем, что готовы принимать прогресс с этим токеном
-                    var node_id = root.get_member ("id");
-                    send_response_async.begin (node_id, new Json.Node (Json.NodeType.NULL));
-                    return;
-                }
-                if (method == "workspace/diagnostic/refresh" && root.has_member ("id")) {
-                    // Мы просто подтверждаем, что готовы принимать прогресс с этим токеном
-                    var node_id = root.get_member ("id");
-                    send_response_async.begin (node_id, new Json.Node (Json.NodeType.NULL));
-                    return;
-                }
-            }
+            bool has_id = root.has_member ("id");
+            bool has_method = root.has_member ("method");
 
-            // Это ответ на наш запрос (есть 'id')
-            if (root.has_member ("id")) {
+            if (has_id && has_method) {
+                this.handle_server_request (root);
+            } else if (has_id) {
                 this.handle_response (root);
-            }
-            // Это уведомление или запрос от сервера (есть 'method', нет 'id')
-            else if (root.has_member ("method")) {
+            } else if (has_method) {
                 this.handle_incoming_notification (root);
+            } else {
+                this.logger.warning ("LSP", "Invalid JSON-RPC message (no id/method): %s".printf (payload));
             }
         } catch (Error e) {
             warning ("Failed to parse LSP payload: %s", e.message);
@@ -400,10 +446,107 @@ public class Iide.LspClient : Object {
             return;
         }
 
-        if (response.has_member ("method")) {
-            var node_result = config.handle_workspace_configuration (response);
-            var node_id = response.get_member ("id");
-            send_response_async.begin (node_id, node_result);
+        this.logger.debug ("LSP", "Ignoring response for unknown/cancelled request id %d".printf (id));
+    }
+
+    /**
+     * Обработчик запросов от сервера (id + method).
+     * По JSON-RPC клиент обязан ответить на каждый запрос, даже неизвестный
+     * (ответом null), иначе сервер повиснет на ожидании.
+     */
+    private void handle_server_request (Json.Object root) {
+        string method = root.has_member ("method") ? root.get_string_member ("method") : "";
+        var node_id = root.get_member ("id");
+
+        switch (method) {
+        case "window/workDoneProgress/create" :
+            // Подтверждаем, что готовы принимать прогресс с этим токеном
+            this.send_response_async.begin (node_id, new Json.Node (Json.NodeType.NULL));
+            break;
+
+        case "workspace/configuration" :
+            // Динамический ответ настройками секций из конфигурации сервера
+            var node_result = this.config.handle_workspace_configuration (root);
+            this.send_response_async.begin (node_id, node_result);
+            break;
+
+        case "workspace/diagnostic/refresh" :
+            // Подтверждаем и перезапрашиваем pull-диагностику для открытых документов
+            this.send_response_async.begin (node_id, new Json.Node (Json.NodeType.NULL));
+            this.request_diagnostic_refresh ();
+            break;
+
+        case "workspace/workspaceFolders" :
+            var folders = new Json.Array ();
+            if (this.session != null && this.session.current_project_root != null) {
+                var folder = new Json.Object ();
+                folder.set_string_member ("uri", this.session.current_project_root.get_uri ());
+                folder.set_string_member ("name", this.session.current_project_root.get_basename ());
+                folders.add_object_element (folder);
+            }
+            var folders_node = new Json.Node (Json.NodeType.ARRAY);
+            folders_node.set_array (folders);
+            this.send_response_async.begin (node_id, folders_node);
+            break;
+
+        case "client/registerCapability" :
+            this.logger.info ("LSP", "Server '%s' registered dynamic capabilities: %s".printf (this.name (), json_object_to_string (root)));
+            this.send_response_async.begin (node_id, new Json.Node (Json.NodeType.NULL));
+            break;
+
+        case "workspace/applyEdit" :
+            this.handle_workspace_apply_edit.begin (node_id, root);
+            break;
+
+        default:
+            this.logger.debug ("LSP", "Unhandled server request '%s' from '%s'; acknowledging with null.".printf (method, this.name ()));
+            this.send_response_async.begin (node_id, new Json.Node (Json.NodeType.NULL));
+            break;
+        }
+    }
+
+    /**
+     * Применение правок из серверного запроса workspace/applyEdit (LSP 3.13+).
+     * Правки накатываются через DocumentManager (в открытых документах или с
+     * открытием недостающих), после чего серверу возвращается { "applied": true }.
+     */
+    private async void handle_workspace_apply_edit (Json.Node node_id, Json.Object root) {
+        var result = new Json.Object ();
+        bool applied = false;
+        string reason = "";
+
+        try {
+            if (root.has_member ("params")) {
+                var params_obj = root.get_object_member ("params");
+                if (params_obj.has_member ("edit")) {
+                    var edit = params_obj.get_member ("edit");
+                    if (edit.get_node_type () == Json.NodeType.OBJECT) {
+                        var edits_map = this.parse_workspace_edit (edit);
+                        if (edits_map != null && !edits_map.is_empty) {
+                            foreach (var entry in edits_map.entries) {
+                                this.session.document_manager.apply_edits_to_file (entry.key, entry.value);
+                            }
+                            applied = true;
+                        }
+                    }
+                }
+            }
+        } catch (GLib.Error e) {
+            reason = e.message;
+            this.logger.error ("LSP", "workspace/applyEdit from '%s' failed: %s".printf (this.name (), e.message));
+        }
+
+        result.set_boolean_member ("applied", applied);
+        if (reason != "")
+            result.set_string_member ("reason", reason);
+
+        var result_node = new Json.Node (Json.NodeType.OBJECT);
+        result_node.set_object (result);
+
+        try {
+            yield this.send_response_async (node_id, result_node);
+        } catch (GLib.Error e) {
+            this.logger.warning ("LSP", "Failed to respond to workspace/applyEdit: %s".printf (e.message));
         }
     }
 
@@ -436,10 +579,6 @@ public class Iide.LspClient : Object {
             }
             break;
 
-        case "window/workDoneProgress/create" :
-            message ("!!!handle_incoming_notification - window/workDoneProgress/create" + json_object_to_string (root));
-            break;
-
         case "$/progress" :
             if (params != null) {
                 // Token может быть строкой или числом, Tree-sitter и LSP это допускают
@@ -456,12 +595,6 @@ public class Iide.LspClient : Object {
 
                 // Определяем состояние
                 bool active = (kind != "end");
-                if (kind == "end") {
-                    var sparams = new Json.Object ();
-                    sparams.set_string_member ("query", "");
-
-                    send_request.begin ("workspace/symbol", sparams);
-                }
 
                 // Извлекаем сообщение (у BasedPyright оно часто в 'message')
                 string msg = "";
@@ -524,6 +657,8 @@ public class Iide.LspClient : Object {
 
         // Это уведомление (notification), оно не требует ID и не ждет ответа
         yield this.send_notification_async ("textDocument/didOpen", params);
+
+        this.open_documents.add (uri);
 
         debug ("LSP: Sent didOpen for %s", uri);
     }
@@ -593,6 +728,8 @@ public class Iide.LspClient : Object {
         params.set_object_member ("textDocument", doc);
 
         yield this.send_notification_async ("textDocument/didClose", params);
+
+        this.open_documents.remove (uri);
     }
     
     public async string ? request_hover (string uri, int line, int character) throws Error {
@@ -739,6 +876,47 @@ public class Iide.LspClient : Object {
         if (result_node.get_node_type () == Json.NodeType.NULL) return null;
 
         return parse_code_action_result (result_node);
+    }
+
+    /**
+     * Запрос codeAction/resolve: догружаем поле edit для действия, которое
+     * сервер (clangd) прислал без правок, но с полем data. [INDEX]
+     */
+    public async LspCodeActionResult? request_code_action_resolve (Json.Object data) throws Error {
+        var response = yield this.send_request ("codeAction/resolve", data);
+
+        if (response == null || !response.has_member ("result")) return null;
+
+        var result_node = response.get_member ("result");
+        if (result_node.get_node_type () == Json.NodeType.NULL) return null;
+        // Результат resolve — это один объект CodeAction (не массив)
+        if (result_node.get_node_type () != Json.NodeType.OBJECT) return null;
+
+        var res = new LspCodeActionResult ();
+        res.actions = new Gee.ArrayList<LspCodeActionItem> ();
+        res.actions.add (parse_code_action (result_node.get_object ()));
+        return res;
+    }
+
+    /**
+     * Обработка серверного запроса workspace/diagnostic/refresh (LSP 3.17):
+     * перезапрашивает pull-диагностику для всех документов, открытых на этом сервере.
+     */
+    private void request_diagnostic_refresh () {
+        var uris = new string[this.open_documents.size];
+        int i = 0;
+        foreach (var uri in this.open_documents)
+            uris[i++] = uri;
+
+        foreach (var uri in uris) {
+            this.request_pull_diagnostics.begin (uri, (obj, res) => {
+                try {
+                    this.request_pull_diagnostics.end (res);
+                } catch (GLib.Error e) {
+                    this.logger.debug ("LSP", "diagnostic/refresh pull for '%s' failed: %s".printf (uri, e.message));
+                }
+            });
+        }
     }
 
     /**
@@ -1093,10 +1271,21 @@ public class Iide.LspClient : Object {
 
                 item.label = item_obj.get_string_member ("label");
 
-                // Опциональные поля
+                // Опциональные поля.
+                // ВАЖНО: insert_text не должен наследоваться из label — серверы вроде
+                // clangd декорируют label (ведущий пробел / маркер "•" вставки #include).
+                // Предпочитаем textEdit.newText, затем insertText, и лишь в крайнем случае label.
                 if (item_obj.has_member ("insertText"))
                     item.insert_text = item_obj.get_string_member ("insertText");
-                else
+                else if (item_obj.has_member ("textEdit")) {
+                    var te_node = item_obj.get_member ("textEdit");
+                    if (te_node.get_node_type () == Json.NodeType.OBJECT
+                        && te_node.get_object ().has_member ("newText")) {
+                        item.insert_text = te_node.get_object ().get_string_member ("newText");
+                    } else {
+                        item.insert_text = item.label;
+                    }
+                } else
                     item.insert_text = item.label;
 
                 if (item_obj.has_member ("detail"))
@@ -1433,55 +1622,129 @@ public class Iide.LspClient : Object {
 
         foreach (var action_node in actions_array.get_elements ()) {
             if (action_node.get_node_type () != Json.NodeType.OBJECT) continue;
-            
-            var action_obj = action_node.get_object ();
-            var item = new LspCodeActionItem ();
-
-            // Читаем базовые поля [INDEX]
-            item.title = action_obj.get_string_member ("title");
-            if (action_obj.has_member ("kind")) {
-                item.kind = action_obj.get_string_member ("kind");
-            }
-
-            // Читаем структуру изменений WorkspaceEdit (edit.changes) [INDEX]
-            if (action_obj.has_member ("edit")) {
-                var edit_obj = action_obj.get_object_member ("edit");
-                
-                if (edit_obj.has_member ("changes")) {
-                    var changes_obj = edit_obj.get_object_member ("changes");
-
-                    // Итерируем по всем URI файлов, для которых сервер предлагает правки [INDEX]
-                    foreach (string file_uri in changes_obj.get_members ()) {
-                        var edits_array = changes_obj.get_array_member (file_uri);
-                        var edits_list = new Gee.ArrayList<LspTextEdit> ();
-
-                        foreach (var edit_node in edits_array.get_elements ()) {
-                            var edit_data = edit_node.get_object ();
-                            var text_edit = new LspTextEdit ();
-                            
-                            text_edit.new_text = edit_data.get_string_member ("newText");
-
-                            var r = edit_data.get_object_member ("range");
-                            var start = r.get_object_member ("start");
-                            var end = r.get_object_member ("end");
-
-                            text_edit.start_line = (int) start.get_int_member ("line");
-                            text_edit.start_char = (int) start.get_int_member ("character");
-                            text_edit.end_line = (int) end.get_int_member ("line");
-                            text_edit.end_char = (int) end.get_int_member ("character");
-
-                            edits_list.add (text_edit);
-                        }
-
-                        item.changes.set (file_uri, edits_list);
-                    }
-                }
-            }
-
-            res.actions.add (item);
+            res.actions.add (parse_code_action (action_node.get_object ()));
         }
 
         return res;
+    }
+
+    /**
+     * Парсер одиночного CodeAction (используется и для codeAction/resolve).
+     */
+    private LspCodeActionItem parse_code_action (Json.Object action_obj) {
+        var item = new LspCodeActionItem ();
+
+        // Читаем базовые поля [INDEX]
+        item.title = action_obj.get_string_member ("title");
+        if (action_obj.has_member ("kind")) {
+            item.kind = action_obj.get_string_member ("kind");
+        }
+
+        // Сохраняем поле data для последующего codeAction/resolve [INDEX]
+        if (action_obj.has_member ("data")) {
+            var data_node = new Json.Node (Json.NodeType.OBJECT);
+            data_node.set_object (action_obj.get_object_member ("data"));
+            item.data = data_node.copy ().get_object ();
+        }
+
+        // Читаем структуру изменений WorkspaceEdit (edit.changes) [INDEX]
+        if (action_obj.has_member ("edit")) {
+            var edit_obj = action_obj.get_object_member ("edit");
+            parse_workspace_edit_into (edit_obj, item);
+        }
+
+        // clangd шлёт часть действий (например, 'Apply fix: remove #include
+        // directive') не с полем edit, а как Command: правка лежит в
+        // arguments[0] в виде готового WorkspaceEdit. Разбираем и её. [INDEX]
+        if (action_obj.has_member ("command") && action_obj.has_member ("arguments")) {
+            var args_array = action_obj.get_array_member ("arguments");
+            if (args_array.get_length () > 0) {
+                var first_arg = args_array.get_element (0);
+                if (first_arg.get_node_type () == Json.NodeType.OBJECT) {
+                    var first_obj = first_arg.get_object ();
+                    if (first_obj.has_member ("changes") || first_obj.has_member ("documentChanges")) {
+                        parse_workspace_edit_into (first_obj, item);
+                    }
+                }
+            }
+        }
+
+        return item;
+    }
+
+    /**
+     * Разбор WorkspaceEdit (changes / documentChanges) в карту правок действия.
+     */
+    private void parse_workspace_edit_into (Json.Object edit_obj, LspCodeActionItem item) {
+        if (edit_obj.has_member ("changes")) {
+            var changes_obj = edit_obj.get_object_member ("changes");
+
+            // Итерируем по всем URI файлов, для которых сервер предлагает правки [INDEX]
+            foreach (string file_uri in changes_obj.get_members ()) {
+                var edits_array = changes_obj.get_array_member (file_uri);
+                var edits_list = new Gee.ArrayList<LspTextEdit> ();
+
+                foreach (var edit_node in edits_array.get_elements ()) {
+                    var edit_data = edit_node.get_object ();
+                    var text_edit = new LspTextEdit ();
+
+                    text_edit.new_text = edit_data.get_string_member ("newText");
+
+                    var r = edit_data.get_object_member ("range");
+                    var start = r.get_object_member ("start");
+                    var end = r.get_object_member ("end");
+
+                    text_edit.start_line = (int) start.get_int_member ("line");
+                    text_edit.start_char = (int) start.get_int_member ("character");
+                    text_edit.end_line = (int) end.get_int_member ("line");
+                    text_edit.end_char = (int) end.get_int_member ("character");
+
+                    edits_list.add (text_edit);
+                }
+
+                item.changes.set (file_uri, edits_list);
+            }
+        }
+
+        // documentChanges (массив TextDocumentEdit): текстDocument.uri + edits [INDEX]
+        if (edit_obj.has_member ("documentChanges")) {
+            var dc_array = edit_obj.get_array_member ("documentChanges");
+            foreach (var dc_node in dc_array.get_elements ()) {
+                if (dc_node.get_node_type () != Json.NodeType.OBJECT) continue;
+                var dc_obj = dc_node.get_object ();
+                if (!dc_obj.has_member ("textDocument") || !dc_obj.has_member ("edits")) continue;
+
+                var td = dc_obj.get_object_member ("textDocument");
+                var file_uri = td.get_string_member ("uri");
+                var edits_array = dc_obj.get_array_member ("edits");
+                var edits_list = new Gee.ArrayList<LspTextEdit> ();
+
+                foreach (var edit_node in edits_array.get_elements ()) {
+                    if (edit_node.get_node_type () != Json.NodeType.OBJECT) continue;
+                    var edit_data = edit_node.get_object ();
+                    var text_edit = new LspTextEdit ();
+
+                    text_edit.new_text = edit_data.get_string_member ("newText");
+
+                    var r = edit_data.get_object_member ("range");
+                    var start = r.get_object_member ("start");
+                    var end = r.get_object_member ("end");
+
+                    text_edit.start_line = (int) start.get_int_member ("line");
+                    text_edit.start_char = (int) start.get_int_member ("character");
+                    text_edit.end_line = (int) end.get_int_member ("line");
+                    text_edit.end_char = (int) end.get_int_member ("character");
+
+                    edits_list.add (text_edit);
+                }
+
+                if (!item.changes.has_key (file_uri)) {
+                    item.changes.set (file_uri, edits_list);
+                } else {
+                    item.changes.get (file_uri).add_all (edits_list);
+                }
+            }
+        }
     }
 
     /**
@@ -1532,6 +1795,7 @@ public class Iide.LspClient : Object {
                 if (this.pending_requests.has_key (id)) {
                     var promise = this.pending_requests.get (id);
                     this.pending_requests.unset (id);
+                    this.cancel_request_timeout (promise);
                     
                     // Записываем ошибку отмены, чтобы send_request выкинул исключение
                     var err_obj = new Json.Object ();

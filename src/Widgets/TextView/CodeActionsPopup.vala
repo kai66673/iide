@@ -3,6 +3,14 @@
 public class Iide.CodeActionsPopup : Gtk.Window {
     private Gtk.ListBox list_box;
     private SourceView source_view;
+    private LoggerService logger;
+    private bool applied = false;
+
+    // Держим результаты живыми на всё время жизни попапа: строки ссылаются на
+    // LspCodeActionItem голым указателем (set_data), поэтому без этой ссылки
+    // объекты могли быть освобождены сразу после закрытия Idle-колбэка, и
+    // применение правки молча не срабатывало. [INDEX]
+    private Gee.ArrayList<LspCodeActionResult> results;
 
     public signal void about_to_close ();
 
@@ -16,6 +24,8 @@ public class Iide.CodeActionsPopup : Gtk.Window {
         );
 
         this.source_view = view;
+        this.results = results;
+        this.logger = view.session != null ? view.session.logger_service : null;
         this.add_css_class ("code-actions-popup");
 
         this.list_box = new Gtk.ListBox ();
@@ -36,21 +46,27 @@ public class Iide.CodeActionsPopup : Gtk.Window {
                 row.set_child (label);
                 row.set_data ("action-item", action);
 
+                // Надёжная активация одиночным кликом: в некоторых сборках GTK
+                // list_box.row_activated может не срабатывать на один клик,
+                // поэтому дублируем срабатывание через GestureClick. [INDEX]
+                var gesture = new Gtk.GestureClick ();
+                gesture.released.connect ((n, x, y) => {
+                    this.apply_action.begin (action);
+                });
+                row.add_controller (gesture);
+
                 this.list_box.append (row);
             }
         }
 
-        // Обработка выбора исправления
+        // Обработка выбора исправления (Enter / активация строки)
         this.list_box.row_activated.connect ((row) => {
-            Iide.LspCodeActionItem selected_action = row.get_data ("action-item");
-            
-            if (selected_action.changes.has_key (this.source_view.uri)) {
-                var edits = selected_action.changes.get (this.source_view.uri);
-                // Вызываем ваш атомарный метод применения правок к коду редактора
-                this.source_view.apply_lsp_text_edits (edits);
+            Iide.LspCodeActionItem? selected_action = row.get_data ("action-item");
+            if (selected_action != null) {
+                this.apply_action.begin (selected_action);
+            } else {
+                this.log_message ("CodeActionsPopup: row_activated fired but action-item data is null.");
             }
-
-            this.close_and_focus_editor ();
         });
 
         // Контроллер для закрытия по кнопке Esc
@@ -83,6 +99,55 @@ public class Iide.CodeActionsPopup : Gtk.Window {
 
         // Кладим настроенный скролл в окно
         this.set_child (scrolled);
+    }
+
+    private void log_message (string message) {
+        if (this.logger != null) {
+            this.logger.info ("LCA-POPUP", message);
+        } else {
+            stdout.printf ("[LCA-POPUP] %s\n", message);
+        }
+    }
+
+    private async void apply_action (Iide.LspCodeActionItem action) {
+        if (this.applied) {
+            this.log_message ("apply_action ignored: already applied (%s)".printf (action.title));
+            return;
+        }
+
+        this.log_message ("activating action '%s' kind='%s' server='%s' uri='%s'".printf (
+            action.title, action.kind, action.server_name, this.source_view.uri
+        ));
+
+        var edits = action.changes.get (this.source_view.uri);
+        if (edits == null && action.data != null) {
+            // Сервер прислал действие без edit — дорезолвливаем через
+            // codeAction/resolve (clangd так и делает). [INDEX]
+            this.log_message ("action has no inline edits, resolving via codeAction/resolve...");
+            edits = yield this.source_view.lsp_document_client.request_code_action_resolve (
+                action.server_name, this.source_view.uri, action.data
+            );
+        }
+
+        if (edits == null) {
+            // Если правки так и не нашлись — не проглатываем молча,
+            // чтобы такая ситуация была видна в логе. [INDEX]
+            this.log_message ("no text edits for uri '%s'. Available: %s".printf (
+                this.source_view.uri,
+                string.joinv (", ", action.changes.keys.to_array ())
+            ));
+            this.applied = false;
+            this.close_and_focus_editor ();
+            return;
+        }
+
+        this.applied = true;
+        this.log_message ("applying %d edit(s) to buffer.".printf (edits.size));
+
+        // Вызываем ваш атомарный метод применения правок к коду редактора
+        this.source_view.apply_lsp_text_edits (edits);
+
+        this.close_and_focus_editor ();
     }
 
     private void close_and_focus_editor () {

@@ -151,7 +151,12 @@ public class Iide.LspTextEdit : GLib.Object {
 public class Iide.LspCodeActionItem : GLib.Object {
     public string title { get; set; }
     public string kind { get; set; } // Обычно "quickfix"
-    
+    public string server_name { get; set; }
+
+    // Сырой объект data: если сервер (clangd) прислал действие без поля edit,
+    // его можно дорезолвить запросом codeAction/resolve. [INDEX]
+    public Json.Object? data { get; set; default = null; }
+
     // Карта правок: [file_uri] -> [Список правок TextEdit]
     public Gee.HashMap<string, Gee.ArrayList<LspTextEdit>> changes { get; set; }
 

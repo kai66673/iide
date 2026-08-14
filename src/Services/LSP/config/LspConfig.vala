@@ -39,7 +39,17 @@ namespace Iide {
             var parser = new Json.Parser ();
             try {
                 parser.load_from_data (processed_json, -1);
-                return parser.get_root ().copy ();
+                var result = parser.get_root ().copy ();
+
+                // Гарантируем наличие processId (LSP 3.15+ требует id клиентского процесса,
+                // сервер использует его для отслеживания падения клиента)
+                if (result.get_node_type () == Json.NodeType.OBJECT) {
+                    var obj = result.get_object ();
+                    if (!obj.has_member ("processId")) {
+                        obj.set_int_member ("processId", (int) Iide.application_pid ());
+                    }
+                }
+                return result;
             } catch (GLib.Error e) {
                 this.session.logger_service.error ("LSP", "Failed to process dynamic initialize_template: %s".printf (e.message));
                 return new Json.Node (Json.NodeType.NULL);

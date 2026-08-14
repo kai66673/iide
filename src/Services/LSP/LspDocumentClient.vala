@@ -177,6 +177,11 @@ public class Iide.LspDocumentClient: GLib.Object {
                     var result = client.request_code_actions.end (res);
                     if (result != null) {
                         result.server_name = client.name ();
+                        // Пробрасываем имя сервера в каждое действие, чтобы попап
+                        // мог найти нужный клиент для codeAction/resolve. [INDEX]
+                        foreach (var action in result.actions) {
+                            action.server_name = result.server_name;
+                        }
                         results.add (result);
                     }
                 } catch (GLib.Error e) {
@@ -195,6 +200,53 @@ public class Iide.LspDocumentClient: GLib.Object {
         yield;
 
         return results;
+    }
+
+    /**
+     * Поиск зарегистрированного LSP-клиента по имени сервера.
+     */
+    public LspClient? get_client_by_name (string server_name) {
+        foreach (var syncer in this.clients) {
+            if (syncer.client.name () == server_name) {
+                return syncer.client;
+            }
+        }
+        return null;
+    }
+
+    /**
+     * Доразрешение правок кода Action через codeAction/resolve.
+     * Возвращает список правок для текущего файла или null, если догрузить не удалось.
+     */
+    public async Gee.ArrayList<LspTextEdit>? request_code_action_resolve (
+        string server_name,
+        string uri,
+        Json.Object data
+    ) {
+        var client = this.get_client_by_name (server_name);
+        if (client == null) {
+            this.logger.error ("LSP", "Cannot resolve code action: no client named '%s'.".printf (server_name));
+            return null;
+        }
+
+        try {
+            var resolved = yield client.request_code_action_resolve (data);
+            if (resolved == null || resolved.actions.is_empty) {
+                this.logger.error ("LSP", "Code action resolve for '%s' returned no action.".printf (server_name));
+                return null;
+            }
+
+            var edits = resolved.actions[0].changes.get (uri);
+            if (edits == null) {
+                this.logger.error ("LSP", "Resolved code action from '%s' has no edits for uri '%s'.".printf (server_name, uri));
+                return null;
+            }
+
+            return edits;
+        } catch (GLib.Error e) {
+            this.logger.error ("LSP", "Code action resolve request failed for '%s': %s".printf (server_name, e.message));
+            return null;
+        }
     }
 
     public async Gee.ArrayList<LspLocation>? request_definition (string uri, int line, int character) throws Error {

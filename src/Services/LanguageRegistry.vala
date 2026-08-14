@@ -161,6 +161,35 @@ namespace Iide {
           }
         }
       }
+    },
+    "clangd": {
+      "command": ["clangd"],
+      "capability_completion": true,
+      "capability_hover": true,
+      "capability_formatting": true,
+      "initialize_template": {
+        "processId": null,
+        "clientInfo": { "name": "iide", "version": "0.1.0" },
+        "rootUri": "${WORKSPACE_ROOT}",
+        "workspaceFolders": [{ "uri": "${WORKSPACE_ROOT}", "name": "project" }],
+        "capabilities": {
+          "textDocument": {
+            "publishDiagnostics": { "relatedInformation": true },
+            "documentSymbol": {
+              "hierarchicalDocumentSymbolSupport": true
+            },
+            "completion": {
+              "completionItem": {
+                "snippetSupport": false
+              }
+            }
+          },
+          "workspace": {
+            "configuration": true
+          },
+          "window": { "workDoneProgress": true }
+        }
+      }
     }
   },
   "routing": {
@@ -172,6 +201,24 @@ namespace Iide {
       "definition": ["basedpyright"],
       "hover": ["basedpyright"],
       "rename": ["basedpyright"]
+    },
+    "c": {
+      "diagnostics": ["clangd"],
+      "completion": ["clangd"],
+      "formatting": ["clangd"],
+      "code_actions": ["clangd"],
+      "definition": ["clangd"],
+      "hover": ["clangd"],
+      "rename": ["clangd"]
+    },
+    "cpp": {
+      "diagnostics": ["clangd"],
+      "completion": ["clangd"],
+      "formatting": ["clangd"],
+      "code_actions": ["clangd"],
+      "definition": ["clangd"],
+      "hover": ["clangd"],
+      "rename": ["clangd"]
     }
   }
 }
