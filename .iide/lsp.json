@@ -1,1 +1,7 @@
-{"languages": [{"id": "cpp", "server": ["clangd", "--header-insertion=never"], "patterns": ["*.cpp", "*.hpp"]}]}
+{
+  "servers": {
+    "clangd": {
+      "command": ["clangd", "--header-insertion=never"]
+    }
+  }
+}

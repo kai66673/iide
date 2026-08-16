@@ -8,6 +8,7 @@ public class Iide.FileTreeView : Box {
 
     public signal void file_activated (FileItem item);
     public signal void file_rename_requested (FileItem item);
+    public signal void file_delete_requested (FileItem item);
     public signal void create_entry_requested (FileItem item, bool is_directory);
 
     private Gtk.Popover? context_popover = null;
@@ -283,6 +284,19 @@ public class Iide.FileTreeView : Box {
                 this.file_rename_requested (this.context_item);
         });
         menu_box.append (this.rename_button);
+
+        var delete_button = new Gtk.Button.with_label (_("Delete"));
+        delete_button.add_css_class ("flat");
+        delete_button.add_css_class ("destructive-action");
+        delete_button.hexpand = true;
+        delete_button.halign = Gtk.Align.FILL;
+        delete_button.clicked.connect (() => {
+            if (this.context_popover != null)
+                this.context_popover.popdown ();
+            if (this.context_item != null)
+                this.file_delete_requested (this.context_item);
+        });
+        menu_box.append (delete_button);
 
         this.context_popover = new Gtk.Popover ();
         this.context_popover.child = menu_box;

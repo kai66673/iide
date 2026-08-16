@@ -281,10 +281,101 @@ namespace Iide {
                     this.deep_merge_objects (this.merged_routing, local_routing);
                 }
 
+                // 4. Легаси-формат ("languages": [{id, server, patterns}]) [INDEX]
+                if (local_root.has_member ("languages")) {
+                    var languages = local_root.get_array_member ("languages");
+                    this.merge_legacy_languages_format (languages);
+                    logger.info ("LSP", "Merged legacy 'languages' format from local lsp.json.");
+                }
+
                 logger.info ("LSP", "Successfully executed deep merge of local lsp.json configuration.");
 
             } catch (GLib.Error e) {
                 logger.error ("LSP", "Failed to merge workspace lsp.json: " + e.message);
+            }
+        }
+
+        /**
+         * Перевод легаси-формата lsp.json в новую матрицу.
+         * Формат: "languages": [{"id", "server": [cmd, args...], "patterns": [...]}].
+         * server[0] — имя бинарника = ключ сервера в секции servers [INDEX]
+         */
+        private void merge_legacy_languages_format (Json.Array languages) {
+            foreach (var node in languages.get_elements ()) {
+                if (node.get_node_type () != Json.NodeType.OBJECT) continue;
+                var lang_obj = node.get_object ();
+
+                if (!lang_obj.has_member ("server")) continue;
+                var server_arr = lang_obj.get_array_member ("server");
+                if (server_arr.get_length () == 0) continue;
+
+                string server_name = server_arr.get_string_element (0);
+                if (server_name == "") continue;
+
+                // 1. Оверрайд/создание секции сервера: массив команды заменит дефолт
+                Json.Object server_section;
+                if (this.merged_servers.has_member (server_name)) {
+                    server_section = this.merged_servers.get_object_member (server_name);
+                } else {
+                    server_section = new Json.Object ();
+                    var section_node = new Json.Node (Json.NodeType.OBJECT);
+                    section_node.set_object (server_section);
+                    this.merged_servers.set_member (server_name, section_node);
+                }
+                var cmd_node = new Json.Node (Json.NodeType.ARRAY);
+                cmd_node.set_array (server_arr);
+                server_section.set_member ("command", cmd_node);
+
+                // 2. Если id не задан — выводим его из первого паттерна (*.ext -> ext)
+                string lang_id = lang_obj.has_member ("id") ? lang_obj.get_string_member ("id") : "";
+                if (lang_id == "" && lang_obj.has_member ("patterns")) {
+                    var patterns = lang_obj.get_array_member ("patterns");
+                    if (patterns.get_length () > 0) {
+                        string pattern = patterns.get_string_element (0);
+                        int star = pattern.last_index_of ("*.");
+                        if (star >= 0) lang_id = pattern[star + 2 : pattern.length].down ();
+                    }
+                }
+                if (lang_id == "") continue;
+
+                // 3. Назначаем сервер на все фичи языка (легаси не различал фичи)
+                this.merge_server_into_routing (lang_id, server_name);
+            }
+        }
+
+        /**
+         * Добавление сервера во все feature-списки маршрута языка (без дублей).
+         * Если маршрута ещё нет — создаём его. [INDEX]
+         */
+        private void merge_server_into_routing (string lang_id, string server_name) {
+            Json.Object lang_route;
+            if (this.merged_routing.has_member (lang_id)) {
+                lang_route = this.merged_routing.get_object_member (lang_id);
+            } else {
+                lang_route = new Json.Object ();
+                var route_node = new Json.Node (Json.NodeType.OBJECT);
+                route_node.set_object (lang_route);
+                this.merged_routing.set_member (lang_id, route_node);
+            }
+
+            string[] features = {
+                "diagnostics", "completion", "formatting",
+                "code_actions", "definition", "hover", "rename"
+            };
+            foreach (var feature in features) {
+                Json.Array list;
+                if (lang_route.has_member (feature)) {
+                    list = lang_route.get_array_member (feature);
+                } else {
+                    list = new Json.Array ();
+                    lang_route.set_array_member (feature, list);
+                }
+
+                bool exists = false;
+                foreach (var el in list.get_elements ()) {
+                    if (el.get_string () == server_name) { exists = true; break; }
+                }
+                if (!exists) list.add_string_element (server_name);
             }
         }
 

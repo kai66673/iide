@@ -57,6 +57,24 @@ public abstract class Iide.TextLineMarkService : GLib.Object {
     }
 
     /**
+     * Удаляет закладки/брейкпоинты удаляемого файла.
+     * Для директории (recursive=true) чистит все URI с префиксом dir_uri + "/".
+     */
+    public void remove_marks_uri (string uri, bool recursive) {
+        string prefix = uri + "/";
+        var to_remove = new Gee.ArrayList<string> ();
+        foreach (var key in this.loaded_json_cache.keys) {
+            if (key == uri || (recursive && key.has_prefix (prefix)))
+                to_remove.add (key);
+        }
+
+        foreach (var key in to_remove) {
+            this.loaded_json_cache.unset (key);
+            this.uri_marks_changed (key, new Gee.ArrayList<Iide.TextLineMark?> ());
+        }
+    }
+
+    /**
      * Инициализация проекта. Вызывается при открытии рабочей папки IDE.
      */
     public void init_project (string project_root_path) {

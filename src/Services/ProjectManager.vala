@@ -60,6 +60,14 @@ public class Iide.ProjectManager : Object {
 
         this.ensure_iide_directory_exists ();
 
+        // Накатываем локальный .iide/lsp.json на дефолтную LSP-матрицу
+        // (должно происходить ДО восстановления сессии — иначе LSP-клиенты
+        // стартуют со стоковыми командами). [INDEX]
+        string? lsp_config_path = this.get_project_config_file_path ("lsp.json");
+        if (lsp_config_path != null) {
+            this.session.language_registry.load_project_lsp_matrix (lsp_config_path);
+        }
+
         settings.current_project_path = project_root.get_path ();
         settings.add_recent_project (project_root.get_path ());
         settings.last_open_directory = project_root.get_parent ().get_path ();

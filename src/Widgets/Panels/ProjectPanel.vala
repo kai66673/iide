@@ -43,6 +43,15 @@ public class Iide.ProjectPanel : BasePanel {
             dialog.present ();
         });
 
+        folder_view.file_delete_requested.connect ((item) => {
+            this.session.file_operations_service.delete_entry_async.begin (item.file, item.is_directory, (obj, res) => {
+                bool deleted = this.session.file_operations_service.delete_entry_async.end (res);
+                if (deleted) {
+                    this.folder_view.refresh ();
+                }
+            });
+        });
+
         folder_view.create_entry_requested.connect ((item, is_directory) => {
             // Новый элемент создаётся внутри папки под курсором,
             // либо в родительской папке, если под курсором файл

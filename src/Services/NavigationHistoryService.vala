@@ -116,4 +116,29 @@ public class Iide.NavigationHistoryService : Object {
         }
         forward_stack = new_forward;
     }
+
+    /**
+     * Убирает из истории точки навигации на удалённый файл.
+     * Для директории (recursive=true) удаляет и все вложенные пути.
+     */
+    public void remove_file_uri (string uri, bool recursive) {
+        string prefix = uri + "/";
+        bool matches (string point_uri) {
+            return point_uri == uri || (recursive && point_uri.has_prefix (prefix));
+        }
+
+        var new_back = new LinkedList<NavigationPoint> ();
+        foreach (var point in back_stack) {
+            if (!matches (point.file.get_uri ()))
+                new_back.offer_tail (point);
+        }
+        back_stack = new_back;
+
+        var new_forward = new LinkedList<NavigationPoint> ();
+        foreach (var point in forward_stack) {
+            if (!matches (point.file.get_uri ()))
+                new_forward.offer_tail (point);
+        }
+        forward_stack = new_forward;
+    }
 }

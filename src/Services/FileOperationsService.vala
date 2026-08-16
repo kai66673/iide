@@ -12,6 +12,7 @@ public class Iide.FileOperationsService : GLib.Object {
 
     public signal void file_renamed (string old_uri, string new_uri);
     public signal void file_created (string uri, bool is_directory);
+    public signal void file_deleted (string uri, bool is_directory);
 
     public FileOperationsService (WindowSession session) {
         this.session = session;
@@ -140,6 +141,122 @@ public class Iide.FileOperationsService : GLib.Object {
         this.file_created (target.get_uri (), is_directory);
         this.logger.info ("FS-OP", "Created %s %s".printf (is_directory ? "directory" : "file", target.get_path ()));
         return true;
+    }
+
+    /**
+     * Удаляет файл или директорию (в корзину, с восстановлением возможным).
+     *
+     * Процесс:
+     *  1) защита от удаления корня проекта;
+     *  2) сбор открытых вкладок, попадающих под удаление (для папки — рекурсивно);
+     *  3) подтверждение пользователем (destructive-диалог);
+     *  4) закрытие вкладок (серверы получат textDocument/didClose);
+     *  5) очистка привязанного к URI состояния (закладки, история, кэши);
+     *  6) перенос в корзину;
+     *  7) пересборка кэша проекта.
+     *
+     * @return true если элемент удалён, false если отменено или провалилось.
+     */
+    public async bool delete_entry_async (GLib.File file, bool is_directory) {
+        string uri = file.get_uri ();
+        string path = file.get_path () ?? "";
+
+        // 1. Не даём удалить корень проекта
+        if (path == this.session.get_project_root_path ()) {
+            this.logger.error ("FS-OP", "Cannot delete project root.");
+            return false;
+        }
+
+        // 2. Собираем открытые вкладки, попадающие под удаление
+        var affected_uris = new Gee.ArrayList<string> ();
+        string prefix = uri + "/";
+        foreach (var doc_uri in this.session.document_manager.documents.keys) {
+            if (doc_uri == uri || (is_directory && doc_uri.has_prefix (prefix)))
+                affected_uris.add (doc_uri);
+        }
+
+        // 3. Подтверждение удаления
+        bool proceed = yield this.confirm_delete_async (file, affected_uris);
+        if (!proceed)
+            return false;
+
+        // 4. Закрываем вкладки (отправляет textDocument/didClose серверам)
+        foreach (var doc_uri in affected_uris) {
+            this.session.document_manager.close_document (doc_uri);
+        }
+
+        // 5. Убираем состояние, привязанное к URI удаляемых элементов
+        foreach (var mark_service in this.session.marks_service) {
+            mark_service.remove_marks_uri (uri, is_directory);
+        }
+        this.session.navigation_history_service.remove_file_uri (uri, is_directory);
+
+        // 6. Перенос в корзину; при неудаче — безвозвратное удаление
+        try {
+            file.trash (null);
+        } catch (GLib.Error e) {
+            this.logger.warning ("FS-OP", "Trash failed (%s), falling back to permanent delete.".printf (e.message));
+            try {
+                file.delete (null);
+            } catch (GLib.Error e2) {
+                this.logger.error ("FS-OP", "Delete %s failed: %s".printf (path, e2.message));
+                return false;
+            }
+        }
+
+        // 7. Пересобираем кэш проекта
+        this.session.project_manager.invalidate_file_cache ();
+
+        this.file_deleted (uri, is_directory);
+        this.logger.info ("FS-OP", "Deleted %s %s".printf (is_directory ? "directory" : "file", path));
+        return true;
+    }
+
+    /**
+     * Диалог подтверждения удаления (destructive).
+     */
+    private async bool confirm_delete_async (GLib.File file, Gee.ArrayList<string> affected_uris) {
+        string display = file.get_basename () ?? file.get_uri ();
+
+        // Сколько из затрагиваемых вкладок имеют несохранённые изменения
+        int modified_count = 0;
+        foreach (var doc_uri in affected_uris) {
+            var tv = this.session.document_manager.documents.get (doc_uri) as Iide.TextView;
+            if (tv != null && tv.is_modified)
+                modified_count++;
+        }
+
+        string body;
+        if (affected_uris.size > 0) {
+            body = _("The item will be moved to trash.\n%d open tab(s) will be closed.").printf (affected_uris.size);
+            if (modified_count > 0) {
+                body += _("\n%d of them have unsaved changes that will be lost.").printf (modified_count);
+            }
+        } else {
+            body = _("The item will be moved to trash.");
+        }
+
+        var dialog = new Adw.AlertDialog (
+            _("Delete %s?").printf (display),
+            body
+        );
+
+        dialog.add_response ("cancel", _("Cancel"));
+        dialog.add_response ("delete", _("Delete"));
+        dialog.set_response_appearance ("delete", Adw.ResponseAppearance.DESTRUCTIVE);
+        dialog.set_close_response ("cancel"); // Esc сработает как Cancel
+
+        SourceFunc resume_callback = confirm_delete_async.callback;
+        string chosen = "cancel";
+        dialog.response.connect ((response) => {
+            chosen = response;
+            Idle.add_full (Priority.HIGH, (owned) resume_callback);
+        });
+
+        dialog.present (this.session.window);
+        yield;
+
+        return chosen == "delete";
     }
 
     /**
