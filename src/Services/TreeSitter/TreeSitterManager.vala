@@ -36,6 +36,8 @@ class Iide.TreeSitterManager : GLib.Object {
         var language_name = ((GtkSource.Buffer) view.buffer).language.name.down();
         view.session.logger_service.debug("TSM", "Detected language " + language_name);
         switch (language_name) {
+        case "c/objc header":
+            return new CppHighlighter(view);
         case "c++" :
             return new CppHighlighter(view);
         case "python":

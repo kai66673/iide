@@ -8,7 +8,7 @@
 
 ### 2. Утечки сигналов: нет `disconnect` в деструкторах
 
-- `SourceView` (строки 184-251) — подключает 6+ сигналов, нигде не отключает.
+- `SourceView` (строки 189-251) — подключает 6+ сигналов, нигде не отключает.
 - `SourceDocument` (строки 21-36) — подключает `buffer.insert_text` и `buffer.delete_range`, нет отключения.
 - `BaseTreeSitterHighlighter` — нет отключения `buffer.changed` и `buffer.notify["style-scheme"]` в деструкторе.
 
@@ -22,9 +22,9 @@
 
 ### 3. Дублирование кода: `RpcProcess` vs `TcpProcess`
 
-`src/Services/JsonRpc/RpcProcess.vala` и `src/Services/JsonRpc/TcpProcess.vala` — ~80% идентичного кода: очередь записи, парсинг `Content-Length`, барьер завершения. Единственное отличие — канал I/O (subprocess vs socket).
+`src/Services/JsonRpc/RpcProcess.vala` и `src/Services/JsonRpc/TcpProcess.vala` — ~80% идентичного кода: очередь записи, парсинг `Content-Length`, барьер завершения. Единственное отличие — канал I/O (subprocess vs socket). Общий интерфейс `RpcTransport` уже введён, но фрейминг и очередь в каждом классе продублированы (236 и 209 строк).
 
-**Решение:** Вынести общую логику в `BaseRpcTransport`, оставив подклассам только `init_channel()`.
+**Решение:** Вынести общую логику в `BaseRpcTransport` (реализующий `RpcTransport`), оставив подклассам только канал I/O — `init_channel()`.
 
 ### 4. Дублирование: `LspClient` и `DapClient`
 
@@ -34,7 +34,7 @@
 
 ### 5. Toggle-действия не синхронизируются с диалогом настроек
 
-4 одинаковых TODO в `src/application.vala:287, 586, 616, 646` — переключатели minimap/номеров строк/диагностики/folding не обновляются при изменении настроек из Preferences.
+4 одинаковых TODO в `src/application.vala:288, 587, 617, 647` — переключатели minimap/номеров строк/диагностики/folding не обновляются при изменении настроек из Preferences.
 
 **Решение:** Подключить сигнал `SettingsService` к каждому toggle-action, обновлять `state` при изменении.
 
@@ -42,13 +42,13 @@
 
 ## P2 — Качество кода
 
-### 6. God-класс: `BaseTreeSitterHighlighter` (925 строк)
+### 6. God-класс: `BaseTreeSitterHighlighter` (924 строки)
 
 `src/Services/TreeSitter/BaseTreeSitterHighlighter.vala` — парсинг, рендеринг, фолдинг, селекция, хлебные крошки, скобочные пары, оглавление. Auto-pairing живёт здесь, а не в `SourceView`.
 
 **Решение:** Разделить на `TreeSitterParser`, `TreeSitterRenderer`, `TreeSitterFolding`. Auto-pairing перенести в `SourceView` или отдельный `InputHandler`.
 
-### 7. God-класс: `LspClient` (1200+ строк)
+### 7. God-класс: `LspClient` (1800+ строк)
 
 `src/Services/LSP/LspClient.vala` — жизненный цикл процесса, JSON-RPC фрейминг, парсинг capabilities, diagnostics, completion, hover, definition, formatting, code actions, pull diagnostics.
 
@@ -74,7 +74,7 @@
 
 - `SourceView.vala:530` — `message ("MIME: _ " + mime_type);`
 
-> `application.vala:512` (MIME) и `LspClient.vala:436` (`!!!handle_incoming_notification`) — исправлены: лог от `handle_incoming_notification` заменён на JSON-RPC диспетчер `handle_payload`/`handle_server_request` (LspClient.vala:411-432).
+> `application.vala:512` (MIME) и `LspClient.vala:436` (`!!!handle_incoming_notification`) — исправлены: лог от `handle_incoming_notification` заменён на JSON-RPC диспетчер `handle_payload`/`handle_server_request` (LspClient.vala:411-457).
 
 **Решение:** Заменить на `LoggerService` или удалить.
 
@@ -93,7 +93,7 @@
 
 ### 2. На запросы сервера (id + method) отвечать обязательно
 
-По JSON-RPC клиент обязан ответить даже на неизвестный запрос. Диспетчер `handle_payload`/`handle_server_request` (LspClient.vala:411-432): `workspace/applyEdit` → `session.document_manager.apply_edits_to_file`, `workspace/configuration`/`workspace/workspaceFolders` → дефолты, остальное — ack `null`. Новые обработчики не должны бросать запрос без ответа.
+По JSON-RPC клиент обязан ответить даже на неизвестный запрос. Диспетчер `handle_payload`/`handle_server_request` (LspClient.vala:411-457): `workspace/applyEdit` → `session.document_manager.apply_edits_to_file`, `workspace/configuration`/`workspace/workspaceFolders` → дефолты, остальное — ack `null`. Новые обработчики не должны бросать запрос без ответа.
 
 ### 3. `completionItem/resolve` — только при наличии `data`
 
@@ -109,6 +109,6 @@
 
 ### 6. Известное ограничение: гейт «нет диагностик на строке»
 
-`show_code_actions_menu` (SourceView.vala:918-919) ранне-возвращается, если на текущей строке нет диагностик. Из-за этого **source/refactor-действия не показываются**, если сервер отдаёт их и с пустыми диагностиками — например, ruff всегда отвечает «Fix all auto-fixable problems» и «Organize imports». Проверено харнессом: при `context.diagnostics: []` ruff возвращает 2 source-действия, clangd — 0 (регрессии нет).
+`show_code_actions_menu` (SourceView.vala:918-921) ранне-возвращается, если на текущей строке нет диагностик. Из-за этого **source/refactor-действия не показываются**, если сервер отдаёт их и с пустыми диагностиками — например, ruff всегда отвечает «Fix all auto-fixable problems» и «Organize imports». Проверено харнессом: при `context.diagnostics: []` ruff возвращает 2 source-действия, clangd — 0 (регрессии нет).
 
 **Решение (когда понадобится):** слать запрос с пустым массивом диагностик, если `collect_raw_diagnostics_for_line` вернул `null`.

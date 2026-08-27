@@ -9,6 +9,7 @@ Note: code comments, the README, and commit messages are largely in **Russian** 
 ## Build & Run
 
 ```bash
+git submodule update --init --recursive   # required: parsers/ + vendor/ are submodules; build fails without them
 meson setup builddir
 meson compile -C builddir
 ./builddir/src/iide
@@ -49,7 +50,7 @@ There is no test suite, linter, or typecheck step — **compilation is the only 
 - All source is Vala (namespace `Iide.*`). New files must be added to `src/meson.build` `iide_sources` array.
 - Tree-sitter parser C sources are listed explicitly in the root `meson.build` — adding a new language parser requires updating that list. Grammars are git submodules under `parsers/`. Most compile into the shared `tree-sitter-runtime` static lib, but XML, C, TypeScript, and PHP are built as **separate** static libs due to their nested repo layout (`parsers/xml/xml/src/…`, etc.). Highlighters (when needed) live in `src/Services/TreeSitter/<lang>/` and are instantiated in `TreeSitterManager`.
 - Actions are defined as private subclasses of `Iide.AppAction` in `src/application.vala`, registered via `AppActionsManager`.
-- UI XML files live alongside their widgets; GResource XML is `src/iide.gresource.xml`.
+- Only two GtkBuilder UI files exist — `src/window.ui`, `src/shortcuts-dialog.ui` (at `src/` root, not next to widgets); most other UI is built in Vala code. GResource XML is `src/iide.gresource.xml`.
 - App ID: `org.github.kai66673.iide`.
 
 ## Gotchas
@@ -63,4 +64,4 @@ There is no test suite, linter, or typecheck step — **compilation is the only 
 ## Build quirks
 
 - `symbols/` icons are **generated at build time**: `symbols/export_glyph.py` (meson `custom_target`) turns `symbols/icons.json` + `symbols/fonts/SYMBOLIC.ttf` into SVGs and a gresource (`symbols_res`), which is wired into the executable in `src/meson.build`. Requires `python3`.
-- `meson install` runs `scripts/install-local-settings.sh`, which copies the GSettings schema and icons into `~/.local/share` for development. Runtime may need `XDG_DATA_DIRS="$HOME/.local/share:$XDG_DATA_DIRS"` to pick up the schema.
+- `meson install` runs a generated install script (from `scripts/install-local-settings.sh.in`), which copies the GSettings schema and icons into `~/.local/share` for development. Runtime may need `XDG_DATA_DIRS="$HOME/.local/share:$XDG_DATA_DIRS"` to pick up the schema.
