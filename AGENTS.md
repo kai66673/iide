@@ -39,11 +39,11 @@ There is no test suite, linter, or typecheck step — **compilation is the only 
 - `symbols/` — icon/symbol resources (generated at build time, see Build quirks)
 - `src/icons/`, `src/fonts/` — embedded mimetype icons / font, bundled via `src/iide.gresource.xml` (distinct from `symbols/`)
 - `po/` — gettext translations
-- `.iide/` — per-project session config: `workspace.json` (tabs/session, written by `ProjectManager`) and `lsp.json` (per-project LSP overrides, deep-merged over the default matrix in `LanguageRegistry.load_project_lsp_matrix`). Bookmarks are **in-memory only** — not persisted.
+- `.iide/` — per-project session config: `workspace.json` (tabs/session, written by `ProjectManager`) and `lsp.json` (per-project LSP overrides, deep-merged over the default matrix in `LanguageRegistry.load_project_lsp_matrix`). Bookmarks are **in-memory only** — not persisted (the README's claim of a `bookmarks.json` is stale; no code writes it).
 
-## Multiple build directories
+## Build directory naming
 
-`build/`, `builddir/`, `rebuild/`, `run/` all exist. The README references `builddir/`; the VSCode tasks use `build/`. Pick one and be consistent — `builddir` is canonical per README.
+README examples use `builddir/`; the `.vscode` tasks (`Build Iide` / `Run Iide` — the latter compiles then launches `build/src/iide`) use `build/`. Only `build/` currently exists on disk — use it unless told otherwise. Meson auto-generates a `build/.gitignore` containing `*`; the repo-root `.gitignore` is empty and `git check-ignore` will not explain this. `.cache/` is a self-ignored clangd index.
 
 ## Conventions
 
@@ -57,11 +57,13 @@ There is no test suite, linter, or typecheck step — **compilation is the only 
 
 - `GSK_RENDERER` is force-set to `ngl` in `main.vala:22` — do not remove this.
 - Flatpak manifest (`org.github.kai66673.iide.json`) hardcodes `file:///home/kai/Projects` as the source URL — needs updating if you move the repo.
-- Doxygen docs are optional: `meson compile -C builddir docs` (requires `doxygen` installed). `scripts/gen-docs.sh` hardcodes the output to `build/docs/html` (not `builddir/`) and serves it on `localhost:8080`.
+- Doxygen docs are optional: the `docs` run target only exists if `doxygen` was found at *configure* time — install it, then `meson setup --reconfigure`. `scripts/gen-docs.sh` hardcodes the output to `build/docs/html` and serves it on `localhost:8080`.
+- `repomix-output.md` / `repomix-output.pdf` (tracked, ~800KB) are generated full-repo dumps with compressed/lossy code blocks — **never grep or read them as source**; they pollute every search with stale duplicates. `test_temp/test.c` is tracked scratch too.
 - `vendor/tree-sitter` is a fork (`albfan/tree-sitter`), not upstream — respect this when updating.
 - The repo's own `.iide/lsp.json` is committed and overrides the default LSP matrix: clangd runs as `clangd --header-insertion=never` for `*.cpp`/`*.hpp`.
 
 ## Build quirks
 
 - `symbols/` icons are **generated at build time**: `symbols/export_glyph.py` (meson `custom_target`) turns `symbols/icons.json` + `symbols/fonts/SYMBOLIC.ttf` into SVGs and a gresource (`symbols_res`), which is wired into the executable in `src/meson.build`. Requires `python3`.
-- `meson install` runs a generated install script (from `scripts/install-local-settings.sh.in`), which copies the GSettings schema and icons into `~/.local/share` for development. Runtime may need `XDG_DATA_DIRS="$HOME/.local/share:$XDG_DATA_DIRS"` to pick up the schema.
+- `meson install` (prefix `/usr/local`, needs sudo — the script handles `SUDO_USER`) runs a generated install script (`scripts/install-local-settings.sh.in`) that also copies the GSettings schema and icons into `~/.local/share` **without** sudo semantics; the source XML/SVGs are read from the source tree via `@SOURCE_DATA_DIR@` (build dir contains no sources). GIO picks up `~/.local/share/glib-2.0/schemas` automatically — no `XDG_DATA_DIRS` needed (verified).
+- Run-without-install works out of the box: `gnome.compile_schemas(build_by_default: true)` in `data/meson.build` emits `build/data/gschemas.compiled`, and `SettingsService.load_settings()` (Vala) self-locates it — search order: default source → `gschemas.compiled` in `builddir/data` (exe-relative via `/proc/self/exe`) → `Config.DATADIR/glib-2.0/schemas`. So plain `./builddir/src/iide` works with nothing installed. Note: the GResource schema trick (`/glib/schemas` blobs) **does not work on glib >= 2.90** — that mechanism was removed from both libgio and glib-compile-resources (`--schemalang`, `preprocess="glib-compile-schemas"` are gone). The previously tracked `data/gschemas.compiled` was a stale leftover of that old pattern and was deleted.

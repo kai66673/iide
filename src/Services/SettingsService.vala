@@ -78,6 +78,7 @@ public class Iide.FontSizeHelper : Object {
 
 public class Iide.SettingsService : Object {
     private static SettingsService? _instance;
+    private const string SCHEMA_ID = "org.github.kai66673.iide";
     private Settings _settings;
 
     public Settings settings { get { return _settings; } }
@@ -92,7 +93,58 @@ public class Iide.SettingsService : Object {
     }
 
     private SettingsService () {
-        _settings = new Settings ("org.github.kai66673.iide");
+        _settings = load_settings ();
+    }
+
+    // В glib >= 2.90 убрали поиск GSettings-схем из GResource, а при запуске
+    // прямо из каталога сборки схема не установлена ни в систему, ни в ~/.local.
+    // Поэтому цепочка: штатный поиск -> gschemas.compiled в каталоге сборки рядом
+    // с бинарником (gnome.compile_schemas пишет её в builddir/data) -> datadir установки.
+    private static Settings load_settings () {
+        var schema = SettingsSchemaSource.get_default ().lookup (SCHEMA_ID, true);
+
+        if (schema == null) {
+            foreach (var dir in candidate_schema_dirs ()) {
+                if (!FileUtils.test (Path.build_filename (dir, "gschemas.compiled"), FileTest.EXISTS)) {
+                    continue;
+                }
+                try {
+                    var source = new SettingsSchemaSource.from_directory (dir, null, false);
+                    schema = source.lookup (SCHEMA_ID, true);
+                } catch (Error e) {
+                    // каталог недоступен для Gio — пробуем следующий
+                }
+                if (schema != null) {
+                    break;
+                }
+            }
+        }
+
+        if (schema == null) {
+            warning (
+                "GSettings schema '%s' not found. Run 'meson install' " +
+                "or 'meson compile && bash builddir/install-local-settings.sh', " +
+                "or rebuild so that gschemas.compiled appears in the build directory.",
+                SCHEMA_ID
+            );
+            error ("GSettings schema '%s' is not installed", SCHEMA_ID);
+        }
+
+        return new Settings.full (schema, null, null);
+    }
+
+    private static Gee.ArrayList<string> candidate_schema_dirs () {
+        var dirs = new Gee.ArrayList<string> ();
+        try {
+            // .../builddir/src/iide -> .../builddir/data
+            var exe = GLib.FileUtils.read_link ("/proc/self/exe");
+            var build_root = File.new_for_path (exe).get_parent ().get_parent ();
+            dirs.add (Path.build_filename (build_root.get_path (), "data"));
+        } catch (Error e) {
+            // /proc/self/exe недоступен — пропускаем каталог сборки
+        }
+        dirs.add (Path.build_filename (Config.DATADIR, "glib-2.0", "schemas"));
+        return dirs;
     }
 
     public ColorScheme color_scheme {

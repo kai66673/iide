@@ -123,6 +123,7 @@ config_h = configuration_data()
 config_h.set_quoted('PACKAGE_VERSION', meson.project_version())
 config_h.set_quoted('GETTEXT_PACKAGE', 'iide')
 config_h.set_quoted('LOCALEDIR', get_option('prefix') / get_option('localedir'))
+config_h.set_quoted('DATADIR', get_option('prefix') / get_option('datadir'))
 configure_file(output: 'config.h', configuration: config_h)
 
 config_dep = valac.find_library('config', dirs: srcdir)
@@ -140,7 +141,8 @@ gnome.post_install(
 )
 
 local_settings_conf = configuration_data()
-local_settings_conf.set('PREFIX', get_option('prefix'))
+local_settings_conf.set('DATADIR', get_option('prefix') / get_option('datadir'))
+local_settings_conf.set('SOURCE_DATA_DIR', meson.project_source_root() / 'data')
 local_settings_sh = configure_file(
     input: 'scripts/install-local-settings.sh.in',
     output: 'install-local-settings.sh',

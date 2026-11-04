@@ -28,6 +28,11 @@ install_data('org.github.kai66673.iide.gschema.xml',
   install_dir: get_option('datadir') / 'glib-2.0' / 'schemas'
 )
 
+# компилируем gschemas.compiled в build/data/ — при запуске из каталога сборки
+# приложение само находит её рядом с бинарником (см. SettingsService.load_settings);
+# в glib >= 2.90 поиск схем из GResource (/glib/schemas) удалён, поэтому так
+gnome.compile_schemas(build_by_default: true)
+
 compile_schemas = find_program('glib-compile-schemas', required: false, disabler: true)
 test('Validate schema file',
      compile_schemas,
