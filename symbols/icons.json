@@ -459,6 +459,10 @@
         },
         "dap-stack-trace": {
             "char": "0xebd0"
-        }
+        },
+        "tmp-users": { "char": "0xf0c0" },
+        "tmp-map": { "char": "0xf0a01" },
+        "tmp-user-roles": { "char": "0xedd3" },
+        "tmp-connect": { "char": "0xf1616" }
     }
 }

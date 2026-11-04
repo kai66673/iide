@@ -77,7 +77,11 @@ public enum Iide.IconID {
     DAP_STEP_OUT = 69,
     DAP_CONSOLE = 70,
     DAP_VARIABLES = 71,
-    DAP_STACK_TRACE = 72;
+    DAP_STACK_TRACE = 72,
+    TMP_USERS = 73,
+    TMP_MAP = 74,
+    TMP_USER_ROLES = 75,
+    TMP_CONNECT = 76;
 }
 
 public class Iide.SymbIconProvider {
@@ -167,6 +171,10 @@ public class Iide.SymbIconProvider {
             { "dap-console", "" },
             { "dap-variables", "" },
             { "dap-stack-trace", "" },
+            { "tmp-users", "" },
+            { "tmp-map", "" },
+            { "tmp-user-roles", "" },
+            { "tmp-connect", "" },
         };
     }
     public Gtk.Image image (IconID icon_id, bool colorize = true, int? pixel_size = null) {
