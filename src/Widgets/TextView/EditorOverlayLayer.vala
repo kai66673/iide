@@ -135,6 +135,8 @@ public class Iide.EditorOverlayLayer : Gtk.DrawingArea {
         cr.set_line_width (1.0);
 
         double tab_width_px = this.calculate_tab_width_pixels ();
+        uint tab_width_chars = this.source_view.get_tab_width ();
+        if (tab_width_chars == 0) tab_width_chars = 4;
         int left_margin = this.source_view.get_left_margin ();
         double h_scroll = this.source_view.get_hadjustment ().get_value ();
 
@@ -307,18 +309,9 @@ public class Iide.EditorOverlayLayer : Gtk.DrawingArea {
             // ===================================================================
             // ОТРИСОВКА ЛИНЕЙ ОТСТУПОВ ДЛЯ РАЗВЕРНУТОГО БЛОКА
             // ===================================================================
-            Gtk.TextIter end_iter;
-            this.source_view.get_buffer ().get_iter_at_line (out end_iter, block.end_line);
-
-            int end_y_buf, end_height;
-            this.source_view.get_line_yrange (end_iter, out end_y_buf, out end_height);
-
-            // Для РАЗВЕРНУТОГО блока проверяем высоту его конца. 
-            // Если конец скрыт чем-то еще — пропускаем линию.
-            if (end_height <= 0) continue;
-
-            int win_y_end;
-            this.source_view.buffer_to_window_coords (Gtk.TextWindowType.TEXT, 0, end_y_buf, out win_x, out win_y_end);
+            // Самый внешний уровень (col 0) не рисуем вообще, пока виден gutter
+            // фолдинга — его роль выполняют маркеры сворачивания в gutter'е
+            if (block.indent_level == 0 && folding_gutter.visible) continue;
 
             // Логика цвета (активная/пассивная линия из предыдущего шага)
             bool is_active_line = false;
@@ -340,16 +333,115 @@ public class Iide.EditorOverlayLayer : Gtk.DrawingArea {
 
             double line_x = gutter_width + left_margin + (block.indent_level * tab_width_px) - h_scroll + 0.5;
             if (line_x < gutter_width) continue;
+            if (win_y_start > height) continue;
 
-            if (win_y_start > height || (win_y_end + end_height) < 0) continue;
+            // Линия рисуется НЕ сплошным штрихом на всю высоту блока, а сегментами:
+            // строки, в которых текст задевает колонку гида (заголовок вида `if (x) {`,
+            // `} else {` и т.п.), вырезаются. Колонка гида символьная:
+            // indent_level * tab_width, пиксельных вычислений по тексту не делаем.
+            int guide_col = block.indent_level * (int) tab_width_chars;
 
-            double draw_y_start = double.max (win_y_start, 0.0);
-            double draw_y_end = double.min (win_y_end + end_height, (double) height);
+            double seg_top = 0.0;
+            double seg_bottom = 0.0;
+            bool seg_open = false;
 
-            cr.move_to (line_x, draw_y_start);
-            cr.line_to (line_x, draw_y_end);
-            cr.stroke ();
+            for (int ln = block.start_line; ln <= block.end_line; ln++) {
+                Gtk.TextIter line_iter;
+                buffer.get_iter_at_line (out line_iter, ln);
+
+                int line_y_buf, line_height;
+                this.source_view.get_line_yrange (line_iter, out line_y_buf, out line_height);
+
+                // Скрытая строка (внутри чужого свернутого блока) — разрыв сегмента
+                if (line_height <= 0) {
+                    if (seg_open) {
+                        cr.move_to (line_x, seg_top);
+                        cr.line_to (line_x, seg_bottom);
+                        cr.stroke ();
+                        seg_open = false;
+                    }
+                    continue;
+                }
+
+                int win_y_line;
+                this.source_view.buffer_to_window_coords (Gtk.TextWindowType.TEXT, 0, line_y_buf, out win_x, out win_y_line);
+
+                // Строки идут сверху вниз — всё, что ниже вьюпорта, нам не нужно
+                if (win_y_line > height) break;
+
+                double line_bottom = double.min (win_y_line + (double) line_height, (double) height);
+
+                // Строки выше вьюпорта: пересечение с текстом над экраном не важно —
+                // сегмент все равно клипнется в 0 первой видимой строкой
+                if (line_bottom <= 0.0) continue;
+
+                double line_top = double.max ((double) win_y_line, 0.0);
+
+                // Текст строки налезает на колонку гида — здесь линии быть не должно
+                if (this.line_intersects_guide (buffer, ln, guide_col, tab_width_chars)) {
+                    if (seg_open) {
+                        cr.move_to (line_x, seg_top);
+                        cr.line_to (line_x, seg_bottom);
+                        cr.stroke ();
+                        seg_open = false;
+                    }
+                    continue;
+                }
+
+                if (!seg_open) {
+                    seg_top = line_top;
+                    seg_open = true;
+                }
+                seg_bottom = line_bottom;
+            }
+
+            if (seg_open) {
+                cr.move_to (line_x, seg_top);
+                cr.line_to (line_x, seg_bottom);
+                cr.stroke ();
+            }
         }
+    }
+
+    // Проверяет, задевает ли текст строки колонку вертикального гида отступов.
+    // Колонки считаются в символах: пробел = 1, таб = следующий таб-стоп.
+    // Края диапазона текста включаются: гид в том числе на левом краю первого
+    // символа строки тоже считается пересечением (режем строку).
+    private bool line_intersects_guide (Gtk.TextBuffer buffer, int line_no, int guide_col, uint tab_width_chars) {
+        Gtk.TextIter iter;
+        buffer.get_iter_at_line (out iter, line_no);
+
+        Gtk.TextIter eol_iter = iter;
+        eol_iter.forward_to_line_end ();
+        string line_text = buffer.get_text (iter, eol_iter, false);
+
+        int col = 0;
+        int first_col = -1;
+        int last_col = -1;
+
+        int char_index = 0;
+        while (true) {
+            unichar ch;
+            if (!line_text.get_next_char (ref char_index, out ch)) break;
+
+            if (ch == '\t') {
+                // Колонка следующего таб-стопа
+                col = (col / (int) tab_width_chars + 1) * (int) tab_width_chars;
+            } else if (ch.isspace ()) {
+                col += 1;
+            } else {
+                if (first_col < 0) first_col = col;
+                last_col = col;
+                col += 1;
+            }
+        }
+
+        // Пустая строка (или из одних пробелов) — пересечения нет
+        if (first_col < 0) return false;
+
+        // Гид внутри диапазона текста с обеих сторон включительно: задевает и
+        // случай, когда гид стоит ровно на левом краю первого символа строки
+        return first_col <= guide_col && guide_col <= last_col;
     }
         
     // Публичный метод, чтобы TextView мог передавать сюда клики мыши, если они обрабатываются на его уровне
