@@ -81,7 +81,7 @@ public class Iide.LspClient : Object {
         public SourceView view;
 
         public LspFeatures features { get; private set; }
-
+        
         public PendingOpen (string uri, string language_id, string content, string? workspace_root, SourceView view) {
             this.uri = uri;
             this.language_id = language_id;
@@ -140,7 +140,8 @@ public class Iide.LspClient : Object {
     private DiagnosticsService diagnostics_service;
 
     private bool is_stopping = false;
-    
+    private bool is_initial_workspace_checked = false;
+
     // Свойство возможностей сервера
     public ServerCapabilities capabilities { get; set; }
     public LspFeatures features { get; construct set; }
@@ -576,6 +577,41 @@ public class Iide.LspClient : Object {
                     this.diagnostics_received (this.name (), uri, diag_list);
                     return Source.REMOVE;
                 });
+
+                if (this.config.push_workspace_diagnostic) {
+                    // Пытаемся получить полную диагностику...
+                    if (!this.is_initial_workspace_checked) {
+                        this.is_initial_workspace_checked = true;
+                        var ws_params = new Json.Object ();
+                        var previousResultIds = new Json.Array ();
+                        ws_params.set_array_member ("previousResultIds", previousResultIds);
+                        this.send_request.begin ("workspace/diagnostic", ws_params, null, (obj, res) => {
+                            try {
+                                var req_obj = this.send_request.end (res);
+                                var result = req_obj.get_object_member ("result");
+                                var items_array = result.get_array_member ("items");
+
+                                foreach (var uri_item in items_array.get_elements ()) {
+                                    var uri_obj = uri_item.get_object ();
+                                    var ws_uri = uri_obj.get_string_member ("uri");
+                                    var sitem_array = uri_obj.get_array_member ("items");
+                                    var ws_diag_list = this.parse_diagnostics (sitem_array);
+                                    
+                                    // Передаем в главный поток для UI
+                                    Idle.add (() => {
+                                        // Передаем данные в глобальную модель
+                                        diagnostics_service.update_diagnostics (this.name (), ws_uri, ws_diag_list);
+
+                                        this.diagnostics_received (this.name (), uri, diag_list);
+                                        return Source.REMOVE;
+                                    });
+                                }
+                            } catch (Error e) {
+                                logger.error ("LSP", "Failed to handle workspace/diagnostic results: " + e.message);
+                            }
+                        });
+                    }
+                }
             }
             break;
 

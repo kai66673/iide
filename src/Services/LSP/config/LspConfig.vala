@@ -7,6 +7,7 @@ namespace Iide {
         private weak WindowSession session;
 
         public string[] command { get; set; }
+        public bool push_workspace_diagnostic { get; set; default = false; }
         public bool capability_formatting { get; set; default = true; }
         public bool capability_hover { get; set; default = true; }
         public bool capability_completion { get; set; default = true; }
@@ -124,6 +125,10 @@ namespace Iide {
                 }
                 config.command = cmd_list.to_array ();
             }
+
+            // Читаем базовые настройки
+            if (obj.has_member ("push_workspace_diagnostic"))
+                config.push_workspace_diagnostic = obj.get_boolean_member ("push_workspace_diagnostic");
 
             // Читаем кастомные возможности (capabilities)
             if (obj.has_member ("capability_formatting"))
