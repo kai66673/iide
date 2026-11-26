@@ -49,6 +49,10 @@ public class Iide.ServerCapabilities : Object {
     public bool references_provider = false;
     public bool rename_provider = false;
 
+    // workspace/symbol (по нему поиск символов в рабочей области отфильтровывает
+    // серверы вроде ruff, у которых этого запроса нет и он роняет весь поиск)
+    public bool workspace_symbol_provider = false;
+
     // Workspace file operations (workspace/willRenameFiles, workspace/didRenameFiles)
     public bool will_rename_files_provider = false;
     public bool did_rename_files_provider = false;
@@ -1196,6 +1200,12 @@ public class Iide.LspClient : Object {
         this.capabilities.definition_provider = LspFeatures.DEFINTION in this.features && caps.has_member ("definitionProvider");
         this.capabilities.hover_provider = LspFeatures.HOVER in this.features && caps.has_member ("hoverProvider");
         this.capabilities.code_actions_provider = LspFeatures.CODE_ACTIONS in this.features && caps.has_member ("codeActionProvider");
+        // workspace/symbol: boolean-флаг или объект регистрации (workspaceSymbolProvider)
+        if (caps.has_member ("workspaceSymbolProvider")) {
+            var ws_sym_node = caps.get_member ("workspaceSymbolProvider");
+            this.capabilities.workspace_symbol_provider =
+                ws_sym_node.get_node_type () != Json.NodeType.VALUE || ws_sym_node.get_boolean ();
+        }
         // RenameProvider может быть булевым флагом или объектом { prepareProvider: boolean } [INDEX]
         this.capabilities.rename_provider = LspFeatures.RENAME in this.features && caps.has_member ("renameProvider");
 

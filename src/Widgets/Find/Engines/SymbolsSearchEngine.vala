@@ -29,7 +29,26 @@ public class Iide.SymbolsSearchEngine : SearchEngine, Object {
         var clients = this.session.lsp_service.get_clients ();
         var results = new Gee.ArrayList<WorkspaceLspSymbol> ();
         foreach (var client in clients) {
-            results.add_all (yield client.workspace_symbols (query, cancellable));
+            // Сервер может не поддерживать workspace/symbol (например ruff —
+            // он отвечает MethodNotFound -32601). Без проверки и try/catch
+            // исключение от одного сервера уносило весь поиск: SearchPage
+            // ловил его и показывал пустой список.
+            if (!client.capabilities.workspace_symbol_provider)
+                continue;
+
+            Gee.List<WorkspaceLspSymbol>? syms = null;
+            try {
+                syms = yield client.workspace_symbols (query, cancellable);
+            } catch (GLib.Error e) {
+                if (cancellable.is_cancelled ())
+                    throw e; // поиск снят новым запросом пользователя — выходим
+                this.session.logger_service.warning ("SEARCH",
+                    "Workspace symbol search failed on '%s': %s".printf (client.name (), e.message));
+                continue;
+            }
+
+            if (syms != null)
+                results.add_all (syms);
         }
         return to_search_results (results);
     }
