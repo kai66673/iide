@@ -1,0 +1,20 @@
+# Каталоги сборок meson
+build/
+builddir/
+dist/
+meson-info/
+
+# Индексы clangd / IDE
+.cache/
+.clangd
+compile_commands.json
+
+# Генерируемые дампы репозитория (см. AGENTS.md: не грепать и не читать как исходники)
+repomix-output.*
+
+# Локальные черновики
+test_temp/
+
+# Python
+__pycache__/
+*.pyc
