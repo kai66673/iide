@@ -1,0 +1,73 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+# новый пуш в ту же ветку отменяет предыдущий сборочный прогон
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    container:
+      image: fedora:latest
+    # pipefail нужен, чтобы пайп с tee не глотал код ошибки meson
+    defaults:
+      run:
+        shell: bash -eo pipefail {0}
+
+    steps:
+      - name: Install git (нужен для actions/checkout)
+        run: dnf -y -q install git
+
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Install build dependencies
+        # openh264 — weak-зависимость gstreamer, к репо Fedora бывают проблемы
+        # с зеркалами; слабые зависимости отключаем целиком.
+        # python3-cairo + python3-gobject нужны symbols/export_glyph.py (кодоген
+        # иконок): meson зовёт скрипт plain python3, минуя её uv-шебанг
+        run: >
+          dnf -y -q --setopt=install_weak_deps=False --exclude="openh264*"
+          install
+          vala meson ninja-build gcc make python3 pkgconf-pkg-config
+          glib2-devel gtk4-devel libadwaita-devel gtksourceview5-devel
+          json-glib-devel jsonrpc-glib-devel libpanel-devel libgee-devel
+          vte291-gtk4-devel gettext-devel python3-cairo python3-gobject
+
+      - name: Show toolchain versions
+        run: |
+          valac --version
+          meson --version
+          pkg-config --modversion gtk4 libadwaita-1 libpanel-1 gtksourceview-5 vte-2.91-gtk4
+
+      - name: Setup
+        run: meson setup builddir
+
+      - name: Compile
+        run: meson compile -C builddir 2>&1 | tee build-output.log
+
+      # Единственная верификация в проекте — компиляция; сводка предупреждений
+      # valac попадает в summary PR, чтобы деградация была видна сразу.
+      # Считаем только предупреждения, относящиеся к .vala (валa-фаза и сгенерированный
+      # из Vala C-код); C-мусор из tree-sitter парсеров в статистику не идём.
+      - name: Warnings summary
+        if: always()
+        run: |
+          if [ ! -f build-output.log ]; then
+            echo "Сборка не дошла до компиляции — см. лог шагов." | tee -a "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+          n=$(grep -cE '^\.\./src/.*\.vala:[0-9]+.*warning:' build-output.log || true)
+          {
+            echo "### Предупреждения, относящиеся к Vala-коду: $n"
+            echo '```'
+            grep -E '^\.\./src/.*\.vala:[0-9]+.*warning:' build-output.log | sed 's|^\.\./||' || true
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"

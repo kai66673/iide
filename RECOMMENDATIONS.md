@@ -165,3 +165,12 @@
   стоит проверить реальный путь инициализации.
 - PythonIndenter.vala:94,101 и BaseTreeSitterHighlighter.vala:494-506 gcc:
   «statement with no effect» — вероятно, потерянные выражения (ожидались вызовы/присваивания).
+- symbols/export_glyph.py пишет symbols.css В ДЕРЕВО ИСХОДНИКОВ (relative to script dir),
+  а symbols/symbols.css — отслеживаемый git файл; в custom_target объявлены только
+  gresource.xml и gen_icons. Сейчас побайтово совпадает → git status чист, но при
+  рассогласовании генерации каждое дерево сборки будет грязным, а на read-only
+  дереве (sandbox/CI) сборка падает. Починка: писать в build-каталог, добавить в
+  output custom_target, symbols.css из трекинга убрать.
+- CI-зависимости кодогена: export_glyph.py — PEP 723 скрипт (uv shebang), но meson
+  зовёт его plain python3 → нужны системные python3-cairo и python3-gobject
+  (в workflow добавлены).
