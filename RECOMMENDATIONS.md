@@ -112,3 +112,56 @@
 `show_code_actions_menu` (SourceView.vala:918-921) ранне-возвращается, если на текущей строке нет диагностик. Из-за этого **source/refactor-действия не показываются**, если сервер отдаёт их и с пустыми диагностиками — например, ruff всегда отвечает «Fix all auto-fixable problems» и «Organize imports». Проверено харнессом: при `context.diagnostics: []` ruff возвращает 2 source-действия, clangd — 0 (регрессии нет).
 
 **Решение (когда понадобится):** слать запрос с пустым массивом диагностик, если `collect_raw_diagnostics_for_line` вернул `null`.
+
+---
+
+## Срез ревизии 26.11.2026
+
+### Закрыто в этом срезе
+
+- Предупреждения valac уровня Vala — нулевые (коммит «Чистка предупреждений valac»):
+  null-гейты в DocumentManager, удалён мёртвый LspWriteWaiter и недостижимый catch в
+  workspace/applyEdit (json-glib в vapi не бросает GLib.Error — проверка структуры через
+  get_node_type вместо try/catch), marks_service → get_mark_services() (массив не может
+  быть GObject-свойством), Predicate вместо экспериментальной локальной функции,
+  удалены мёртвый on_ui_cursor_changed (DapCallStack) и неиспользуемая переменная
+  (LspServerRow), убран debug `message("MIME: ...")` (SourceView:530, п3-P3#10 закрыт).
+- CI: `.github/workflows/build.yml` (Fedora:latest: vala 0.56, gtk4 4.24, libpanel 1.10.4).
+  Нюанс окружения: openh264 (weak-dep gstreamer) не качается с некоторых зеркал →
+  `--setopt=install_weak_deps=False --exclude="openh264*"`.
+- Репозиторий: .gitignore заполнен; repomix-output.* и test_temp/ сняты с трекинга
+  (файлы на диске). История не переписана: в истории остаются blob'ы .cache/clangd
+  до 23 МБ (~.git 843 МБ) — очистка только через git filter-repo + force-push.
+- A/B смоук: стартовые Gtk-CRITICAL (6× box_append, 6× create_pango_layout,
+  1× image_set_from_icon_name) существовали ДО чистки — не регрессия, но и не норма:
+  это баги инициализации виджетов (повторный append, layout на не-виджете), требующие
+  отдельной починки.
+
+### Открытое из старого (проверено глазом, ни один пункт не тронут)
+
+- P0#2 утечки: во всём src/ ноль `connect_object`. Циклы: `SourceView.buffer.changed`
+  (SourceView.vala:158), лямбды `SourceDocument` на `buffer.insert_text/delete_range`
+  (держат сильный ref на документ; `~SourceView`/`~SourceDocument` нет вообще).
+  Каждая закрытая вкладка = утёкший редактор с графом.
+- P1#3: общая база `BaseRpcTransport` не сделана (RpcProcess/TcpProcess дублируют
+  фрейминг Content-Length, очереди записи, барьеры завершения).
+- P1#5: 4× TODO «handle changing state from preferences dialog» (application.vala).
+- P2#6/#7 god-классы: LspClient ~1800 строк, BaseTreeSitterHighlighter 924.
+- P2#8: захардкоженные tab_width=4/use_spaces=true (LspDocumentClient.vala:329).
+
+### Новое открытое (26.11.2026)
+
+- Deprecated-наследие GTK: Gtk.TreeView/TreeStore/CellRenderer целиком в
+  DapVariablesWidget и DapCallStackWidget (~38 упоминаний, из GTK5 уйдут),
+  gtk_widget_show/hide местами, translate_coordinates (ProjectView:316),
+  gtk_source_gutter_lines_get_line_yrange (3 гаттера).
+- metainfo.xml.in — нет, это пустой шаблон: example.org-URL, tld.vendor,
+  "No description", summary-заглушка. Flatpak-манифест: url file:///home/kai/Projects.
+  Для Flathub невалидно. po/LINGUAS пуст — переводов нет.
+- LoggerService: iide.log без ротации и лимита (каждая строка — отдельный append_to).
+- LspClientSyncer.add_change: пустой «TODO: merge changes» — неслиянные range-правки
+  на каждый батч в INCREMENTAL-режиме.
+- BaseTreeSitterHighlighter.vala:244 gcc: `result` may be used uninitialized —
+  стоит проверить реальный путь инициализации.
+- PythonIndenter.vala:94,101 и BaseTreeSitterHighlighter.vala:494-506 gcc:
+  «statement with no effect» — вероятно, потерянные выражения (ожидались вызовы/присваивания).
