@@ -13,7 +13,9 @@ public class Iide.DapToolbar : Gtk.Box {
     private Gtk.Button step_into_button;
     private Gtk.Button step_out_button;
 
-    private Gtk.Image start_continue_image;
+    // Удалено мёртвое поле start_continue_image: кнопки получают иконку через
+    // свойство icon_name (внутренний Image у Gtk.Button), а sync_ui_with_state
+    // звал set_from_icon_name на никогда не созданном Image — стартовый CRITICAL
     private bool is_populating_combo = false;
 
     public DapToolbar (WindowSession session) {
@@ -184,7 +186,7 @@ public class Iide.DapToolbar : Gtk.Box {
                 this.step_out_button.sensitive = false;
 
                 // Кнопка работает как запуск: ставим обычную иконку старта
-                this.start_continue_image.set_from_icon_name ("media-playback-start-symbolic");
+                this.start_continue_button.icon_name = "media-playback-start-symbolic";
                 this.start_continue_button.tooltip_text = "Start Debugging (F5)";
                 this.start_continue_button.remove_css_class ("suggested-action");
                 this.stop_button.remove_css_class ("destructive-action");
@@ -199,7 +201,7 @@ public class Iide.DapToolbar : Gtk.Box {
                 this.step_into_button.sensitive = false;
                 this.step_out_button.sensitive = false;
 
-                this.start_continue_image.set_from_icon_name ("media-playback-start-symbolic");
+                this.start_continue_button.icon_name = "media-playback-start-symbolic";
                 this.start_continue_button.remove_css_class ("suggested-action");
                 this.stop_button.add_css_class ("destructive-action"); // Кнопка Стоп горит предупреждающим красным
                 break;
@@ -216,7 +218,7 @@ public class Iide.DapToolbar : Gtk.Box {
                 this.step_out_button.sensitive = true;
 
                 // МEHЯEМ СEМАHТИКУ КHОПКИ: теперь это кнопка Продолжить (зеленый Adwaita-акцент)
-                this.start_continue_image.set_from_icon_name ("media-skip-forward-symbolic");
+                this.start_continue_button.icon_name = "media-skip-forward-symbolic";
                 this.start_continue_button.tooltip_text = "Continue Execution (F5)";
                 this.start_continue_button.add_css_class ("suggested-action");
                 this.stop_button.add_css_class ("destructive-action");

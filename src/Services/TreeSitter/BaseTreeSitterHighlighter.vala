@@ -10,7 +10,9 @@ public abstract class Iide.BaseTreeSitterHighlighter : Object {
 
     // GTK объекты
     protected GtkSource.Buffer buffer;
-    public SourceView view;
+    // unowned: highlighter владеется деревом view (через TreeSitterDocument),
+    // сильная back-link ссылка на view — цикл view→document→highlighter→view
+    public unowned SourceView view;
 
     //  private TreeSitter.Input ts_input;
 

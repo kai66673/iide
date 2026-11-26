@@ -4,6 +4,10 @@ public class Iide.BreadcrumbFileSegment : Gtk.Box {
     private Gtk.MenuButton button;
     private SourceView source_view;
 
+    // popover владеет button; поле нужно, чтобы обработчик не захватывал
+    // локальную переменную strong-блоком (пинновал сегмент и весь редактор)
+    private unowned Gtk.Popover? popover = null;
+
     public BreadcrumbFileSegment (SourceView source_view, GLib.File file, bool is_file) {
         Object (orientation: Gtk.Orientation.HORIZONTAL, spacing: 0);
         this.source_view = source_view;
@@ -20,15 +24,19 @@ public class Iide.BreadcrumbFileSegment : Gtk.Box {
         button.always_show_arrow = true;
 
         var label = new Gtk.Label (file.get_basename ());
-        button.set_child (label);
 
         if (is_file) {
-            // В VSCode обычно иконка и текст вместе, можно использовать Box
+            // У VSCode обычно иконка и текст вместе. ВАЖНО: label должен попасть
+            // в button ровно один раз и сразу внутри btn_box — раньше label сначала
+            // становился child у button, а затем append в btn_box падал
+            // с 'gtk_box_append: parent != NULL' и сегмент рендерился криво.
             var btn_box = new Gtk.Box (Gtk.Orientation.HORIZONTAL, 4);
             var icon = new Gtk.Image.from_icon_name ("text-x-generic-symbolic");
             btn_box.append (icon);
             btn_box.append (label);
             button.set_child (btn_box);
+        } else {
+            button.set_child (label);
         }
 
         this.append (button);
@@ -41,39 +49,45 @@ public class Iide.BreadcrumbFileSegment : Gtk.Box {
     }
 
     private void setup_popover () {
-        var popover = new Gtk.Popover ();
-        button.set_popover (popover);
+        var pop = new Gtk.Popover ();
+        button.set_popover (pop);
+        popover = pop;
+        button.notify["active"].connect (on_popover_active);
+    }
 
-        button.notify["active"].connect (() => {
-            if (button.active) {
-                var navigator = new BreadcrumbFileNavigator (this.source_view.session, this.file);
+    private void on_popover_active () {
+        if (!button.active || popover == null)
+            return;
 
-                popover.set_child (navigator);
-                navigator.search_entry.set_key_capture_widget (popover);
+        var navigator = new BreadcrumbFileNavigator (this.source_view.session, this.file);
 
-                navigator.close_requested.connect (() => {
-                    button.active = false;
-                    source_view.grab_focus ();
-                });
-            }
+        popover.set_child (navigator);
+        navigator.search_entry.set_key_capture_widget (popover);
+
+        navigator.close_requested.connect (() => {
+            button.active = false;
+            source_view.grab_focus ();
         });
     }
 
     private void setup_file_outline_popover () {
-        var popover = new Gtk.Popover ();
-        button.set_popover (popover);
+        var pop = new Gtk.Popover ();
+        button.set_popover (pop);
+        popover = pop;
+        button.notify["active"].connect (on_outline_active);
+    }
 
-        button.notify["active"].connect (() => {
-            if (button.active) {
-                var navigator = new BreadcrumbSymbolOutlineNavigator (source_view);
+    private void on_outline_active () {
+        if (!button.active || popover == null)
+            return;
 
-                popover.set_child (navigator);
-                navigator.search_entry.set_key_capture_widget (popover);
-                navigator.close_requested.connect (() => {
-                    button.active = false;
-                    source_view.grab_focus ();
-                });
-            }
+        var navigator = new BreadcrumbSymbolOutlineNavigator (source_view);
+
+        popover.set_child (navigator);
+        navigator.search_entry.set_key_capture_widget (popover);
+        navigator.close_requested.connect (() => {
+            button.active = false;
+            source_view.grab_focus ();
         });
     }
 }
@@ -82,6 +96,9 @@ public class Iide.BreadcrumbSymbolSegment : Gtk.Box {
     private SourceView source_view;
     private Gtk.MenuButton button;
     private SourceNodeItem current_item;
+
+    // см. комментарий к BreadcrumbFileSegment.popover
+    private unowned Gtk.Popover? popover = null;
 
     public BreadcrumbSymbolSegment (SourceView source_view, SourceNodeItem item) {
         Object (orientation: Gtk.Orientation.HORIZONTAL, spacing: 0);
@@ -104,26 +121,33 @@ public class Iide.BreadcrumbSymbolSegment : Gtk.Box {
     }
 
     private void setup_popover () {
-        var popover = new Gtk.Popover ();
-        button.set_popover (popover);
+        var pop = new Gtk.Popover ();
+        button.set_popover (pop);
+        popover = pop;
+        button.notify["active"].connect (on_popover_active);
+    }
 
-        button.notify["active"].connect (() => {
-            if (button.active) {
-                if (this.current_item.siblings.size < 2) {
-                    button.active = false;
-                    this.source_view.goto ((int) this.current_item.start_point.row,
-                                           (int) this.current_item.start_point.column);
-                } else {
-                    var navigator = new BreadcrumbTreeSitterNavigator (source_view, this.current_item.siblings);
-                    popover.set_child (navigator);
+    private void on_popover_active () {
+        if (!button.active)
+            return;
 
-                    navigator.search_entry.set_key_capture_widget (popover);
-                    navigator.close_requested.connect (() => {
-                        button.active = false;
-                        source_view.grab_focus ();
-                    });
-                }
-            }
+        if (this.current_item.siblings.size < 2) {
+            button.active = false;
+            this.source_view.goto ((int) this.current_item.start_point.row,
+                                   (int) this.current_item.start_point.column);
+            return;
+        }
+
+        if (popover == null)
+            return;
+
+        var navigator = new BreadcrumbTreeSitterNavigator (source_view, this.current_item.siblings);
+        popover.set_child (navigator);
+
+        navigator.search_entry.set_key_capture_widget (popover);
+        navigator.close_requested.connect (() => {
+            button.active = false;
+            source_view.grab_focus ();
         });
     }
 }

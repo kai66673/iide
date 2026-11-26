@@ -138,9 +138,8 @@ public class Iide.DocumentManager : GLib.Object {
                     file_loader.load_async.end (res);
                     panel_widget = new Iide.TextView (file, buffer, this.session);
 
-                    panel_widget.buffer_saved.connect (() => {
-                        panel_widget.source_view.lsp_document_client?.save_document ();
-                    });
+                    // buffer_saved теперь привязан внутри самого TextView
+                    // (weak), strong-лямбда здесь держала бы вкладку навечно.
 
                     if (pos == null) {
                         this.session.window.grid.add (panel_widget);

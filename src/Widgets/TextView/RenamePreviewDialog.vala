@@ -2,7 +2,9 @@
 */
 
 public class Iide.RenamePreviewDialog : Gtk.Window {
-    private SourceView source_view;
+    // unowned: диалог живет в поле SourceView.rename_preview_dialog, сильная
+    // обратная ссылка на view — цикл; диалог гарантированно короче view
+    private unowned SourceView source_view;
 
     // Выбранные (отмеченные галочкой) файлы и их правки
     public signal void confirmed (Gee.HashMap<string, Gee.ArrayList<LspTextEdit>> selected_edits);
@@ -10,6 +12,10 @@ public class Iide.RenamePreviewDialog : Gtk.Window {
     private Gee.HashMap<string, Gtk.CheckButton> check_buttons =
         new Gee.HashMap<string, Gtk.CheckButton> ();
     private Gtk.Button apply_button;
+
+    // edits_map в поле: лямбда apply_button не захватывает strong-параметр,
+    // иначе кнопка внутри диалога через замыкание пинала бы сам диалог навечно
+    private Gee.HashMap<string, Gee.ArrayList<LspTextEdit>> edits_map;
 
     public RenamePreviewDialog (Gtk.Window parent_window, SourceView view, Gee.HashMap<string, Gee.ArrayList<LspTextEdit>> edits_map) {
         Object (
@@ -21,6 +27,7 @@ public class Iide.RenamePreviewDialog : Gtk.Window {
         );
 
         this.source_view = view;
+        this.edits_map = edits_map;
         this.add_css_class ("code-actions-popup");
 
         var box = new Gtk.Box (Gtk.Orientation.VERTICAL, 12) {
@@ -138,7 +145,7 @@ public class Iide.RenamePreviewDialog : Gtk.Window {
             var selected = new Gee.HashMap<string, Gee.ArrayList<LspTextEdit>> ();
             foreach (var entry in this.check_buttons.entries) {
                 if (entry.value.active) {
-                    selected.set (entry.key, edits_map.get (entry.key));
+                    selected.set (entry.key, this.edits_map.get (entry.key));
                 }
             }
             this.confirmed (selected);

@@ -22,7 +22,9 @@
 
 
 public class Iide.SaveDelegate : Panel.SaveDelegate {
-    private Iide.TextView view;
+    // unowned: делегат живёт внутри Panel-обвязки самого TextView; сильная
+    // обратная ссылка на TextView замкнула бы цикл и вкладка не освобождалась бы
+    private unowned Iide.TextView view;
     public SaveDelegate (Iide.TextView view) {
         Object ();
         this.view = view;
@@ -58,6 +60,11 @@ public class Iide.TextView : Panel.Widget {
     private Iide.SettingsService settings;
     private EditorStatusBar editor_status_bar;
 
+    // unowned-поля для синхронизации скролла карты: замыкание на value-changed
+    // не должно strong-держать гайки (ими владеют scrolledwindow и map)
+    private unowned Gtk.Adjustment main_adjustment;
+    private unowned Gtk.Adjustment map_adjustment;
+
     public WindowSession session;
     public string uri { get; private set; }
 
@@ -80,12 +87,12 @@ public class Iide.TextView : Panel.Widget {
             buffer.set_style_scheme (style_manager.get_scheme ("Adwaita-dark"));
         }
 
+        // ВАЖНО: лямбды valac превращает в g_signal_connect_object только когда
+        // захвачен один this. Локальные buffer/style_manager/adw_style_manager
+        // захватывались strong-блоком — синглтон StyleManager навечно держал бы
+        // буфер закрытой вкладки. Тело вынесено в метод, лямбда ловит только this.
         adw_style_manager.notify["color-scheme"].connect (() => {
-            if (adw_style_manager.color_scheme == Adw.ColorScheme.FORCE_LIGHT) {
-                buffer.set_style_scheme (style_manager.get_scheme ("Adwaita"));
-            } else {
-                buffer.set_style_scheme (style_manager.get_scheme ("Adwaita-dark"));
-            }
+            apply_color_scheme ();
         });
 
         source_view = new SourceView (this.session, uri, buffer);
@@ -163,12 +170,23 @@ public class Iide.TextView : Panel.Widget {
         save_delegate = new Iide.SaveDelegate (this);
         modified = false;
 
+        // Привязка save через собственный сигнал: раньше DocumentManager вешал
+        // на buffer_saved лямбду с strong-захватом panel_widget — TextView
+        // держал сам себя через собственный сигнал и не умирал никогда.
+        buffer_saved.connect (() => {
+            source_view.lsp_document_client?.save_document ();
+        });
+
         buffer.modified_changed.connect_after (() => {
-            modified = buffer.get_modified ();
+            // обращаемся к буферу через поле source_view, а не через локальный
+            // параметр buffer: тогда лямбда захватывает только this и valac
+            // ставит connect_object (weak + авто-отключение)
+            modified = ((GtkSource.Buffer) source_view.buffer).get_modified ();
         });
         buffer.notify["cursor-position"].connect (() => {
+            var src_buffer = (GtkSource.Buffer) source_view.buffer;
             Gtk.TextIter insert, selection;
-            buffer.get_selection_bounds (out insert, out selection);
+            src_buffer.get_selection_bounds (out insert, out selection);
 
             // 1. Обновляем позицию
             int line = insert.get_line ();
@@ -183,20 +201,22 @@ public class Iide.TextView : Panel.Widget {
             editor_status_bar.update_mode (source_view.overwrite);
         });
 
-        var main_adj = scroll.get_vadjustment ();
-        var map_adj = source_map.get_vadjustment ();
+        this.main_adjustment = scroll.get_vadjustment ();
+        this.map_adjustment = source_map.get_vadjustment ();
 
         // 1. Связываем только ЗНАЧЕНИЕ (позицию), но не масштаб
         // Мы используем формулу пропорции, чтобы слайдер стоял там, где нужно
-        main_adj.value_changed.connect (() => {
+        // (поля unowned + единственный capture=this → weak-привязка)
+        main_adjustment.value_changed.connect (() => {
+            var map_adj = this.map_adjustment;
             // Рассчитываем процент прокрутки
-            double main_range = main_adj.upper - main_adj.page_size;
+            double main_range = this.main_adjustment.upper - this.main_adjustment.page_size;
             double map_range = map_adj.upper - map_adj.page_size;
 
             // Проверяем, что нам есть куда скроллить в основном вьювере
             if (main_range > 0) {
                 // 1. Рассчитываем процент прокрутки (от 0.0 до 1.0)
-                double percentage = main_adj.value / main_range;
+                double percentage = this.main_adjustment.value / main_range;
 
                 // 2. Рассчитываем целевое значение для миникарты
                 double target_value = percentage * map_range;
@@ -239,6 +259,17 @@ public class Iide.TextView : Panel.Widget {
         });
 
         this.add_controller (esc_key_ctrl);
+    }
+
+    // Применение светлой/тёмной схемы стиля к буферу вкладки.
+    private void apply_color_scheme () {
+        var style_manager = GtkSource.StyleSchemeManager.get_default ();
+        var src_buffer = (GtkSource.Buffer) source_view.buffer;
+        if (Adw.StyleManager.get_default ().color_scheme == Adw.ColorScheme.FORCE_LIGHT) {
+            src_buffer.set_style_scheme (style_manager.get_scheme ("Adwaita"));
+        } else {
+            src_buffer.set_style_scheme (style_manager.get_scheme ("Adwaita-dark"));
+        }
     }
 
     public void show_search_bar () {

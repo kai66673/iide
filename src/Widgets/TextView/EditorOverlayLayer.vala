@@ -19,6 +19,11 @@ public class Iide.EditorOverlayLayer : Gtk.DrawingArea {
     // Внутренний кэш зон кликов и тултипов
     private Gee.ArrayList<ClickableIndicator?> visible_indicators;
 
+    // unowned: жестом владеет source_view (add_controller); поле нужно, чтобы
+    // лямбда pressed не захватывала локальную переменную (сильный замыкающий
+    // блок на жесте вью пинил бы этот оверлей-холст навсегда)
+    private unowned Gtk.GestureClick click_gesture;
+
     private Iide.SettingsService settings;
 
     public EditorOverlayLayer (SourceView view) {
@@ -54,6 +59,9 @@ public class Iide.EditorOverlayLayer : Gtk.DrawingArea {
 
             // Инициализируем жест клика НА ТЕКСТОВОМ ПОЛЕ, а не на холсте
             var click_gesture = new Gtk.GestureClick ();
+            // unowned-копия в поле: владеет view через add_controller ниже,
+            // лямбда ниже ходит в this.click_gesture (единственный capture — this)
+            this.click_gesture = click_gesture;
 
             // КРИТИЧЕСКИЙ ШАГ ДЛЯ GTK 4:
             // Настраиваем фазу распространения. CAPTURE означает, что наше текстовое поле 
@@ -79,7 +87,7 @@ public class Iide.EditorOverlayLayer : Gtk.DrawingArea {
 
                         // Останавливаем дальнейшее распространение клика в GTK, 
                         // чтобы под плашкой случайно не выделился текст или не прыгнул курсор
-                        click_gesture.set_state (Gtk.EventSequenceState.CLAIMED);
+                        this.click_gesture.set_state (Gtk.EventSequenceState.CLAIMED);
                         return; 
                     }
                 }
@@ -88,7 +96,7 @@ public class Iide.EditorOverlayLayer : Gtk.DrawingArea {
                 // Благодаря фазе CAPTURE и отсутствию CLAIMED, GTK 4 передаст этот клик 
                 // в штатный движок GtkSourceView. Выделение текста, курсор, зум и скролл 
                 // продолжат работать идеально и нативно!
-                click_gesture.set_state (Gtk.EventSequenceState.DENIED);
+                this.click_gesture.set_state (Gtk.EventSequenceState.DENIED);
             });
 
             // Добавляем контроллер на физический виджет текстового поля

@@ -8,12 +8,15 @@ public class Iide.TreeSitterDocument: SourceDocument {
         base(source_view);
         this.ts_highlighter = ts_highlighter;
 
+        // this.ts_highlighter — поле, а не параметр-локальная: лямбда захватывает
+        // только this → valac ставит connect_object; иначе buffer (владеет view)
+        // через strong-блок держал бы highlighter, а тот — весь редактор
         source_view.buffer.insert_text.connect ((ref location, text, len) => {
-            ts_highlighter.on_insert_text (location,  text, len);
+            this.ts_highlighter.on_insert_text (location,  text, len);
         });
 
         source_view.buffer.delete_range.connect ((start, end) => {
-            ts_highlighter.on_delete_range (start, end);
+            this.ts_highlighter.on_delete_range (start, end);
         });
 
 

@@ -2,7 +2,9 @@
 */
 public class Iide.CodeActionsPopup : Gtk.Window {
     private Gtk.ListBox list_box;
-    private SourceView source_view;
+    // unowned: попап живет в поле SourceView.code_actions_popup — strong
+    // back-link на view замыкал цикл, и вкладка не освобождалась
+    private unowned SourceView source_view;
     private LoggerService logger;
     private bool applied = false;
 
@@ -50,8 +52,17 @@ public class Iide.CodeActionsPopup : Gtk.Window {
                 // list_box.row_activated может не срабатывать на один клик,
                 // поэтому дублируем срабатывание через GestureClick. [INDEX]
                 var gesture = new Gtk.GestureClick ();
-                gesture.released.connect ((n, x, y) => {
-                    this.apply_action.begin (action);
+                // берём экшен из данных строки через widget жеста: лямбда
+                // без локальных strong-захватов (только this) — иначе замыкание
+                // на встроенном gesture пинало весь попап вместе с results
+                gesture.released.connect ((g, n, x, y) => {
+                    var action_row = g.get_widget () as Gtk.ListBoxRow;
+                    if (action_row == null)
+                        return;
+                    var act = action_row.get_data<Iide.LspCodeActionItem> ("action-item");
+                    if (act == null)
+                        return;
+                    this.apply_action.begin (act);
                 });
                 row.add_controller (gesture);
 
