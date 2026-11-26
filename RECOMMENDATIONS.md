@@ -190,3 +190,32 @@
 - CI-зависимости кодогена: export_glyph.py — PEP 723 скрипт (uv shebang), но meson
   зовёт его plain python3 → нужны системные python3-cairo и python3-gobject
   (в workflow добавлены).
+
+## Срез ревизии 27.11.2026
+
+### Выяснено: перетаскивание панелей в сплит-индикаторы — косяк Hyprland, не iide
+
+Прежняя закрытая задача «DnD/split — upstream issue» наконец добита конкретным диагнозом.
+
+- Механизм DnD в libpanel 1.10.4 полностью живой: drag-source — ручка
+  перетаскивания в заголовке фрейма (`panel-frame-header-bar.ui/.c`, GtkDragSource,
+  кидает контентом `PanelWidget`, + paintable-иконка) и полноценные drop-обработчики
+  в crosshair-зонах (`PanelDropControls.on_drop_target_drop_cb` — перестройка
+  колонок/строк `PanelGrid`, вставка фреймов в `PanelPaned`-области дока,
+  при этом часть хелперов сетки приватные: `_panel_grid_get_position`,
+  `_panel_grid_insert_column`). В iide собственного DnD-кода нет вообще — всё
+  делегировано libpanel.
+- A/B на идентичном стеке (Arch, GTK 4.24.1, libpanel 1.10.4): на cosmic-comp
+  (COSMIC) drag в сплит-индикаторы работает, на Hyprland 0.56.2 — нет.
+- Причина подтверждена upstream-фиксом: hyprwm/Hyprland#16808
+  «protocols/data-device: fix drag-and-drop action negotiation» — Hyprland выбирал
+  DnD-действие только по source, игнорировал preference приёмника и не уведомлял
+  source о выборе; из-за этого GTK-пара source↔drop-target не сходилась. PR влит
+  в master 13.11.2026, тег v0.57.2 (09.11.2026) его НЕ содержит — архийный
+  hyprland 0.57.2-2 собран из этого тега без патчей. Фикс приедет с 0.57.3+.
+- Действий на стороне iide не требуется (меню-альтернатива сплитам сознательно
+  отклонена: геометрию «между какими фреймами и по какой оси» меню не выражает).
+  После обновления hyprland проверка: `libpanel-example` (из пакета libpanel) —
+  drag за ручку ≡ в заголовке фрейма до появления индикаторов.
+- Попутно в CI добавлены `paths-ignore` (`**.md`, `po/**`) для push/PR —
+  прогоны только для изменений, влияющих на сборку.

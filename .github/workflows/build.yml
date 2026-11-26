@@ -3,8 +3,11 @@ name: CI
 on:
   push:
     branches: [main]
+    # изменения только в документации/переводах ничего в сборке не меняют — CI не гоняем
+    paths-ignore: ['**.md', 'po/**']
   pull_request:
     branches: [main]
+    paths-ignore: ['**.md', 'po/**']
   workflow_dispatch:
 
 # новый пуш в ту же ветку отменяет предыдущий сборочный прогон
