@@ -139,7 +139,7 @@ public class Iide.DocumentManager : GLib.Object {
                     panel_widget = new Iide.TextView (file, buffer, this.session);
 
                     panel_widget.buffer_saved.connect (() => {
-                        panel_widget.source_view.lsp_document_client.save_document ();
+                        panel_widget.source_view.lsp_document_client?.save_document ();
                     });
 
                     if (pos == null) {
@@ -202,8 +202,8 @@ public class Iide.DocumentManager : GLib.Object {
         if (doc == null)
             return;
 
-        doc.source_view.lsp_document_client.send_did_close ();
-        (doc as Panel.Widget).force_close ();
+        doc.source_view?.lsp_document_client?.send_did_close ();
+        (doc as Panel.Widget)?.force_close ();
     }
 
     /**

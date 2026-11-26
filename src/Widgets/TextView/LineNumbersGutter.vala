@@ -71,7 +71,7 @@ public class Iide.LineNumbersGutter : GtkSource.GutterRenderer {
         var active_render_services = new Gee.ArrayList<TextLineMarkService> ();
         var source_buffer = view.get_buffer () as GtkSource.Buffer;
 
-        foreach (var service in this.session.marks_service) {
+        foreach (var service in this.session.get_mark_services()) {
             // Опрашиваем GtkSource.Buffer на предмет категории текущего сервиса
             var marks = source_buffer.get_source_marks_at_line (current_line_iter.get_line (), service.category);
             

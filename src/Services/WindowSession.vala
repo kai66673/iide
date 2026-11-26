@@ -16,9 +16,13 @@ public class Iide.WindowSession : Object {
     public GLib.File current_project_root { get; set; }
 
     // Convenience-методы
-    public owned string get_project_name () { return current_project_root.get_basename (); }
-    public owned string get_project_root_path () { return current_project_root.get_path (); }
-    public owned GLib.File get_iide_dir () { return current_project_root.get_child (".iide"); }
+    public string get_project_name () { return current_project_root.get_basename (); }
+    public string get_project_root_path () { return current_project_root.get_path (); }
+    public GLib.File get_iide_dir () { return current_project_root.get_child (".iide"); }
+
+    // Список сервисов пометок (bookmarks + breakpoints) — метод, т.к. свойство
+    // с массивным типом в GLib.Object не может быть GObject-свойством (предупреждение valac)
+    public TextLineMarkService[] get_mark_services () { return marks_services; }
 
     // Сервисы проекта
     public LoggerService logger_service { get; construct set; }
@@ -31,7 +35,7 @@ public class Iide.WindowSession : Object {
     public DapService dap_service { get; construct set; }
     public TextLineMarkService bookmark_service { get; construct set; }
     public TextLineMarkService breakpoint_service { get; construct set; }
-    public TextLineMarkService[] marks_service { get; private set; }
+    private TextLineMarkService[] marks_services;
     public FileOperationsService file_operations_service { get; construct set; }
 
     // GTK-виджеты проекта
@@ -62,7 +66,7 @@ public class Iide.WindowSession : Object {
 
         this.breakpoint_service = new BreakpointsLineService (this, "breakpoints");
 
-        this.marks_service = { this.bookmark_service, this.breakpoint_service };
+        this.marks_services = { this.bookmark_service, this.breakpoint_service };
 
         this.file_operations_service = new FileOperationsService (this);
 

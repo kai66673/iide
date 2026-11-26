@@ -42,7 +42,6 @@ namespace Iide {
 
             // 2. Клик по строке функции (выбор кадра стека)
             this.tree_view.row_activated.connect (this.on_stack_row_clicked);
-            //  this.tree_view.cursor_changed.connect (this.on_ui_cursor_changed);
 
             // СИГНАЛЫ БЭКЕНДА
             var dap_service = this.session.dap_service;
@@ -158,30 +157,8 @@ namespace Iide {
 
         /**
          * ОБРАБОТЧИК ОДИНOЧНОГO КЛИКА И НАВИГАЦИИ С КЛАВИАТУРЫ
+         * (отключён: курсор в дереве больше не переключает кадр — навигация идёт по двойному клику)
          */
-        private void on_ui_cursor_changed () {
-            var selection = this.tree_view.get_selection ();
-            Gtk.TreeModel model;
-            Gtk.TreeIter iter;
-
-            // Вытаскиваем итератор текущей выделенной пользователем строки
-            if (selection.get_selected (out model, out iter)) {
-                GLib.Object raw_obj;
-                this.tree_store.get (iter, 1, out raw_obj, -1);
-
-                var frame = raw_obj as DapStackFrame;
-                
-                // Переключаем контекст, только если выделили честный кадр стека (функцию)
-                if (frame != null && frame.file_uri != "") {
-                    
-                    // Железобетонная развязка Си-стека через Idle.add
-                    Idle.add_full (Priority.DEFAULT, () => {
-                        this.session.dap_service.switch_active_frame (frame);
-                        return Source.REMOVE;
-                    });
-                }
-            }
-        }
 
         private void on_session_state_changed (DapSessionState state, DapSessionState old_state) {
             if (state == DapSessionState.EMPTY) {

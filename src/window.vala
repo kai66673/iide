@@ -381,7 +381,7 @@ public class Iide.Window : Panel.DocumentWorkspace {
     }
 
     private void do_close () {
-        foreach (var mark_service in this.session.marks_service) {
+        foreach (var mark_service in this.session.get_mark_services()) {
             mark_service.write_cache_to_json_file ();
         }
 

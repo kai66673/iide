@@ -123,9 +123,9 @@ public class Iide.NavigationHistoryService : Object {
      */
     public void remove_file_uri (string uri, bool recursive) {
         string prefix = uri + "/";
-        bool matches (string point_uri) {
+        Predicate<string> matches = (point_uri) => {
             return point_uri == uri || (recursive && point_uri.has_prefix (prefix));
-        }
+        };
 
         var new_back = new LinkedList<NavigationPoint> ();
         foreach (var point in back_stack) {

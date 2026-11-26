@@ -74,7 +74,7 @@ public class Iide.ProjectManager : Object {
 
         this.restore_session_and_panels ();
 
-        foreach (var mark_service in this.session.marks_service) {
+        foreach (var mark_service in this.session.get_mark_services()) {
             mark_service.init_project (settings.current_project_path);
             mark_service.refresh_all_documents_marks ();
         }
@@ -128,7 +128,7 @@ public class Iide.ProjectManager : Object {
         file_cache.clear ();
         text_file_cache.clear ();
         settings.current_project_path = "";
-        foreach (var mark_service in this.session.marks_service) {
+        foreach (var mark_service in this.session.get_mark_services()) {
             mark_service.write_cache_to_json_file ();
         }
         this.save_session_and_clear_panels ();

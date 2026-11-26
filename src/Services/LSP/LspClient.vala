@@ -60,18 +60,6 @@ public struct Iide.LspTaskInfo {
     public int percentage; // -1 если процентов нет
 }
 
-/**
- * Легковесный контейнер для сохранения асинхронного колбэка
- */
-private class Iide.LspWriteWaiter : GLib.Object {
-    // Сохраняем делегат как owned, чтобы Vala корректно управляла памятью контекста
-    public SourceFunc? callback { get; set; }
-
-    public LspWriteWaiter (owned SourceFunc? cb) {
-        this.callback = (owned) cb;
-    }
-}
-
 public class Iide.LspClient : Object {
     public class PendingOpen {
         public string uri;
@@ -516,25 +504,27 @@ public class Iide.LspClient : Object {
         bool applied = false;
         string reason = "";
 
-        try {
-            if (root.has_member ("params")) {
-                var params_obj = root.get_object_member ("params");
-                if (params_obj.has_member ("edit")) {
-                    var edit = params_obj.get_member ("edit");
-                    if (edit.get_node_type () == Json.NodeType.OBJECT) {
-                        var edits_map = this.parse_workspace_edit (edit);
-                        if (edits_map != null && !edits_map.is_empty) {
-                            foreach (var entry in edits_map.entries) {
-                                this.session.document_manager.apply_edits_to_file (entry.key, entry.value);
-                            }
-                            applied = true;
-                        }
+        // Проверяем структуру вручную: методы json-glib в vapi не бросают GLib.Error,
+        // поэтому try/catch здесь был бы ложной безопасностью (unreachable catch).
+        var params_node = root.get_member ("params");
+        if (params_node != null && params_node.get_node_type () == Json.NodeType.OBJECT) {
+            var params_obj = params_node.get_object ();
+            var edit = params_obj.get_member ("edit");
+            if (edit != null && edit.get_node_type () == Json.NodeType.OBJECT) {
+                var edits_map = this.parse_workspace_edit (edit);
+                if (edits_map != null && !edits_map.is_empty) {
+                    foreach (var entry in edits_map.entries) {
+                        this.session.document_manager.apply_edits_to_file (entry.key, entry.value);
                     }
+                    applied = true;
                 }
+            } else {
+                reason = "missing or malformed 'edit' member";
+                this.logger.error ("LSP", "workspace/applyEdit from '%s': %s".printf (this.name (), reason));
             }
-        } catch (GLib.Error e) {
-            reason = e.message;
-            this.logger.error ("LSP", "workspace/applyEdit from '%s' failed: %s".printf (this.name (), e.message));
+        } else {
+            reason = "missing or malformed 'params' member";
+            this.logger.error ("LSP", "workspace/applyEdit from '%s': %s".printf (this.name (), reason));
         }
 
         result.set_boolean_member ("applied", applied);

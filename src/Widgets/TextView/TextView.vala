@@ -265,7 +265,7 @@ public class Iide.TextView : Panel.Widget {
             file.replace_contents (text.data, null, false, GLib.FileCreateFlags.NONE, null);
             ((GtkSource.Buffer) source_view.buffer).set_modified (false);
             buffer_saved ();
-            foreach (var mark_service in this.session.marks_service) {
+            foreach (var mark_service in this.session.get_mark_services()) {
                 mark_service.update_buffer_marks (this.uri, this.source_view.buffer);
             }
             return true;

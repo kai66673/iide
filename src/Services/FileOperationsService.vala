@@ -92,7 +92,7 @@ public class Iide.FileOperationsService : GLib.Object {
         yield this.session.lsp_service.notify_did_rename_files (old_uri, new_uri);
 
         // 9. Пересобираем состояние, привязанное к URI файла
-        foreach (var mark_service in this.session.marks_service) {
+        foreach (var mark_service in this.session.get_mark_services()) {
             mark_service.move_marks_uri (old_uri, new_uri);
         }
         this.session.navigation_history_service.rewrite_file_uri (old_uri, new_uri);
@@ -186,7 +186,7 @@ public class Iide.FileOperationsService : GLib.Object {
         }
 
         // 5. Убираем состояние, привязанное к URI удаляемых элементов
-        foreach (var mark_service in this.session.marks_service) {
+        foreach (var mark_service in this.session.get_mark_services()) {
             mark_service.remove_marks_uri (uri, is_directory);
         }
         this.session.navigation_history_service.remove_file_uri (uri, is_directory);

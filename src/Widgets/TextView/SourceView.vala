@@ -251,7 +251,7 @@ public class Iide.SourceView : GtkSource.View {
         motion_ctrl.motion.connect (this.on_textview_motion);
         this.add_controller (motion_ctrl);
 
-        foreach (var mark_service in this.session.marks_service) {
+        foreach (var mark_service in this.session.get_mark_services()) {
             mark_service.apply_marks_to_buffer (this.uri, this.buffer);
         }
     }
@@ -527,7 +527,6 @@ public class Iide.SourceView : GtkSource.View {
         var file = GLib.File.new_for_uri (uri);
 
         string mime_type = mime_type_for_file (file);
-        message ("MIME: _ " + mime_type);
 
         language = manager.guess_language (file.get_path (), mime_type);
 
