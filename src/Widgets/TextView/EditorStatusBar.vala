@@ -1,5 +1,7 @@
 public class Iide.EditorStatusBar : Gtk.Box {
-    private SourceView source_view;
+    // unowned: view — сосед по дереву TextView; сильная back-link ссылка
+    // вместе с weak-обработчиками оставляла висячие графы при закрытии вкладки
+    private unowned SourceView source_view;
     private Gtk.Label pos_label;
     private Gtk.Label mode_label;
 
@@ -8,6 +10,10 @@ public class Iide.EditorStatusBar : Gtk.Box {
     private Gtk.Stack left_stack;
     private BreadcrumbsBar breadcrumps_bar;
     private FindBar find_bar;
+
+    // unowned: скролл принадлежит left_stack; лямбда на notify буфера не должна
+    // strong-держать его, иначе статус-бар с редактором не освобождались бы
+    private unowned Gtk.ScrolledWindow breadcrumbs_scroll;
 
 
     public EditorStatusBar (SourceView source_view) {
@@ -30,6 +36,7 @@ public class Iide.EditorStatusBar : Gtk.Box {
         // Оборачиваем крошки в скрытый скролл!
         // ===================================================================
         var breadcrumbs_scroll = new Gtk.ScrolledWindow ();
+        this.breadcrumbs_scroll = breadcrumbs_scroll;
         breadcrumbs_scroll.set_child (this.breadcrumps_bar);
         
         // Отключаем видимость полос прокрутки, чтобы они не загромождали статус-бар [INDEX]
@@ -56,9 +63,10 @@ public class Iide.EditorStatusBar : Gtk.Box {
         });
 
         // На всякий случай также докручиваем принудительно через микро-задержку в Idle
+        // (через поле breadcrumbs_scroll — единственный capture этой лямбды это this)
         source_view.buffer.notify["cursor-position"].connect (() => {
             Idle.add (() => {
-                this.scroll_breadcrumbs_to_end (breadcrumbs_scroll);
+                this.scroll_breadcrumbs_to_end (this.breadcrumbs_scroll);
                 return Source.REMOVE;
             });
         });

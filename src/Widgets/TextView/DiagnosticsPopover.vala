@@ -27,38 +27,45 @@ public class Iide.DiagnosticsPopover : Gtk.Popover {
         list_box.row_activated.connect ((row) => {
             var diag_row = row as Adw.ActionRow;
             if (diag_row != null) {
-                // Достаем данные и выполняем переход (см. ниже)
-                Gtk.TextIter start_line, end_line;
-
-                // 1. Получаем итератор позиции ошибки из марки
-                var buffer = (GtkSource.Buffer) text_view.buffer;
-                var mark = diag_row.get_data<LspDiagnosticsMark> ("mark");
-                if (mark == null) {
-                    return;
-                }
-                buffer.get_iter_at_mark (out start_line, mark);
-
-                // 2. Устанавливаем итератор на начало строки
-                start_line.set_line_offset (0);
-
-                // 3. Создаем второй итератор и переводим его в конец этой же строки
-                end_line = start_line;
-                if (!end_line.ends_line ()) {
-                    end_line.forward_to_line_end ();
-                }
-
-                // 4. Устанавливаем выделение на всю строку
-                // В GTK select_range(курсор, граница) выделит всё между ними
-                buffer.select_range (start_line, end_line);
-
-                // 5. Прокрутка и фокус
-                text_view.scroll_to_iter (start_line, 0.1, false, 0, 0.5);
-                text_view.grab_focus ();
-
-                // Закрываем попап
-                this.popdown ();
+                jump_to_diagnostic_row (diag_row);
             }
         });
+    }
+
+    // Переход к строке диагностики. Раньше отдельная лямбда на row.activated
+    // захватывала локальные buffer/mark (strong-блок) — строки из refresh()
+    // пинили буфер и попап навсегда. Теперь данные берутся из самой строки
+    // (set_data/get_data), лямбды захватывают только this → weak-привязка.
+    private void jump_to_diagnostic_row (Adw.ActionRow diag_row) {
+        Gtk.TextIter start_line, end_line;
+
+        // 1. Получаем итератор позиции ошибки из марки
+        var buffer = (GtkSource.Buffer) text_view.buffer;
+        var mark = diag_row.get_data<LspDiagnosticsMark> ("mark");
+        if (mark == null) {
+            return;
+        }
+        buffer.get_iter_at_mark (out start_line, mark);
+
+        // 2. Устанавливаем итератор на начало строки
+        start_line.set_line_offset (0);
+
+        // 3. Создаем второй итератор и переводим его в конец этой же строки
+        end_line = start_line;
+        if (!end_line.ends_line ()) {
+            end_line.forward_to_line_end ();
+        }
+
+        // 4. Устанавливаем выделение на всю строку
+        // В GTK select_range(курсор, граница) выделит всё между ними
+        buffer.select_range (start_line, end_line);
+
+        // 5. Прокрутка и фокус
+        text_view.scroll_to_iter (start_line, 0.1, false, 0, 0.5);
+        text_view.grab_focus ();
+
+        // Закрываем попап
+        this.popdown ();
     }
 
     public void refresh () {
@@ -126,32 +133,11 @@ public class Iide.DiagnosticsPopover : Gtk.Popover {
                 break;
         }
 
-        // При клике на строку — прыгаем к марке
-        row.activated.connect (() => {
-            Gtk.TextIter start_line, end_line;
-
-            // 1. Получаем итератор позиции ошибки из марки
-            buffer.get_iter_at_mark (out start_line, mark);
-
-            // 2. Устанавливаем итератор на начало строки
-            start_line.set_line_offset (0);
-
-            // 3. Создаем второй итератор и переводим его в конец этой же строки
-            end_line = start_line;
-            if (!end_line.ends_line ()) {
-                end_line.forward_to_line_end ();
-            }
-
-            // 4. Устанавливаем выделение на всю строку
-            // В GTK select_range(курсор, граница) выделит всё между ними
-            buffer.select_range (start_line, end_line);
-
-            // 5. Прокрутка и фокус
-            text_view.scroll_to_iter (start_line, 0.1, false, 0, 0.5);
-            text_view.grab_focus ();
-
-            // Закрываем попап
-            this.popdown ();
+        // При клике на строку — прыгаем к марке. Первый параметр лямбды —
+        // сам sender (строка), данные берём из неё: никаких локальных
+        // strong-захватов, единственный capture — this → connect_object.
+        row.activated.connect ((action_row) => {
+            jump_to_diagnostic_row (action_row);
         });
 
         list_box.append (row);

@@ -90,6 +90,16 @@ public class Iide.SourceView : GtkSource.View {
 
     private CodeActionsPopup? code_actions_popup = null;
     private RenamePreviewDialog? rename_preview_dialog = null;
+    private SettingsService settings;
+
+    // Данные диалога rename (Shift+F6) хранятся в полях, а не захватываются
+    // лямбдами: обработчики response/activate ловят только this, и valac
+    // ставит слабую привязку (connect_object) вместо strong-блока, который
+    // надолго переживал бы вкладку
+    private unowned Adw.AlertDialog? rename_dialog = null;
+    private unowned Gtk.Entry? rename_entry = null;
+    private WordRange? rename_word_range = null;
+    private string? rename_current_word = null;
 
     // Отложенные правки переименования для файлов, которые ещё не открыты
 
@@ -134,7 +144,8 @@ public class Iide.SourceView : GtkSource.View {
         extra_menu.append_section (null, view_section);
         this.extra_menu = extra_menu;
 
-        var settings = Iide.SettingsService.get_instance ();
+        // полевые настройки: лямбды ниже не должны захватывать локальную settings
+        settings = Iide.SettingsService.get_instance ();
 
         highlight_current_line = settings.highlight_current_line;
         auto_indent = settings.auto_indent;
@@ -149,11 +160,14 @@ public class Iide.SourceView : GtkSource.View {
         this.line_number_symbols_count = line_numbers.to_string ().length;
         show_line_numbers = false;
         this.line_numbers_gutter = new Iide.LineNumbersGutter (this.session);
+        // insert ДО update_initial_width: у GutterRenderer поле view пусто пока
+        // он не вставлен в гаттер, а update_initial_width зовёт
+        // view.create_pango_layout — от этого на старте были Gtk-CRITICAL
+        left_gutter.insert (this.line_numbers_gutter, 0); // Вес 0 — самая левая позиция
         this.line_numbers_gutter.update_initial_width (
             this.line_number_symbols_count,
             FontSizeHelper.get_size_for_zoom_level (settings.editor_font_size)
         );
-        left_gutter.insert (this.line_numbers_gutter, 0); // Вес 0 — самая левая позиция
         line_numbers_gutter.visible = settings.show_line_numbers;
         this.buffer.changed.connect(() => {
             var new_line_numbers = this.buffer.get_line_count();
@@ -977,6 +991,9 @@ public class Iide.SourceView : GtkSource.View {
             _("Rename Symbol"),
             _("Enter a new name for \"%s\"").printf (current_word)
         );
+        this.rename_dialog = rename_dialog;
+        this.rename_word_range = word_range;
+        this.rename_current_word = current_word;
         rename_dialog.add_response ("cancel", _("Cancel"));
         rename_dialog.add_response ("rename", _("Rename"));
         rename_dialog.set_response_appearance ("rename", Adw.ResponseAppearance.SUGGESTED);
@@ -989,6 +1006,7 @@ public class Iide.SourceView : GtkSource.View {
             halign = Gtk.Align.FILL,
             margin_top = 12
         };
+        this.rename_entry = entry;
         entry.width_chars = 40;
         // Выделяем весь текст, чтобы ввод сразу заменил старое имя
         entry.select_region (0, current_word.length);
@@ -998,13 +1016,13 @@ public class Iide.SourceView : GtkSource.View {
         rename_dialog.response.connect ((response) => {
             if (response != "rename")
                 return;
-            this.try_apply_rename (entry, word_range, current_word);
+            this.apply_rename_from_dialog ();
         });
 
         // Enter в поле ввода подтверждает переименование и закрывает диалог
         entry.activate.connect (() => {
-            if (this.try_apply_rename (entry, word_range, current_word))
-                rename_dialog.close ();
+            if (this.apply_rename_from_dialog ())
+                this.rename_dialog?.close ();
         });
 
         rename_dialog.present (root_window);
@@ -1018,6 +1036,17 @@ public class Iide.SourceView : GtkSource.View {
 
         this.perform_rename.begin (word_range, new_name);
         return true;
+    }
+
+    // Применение rename из состояния диалога (поля), а не локальных переменных:
+    // так обработчики диалога не захватывают сильными ссылками ничего, кроме this
+    private bool apply_rename_from_dialog () {
+        var entry = rename_entry;
+        var range = rename_word_range;
+        var word = rename_current_word;
+        if (entry == null || range == null || word == null)
+            return false;
+        return try_apply_rename (entry, range, word);
     }
 
     private async void perform_rename (WordRange word_range, string new_name) {

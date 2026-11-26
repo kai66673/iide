@@ -1,7 +1,9 @@
 /*
 */
 public class Iide.LspClientSyncer: GLib.Object {
-    private SourceView source_view;
+    // unowned: syncer владеется LspDocumentClient (поле view-редактора),
+    // сильная обратная ссылка на view создавала бы цикл view↔syncer
+    private unowned SourceView source_view;
     public LspClient client { get; private set; }
     private LoggerService logger;
 

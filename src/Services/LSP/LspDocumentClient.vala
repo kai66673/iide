@@ -4,7 +4,10 @@
 public delegate bool Iide.ProviderPredicate(LspClientSyncer item);
 
 public class Iide.LspDocumentClient: GLib.Object {
-    private SourceView source_view;
+    // unowned: клиент живет внутри SourceView (его поле lsp_document_client),
+    // сильная обратная ссылка на view — это цикл, из-за которого вкладка
+    // не освобождалась никогда
+    private unowned SourceView source_view;
     private LoggerService logger;
         
     // Список всех активных и зарегистрированных серверов для этой вкладки
