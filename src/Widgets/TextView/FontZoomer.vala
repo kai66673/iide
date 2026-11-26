@@ -23,8 +23,11 @@ public class Iide.FontZoomer : Object {
         this.src_view.add_css_class("zoom-" + zoom_level.to_string());
 
         var scroll_controller = new EventControllerScroll(EventControllerScrollFlags.VERTICAL);
-        scroll_controller.scroll.connect((dx, dy) => {
-            var event = scroll_controller.get_current_event();
+        // sender первым параметром + никаких локальных захватов: иначе
+        // strong-блок на контроллере держал zoomer, а он — view (ctrl+колесо
+        // зума блокировал освобождение всей вкладки)
+        scroll_controller.scroll.connect((controller, dx, dy) => {
+            var event = controller.get_current_event();
             if (event == null)return false;
 
             var modifiers = event.get_modifier_state();
