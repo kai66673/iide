@@ -135,14 +135,20 @@
 - A/B смоук: стартовые Gtk-CRITICAL (6× box_append, 6× create_pango_layout,
   1× image_set_from_icon_name) существовали ДО чистки — не регрессия, но и не норма:
   это баги инициализации виджетов (повторный append, layout на не-виджете), требующие
-  отдельной починки.
+  отдельной починки. ЗАКРЫТО веткой fix-leaks (см. ниже).
+- P0#2 утечки закрыты (ветка fix-leaks, коммит «Память: починены утечки закрытых
+  вкладок редактора»): анализ сгенерированного C показал, что valac 0.56 сам ставит
+  g_signal_connect_object для лямбд с единственным capture=this; протекали лямбды
+  с захватом локалей/параметров (strong-блок g_signal_connect_data) и strong
+  back-link поля (SaveDelegate/LspDocumentClient/LspClientSyncer/
+  BaseTreeSitterHighlighter/RenamePreviewDialog → выкуплены в unowned). В графе
+  вкладки ноль g_signal_connect_data. Попутно: стартовые Gtk-CRITICAL 13→0
+  (порядок вставки гаттера номеров строк, двойной append label в BreadcrumbFileSegment,
+  мёртвое DapToolbar.start_continue_image).
+  НЕ проверено: полный цикл открыть/закрыть много раз (нужна ручная/UI-проверка).
 
 ### Открытое из старого (проверено глазом, ни один пункт не тронут)
 
-- P0#2 утечки: во всём src/ ноль `connect_object`. Циклы: `SourceView.buffer.changed`
-  (SourceView.vala:158), лямбды `SourceDocument` на `buffer.insert_text/delete_range`
-  (держат сильный ref на документ; `~SourceView`/`~SourceDocument` нет вообще).
-  Каждая закрытая вкладка = утёкший редактор с графом.
 - P1#3: общая база `BaseRpcTransport` не сделана (RpcProcess/TcpProcess дублируют
   фрейминг Content-Length, очереди записи, барьеры завершения).
 - P1#5: 4× TODO «handle changing state from preferences dialog» (application.vala).
@@ -150,6 +156,16 @@
 - P2#8: захардкоженные tab_width=4/use_spaces=true (LspDocumentClient.vala:329).
 
 ### Новое открытое (26.11.2026)
+
+- Сильные замыкания (g_signal_connect_data) остались только вне графа вкладок и
+  ограничены жизнью окна/синглтонов: PreferencesDialog (6), AppActionsManager (4),
+  TerminalView (3), DapToolbar (3, привязки к живучему DapService), window (2),
+  ProjectView/ProjectPanel (по 2), FileOperationsService (2), WelcomeDialog,
+  DiagnosticsPanel, поисковые движки (по 1), LspService, DocumentManager (невинные:
+  this-менеджер и одноразовые async-колбэки), DapService, application (по 1).
+  Аналогичный разбор им не противопоказан, но текучесть вкладок они не блокируют.
+- iide не умеет запуск из CLI с файлом (GApplication без HANDLES_OPEN) — при
+  `iide file.c` GLib-GIO-CRITICAL "can not open files". Не критично, но неожиданно.
 
 - Deprecated-наследие GTK: Gtk.TreeView/TreeStore/CellRenderer целиком в
   DapVariablesWidget и DapCallStackWidget (~38 упоминаний, из GTK5 уйдут),
