@@ -285,7 +285,8 @@ private class Iide.ToggleMinimapAction : Iide.AppAction {
         settings.show_minimap = state;
 
         state_changed (state);
-        // TODO: handle changing state from preferences dialog...
+        // Внешние изменения (диалог настроек, dconf) подхватывает
+        // AppActionsManager — слушателем GSettings, см. track_external_toggle_changes
     }
 }
 
@@ -584,7 +585,8 @@ private class Iide.ShowLineNumbersAction : Iide.AppAction {
         settings.show_line_numbers = state;
 
         state_changed (state);
-        // TODO: handle changing state from preferences dialog...
+        // Внешние изменения (диалог настроек, dconf) подхватывает
+        // AppActionsManager — слушателем GSettings, см. track_external_toggle_changes
     }
 }
 
@@ -614,7 +616,8 @@ private class Iide.ShowDiagnosticsMarksAction : Iide.AppAction {
         settings.show_diagnostics_marks = state;
 
         state_changed (state);
-        // TODO: handle changing state from preferences dialog...
+        // Внешние изменения (диалог настроек, dconf) подхватывает
+        // AppActionsManager — слушателем GSettings, см. track_external_toggle_changes
     }
 }
 
@@ -644,7 +647,8 @@ private class Iide.ShowFoldingAction : Iide.AppAction {
         settings.show_folding_gutter = state;
 
         state_changed (state);
-        // TODO: handle changing state from preferences dialog...
+        // Внешние изменения (диалог настроек, dconf) подхватывает
+        // AppActionsManager — слушателем GSettings, см. track_external_toggle_changes
     }
 }
 

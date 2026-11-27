@@ -27,6 +27,12 @@ public abstract class Iide.AppAction : Object {
     }
 
     public void update_state (bool new_state) {
+        // Идемпотентность обязательна: state_changed пишет значение в GSettings,
+        // а AppActionsManager слушает изменения GSettings и вызывает update_state
+        // обратно — без гейта эти две цепочки замкнулись бы в цикл.
+        if (state == new_state) {
+            return;
+        }
         state = new_state;
         state_changed (new_state);
     }

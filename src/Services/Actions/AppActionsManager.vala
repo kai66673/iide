@@ -19,6 +19,7 @@ public class Iide.AppActionsManager: Object {
         actions = new Gee.HashMap<string, Iide.AppAction> ();
         shortcuts = new Gee.HashMap<string, string> ();
         load_shortcuts_from_gsettings();
+        track_external_toggle_changes ();
     }
 
     public Gee.Collection<Iide.AppAction> get_all_actions () {
@@ -70,6 +71,24 @@ public class Iide.AppActionsManager: Object {
             return settings.get_boolean (key_name);
         }
         return fallback_value;
+    }
+
+    // Синхронизация состояния toggle-экшенов с внешними изменениями настроек:
+    // переключатели в диалоге настроек (и dconf/gsettings напрямую) пишут только
+    // в GSettings — без этого слушателя экшен остаётся со устаревшим state,
+    // и следующий переключатель (хоткей) вычисляет !state относительно прошлого значения.
+    // Соглашение: id toggle-экшена совпадает с именем ключа схемы (проверяется).
+    private void track_external_toggle_changes () {
+        settings.changed.connect ((key) => {
+            if (key == null) {
+                return;
+            }
+            var action = actions.get (key);
+            if (action == null || !action.is_toggle) {
+                return;
+            }
+            action.update_state (get_boolean_setting_safe (key, action.state));
+        });
     }
 
     public void register_action (Gtk.Application app, Iide.AppAction action) {
